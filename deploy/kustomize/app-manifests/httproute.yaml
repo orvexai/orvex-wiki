@@ -1,6 +1,6 @@
 ---
 # HTTPRoute for orvex-wiki (Gateway API).
-# Prod hostname: eu-central-1.wiki.orvex.ai. components/staging patches to wiki.orvex.dev
+# Prod hostname: wiki.eu-central-1.orvex.ai. components/staging patches to wiki.orvex.dev
 # (and re-pins the Gateway sectionName to orvex-dev-https, since that hostname
 # only intersects the orvex.dev-zone listener).
 apiVersion: gateway.networking.k8s.io/v1
@@ -12,18 +12,18 @@ metadata:
     app.kubernetes.io/name: orvex-wiki
   annotations:
     argocd.argoproj.io/sync-wave: "6"
-    external-dns.alpha.kubernetes.io/hostname: "eu-central-1.wiki.orvex.ai"
+    external-dns.alpha.kubernetes.io/hostname: "wiki.eu-central-1.orvex.ai"
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     external-dns.alpha.kubernetes.io/target: "37.27.73.18"
 spec:
   hostnames:
-    - eu-central-1.wiki.orvex.ai
+    - wiki.eu-central-1.orvex.ai
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: platform-gateway
       namespace: traefik
-      sectionName: orvex-wiki-https
+      sectionName: orvex-eu-central-1-https
   rules:
     - backendRefs:
         - group: ""
