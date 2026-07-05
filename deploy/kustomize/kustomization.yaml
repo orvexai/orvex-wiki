@@ -200,12 +200,11 @@ replacements:
         options:
           delimiter: "/"
           index: 2
-      - select:
-          kind: HTTPRoute
-          name: orvex-wiki
-        fieldPaths:
-          - spec.hostnames.0
-          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+      # NOTE: the HTTPRoute host is NOT injected here — it's hardcoded in the
+      # base manifest (prod eu-central-1.wiki.orvex.ai) and patched to the dev
+      # host by components/staging. Injecting wikiHost here overwrote the
+      # staging hostname patch (leaving prod host + dev sectionName → route
+      # Accepted=False).
   - source:
       kind: ConfigMap
       name: cluster-config
