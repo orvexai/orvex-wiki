@@ -1,9 +1,10 @@
 ---
 # Crew component — a per-developer COMPLETE parallel stack (crew-design.md).
-# Appended by the CMP plugin when RESOURCE_PROFILE=crew, after it rewrites
-# cluster-config for the crew environment (appNamespace=orvex-wiki-crew-{name},
-# branchSlug=crew-{name}, crewName={name}) and substitutes the CREW_NAME token
-# below.
+# Appended by the CMP plugin when RESOURCE_PROFILE=crew, after idp-render
+# rewrites cluster-config for the crew environment (appNamespace=
+# orvex-wiki-crew-{name}, gitBranch=crew/{name}, branchSlug=crew-{name} — the
+# LAST of these is computed by idp-render's existing Go-level slugify, no new
+# per-crew wiring needed).
 #
 # Crew links to crew: a crew is a full parallel copy of the platform and it
 # talks ONLY to itself — every sibling URL resolves to that sibling's OWN crew
@@ -15,26 +16,37 @@
 #
 # Host scheme: {service}.crew-{name}.orvex.dev = wiki.crew-{name}.orvex.dev.
 # The host is keyed by the DOMAIN/service name `wiki` (matching the
-# ORVEX_WIKI_* endpoint siblings consumers use). `CREW_NAME` is a build-time
-# token the CMP plugin substitutes from the crew ApplicationSet's CREW_NAME
-# param (identical mechanism to the PLACEHOLDER_* tokens the base carries); it
-# stays literal in a bare `kustomize build`, which is expected. Crew hosts
-# intersect the *.orvex.dev edge (Cloudflare Origin wildcard + Total TLS for the
-# multi-level host) and the orvex-dev-https listener; crew provisions no
-# per-host DNS/cert.
+# ORVEX_WIKI_* endpoint siblings consumers use).
+#
+# HOW THE PER-BRANCH VALUE GETS IN (ENG note, replaces an earlier broken
+# design): a literal CREW_NAME token meant to be substituted by `idp-render
+# finalize`'s raw byte-string pass CANNOT work — cluster-config.yaml carries
+# `config.kubernetes.io/local-config: "true"`, so plain `kustomize build`
+# excludes it from the OUTPUT stream, and finalize only ever sees that stream
+# (never the on-disk cluster-config.yaml). So finalize can never recover a
+# value to substitute and the token stays literal. Verified locally: a
+# `kustomize build` + `idp-render finalize` run left "CREW_NAME" un-replaced
+# in every field below.
+#
+# The fix: use Kustomize's OWN `replacements:` transformer (below), which runs
+# as part of the kustomize build itself and CAN read cluster-config as an
+# in-memory source even though it's excluded from final output (same
+# mechanism the root kustomization.yaml already relies on for wikiHost/
+# branchSlug/appNamespace). Patches below set up a templated placeholder
+# segment in each field; `replacements:` then substitutes it with
+# cluster-config.branchSlug (already exactly "crew-{name}", computed by
+# idp-render's applyBranch — no derive step, no new idp-render code needed).
 #
 # CELL_ID stays "solo": dev and crew both run the sentinel cell (cell
 # enforcement no-ops). The base cluster-config cellId is already "solo" and the
 # root replacement propagates it, so no CELL_ID patch is needed here.
 #
-# Data plane (crew-design.md §Data): the DEFAULT crew data plane SHARES dev's
-# Postgres/Redis — the crew ApplicationSet builds WITHOUT platform-resources
-# (this component patches no claims) and the plugin points DATABASE_URL /
-# REDIS_URL at the dev namespace's Services. The OPT-IN ephemeral data plane
-# (schema-migration work) is selected by the crew ApplicationSet INCLUDING
-# platform-resources. Both are ApplicationSet/plugin concerns; a Kustomize
-# Component cannot delete base resources, so the data-plane choice is not
-# expressed as a patch here.
+# Data plane (crew-design.md §Data): platform-resources (Postgres/Redis) is
+# NOT excluded here — a Kustomize Component cannot delete base resources — so
+# today every crew env provisions its OWN Postgres/Redis via the base
+# platform-resources claims (self-contained, works standalone). The originally
+# intended "share dev's Postgres/Redis by default" optimization is a follow-up,
+# not required to bring a crew env up.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
@@ -46,14 +58,15 @@ labels:
 patches:
   # ── Crew host on the HTTPRoute: → wiki.crew-{name}.orvex.dev ─────────────
   # Re-pin the Gateway listener to orvex-dev-https (the crew host only
-  # intersects the *.orvex.dev listener/cert, same edge as dev).
+  # intersects the *.orvex.dev listener/cert, same edge as dev). The
+  # "PLACEHOLDER" segment is overwritten by the replacements block below.
   - patch: |-
       - op: replace
         path: /spec/hostnames/0
-        value: wiki.crew-CREW_NAME.orvex.dev
+        value: wiki.PLACEHOLDER.orvex.dev
       - op: replace
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
-        value: wiki.crew-CREW_NAME.orvex.dev
+        value: wiki.PLACEHOLDER.orvex.dev
       - op: replace
         path: /spec/parentRefs/0/sectionName
         value: orvex-dev-https
@@ -71,7 +84,7 @@ patches:
   - patch: |-
       - op: replace
         path: /data/wikiHost
-        value: wiki.crew-CREW_NAME.orvex.dev
+        value: wiki.PLACEHOLDER.orvex.dev
     target:
       kind: ConfigMap
       name: cluster-config
@@ -86,28 +99,28 @@ patches:
   - patch: |-
       - op: replace
         path: /data/EVENT_TOPIC_SUFFIX
-        value: crew-CREW_NAME
+        value: PLACEHOLDER
       - op: replace
         path: /data/ORVEX_IDENTITY_URL
-        value: https://identity.crew-CREW_NAME.orvex.dev
+        value: https://identity.PLACEHOLDER.orvex.dev
       - op: replace
         path: /data/ORVEX_KNOWLEDGE_URL
-        value: https://knowledge.crew-CREW_NAME.orvex.dev
+        value: https://knowledge.PLACEHOLDER.orvex.dev
       - op: replace
         path: /data/ORVEX_AI_URL
-        value: https://ai.crew-CREW_NAME.orvex.dev
+        value: https://ai.PLACEHOLDER.orvex.dev
       - op: replace
         path: /data/ORVEX_BILLING_URL
-        value: https://billing.crew-CREW_NAME.orvex.dev
+        value: https://billing.PLACEHOLDER.orvex.dev
       - op: replace
         path: /data/ORVEX_MCP_URL
-        value: https://mcp.crew-CREW_NAME.orvex.dev
+        value: https://mcp.PLACEHOLDER.orvex.dev
       - op: replace
         path: /data/ORVEX_CONSOLE_URL
-        value: https://console.crew-CREW_NAME.orvex.dev
+        value: https://console.PLACEHOLDER.orvex.dev
       - op: replace
         path: /data/ORVEX_WIKI_API_URL
-        value: https://wiki-api.crew-CREW_NAME.orvex.dev
+        value: https://wiki-api.PLACEHOLDER.orvex.dev
     target:
       kind: ConfigMap
       name: orvex-wiki-env
@@ -129,3 +142,52 @@ patches:
     target:
       kind: PodDisruptionBudget
       name: orvex-wiki
+
+# ─────────────────────────────────────────────────────────────────────────
+# Replacements — inject the real "crew-{name}" value (cluster-config.
+# branchSlug) into every PLACEHOLDER segment patched in above. Runs as part
+# of the kustomize build (unlike finalize's raw string pass), so it can read
+# cluster-config even though that resource is excluded from final output.
+# ─────────────────────────────────────────────────────────────────────────
+replacements:
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.branchSlug
+    targets:
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki
+        fieldPaths:
+          - spec.hostnames.0
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: ConfigMap
+          name: cluster-config
+        fieldPaths:
+          - data.wikiHost
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.EVENT_TOPIC_SUFFIX
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.ORVEX_IDENTITY_URL
+          - data.ORVEX_KNOWLEDGE_URL
+          - data.ORVEX_AI_URL
+          - data.ORVEX_BILLING_URL
+          - data.ORVEX_MCP_URL
+          - data.ORVEX_CONSOLE_URL
+          - data.ORVEX_WIKI_API_URL
+        options:
+          delimiter: "."
+          index: 1
