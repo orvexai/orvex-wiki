@@ -1,0 +1,121 @@
+---
+# Auto-build the orvex-wiki image on push — the app side, kept small.
+#
+# This is a standalone Tekton `Trigger` (NOT an EventListener). The platform's
+# global webhook listener (github-webhook-listener in tekton-pipelines)
+# discovers any Trigger in that namespace carrying the label
+# `ci.my-idp/discover: "true"` and runs it. The platform owns the webhook URL,
+# ingress, RBAC and HMAC secret — there is no per-repo plumbing here.
+#
+# Flow: push to orvex-wiki -> GitHub webhook -> platform listener
+#       -> matching Trigger (filters repo + branch) -> PipelineRun.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: orvex-wiki-build-template
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: orvex-wiki
+spec:
+  params:
+    - name: git-url
+      description: Clone URL (from the push payload)
+      default: https://github.com/orvexai/orvex-wiki.git
+    - name: git-revision
+      description: Commit SHA to build (from the push payload)
+    - name: image-tag
+      description: |
+        Image tag derived from the git ref:
+          refs/heads/main -> main
+          refs/heads/dev  -> dev
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: orvex-wiki-build-$(tt.params.image-tag)-
+        namespace: tekton-pipelines
+        labels:
+          app.kubernetes.io/name: orvex-wiki-build
+          tekton.dev/pipeline: orvex-wiki-build
+          orvex.ai/branch: $(tt.params.image-tag)
+      spec:
+        pipelineRef:
+          name: orvex-wiki-build
+        params:
+          - name: repo-url
+            value: $(tt.params.git-url)
+          - name: revision
+            value: $(tt.params.git-revision)
+          - name: image-tag
+            value: $(tt.params.image-tag)
+        taskRunTemplate:
+          serviceAccountName: tekton-smoke-test-builder
+        taskRunSpecs:
+          - pipelineTaskName: rollout-restart
+            serviceAccountName: tekton-studio-rollout
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 2Gi
+                storageClassName: rook-cephfs
+          - name: dockerconfig
+            secret:
+              secretName: tekton-harbor-credentials
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: Trigger
+metadata:
+  name: orvex-wiki-build-push
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: orvex-wiki
+    # Opt in to discovery by the platform github-webhook-listener.
+    ci.my-idp/discover: "true"
+spec:
+  interceptors:
+    # Validate the shared webhook HMAC and only accept push events.
+    - ref:
+        name: github
+        kind: ClusterInterceptor
+      params:
+        - name: secretRef
+          value:
+            secretName: github-webhook-secret
+            secretKey: secret
+        - name: eventTypes
+          value: ["push"]
+    - ref:
+        name: cel
+        kind: ClusterInterceptor
+      params:
+        # Build on pushes to main or dev only.
+        - name: filter
+          value: >-
+            body.repository.name == 'orvex-wiki' &&
+            (body.ref == 'refs/heads/main' || body.ref == 'refs/heads/dev')
+        - name: overlays
+          value:
+            # Derive image tag: strip refs/heads/ prefix.
+            - key: image-tag
+              expression: "body.ref.replace('refs/heads/', '')"
+            # github-push-defaults also binds git-branch from
+            # extensions.git-branch; publish it or the binding fails
+            # ApplyEventValuesToParams (no PipelineRun is ever created).
+            - key: git-branch
+              expression: "body.ref.replace('refs/heads/', '')"
+  bindings:
+    # Platform-wide binding: extracts git-url and git-revision (and consumes
+    # the git-branch overlay above).
+    - ref: github-push-defaults
+      kind: ClusterTriggerBinding
+    # Map the CEL overlay into the TriggerTemplate param.
+    - kind: TriggerBinding
+      name: image-tag
+      value: $(extensions.image-tag)
+  template:
+    ref: orvex-wiki-build-template

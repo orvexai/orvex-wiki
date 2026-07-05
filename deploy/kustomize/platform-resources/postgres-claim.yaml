@@ -1,0 +1,32 @@
+---
+# PostgreSQL instance via the platform Crossplane XRD (CloudNativePG composition).
+# Docmost auto-migrates on boot (apps/server pnpm start sets NODE_ENV=production,
+# which triggers DatabaseModule.onApplicationBootstrap() -> migrationService.
+# migrateToLatest() against this database) — no separate migration Job needed.
+apiVersion: platform.myidp.io/v1alpha1
+kind: PostgresInstanceClaim
+metadata:
+  name: orvex-wiki-postgres
+  namespace: orvex-wiki
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  size: small
+  storageSize: 10Gi
+  version: "17"
+  imageName: ghcr.io/cloudnative-pg/postgresql:17-standard-trixie
+  pgBouncer:
+    enabled: true
+    mode: transaction
+    instances: 1
+  backupEnabled: true
+  databaseName: orvex-wiki
+  databaseOwner: orvex-wiki
+  # Renders to `<appNamespace>-db-bootstrap` (kustomization replacement), matching
+  # the orvex-wiki-db-bootstrap ExternalSecret target name.
+  credentialsSecretName: PLACEHOLDER_APP_NAME-db-bootstrap
+  compositionSelector:
+    matchLabels:
+      provider: cloudnative-pg
+  writeConnectionSecretToRef:
+    name: orvex-wiki-postgres-conn

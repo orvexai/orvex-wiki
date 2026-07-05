@@ -1,0 +1,56 @@
+---
+# Cluster Configuration — build-time only (NOT deployed to the cluster).
+# Referenced by the Kustomize `replacements` in kustomization.yaml.
+#
+# The CMP plugin (`kustomize-helm`) rewrites the environment-specific fields
+# (appNamespace, environment, gitBranch/branchSlug) from the app-environments
+# ApplicationSet env vars before the kustomize build runs:
+#   main → appNamespace=orvex-wiki      branchSlug=main
+#   dev  → appNamespace=orvex-wiki-dev  branchSlug=dev   (+ components/staging)
+#
+# Per-environment HOSTNAME is owned by the app's own kustomize, NOT the
+# plugin: the base manifests carry the production host (wiki.orvex.ai) and
+# components/staging patches it to the dev equivalent (wiki.orvex.dev).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: cluster-config  # Dummy namespace (never deployed)
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    config.my-idp/build-time-only: "true"
+data:
+  # ── Application identity ────────────────────────────────────────────────
+  appName: orvex-wiki
+  appNamespace: orvex-wiki
+  environment: main
+
+  # ── OpenBao path (per-app secrets root: apps/<appName>/...) ──────────────
+  openbaoAppPath: apps/orvex-wiki
+
+  # ── Domain configuration ────────────────────────────────────────────────
+  baseDomain: orvex.ai
+  clusterDomain: eu-central-1.myidp.cloud
+  loadBalancerIP: "37.27.73.18"
+
+  # ── Application hostname (prod). components/staging patches to the dev
+  # equivalent (wiki.orvex.dev) directly on the HTTPRoute/ConfigMap. ───────
+  wikiHost: eu-central-1.wiki.orvex.ai
+
+  # ── Harbor registry (image project shared across environments, tag = branch) ─
+  harborHost: repos.eu-central-1.myidp.cloud
+  imageRepository: repos.eu-central-1.myidp.cloud/orvex-wiki
+
+  # ── Ceph S3-compatible object storage endpoint (Rook-Ceph RGW) ───────────
+  s3Endpoint: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+
+  # ── Git (for Tekton image builds + image tags) ──────────────────────────
+  gitBranch: main
+  branchSlug: main
+
+  # ── TLS ─────────────────────────────────────────────────────────────────
+  tlsIssuer: cloudflare-origin-issuer
+  tlsIssuerKind: ClusterOriginIssuer
+  tlsIssuerGroup: cert-manager.k8s.cloudflare.com

@@ -1,0 +1,69 @@
+---
+# Staging component — the standing dev environment (branch: dev).
+# Appended by the CMP plugin when RESOURCE_PROFILE=staging.
+#
+# Owns the dev hostname (eu-central-1.wiki.orvex.dev) and a single replica for the
+# server Deployment.
+#
+# Dev lives on the orvex.dev zone (NOT a dev-* subdomain of orvex.ai): prod =
+# wiki.orvex.ai, dev = eu-central-1.wiki.orvex.dev. The orvex.dev zone (external-dns filter
+# + *.orvex.dev Cloudflare Origin cert + platform-gateway orvex-dev-https
+# listener) is wired in the my-idp platform repo and is LIVE.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+labels:
+  - pairs:
+      orvex-wiki.orvex.ai/resource-profile: staging
+    includeSelectors: false
+
+patches:
+  # ── Dev hostname: wiki.orvex.ai → eu-central-1.wiki.orvex.dev ─────────────────────────
+  # Also re-pin the Gateway listener: the base attaches to the orvex-ai-https
+  # listener (*.orvex.ai); the dev host eu-central-1.wiki.orvex.dev only intersects the
+  # orvex-dev-https listener (*.orvex.dev), so the sectionName MUST switch too
+  # or the route is Accepted=False (hostname/listener mismatch).
+  - patch: |-
+      - op: replace
+        path: /spec/hostnames/0
+        value: eu-central-1.wiki.orvex.dev
+      - op: replace
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
+        value: eu-central-1.wiki.orvex.dev
+      - op: replace
+        path: /spec/parentRefs/0/sectionName
+        value: orvex-wiki-dev-https
+    target:
+      kind: HTTPRoute
+      name: orvex-wiki
+
+  # ── Dev APP_URL: prod host → the dev host ────────────────────────────────
+  - patch: |-
+      - op: replace
+        path: /data/APP_URL
+        value: https://eu-central-1.wiki.orvex.dev
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
+  # ── Single replica for the server Deployment in dev ──────────────────────
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: orvex-wiki
+
+  # ── Neutralize the PDB in dev: a 1-replica pod must stay freely disruptable ──
+  # Base (prod/main) ships a minAvailable:1 PDB. In dev the Deployment runs at
+  # replicas:1, so a minAvailable:1 PDB would block node drains/rollouts (the
+  # only pod can never be evicted). minAvailable:0 = no protection = freely
+  # disruptable.
+  - patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 0
+    target:
+      kind: PodDisruptionBudget
+      name: orvex-wiki

@@ -1,0 +1,167 @@
+---
+# orvex-wiki Deployment — vanilla Docmost v0.95.0, running the prebuilt
+# Tekton-built image (repo-root Dockerfile: `pnpm build` then `pnpm start`,
+# USER node = uid/gid 1000). This is a standard immutable-image prod
+# deployment, NOT the fork's live-dev-workspace pattern (no PVCs, no
+# clone-repo initContainer, no sleep-infinity dev loop).
+#
+# Replica topology: 2 replicas with RollingUpdate (maxSurge 1, maxUnavailable 0)
+# and a matching PodDisruptionBudget (minAvailable 1) so at least one pod is
+# always alive during a rollout or voluntary node drain. components/staging
+# patches replicas → 1 and PDB minAvailable → 0 for the single-node dev env.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orvex-wiki
+  namespace: orvex-wiki
+  labels:
+    app.kubernetes.io/name: orvex-wiki
+    app.kubernetes.io/component: server
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orvex-wiki
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxSurge 1: one extra pod comes up before an old one is terminated.
+      # maxUnavailable 0: zero downtime — the new pod must pass readiness
+      # before the old is removed. Combined with the PDB below this
+      # guarantees ≥1 pod serving during any rolling restart.
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orvex-wiki
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: orvex-wiki
+      imagePullSecrets:
+        - name: harbor-registry-credentials
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: orvex-wiki
+          # Tag overwritten by the kustomize replacement (data.branchSlug).
+          # Moving tag + imagePullPolicy Always: Tekton's rollout-restart
+          # PATCH is enough to roll a new build, no manifest bump needed.
+          image: repos.eu-central-1.myidp.cloud/orvex-wiki/orvex-wiki:main
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            # Non-secret config: APP_URL, PORT, NODE_ENV, STORAGE_DRIVER, ...
+            - configMapRef:
+                name: orvex-wiki-env
+            # Composed Postgres DSN: DATABASE_URL
+            - secretRef:
+                name: orvex-wiki-db-credentials
+                optional: true
+            # Composed Redis DSN: REDIS_URL
+            - secretRef:
+                name: orvex-wiki-redis-credentials
+                optional: true
+            # Cookie/session signing key: APP_SECRET
+            - secretRef:
+                name: orvex-wiki-app-secret
+                optional: true
+          env:
+            # S3 credentials + bucket name sourced directly from the
+            # OBC-generated secret/configmap. The ObjectStorageClaim
+            # (orvex-wiki-s3) triggers Ceph RGW to create secret+configmap
+            # `orvex-wiki-s3-bucket` in this namespace.
+            - name: AWS_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: orvex-wiki-s3-bucket
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: orvex-wiki-s3-bucket
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: orvex-wiki-s3-bucket
+                  key: BUCKET_NAME
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          # /api/health pings Postgres + Redis (best for readiness);
+          # /api/health/live is a trivial liveness check (no dependency pings).
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: orvex-wiki
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orvex-wiki
+  namespace: orvex-wiki
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+imagePullSecrets:
+  - name: harbor-registry-credentials
+---
+# PodDisruptionBudget: at least 1 replica must be available at all times.
+# components/staging patches minAvailable → 0 in dev (replicas:1 there, so a
+# minAvailable:1 PDB would block node drains/rollouts on the only pod).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orvex-wiki
+  namespace: orvex-wiki
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orvex-wiki

@@ -1,0 +1,19 @@
+---
+# Base/prod literal value (orvex-wiki) — the root kustomization's
+# namespace-injection replacement rewrites BOTH this metadata.name and every
+# other resource's metadata.namespace from cluster-config.data.appNamespace
+# (main → orvex-wiki, dev → orvex-wiki-dev).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orvex-wiki
+  labels:
+    app.kubernetes.io/name: orvex-wiki
+    app.kubernetes.io/part-of: orvex-wiki
+    myidp.io/env-type: production
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

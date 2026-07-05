@@ -1,0 +1,21 @@
+---
+# Service for orvex-wiki.
+apiVersion: v1
+kind: Service
+metadata:
+  name: orvex-wiki
+  namespace: orvex-wiki
+  labels:
+    app.kubernetes.io/name: orvex-wiki
+    app.kubernetes.io/component: server
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: orvex-wiki

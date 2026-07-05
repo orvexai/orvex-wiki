@@ -1,0 +1,22 @@
+---
+# CI resources deployed into tekton-pipelines by the platform CI ApplicationSet
+# (ci-appset in my-idp-apps). Discovered automatically: the CI AppSet watches
+# for tekton/kustomization.yaml on the default branch of any repo in the
+# orvexai org and creates an Application `orvex-wiki-ci`.
+#
+# Deliberately NOT included (shared platform/CI infra already owned by other
+# Applications — re-declaring them would cause ArgoCD SharedResourceWarnings):
+#   - git-clone / buildah-with-args Tasks (platform tekton install)
+#   - tekton-studio-rollout SA + RBAC
+#   - tekton-smoke-test-builder SA, tekton-harbor-credentials, github-webhook-secret
+#
+# Also excluded (one-shot manual run via generateName, not GitOps-synced):
+#   - orvex-wiki-build-pipelinerun.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tekton-pipelines
+
+resources:
+  - orvex-wiki-build-pipeline.yaml
+  - orvex-wiki-trigger.yaml

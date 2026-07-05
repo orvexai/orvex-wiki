@@ -1,0 +1,106 @@
+---
+# Tekton Pipeline: build the orvex-wiki image (vanilla Docmost v0.95.0).
+#
+# Dockerfile-based build (repo-root Dockerfile, context = repo root — the
+# pnpm monorepo needs full workspace visibility for `pnpm install`) via the
+# shared buildah-with-args Task.
+#
+# Output: repos-direct.eu-central-1.myidp.cloud/orvex-wiki/orvex-wiki:<tag>
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: orvex-wiki-build
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/name: orvex-wiki-build-pipeline
+    app.kubernetes.io/component: ci-cd
+    app.kubernetes.io/part-of: orvex-wiki
+spec:
+  description: Build and push the orvex-wiki (Docmost) image.
+  params:
+    - name: repo-url
+      type: string
+      default: https://github.com/orvexai/orvex-wiki.git
+    - name: revision
+      type: string
+      default: dev
+    - name: image-registry
+      type: string
+      default: repos-direct.eu-central-1.myidp.cloud
+    - name: image-namespace
+      type: string
+      default: orvex-wiki
+    - name: image-name
+      type: string
+      default: orvex-wiki
+    - name: image-tag
+      type: string
+      default: dev
+  workspaces:
+    - name: source
+      description: Workspace for source code
+    - name: dockerconfig
+      description: Docker registry credentials
+  tasks:
+    - name: clone-repo
+      taskRef:
+        kind: Task
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: source
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+        - name: deleteExisting
+          value: "true"
+    - name: build-and-push
+      runAfter:
+        - clone-repo
+      taskRef:
+        kind: Task
+        name: buildah-with-args
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+      params:
+        - name: IMAGE
+          value: "$(params.image-registry)/$(params.image-namespace)/$(params.image-name):$(params.image-tag)"
+        - name: DOCKERFILE
+          value: "Dockerfile"
+        - name: CONTEXT
+          value: "."
+        - name: TLS_VERIFY
+          value: "false"
+  finally:
+    - name: rollout-restart
+      when:
+        - input: $(tasks.build-and-push.status)
+          operator: in
+          values: ["Succeeded"]
+      params:
+        - name: image-tag
+          value: $(params.image-tag)
+      taskSpec:
+        params:
+          - name: image-tag
+            type: string
+        steps:
+          - name: restart
+            image: bitnami/kubectl@sha256:b349e60a6ae2969af84a778c0b976b050a0cc77f4fb6a4ad44307cd0a06e9d8f
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            script: |
+              #!/bin/bash
+              set -eu
+              TAG="$(params.image-tag)"
+              NS=$( [ "$TAG" = "main" ] && echo "orvex-wiki" || echo "orvex-wiki-${TAG}" )
+              echo "Restarting orvex-wiki in $NS"
+              kubectl rollout restart deployment/orvex-wiki -n "$NS"

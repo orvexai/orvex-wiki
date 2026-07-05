@@ -1,0 +1,29 @@
+---
+# Non-secret configuration for orvex-wiki (vanilla Docmost v0.95.0).
+# Secret values (DATABASE_URL, REDIS_URL, APP_SECRET, S3 access keys) are
+# delivered separately via ExternalSecrets / the ObjectStorageClaim-generated
+# secret (see external-secrets.yaml + object-storage-claim.yaml).
+#
+# NODE_ENV=production is deliberate: apps/server's `pnpm start` -> start:prod
+# sets NODE_ENV=production, which makes DatabaseModule.onApplicationBootstrap()
+# run migrationService.migrateToLatest() automatically on container boot — no
+# separate migration Job/initContainer needed for this deploy.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orvex-wiki-env
+  namespace: orvex-wiki
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+data:
+  APP_URL: "https://PLACEHOLDER_WIKI_HOST"
+  PORT: "3000"
+  NODE_ENV: "production"
+  STORAGE_DRIVER: "s3"
+  FILE_UPLOAD_SIZE_LIMIT: "50mb"
+  # S3 object storage — access keys + bucket name are sourced directly from
+  # the OBC-generated secret/configmap (orvex-wiki-s3-bucket) in the
+  # Deployment's env:. PLACEHOLDER_S3_ENDPOINT is replaced by Kustomize.
+  AWS_S3_ENDPOINT: "PLACEHOLDER_S3_ENDPOINT"
+  AWS_S3_REGION: "us-east-1"
+  AWS_S3_FORCE_PATH_STYLE: "true"

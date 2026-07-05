@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml                  # wave 0
+  - external-secrets.yaml           # waves 3-4 (db-bootstrap/credentials, app-secret, harbor)
+  - object-storage-claim.yaml       # wave 3
+  - configmap-env.yaml              # wave 5
+  - service.yaml                    # wave 5
+  - deployment.yaml                 # wave 6 (Deployment + ServiceAccount + PDB)
+  - httproute.yaml                  # wave 6

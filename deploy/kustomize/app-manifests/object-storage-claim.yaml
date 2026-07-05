@@ -1,0 +1,20 @@
+---
+# S3 bucket via Crossplane ObjectStorageClaim.
+# bucketName uses PLACEHOLDER_APP_NAME — replaced by Kustomize from
+# cluster-config.appNamespace. The Ceph RGW composition creates a Secret +
+# ConfigMap named `orvex-wiki-s3-bucket` in this namespace, consumed directly
+# by the Deployment (no OpenBao round-trip needed — mirrors the docmost fork).
+# Wave 3: provision bucket before the Deployment (wave 6) reads its secret/configmap.
+apiVersion: platform.myidp.io/v1alpha1
+kind: ObjectStorageClaim
+metadata:
+  name: orvex-wiki-s3
+  namespace: orvex-wiki
+  labels:
+    app.kubernetes.io/component: storage
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  bucketName: PLACEHOLDER_APP_NAME-bucket
+  maxSize: "100Gi"
+  maxObjects: "5000000"

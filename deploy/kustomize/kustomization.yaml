@@ -1,0 +1,218 @@
+---
+# orvex-wiki — Multi-Environment Kustomization
+#
+# Built by the `kustomize-helm` CMP plugin (see my-idp-apps
+# app-environments ApplicationSet). The plugin rewrites cluster-config's
+# environment-specific fields (appNamespace, branchSlug, environment) from the
+# env vars before this build runs, and appends the matching component:
+#   main → (base only, production)   appNamespace=orvex-wiki
+#   dev  → components/staging        appNamespace=orvex-wiki-dev
+#
+# Per-environment hostname (wikiHost / APP_URL) is owned HERE, NOT by the
+# plugin: base carries the production host (wiki.orvex.ai); components/staging
+# patches the HTTPRoute + ConfigMap to the dev equivalent (wiki.orvex.dev).
+#
+# This is a clean vanilla docmost/docmost@v0.95.0 deploy — CORE capabilities
+# only (Postgres, Redis, S3 storage, APP_SECRET, image build+serve). No
+# Clerk/OIDC/AI/LiteLLM/SCIM/SearXNG/Tika — those are orvex-fork-specific and
+# deliberately absent here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: orvex-wiki
+      app.kubernetes.io/part-of: orvex-wiki
+      app.kubernetes.io/managed-by: argocd
+    includeSelectors: false
+
+resources:
+  # Build-time only (not emitted) — drives the replacements below.
+  - cluster-config.yaml
+
+  # ── app-manifests (nested Kustomization; see app-manifests/kustomization.yaml) ──
+  - app-manifests
+
+  # ── platform-resources (Crossplane: Postgres + Redis, + self-provisioned secrets) ─
+  - platform-resources/infrastructure-credentials.yaml  # waves 1-2 (password + push)
+  - platform-resources/app-secret-credentials.yaml      # waves 1-2 (password + push)
+  - platform-resources/postgres-claim.yaml              # wave 3
+  - platform-resources/redis-claim.yaml                 # wave 3
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Replacements — inject cluster-config values at build time.
+# ═══════════════════════════════════════════════════════════════════════════
+replacements:
+  # ─── Namespace injection ────────────────────────────────────────────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          namespace: orvex-wiki
+        fieldPaths:
+          - metadata.namespace
+  # Namespace resource name (cluster-scoped — no metadata.namespace)
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: Namespace
+          name: orvex-wiki
+        fieldPaths:
+          - metadata.name
+
+  # ─── Container image tag: PLACEHOLDER_BRANCH_TAG → branchSlug ───────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.branchSlug
+    targets:
+      - select:
+          kind: Deployment
+          name: orvex-wiki
+        fieldPaths:
+          - spec.template.spec.containers.0.image
+        options:
+          delimiter: ":"
+          index: 1
+
+  # ─── Load-balancer target for external-dns (HTTPRoute) ──────────────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.loadBalancerIP
+    targets:
+      - select:
+          kind: HTTPRoute
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/target]
+
+  # ─── ExternalSecret OpenBao paths: PLACEHOLDER_APP_NAME → appNamespace ────
+  # Per-ENVIRONMENT path (orvex-wiki vs orvex-wiki-dev) so each env gets its
+  # OWN creds. EXCLUDED (fixed shared path, must NOT be per-namespace-rewritten):
+  #   - harbor-registry-credentials → harbor/admin
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: ExternalSecret
+        reject:
+          - name: harbor-registry-credentials
+        fieldPaths:
+          - spec.data.*.remoteRef.key
+        options:
+          delimiter: /
+          index: 0
+
+  # ─── PushSecret OpenBao destination paths: PLACEHOLDER_APP_NAME → appNamespace
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: PushSecret
+        fieldPaths:
+          - spec.data.*.match.remoteRef.remoteKey
+        options:
+          delimiter: /
+          index: 0
+
+  # PushSecret template host: PLACEHOLDER_NAMESPACE → appNamespace (postgres + redis)
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: PushSecret
+          name: orvex-wiki-postgres-credentials-push
+        fieldPaths:
+          - spec.template.data.host
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: PushSecret
+          name: orvex-wiki-redis-credentials-push
+        fieldPaths:
+          - spec.template.data.host
+        options:
+          delimiter: "."
+          index: 1
+
+  # ─── PostgresInstanceClaim + db-bootstrap secret name ───────────────────
+  # Both render to `<appNamespace>-db-bootstrap` so the claim's bootstrap secret
+  # and the ExternalSecret output stay in lockstep across environments.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: PostgresInstanceClaim
+        fieldPaths:
+          - spec.credentialsSecretName
+        options:
+          delimiter: "-"
+          index: 0
+      - select:
+          kind: ExternalSecret
+          name: orvex-wiki-db-bootstrap
+        fieldPaths:
+          - spec.target.name
+        options:
+          delimiter: "-"
+          index: 0
+
+  # ─── S3 bucket name: PLACEHOLDER_APP_NAME-bucket → <appNamespace>-bucket ──
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: ObjectStorageClaim
+          name: orvex-wiki-s3
+        fieldPaths:
+          - spec.bucketName
+        options:
+          delimiter: "-"
+          index: 0
+
+  # ─── Config: APP_URL + S3_ENDPOINT (ConfigMap) ──────────────────────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.wikiHost
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.APP_URL
+        options:
+          delimiter: "/"
+          index: 2
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki
+        fieldPaths:
+          - spec.hostnames.0
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.s3Endpoint
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.AWS_S3_ENDPOINT

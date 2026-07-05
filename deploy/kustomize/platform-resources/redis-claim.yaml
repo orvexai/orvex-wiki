@@ -1,0 +1,25 @@
+---
+# Redis cache via the platform Crossplane XRD (OpsTree Redis Operator composition).
+# The composition generates the Secret `orvex-wiki-redis-credentials` carrying
+# REDIS_HOST / REDIS_PORT / REDIS_PASSWORD — the app consumes the composed
+# ExternalSecret instead (see external-secrets.yaml), but the claim's
+# credentialsSecretName must match so the redis pod itself can auth.
+apiVersion: platform.myidp.io/v1alpha1
+kind: RedisInstanceClaim
+metadata:
+  name: orvex-wiki-redis
+  namespace: orvex-wiki
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  size: small
+  mode: standalone
+  version: "8.6"
+  persistence: true
+  credentialsSecretName: orvex-wiki-redis-credentials
+  credentialsSecretKey: REDIS_PASSWORD
+  compositionSelector:
+    matchLabels:
+      provider: redis-operator
+  writeConnectionSecretToRef:
+    name: orvex-wiki-redis-conn
