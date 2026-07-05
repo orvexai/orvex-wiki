@@ -215,3 +215,29 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.AWS_S3_ENDPOINT
+
+  # ─── Cell contract: CELL_ID + CLUSTER_NAME (ConfigMap) ──────────────────
+  # A-CELL rule #4 — /healthz echoes both. Base = sentinel "solo"; a real cell
+  # sets cluster-config.cellId/clusterName. Both are plain-value replacements
+  # (no delimiter). components/crew leaves CELL_ID at "solo" (crew runs the
+  # sentinel cell) — it isolates the SPINE via EVENT_TOPIC_SUFFIX instead.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellId
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.CELL_ID
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.clusterName
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.CLUSTER_NAME

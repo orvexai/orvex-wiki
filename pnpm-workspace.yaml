@@ -1,3 +1,5 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # Scoped @orvex/* packages (additive: @orvex/dfm — the AGPL DfM serializer).
+  - 'packages/@orvex/*'

@@ -48,6 +48,36 @@ patches:
       kind: ConfigMap
       name: orvex-wiki-env
 
+  # ── Dev siblings: prod cluster-local Services → the dev namespaces ───────
+  # The dev integration env talks to dev siblings (ORVEX_<SVC>_URL seam).
+  # Inert under the vanilla engine (ORVEX_MODULES_ENABLED=false); wired for the
+  # target orvex/* modules. NOT replacement targets, so these patches survive.
+  - patch: |-
+      - op: replace
+        path: /data/ORVEX_IDENTITY_URL
+        value: http://orvex-studio-identity.orvex-studio-identity-dev.svc.cluster.local
+      - op: replace
+        path: /data/ORVEX_KNOWLEDGE_URL
+        value: http://orvex-studio-knowledge.orvex-studio-knowledge-dev.svc.cluster.local
+      - op: replace
+        path: /data/ORVEX_AI_URL
+        value: http://orvex-studio-ai.orvex-studio-ai-dev.svc.cluster.local
+      - op: replace
+        path: /data/ORVEX_BILLING_URL
+        value: http://orvex-studio-billing.orvex-studio-billing-dev.svc.cluster.local
+      - op: replace
+        path: /data/ORVEX_MCP_URL
+        value: http://orvex-studio-mcp.orvex-studio-mcp-dev.svc.cluster.local
+      - op: replace
+        path: /data/ORVEX_CONSOLE_URL
+        value: http://orvex-studio-console.orvex-studio-console-dev.svc.cluster.local
+      - op: replace
+        path: /data/ORVEX_WIKI_API_URL
+        value: http://orvex-wiki-api.orvex-wiki-api-dev.svc.cluster.local
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Single replica for the server Deployment in dev ──────────────────────
   - patch: |-
       - op: replace

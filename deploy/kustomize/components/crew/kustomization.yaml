@@ -1,0 +1,131 @@
+---
+# Crew component — a per-developer COMPLETE parallel stack (crew-design.md).
+# Appended by the CMP plugin when RESOURCE_PROFILE=crew, after it rewrites
+# cluster-config for the crew environment (appNamespace=orvex-wiki-crew-{name},
+# branchSlug=crew-{name}, crewName={name}) and substitutes the CREW_NAME token
+# below.
+#
+# Crew links to crew: a crew is a full parallel copy of the platform and it
+# talks ONLY to itself — every sibling URL resolves to that sibling's OWN crew
+# instance (crew → crew), never shared dev. The event-topic suffix is isolated
+# the same way, so a crew's Kafka spine is its own. (The single-service slot-in —
+# routing shared dev at ONE crew service — is the deliberate exception and is
+# applied by orvex-scripts crew-slot.sh against the CONSUMERS' ConfigMaps, never
+# here.)
+#
+# Host scheme: {service}.crew-{name}.orvex.dev = wiki.crew-{name}.orvex.dev.
+# The host is keyed by the DOMAIN/service name `wiki` (matching the
+# ORVEX_WIKI_* endpoint siblings consumers use). `CREW_NAME` is a build-time
+# token the CMP plugin substitutes from the crew ApplicationSet's CREW_NAME
+# param (identical mechanism to the PLACEHOLDER_* tokens the base carries); it
+# stays literal in a bare `kustomize build`, which is expected. Crew hosts
+# intersect the *.orvex.dev edge (Cloudflare Origin wildcard + Total TLS for the
+# multi-level host) and the orvex-dev-https listener; crew provisions no
+# per-host DNS/cert.
+#
+# CELL_ID stays "solo": dev and crew both run the sentinel cell (cell
+# enforcement no-ops). The base cluster-config cellId is already "solo" and the
+# root replacement propagates it, so no CELL_ID patch is needed here.
+#
+# Data plane (crew-design.md §Data): the DEFAULT crew data plane SHARES dev's
+# Postgres/Redis — the crew ApplicationSet builds WITHOUT platform-resources
+# (this component patches no claims) and the plugin points DATABASE_URL /
+# REDIS_URL at the dev namespace's Services. The OPT-IN ephemeral data plane
+# (schema-migration work) is selected by the crew ApplicationSet INCLUDING
+# platform-resources. Both are ApplicationSet/plugin concerns; a Kustomize
+# Component cannot delete base resources, so the data-plane choice is not
+# expressed as a patch here.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+labels:
+  - pairs:
+      orvex-wiki.orvex.ai/resource-profile: crew
+    includeSelectors: false
+
+patches:
+  # ── Crew host on the HTTPRoute: → wiki.crew-{name}.orvex.dev ─────────────
+  # Re-pin the Gateway listener to orvex-dev-https (the crew host only
+  # intersects the *.orvex.dev listener/cert, same edge as dev).
+  - patch: |-
+      - op: replace
+        path: /spec/hostnames/0
+        value: wiki.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
+        value: wiki.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /spec/parentRefs/0/sectionName
+        value: orvex-dev-https
+    target:
+      kind: HTTPRoute
+      name: orvex-wiki
+
+  # ── Crew APP_URL → https://wiki.crew-{name}.orvex.dev ────────────────────
+  # APP_URL is a REPLACEMENT target (root kustomization sources its host from
+  # cluster-config.wikiHost, delimiter "/" index 2). A component patch on the
+  # ConfigMap APP_URL value is therefore OVERWRITTEN by that replacement (the
+  # staging overlay hits this exact quirk). So we patch the replacement's
+  # SOURCE — cluster-config.wikiHost — and the crew host propagates into
+  # APP_URL correctly.
+  - patch: |-
+      - op: replace
+        path: /data/wikiHost
+        value: wiki.crew-CREW_NAME.orvex.dev
+    target:
+      kind: ConfigMap
+      name: cluster-config
+
+  # ── Siblings → this crew's own instances (crew → crew) + spine isolation ─
+  # ORVEX_<SVC>_URL and EVENT_TOPIC_SUFFIX are NOT replacement targets, so these
+  # patches survive the build. Every sibling resolves to its crew host; the
+  # engine (the first studio-spine producer) suffixes its topics crew-{name}
+  # ({domain}-events.crew-{name}) so a crew's spine is its own (distinct from
+  # CELL_ID, which stays "solo"). The engine runs no Temporal worker, so there
+  # is no TEMPORAL_NAMESPACE to isolate here.
+  - patch: |-
+      - op: replace
+        path: /data/EVENT_TOPIC_SUFFIX
+        value: crew-CREW_NAME
+      - op: replace
+        path: /data/ORVEX_IDENTITY_URL
+        value: https://identity.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /data/ORVEX_KNOWLEDGE_URL
+        value: https://knowledge.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /data/ORVEX_AI_URL
+        value: https://ai.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /data/ORVEX_BILLING_URL
+        value: https://billing.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /data/ORVEX_MCP_URL
+        value: https://mcp.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /data/ORVEX_CONSOLE_URL
+        value: https://console.crew-CREW_NAME.orvex.dev
+      - op: replace
+        path: /data/ORVEX_WIKI_API_URL
+        value: https://wiki-api.crew-CREW_NAME.orvex.dev
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
+  # ── Single replica (matches the single-node dev shape) ──────────────────
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      name: orvex-wiki
+
+  # ── Neutralize the PDB: a 1-replica pod must stay freely disruptable ────
+  - patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 0
+    target:
+      kind: PodDisruptionBudget
+      name: orvex-wiki

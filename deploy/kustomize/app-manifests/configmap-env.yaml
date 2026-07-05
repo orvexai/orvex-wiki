@@ -27,3 +27,40 @@ data:
   AWS_S3_ENDPOINT: "PLACEHOLDER_S3_ENDPOINT"
   AWS_S3_REGION: "us-east-1"
   AWS_S3_FORCE_PATH_STYLE: "true"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Orvex TARGET config (scaffold). These keys are IGNORED by the vanilla
+  # v0.95 engine — its env validation (environment.validation.ts) whitelists
+  # only its own declared vars and drops unknown keys, so injecting these is
+  # boot-safe. The additive orvex/* modules read them ONLY when
+  # ORVEX_MODULES_ENABLED=true (OrvexRootModule.register, off by default).
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # Orvex module master switch — OFF so runtime stays vanilla Docmost v0.95.
+  ORVEX_MODULES_ENABLED: "false"
+
+  # Cell contract (A-CELL rule #4) — /healthz echoes CELL_ID + CLUSTER_NAME.
+  # Filled by the root replacements from cluster-config.cellId / clusterName;
+  # base = the sentinel "solo" (dev/crew/standalone run cell-enforcement-free).
+  CELL_ID: "PLACEHOLDER_CELL_ID"
+  CLUSTER_NAME: "PLACEHOLDER_CLUSTER_NAME"
+
+  # Event-spine crew-scoping (A-CELL rule #5). The engine is the first
+  # studio-spine producer; topics are {domain}-events.{suffix}. Base = the
+  # sentinel cell "solo"; components/crew patches to crew-{name} so a crew's
+  # Kafka spine is its own. NOT a replacement target (a crew patch survives).
+  EVENT_TOPIC_SUFFIX: "solo"
+
+  # ── Product-family-agnostic sibling seam (A-PORTABLE) — every platform
+  # dependency is a CONFIGURED URL, never a hard-coded Studio host. A
+  # standalone/embedded wiki points these at its OWN instances. Base = prod
+  # cluster-local Services; components/staging → dev; components/crew → the
+  # sibling's OWN crew host (crew → crew, crew-design.md). NOT replacement
+  # targets, so overlay patches on them survive the build.
+  ORVEX_IDENTITY_URL: "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local"
+  ORVEX_KNOWLEDGE_URL: "http://orvex-studio-knowledge.orvex-studio-knowledge.svc.cluster.local"
+  ORVEX_AI_URL: "http://orvex-studio-ai.orvex-studio-ai.svc.cluster.local"
+  ORVEX_BILLING_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
+  ORVEX_MCP_URL: "http://orvex-studio-mcp.orvex-studio-mcp.svc.cluster.local"
+  ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
+  ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"

@@ -48,6 +48,13 @@ data:
   # ── Ceph S3-compatible object storage endpoint (Rook-Ceph RGW) ───────────
   s3Endpoint: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
 
+  # ── Cell contract (A-CELL). Injected into the ConfigMap CELL_ID/CLUSTER_NAME
+  # by the root replacements; /healthz echoes both. Base = sentinel "solo"
+  # (dev/crew/standalone run cell-enforcement-free — same as the sibling
+  # studio services' cluster-config). ─────────────────────────────────────
+  cellId: "solo"
+  clusterName: "eu-central-1"
+
   # ── Git (for Tekton image builds + image tags) ──────────────────────────
   gitBranch: main
   branchSlug: main

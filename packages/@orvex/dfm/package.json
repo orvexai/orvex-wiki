@@ -1,0 +1,15 @@
+{
+  "name": "@orvex/dfm",
+  "version": "0.0.0",
+  "description": "Clean-room DfM <-> ProseMirror serializer (AGPL TS twin of orvex-studio-lib/pkg/dfm). Imported ONLY by the AGPL engine.",
+  "license": "AGPL-3.0",
+  "private": true,
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --watch"
+  },
+  "main": "dist/index.js",
+  "module": "./src/index.ts",
+  "types": "dist/index.d.ts"
+}

@@ -26,8 +26,9 @@ spec:
     - name: image-tag
       description: |
         Image tag derived from the git ref:
-          refs/heads/main -> main
-          refs/heads/dev  -> dev
+          refs/heads/main        -> main
+          refs/heads/dev         -> dev
+          refs/heads/crew/daniel -> crew-daniel  (slash flattened to a dash)
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
@@ -93,19 +94,25 @@ spec:
         name: cel
         kind: ClusterInterceptor
       params:
-        # Build on pushes to main or dev only.
+        # Build on pushes to main, dev, and any crew/* branch (crew-design.md
+        # §CI/CD: the crew ApplicationSet git-generates one {repo}-crew-{name}
+        # Application per active crew/{name} branch).
         - name: filter
           value: >-
             body.repository.name == 'orvex-wiki' &&
-            (body.ref == 'refs/heads/main' || body.ref == 'refs/heads/dev')
+            (body.ref == 'refs/heads/main' || body.ref == 'refs/heads/dev' ||
+             body.ref.startsWith('refs/heads/crew/'))
         - name: overlays
           value:
-            # Derive image tag: strip refs/heads/ prefix.
+            # Derive the image tag: strip refs/heads/ then flatten the crew
+            # slash so `crew/daniel` → `crew-daniel` (a `/` is illegal in an
+            # image tag). main/dev are unaffected.
             - key: image-tag
-              expression: "body.ref.replace('refs/heads/', '')"
+              expression: "body.ref.replace('refs/heads/', '').replace('/', '-')"
             # github-push-defaults also binds git-branch from
             # extensions.git-branch; publish it or the binding fails
-            # ApplyEventValuesToParams (no PipelineRun is ever created).
+            # ApplyEventValuesToParams (no PipelineRun is ever created). Keep
+            # the true branch name here (crew/daniel), not the flattened tag.
             - key: git-branch
               expression: "body.ref.replace('refs/heads/', '')"
   bindings:
