@@ -37,7 +37,7 @@ data:
 
   # ── Application hostname (prod). components/staging patches to the dev
   # equivalent (wiki.orvex.dev) directly on the HTTPRoute/ConfigMap. ───────
-  wikiHost: wiki.eu-central-1.orvex.ai
+  wikiHost: wiki.eu-central-1a.orvex.ai
 
   # ── Harbor registry (image project shared across environments, tag = branch) ─
   harborHost: repos.eu-central-1.myidp.cloud

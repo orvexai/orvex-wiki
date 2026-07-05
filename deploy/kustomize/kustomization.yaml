@@ -201,7 +201,7 @@ replacements:
           delimiter: "/"
           index: 2
       # NOTE: the HTTPRoute host is NOT injected here — it's hardcoded in the
-      # base manifest (prod eu-central-1.wiki.orvex.ai) and patched to the dev
+      # base manifest (prod wiki.eu-central-1a.orvex.ai) and patched to the dev
       # host by components/staging. Injecting wikiHost here overwrote the
       # staging hostname patch (leaving prod host + dev sectionName → route
       # Accepted=False).

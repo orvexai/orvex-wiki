@@ -2,11 +2,11 @@
 # Staging component — the standing dev environment (branch: dev).
 # Appended by the CMP plugin when RESOURCE_PROFILE=staging.
 #
-# Owns the dev hostname (wiki.eu-central-1.orvex.dev) and a single replica for the
+# Owns the dev hostname (wiki.eu-central-1a.orvex.dev) and a single replica for the
 # server Deployment.
 #
 # Dev lives on the orvex.dev zone (NOT a dev-* subdomain of orvex.ai): prod =
-# wiki.orvex.ai, dev = wiki.eu-central-1.orvex.dev. The orvex.dev zone (external-dns filter
+# wiki.orvex.ai, dev = wiki.eu-central-1a.orvex.dev. The orvex.dev zone (external-dns filter
 # + *.orvex.dev Cloudflare Origin cert + platform-gateway orvex-dev-https
 # listener) is wired in the my-idp platform repo and is LIVE.
 apiVersion: kustomize.config.k8s.io/v1alpha1
@@ -18,21 +18,21 @@ labels:
     includeSelectors: false
 
 patches:
-  # ── Dev hostname: wiki.orvex.ai → wiki.eu-central-1.orvex.dev ─────────────────────────
-  # Also re-pin the Gateway listener: the base attaches to the orvex-ai-https
-  # listener (*.orvex.ai); the dev host wiki.eu-central-1.orvex.dev only intersects the
-  # orvex-dev-https listener (*.orvex.dev), so the sectionName MUST switch too
-  # or the route is Accepted=False (hostname/listener mismatch).
+  # ── Dev hostname: wiki.orvex.ai → wiki.eu-central-1a.orvex.dev ─────────────────────────
+  # Also re-pin the Gateway listener: the base attaches to the orvex-eu-central-1a-https
+  # listener (*.eu-central-1a.orvex.ai); the dev host wiki.eu-central-1a.orvex.dev only
+  # intersects the orvex-eu-central-1a-dev-https listener (*.eu-central-1a.orvex.dev), so
+  # the sectionName MUST switch too or the route is Accepted=False (hostname/listener mismatch).
   - patch: |-
       - op: replace
         path: /spec/hostnames/0
-        value: wiki.eu-central-1.orvex.dev
+        value: wiki.eu-central-1a.orvex.dev
       - op: replace
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
-        value: wiki.eu-central-1.orvex.dev
+        value: wiki.eu-central-1a.orvex.dev
       - op: replace
         path: /spec/parentRefs/0/sectionName
-        value: orvex-eu-central-1-dev-https
+        value: orvex-eu-central-1a-dev-https
     target:
       kind: HTTPRoute
       name: orvex-wiki
@@ -41,7 +41,7 @@ patches:
   - patch: |-
       - op: replace
         path: /data/APP_URL
-        value: https://wiki.eu-central-1.orvex.dev
+        value: https://wiki.eu-central-1a.orvex.dev
     target:
       kind: ConfigMap
       name: orvex-wiki-env
