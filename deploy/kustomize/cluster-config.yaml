@@ -37,7 +37,9 @@ data:
 
   # ── Application hostname (prod). components/staging patches to the dev
   # equivalent (wiki.orvex.dev) directly on the HTTPRoute/ConfigMap. ───────
-  wikiHost: wiki.eu-central-1a.orvex.ai
+  # Public host = short cell token (eu1); AWS-AZ cell id is internal-only
+  # (ruling final form 2026-07-05).
+  wikiHost: wiki.eu1.orvex.ai
 
   # ── Harbor registry (image project shared across environments, tag = branch) ─
   harborHost: repos.eu-central-1.myidp.cloud
