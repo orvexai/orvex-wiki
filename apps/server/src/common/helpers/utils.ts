@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as bcrypt from 'bcrypt';
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only module; TS import-require form (upstream)
 import sanitize = require('sanitize-filename');
 import { FastifyRequest } from 'fastify';
 import { Readable, Transform } from 'stream';

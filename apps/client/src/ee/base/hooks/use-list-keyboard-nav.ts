@@ -14,7 +14,7 @@ export function useListKeyboardNav(
   const [activeIndex, setActiveIndex] = useState(-1);
   const optionRefs = useRef<Array<HTMLElement | null>>([]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   useEffect(() => { setActiveIndex(-1); }, resetDeps);
 
   useEffect(() => {

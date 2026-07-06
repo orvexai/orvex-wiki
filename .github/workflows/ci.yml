@@ -1,0 +1,280 @@
+# orvex-wiki CI — Foundation M4.
+# Fast parallel gates fanned into the single required `ci-success` check.
+# CS §13: CI VALIDATES ONLY — no image is ever built or pushed here; container
+# images are built on-cluster by Tekton (tekton/) pushing to Harbor with
+# GitOps auto-rollout. Live-infra suites (make smoke-test, make test-e2e) run
+# against a real environment and are NOT CI jobs yet — see the foundation
+# handoff for the promote-later plan (Houston e2e-gates pattern).
+# All jobs run on the self-hosted `runners` label (never GitHub-hosted).
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - crew/**
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Lint gates
+  # ---------------------------------------------------------------------------
+  lint-client:
+    name: Lint Client
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: ESLint (client)
+        run: pnpm --dir apps/client lint
+
+  lint-server:
+    name: Lint Server
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: ESLint (server, check-only)
+        run: pnpm --dir apps/server run lint:check
+
+  lint-boundary:
+    name: Import Boundary (M1 fence)
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Mock-quarantine + AGPL import fence
+        run: pnpm lint:boundary
+
+  # ---------------------------------------------------------------------------
+  # Typecheck + build
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: Typecheck
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace package dists (typecheck inputs)
+        run: |
+          pnpm --dir packages/editor-ext build
+          pnpm --dir packages/base-formula build
+      # This repo has flat, non-composite tsconfigs (no TS project
+      # references), so plain per-app tsc is the correct form here; the
+      # family "tsc -b, never --noEmit" lesson applies to reference graphs.
+      - name: Typecheck client + server
+        run: make typecheck
+
+  build:
+    name: Build
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Full monorepo build (nx)
+        run: pnpm build
+
+  # ---------------------------------------------------------------------------
+  # Unit tests
+  # ---------------------------------------------------------------------------
+  test-client:
+    name: Test Client (vitest)
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Vitest
+        run: pnpm --dir apps/client test
+
+  test-server:
+    name: Test Server (jest, CI set)
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # test:ci excludes the 16 NAMED upstream never-green DI-scaffold specs
+      # (upstream test debt, recorded in the foundation handoff). Full suite:
+      # make test-server-full.
+      - name: Jest (CI set)
+        run: pnpm --dir apps/server run test:ci
+
+  # ---------------------------------------------------------------------------
+  # Smoke module hygiene (the live smoke RUN needs real infra; here we prove
+  # the module compiles, vets and is gofmt-clean)
+  # ---------------------------------------------------------------------------
+  smoke-module:
+    name: Smoke Module (build/vet/fmt)
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: tests/smoke/go.sum
+      - name: gofmt clean
+        working-directory: tests/smoke
+        run: test -z "$(gofmt -l .)"
+      - name: go vet (compiles the test files)
+        working-directory: tests/smoke
+        run: go vet ./...
+
+  # ---------------------------------------------------------------------------
+  # Security
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security (audit + govulncheck)
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: tests/smoke/go.sum
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: pnpm audit (high+)
+        run: pnpm audit --audit-level=high
+      - name: govulncheck (smoke module)
+        working-directory: tests/smoke
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  sbom-generation:
+    name: SBOM Generation
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin"
+          "$HOME/.local/bin/syft" version
+      - name: Generate + validate SBOM (CycloneDX + SPDX)
+        run: |
+          "$HOME/.local/bin/syft" dir:. -o cyclonedx-json=orvex-wiki-sbom-cyclonedx.json -o spdx-json=orvex-wiki-sbom-spdx.json
+          python3 - <<'PYEOF'
+          import json, sys
+          cdx = json.load(open('orvex-wiki-sbom-cyclonedx.json'))
+          assert cdx.get('bomFormat') == 'CycloneDX', 'invalid CycloneDX SBOM'
+          assert cdx.get('components'), 'CycloneDX SBOM has no components'
+          spdx = json.load(open('orvex-wiki-sbom-spdx.json'))
+          assert 'spdxVersion' in spdx, 'invalid SPDX SBOM'
+          assert spdx.get('packages'), 'SPDX SBOM has no packages'
+          print('CycloneDX components:', len(cdx['components']))
+          print('SPDX packages:', len(spdx['packages']))
+          PYEOF
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports
+          path: |
+            orvex-wiki-sbom-cyclonedx.json
+            orvex-wiki-sbom-spdx.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Workflow lint
+  # ---------------------------------------------------------------------------
+  workflow-lint:
+    name: Workflow Lint
+    runs-on: runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@latest
+      - name: Run actionlint
+        run: actionlint
+
+  # ---------------------------------------------------------------------------
+  # CI Success Gate — the single required check for branch protection.
+  # ---------------------------------------------------------------------------
+  ci-success:
+    name: CI Success
+    needs:
+      - lint-client
+      - lint-server
+      - lint-boundary
+      - typecheck
+      - build
+      - test-client
+      - test-server
+      - smoke-module
+      - security
+      - sbom-generation
+      - workflow-lint
+    runs-on: runners
+    if: always()
+    steps:
+      - name: Check all gate results
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | python3 - <<'PYEOF'
+          import json, sys
+          needs = json.load(sys.stdin)
+          failed = [k for k, v in needs.items() if v.get('result') != 'success']
+          for k, v in sorted(needs.items()):
+              print(f"{k}: {v.get('result')}")
+          if failed:
+              print(f"\nCI FAILED: {', '.join(failed)}")
+              sys.exit(1)
+          print("\nCI PASSED: all gates green")
+          PYEOF

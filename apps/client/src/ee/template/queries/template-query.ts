@@ -14,7 +14,7 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
-  useTemplate,
+  useTemplate as applyTemplateService,
 } from "@/ee/template/services/template-service.ts";
 import { ITemplate } from "@/ee/template/types/template.types";
 import { IPagination } from "@/lib/types.ts";
@@ -167,7 +167,7 @@ export function useUseTemplateMutation() {
     Error,
     { templateId: string; spaceId: string; parentPageId?: string }
   >({
-    mutationFn: (data) => useTemplate(data),
+    mutationFn: (data) => applyTemplateService(data),
     onSuccess: (page) => {
       // React Query sidebar-pages cache update (same path useCreatePageMutation takes).
       invalidateOnCreatePage(page);

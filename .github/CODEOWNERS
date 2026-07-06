@@ -1,0 +1,15 @@
+# orvex-wiki CODEOWNERS — Foundation M4.
+# Single-maintainer stage: every path falls back to the repo owner. Split into
+# team-scoped rules (Houston CODEOWNERS pattern) when the team grows.
+
+* @dniasoff
+
+# Security- and substrate-sensitive surfaces (explicit even while redundant,
+# so future team-split diffs are additive):
+/.github/ @dniasoff
+/deploy/ @dniasoff
+/tekton/ @dniasoff
+/tests/smoke/ @dniasoff
+/eslint.config.mjs @dniasoff
+/Makefile @dniasoff
+/docker-compose*.yml @dniasoff

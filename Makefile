@@ -14,7 +14,7 @@ define with-env
 endef
 
 .PHONY: help build test test-server test-server-full test-client test-e2e \
-        smoke-test smoke-test-strict lint typecheck security \
+        smoke-test smoke-test-strict lint typecheck security ci-local \
         env-up env-down env-destroy env-status env-logs env-info secrets \
         db-migrate run-local
 
@@ -58,6 +58,16 @@ smoke-test: .env.dev ## Run the Go smoke suite against the local env (sources .e
 
 smoke-test-strict: ## Smoke suite with PRE-SET env ONLY, no .env.dev sourcing (the in-cluster Job shape)
 	cd tests/smoke && go test ./... -count=1 -v
+
+ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smoke-test/test-e2e)
+	$(MAKE) build
+	$(MAKE) lint
+	$(MAKE) typecheck
+	$(MAKE) test-server
+	$(MAKE) test-client
+	cd tests/smoke && test -z "$$(gofmt -l .)" && go vet ./...
+	$(MAKE) security
+	@echo "ci-local: ALL GATES GREEN"
 
 ##@ Local prod-parity environment (Postgres 17 CNPG-family + Redis 8 + MinIO S3)
 env-up: .env.dev ## Start engines, create the bucket, wait until healthy

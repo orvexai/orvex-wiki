@@ -83,7 +83,9 @@ export const CellChevron = React.memo(function CellChevron({
         const $inside = editor.state.doc.resolve(cellPos + 1);
         const sel = TextSelection.near($inside, 1);
         editor.view.dispatch(editor.state.tr.setSelection(sel));
-      } catch {}
+      } catch {
+        /* selection placement is best-effort — non-fatal */
+      }
     }
     editor.commands.freezeHandles();
   }, [editor, cellPos]);

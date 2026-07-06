@@ -21,9 +21,9 @@ type GridHeaderProps = {
 export const GridHeader = memo(function GridHeader({
   table,
   pageId,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   columnOrder: _columnOrder,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   columnVisibility: _columnVisibility,
   properties,
   loadedRowIds,

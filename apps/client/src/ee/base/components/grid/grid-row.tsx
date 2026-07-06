@@ -145,7 +145,7 @@ export const GridRow = memo(function GridRow({
     );
     // onRowReorder is read through onRowReorderRef; only its presence gates
     // registration, and that does not change across a row's mounted life.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [rowId, pageId]);
 
   const dropIndicatorClass = closestEdge
