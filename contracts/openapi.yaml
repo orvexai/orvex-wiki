@@ -1,0 +1,1036 @@
+# Orvex Wiki Engine — ADDITIVE primitive surface (the /api/orvex/* seam).
+#
+# This file TRACES the INTENDED orvex primitive surface from canon (PRD
+# FR-W1..W25 / Architecture A-THIN..A-MOVE) so delivery fills in LOGIC, not
+# STRUCTURE. It is deliberately NOT a re-description of the upstream Docmost API
+# (that surface is upstream's; the public programmatic front is `wiki-api` per
+# D-S16/D-S18). Only the additive orvex primitives live here.
+#
+# BINDING — ALL-REAL / no-op ≠ mock. Every surface that is not yet implemented
+# returns a TYPED NotImplemented carrying the greppable sentinel
+# `ORVEX_NOT_IMPLEMENTED` (schema: NotImplementedError). It NEVER returns a
+# plausible-looking value (no fabricated empty docs, no allowed:true verdicts,
+# no zero-lag readings). A 501 here is an honest "not wired yet", not a mock.
+#
+# NOT SERVED — the engine ships NO /docs Swagger/OpenAPI endpoint (D-S18). This
+# is a STATIC, authored artifact: the source of truth the React client and
+# orvex-wiki-api generate against, and the shape delivery must conform to. It is
+# authored contract-side, never generated from engine code.
+#
+# CROSS-REPO ALIGNMENT — field naming and error vocabulary mirror the read-only
+# contracts seam at ../orvex-studio-contracts (errors/vocabulary.yaml,
+# billing/entitlements.schema.json, schemas/org-move-manifest.schema.json,
+# events/catalog.yaml, sources/wiki.yaml). Schemas are inlined here (self-
+# contained, no cross-repo $ref) with x-source-of-truth pointers to the seam.
+openapi: 3.1.0
+
+info:
+  title: Orvex Wiki Engine — Orvex Primitive Surface
+  version: 0.1.0-draft
+  summary: Additive /api/orvex/* primitives layered on the AGPL Docmost engine.
+  description: >-
+    The ADDITIVE orvex primitive surface of the AGPL wiki engine — the atomic
+    write chokepoint (FR-W1), the F-QUOTA usage-vs-caps read (FR-W15), the
+    identity exchange-token → engine-session mint (FR-W6), the AGPL §13 source
+    offer (FR-W19), and the A-MOVE tenant-move step contract. It does NOT
+    re-describe the upstream Docmost REST API; the public programmatic front is
+    `wiki-api` (D-S16/D-S18).
+
+
+    ## Audience / tier (INTERNAL)
+
+    This API is INTERNAL. It is consumed ONLY by the first-party React client
+    and by `orvex-wiki-api` (the per-cell satellite that fronts the engine for
+    the Studio MCP gateway). It is NEVER publicly agent-facing — agents reach the
+    engine through `wiki-api`, never here. See `servers[].x-tier`.
+
+
+    ## Genuinely-real health surface (upstream, terminus-backed) — NOT re-authored here
+
+    The engine already exposes a REAL health surface from upstream Docmost. It is
+    documented here for provenance only (it is not an orvex primitive):
+
+    - `GET /api/health` — `@nestjs/terminus` `HealthCheck`, pings Postgres +
+      Redis. Live shape (SkipTransform, raw terminus):
+      `{"status":"ok","info":{"database":{"status":"up"},"redis":{"status":"up"}},"error":{},"details":{...}}`.
+    - `GET /api/health/live` — bare liveness; returns `"ok"`, wrapped by the
+      global transform interceptor into `{"data":"ok","success":true,"status":200}`.
+
+    These are the ONLY genuinely-real endpoints adjacent to this seam today; every
+    orvex primitive below that is unimplemented answers with the typed sentinel.
+    See `x-real-health-surface`.
+
+
+    ## Produced events (CloudEvent catalog is the source of truth)
+
+    The engine is the wiki source-adapter (publisher #1) via a transactional
+    outbox → Redis→Kafka bridge. The event names it will produce are FROZEN
+    contract-side in `../orvex-studio-contracts/events/catalog.yaml` +
+    `sources/wiki.yaml` — do NOT invent names here. The catalog DOES define wiki
+    types today (`wiki.page.*`, `wiki.comment.*`, `wiki.attachment.*`,
+    `wiki.space.*`, `wiki.permission.*`, `wiki.workspace.*`, `wiki.user.*`); the
+    full enumerated list is in `x-produced-events`. Per-type payload data schemas
+    (`events/schemas/*.json`) are still TBD-at-contracts-seam. The bridge itself
+    is forward-authored (A-CATALOG): the engine emits Redis-stream events today
+    and the outbox→bridge does not exist yet, so the event surface is NOT part of
+    this REST contract — it is referenced, not defined here.
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+  contact:
+    name: Orvex Studio — engine
+    url: https://docs.eu-central-1.myidp.cloud/s/orvexstudioarch
+
+  # ── The real, upstream, terminus-backed health surface (provenance only) ──
+  x-response-envelope: >-
+    WIRE NOTE — the engine's global TransformHttpResponseInterceptor wraps every
+    2xx JSON response as {data, success, status} (verified live; /api/health is
+    @SkipTransform'd, error responses bypass the interceptor). The REAL
+    orvexSourceOffer 200 is documented wire-true (enveloped). The intended 200s
+    documented on the noop-501 operations describe the `data` PAYLOAD; their
+    final enveloped wire shape is pinned when each operation goes live at
+    delivery.
+  x-real-health-surface:
+    note: >-
+      Upstream Docmost health endpoints — genuinely real, not orvex primitives,
+      not re-authored as paths here. Listed so the reader knows what IS real.
+    endpoints:
+      - method: GET
+        path: /api/health
+        impl: '@nestjs/terminus HealthCheck (Postgres + Redis pingCheck), SkipTransform'
+        liveBody: '{"status":"ok","info":{"database":{"status":"up"},"redis":{"status":"up"}},"error":{},"details":{...}}'
+      - method: GET
+        path: /api/health/live
+        impl: 'bare liveness; returns "ok" wrapped by the transform interceptor'
+        liveBody: '{"data":"ok","success":true,"status":200}'
+
+  # ── Produced CloudEvents — names owned by the contracts seam, NOT invented ──
+  x-produced-events:
+    sourceOfTruth:
+      catalog: ../orvex-studio-contracts/events/catalog.yaml
+      sourceRegistry: ../orvex-studio-contracts/sources/wiki.yaml
+    transport: outbox → Redis→Kafka bridge → Knative Broker `studio-spine` (A-CATALOG, forward-authored — bridge not built yet)
+    payloadSchemas: TBD-at-contracts-seam (events/schemas/*.json grow with the PRD/architecture pass)
+    versionSemantics: persisted-write-commit-counter (the SAME counter apply-ops `ifVersion` reads — D-CON-5)
+    types:
+      - wiki.page.created
+      - wiki.page.updated
+      - wiki.page.content_updated
+      - wiki.page.deleted
+      - wiki.page.moved
+      - wiki.page.restored
+      - wiki.page.purged
+      - wiki.page.status_changed
+      - wiki.comment.created
+      - wiki.comment.updated
+      - wiki.comment.resolved
+      - wiki.comment.deleted
+      - wiki.attachment.created
+      - wiki.attachment.deleted
+      - wiki.space.created
+      - wiki.space.updated
+      - wiki.space.deleted
+      - wiki.space.member_added
+      - wiki.space.member_removed
+      - wiki.space.member_role_changed
+      - wiki.permission.changed
+      - wiki.workspace.created
+      - wiki.workspace.updated
+      - wiki.workspace.deleted
+      - wiki.user.deleted
+
+servers:
+  - url: http://wiki-engine.{namespace}.svc.cluster.local:3000
+    description: >-
+      In-cluster engine service. INTERNAL API — reached only by the first-party
+      React client and orvex-wiki-api over the cluster network; never exposed on a
+      public/agent-facing route. In local prod-parity dev the same surface is at
+      http://localhost:3000 (the address to inspect live error shapes against).
+    x-tier: internal
+    variables:
+      namespace:
+        default: orvex-wiki
+
+security:
+  - engineSession: []
+
+tags:
+  - name: write-primitive
+    description: FR-W1 — the single atomic PM-JSON write chokepoint (CAS on ifVersion).
+  - name: quota
+    description: FR-W15 — F-QUOTA usage-vs-caps readout; guards the write surfaces with 402 QUOTA_EXCEEDED.
+  - name: session
+    description: FR-W6 — consume an identity-minted exchange token, mint an engine session.
+  - name: compliance
+    description: FR-W19 — AGPL §13 written source offer.
+  - name: tenant-move
+    description: A-MOVE — the non-retrofittable typed quiesce/export/import/activate step contract.
+
+paths:
+  # ══════════════════════════════════════════════════════════════════════════
+  # FR-W1 — the single atomic write primitive
+  # ══════════════════════════════════════════════════════════════════════════
+  /api/orvex/pages/{pageId}/apply-ops:
+    post:
+      tags: [write-primitive]
+      operationId: orvexApplyOps
+      summary: Apply a typed PM-JSON op batch to a page (atomic, CAS on ifVersion)
+      x-status: draft
+      x-classification: noop-501
+      description: >-
+        FR-W1 — the SINGLE atomic write primitive for the orvex surface. Takes a
+        typed ProseMirror-JSON op batch plus `ifVersion` (optimistic-concurrency
+        baseline) and applies it atomically: the whole batch commits or the whole
+        batch fails. `ifVersion` is a MONOTONIC version/etag — NOT a wall-clock
+        `updated_at` — so the 409 compares like with like (CAS), and it reads the
+        SAME per-document counter the produced-event `version` carries (D-CON-5).
+
+
+        This write surface is guarded by F-QUOTA: on a tripped per-tenant quota it
+        rejects with 402 QUOTA_EXCEEDED (the FROZEN superset envelope — propagated
+        UNCHANGED, batch-atomic ⇒ the whole patch fails). See GET /api/orvex/quota.
+
+
+        TODAY: returns 501 NotImplemented (typed sentinel `ORVEX_NOT_IMPLEMENTED`).
+        The 200 / 402 / 409 shapes below are the INTENDED contract delivery fills in.
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyOpsRequest'
+      responses:
+        '200':
+          description: INTENDED — write receipt (the new persisted version). Delivery fills this in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyOpsResult'
+        '402':
+          $ref: '#/components/responses/QuotaExceeded'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '501':
+          description: >-
+            TODAY — not wired yet. Typed sentinel (NOT a mock write receipt).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexApplyOps
+                marker: ORVEX_NOT_IMPLEMENTED
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # FR-W15 — F-QUOTA usage-vs-caps readout
+  # ══════════════════════════════════════════════════════════════════════════
+  /api/orvex/quota:
+    get:
+      tags: [quota]
+      operationId: orvexGetQuota
+      summary: Read the tenant's usage against its effective entitlement caps
+      x-status: draft
+      x-classification: noop-501
+      description: >-
+        FR-W15 — the F-QUOTA usage-vs-caps readout. Pairs each per-tenant usage
+        figure with the effective entitlement CAP. The response field names mirror
+        `../orvex-studio-contracts/billing/entitlements.schema.json`
+        (`quotas.{pages,storageBytes,maxFileBytes,files,members,historyVersions,historyDays,aiTrialActions,aiSpendCap}`,
+        plus `tenantId`/`planId`/`planVersion`). The engine reads the effective
+        entitlement short-TTL-cached and evicts it on `billing.entitlement.changed`.
+
+
+        FROZEN WRITE CONTRACT (documented here, enforced on the write surfaces this
+        read backs): when a quota trips, the guarded WRITE surfaces
+        (POST /api/orvex/pages/{pageId}/apply-ops and future writes) reject with
+        **402 QUOTA_EXCEEDED** — the strict-superset envelope
+        `{quota,state,limit,usage,percent,graceEndsAt?,plan,upgradeUrl,message}`
+        from `../orvex-studio-contracts/errors/vocabulary.yaml`, propagated
+        UNCHANGED (never cached, never partial-written-around). THIS read itself
+        returns 200, not 402.
+
+
+        TODAY: returns 501 NotImplemented (typed sentinel). The 200 shape below is
+        the INTENDED contract — NOT fabricated zero readings.
+      responses:
+        '200':
+          description: INTENDED — usage-vs-caps snapshot (entitlements-aligned). Delivery fills this in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '501':
+          description: TODAY — not wired yet. Typed sentinel (NOT a fabricated zero-usage readout).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexGetQuota
+                marker: ORVEX_NOT_IMPLEMENTED
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # FR-W6 — exchange-token → engine-session mint
+  # ══════════════════════════════════════════════════════════════════════════
+  /api/orvex/session/exchange:
+    post:
+      tags: [session]
+      operationId: orvexSessionExchange
+      summary: Consume an identity-minted exchange token, mint an engine session
+      x-status: draft
+      x-classification: noop-501
+      # Deliberately public: this is the entry that ESTABLISHES the session, so it
+      # cannot itself require an engine session.
+      security: []
+      description: >-
+        FR-W6 / A-AUTH — consume an orvex-studio-identity-minted EXCHANGE TOKEN (an
+        RS256 JWT verified against the identity issuer's JWKS) and mint an engine
+        session scoped to `sub` + `workspaceId`. Identity owns mint/policy and
+        fronts the dual-IdP spine (Clerk + Keycloak); native login is removed (D-S3).
+
+
+        DELIBERATE NARROWING OF THE 'AUTH IS REAL FROM DAY ONE' RULE — read this.
+        The RS256/JWKS verification CORE is ALREADY BUILT AND TESTED (Foundation
+        M7, `apps/server/src/orvex/session-mint`: `exchange-token-verifier.ts`
+        verifies alg-allowlist / iss / aud / exp / claim-shape and returns typed
+        `ExchangeTokenClaims{sub,workspaceId,iss,aud,exp}` or throws a typed
+        `ExchangeTokenVerificationError{code}`). What is NOT yet in place is WIRING
+        that verified result into the upstream Docmost session flow — an A-THIN
+        allow-listed INLINE edit sequence deliberately SEQUENCED for delivery
+        fold-in, not done in the foundation run. So the generic "auth endpoints are
+        real from day one" rule is INTENTIONALLY narrowed here: the verification
+        primitive is real and proven; the HTTP endpoint that stitches it into a
+        minted cookie/session is 501 until the fold-in lands. That is why this
+        operation is classified noop-501 despite being an auth endpoint.
+
+
+        TODAY: returns 501 NotImplemented (typed sentinel). The 200 shape is INTENDED.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionExchangeRequest'
+      responses:
+        '200':
+          description: INTENDED — engine session minted. Delivery fills this in (the fold-in wiring).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionExchangeResult'
+        '401':
+          description: >-
+            INTENDED — exchange token rejected. Carries the stable verifier reason
+            (see ExchangeTokenErrorCode) once the fold-in lands. Framework Nest shape.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+              example:
+                statusCode: 401
+                error: Unauthorized
+                message: 'exchange token rejected: BAD_SIGNATURE'
+        '501':
+          description: >-
+            TODAY — the RS256/JWKS core is built+tested (M7) but the session fold-in
+            is not wired. Typed sentinel (NOT a fabricated session).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexSessionExchange
+                marker: ORVEX_NOT_IMPLEMENTED
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # FR-W19 — AGPL §13 written source offer  (REAL — no 501)
+  # ══════════════════════════════════════════════════════════════════════════
+  /api/orvex/source:
+    get:
+      tags: [compliance]
+      operationId: orvexSourceOffer
+      summary: AGPL §13 written source offer (real {sha, sourceRepo} from env)
+      x-status: draft
+      x-classification: real
+      # Deliberately public: the AGPL §13 source offer must be reachable by any
+      # network user interacting with the modified engine, without a session.
+      security: []
+      description: >-
+        FR-W19 — the AGPL §13 "Corresponding Source" offer. This is REAL from day
+        one (NOT a 501 stub): it returns the exact commit SHA the running binary
+        was built from and the URL of the corresponding-source repository, both
+        read from environment/build config injected at build time
+        (`ORVEX_GIT_SHA`, `ORVEX_SOURCE_REPO`). No fabricated placeholder — if
+        the values are absent at runtime that is a deploy-config defect (500),
+        never a plausible-looking fake SHA.
+      x-source-env:
+        sha: ORVEX_GIT_SHA
+        sourceRepo: ORVEX_SOURCE_REPO
+      responses:
+        '200':
+          description: >-
+            The written source offer. WIRE-TRUE shape: the engine's global
+            TransformHttpResponseInterceptor wraps every 2xx as
+            {data, success, status} (verified live) — the offer payload rides
+            in `data`.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, success, status]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SourceOffer'
+                  success:
+                    type: boolean
+                  status:
+                    type: integer
+              example:
+                data:
+                  sha: 2fa58074c0ffee0000000000000000000000beef
+                  sourceRepo: https://github.com/orvexai/orvex-wiki
+                success: true
+                status: 200
+        '500':
+          description: >-
+            Source-offer env not configured (deploy-config defect). Framework Nest
+            shape — NOT a fabricated SHA.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+              example:
+                statusCode: 500
+                error: Internal Server Error
+                message: source offer not configured
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # A-MOVE — tenant-move typed step contract (day-1 contract, deliberately 501)
+  # ══════════════════════════════════════════════════════════════════════════
+  /api/orvex/tenant-move/quiesce:
+    post:
+      tags: [tenant-move]
+      operationId: orvexTenantMoveQuiesce
+      summary: Tenant-move step 1 — freeze writes for the tenant on the source cell
+      x-status: draft
+      x-classification: noop-501
+      description: >-
+        A-MOVE step 1/4 (quiesce). Freeze writes for the tenant on the SOURCE cell.
+        The TYPED CONTRACT is the non-retrofittable, day-1 part; the body is
+        deliberately a 501 stub — A-MOVE / cell-contract rule #10: "the 501 stub is
+        5 lines any day, the typed contract is not". Request/response reference the
+        TenantMoveManifest (field naming mirrors
+        `../orvex-studio-contracts/schemas/org-move-manifest.schema.json`).
+        `Idempotency-Key` is MANDATORY (cell-contract rule #11): 421-retries,
+        Stripe retries and Temporal retries all replay these calls.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/TenantMoveManifestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/TenantMoveStepAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '501':
+          description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexTenantMoveQuiesce
+                marker: ORVEX_NOT_IMPLEMENTED
+
+  /api/orvex/tenant-move/export:
+    post:
+      tags: [tenant-move]
+      operationId: orvexTenantMoveExport
+      summary: Tenant-move step 2 — export the tenant's stores / S3 prefixes / cursors
+      x-status: draft
+      x-classification: noop-501
+      description: >-
+        A-MOVE step 2/4 (export). Dump the tenant's stores / S3 prefixes / cursors
+        per the TenantMoveManifest. Typed day-1 contract, deliberately 501 (rule
+        #10). `Idempotency-Key` MANDATORY (rule #11). See the OPEN store-list
+        decision on the TenantMoveManifest schema.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/TenantMoveManifestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/TenantMoveStepAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '501':
+          description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexTenantMoveExport
+                marker: ORVEX_NOT_IMPLEMENTED
+
+  /api/orvex/tenant-move/import:
+    post:
+      tags: [tenant-move]
+      operationId: orvexTenantMoveImport
+      summary: Tenant-move step 3 — load the tenant's stores into the destination cell
+      x-status: draft
+      x-classification: noop-501
+      description: >-
+        A-MOVE step 3/4 (import). Load the exported stores / S3 prefixes / cursors
+        into the DESTINATION cell per the TenantMoveManifest. Typed day-1 contract,
+        deliberately 501 (rule #10). `Idempotency-Key` MANDATORY (rule #11).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/TenantMoveManifestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/TenantMoveStepAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '501':
+          description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexTenantMoveImport
+                marker: ORVEX_NOT_IMPLEMENTED
+
+  /api/orvex/tenant-move/activate:
+    post:
+      tags: [tenant-move]
+      operationId: orvexTenantMoveActivate
+      summary: Tenant-move step 4 — flip the registry tenant→cell mapping and resume writes
+      x-status: draft
+      x-classification: noop-501
+      description: >-
+        A-MOVE step 4/4 (activate). Flip the registry `tenant→cell` mapping (with a
+        fresh `cell_epoch`) and resume writes on the DESTINATION cell. Typed day-1
+        contract, deliberately 501 (rule #10). `Idempotency-Key` MANDATORY (rule
+        #11) — a retried activate with a seen key returns the original result,
+        never a double-flip.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        $ref: '#/components/requestBodies/TenantMoveManifestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/TenantMoveStepAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '501':
+          description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotImplementedError'
+              example:
+                code: NOT_IMPLEMENTED
+                operationId: orvexTenantMoveActivate
+                marker: ORVEX_NOT_IMPLEMENTED
+
+components:
+  securitySchemes:
+    engineSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Engine session — the identity-minted exchange token folded into the
+        upstream Docmost session (FR-W6). Deny-by-default. Presented by the React
+        client and by orvex-wiki-api on the internal seam. The session-establishing
+        endpoint (POST /api/orvex/session/exchange) is itself public.
+
+  parameters:
+    PageId:
+      name: pageId
+      in: path
+      required: true
+      description: The target page id (uuidv7).
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        MANDATORY on every tenant-move step (cell-contract rule #11). A retried
+        call carrying a seen key returns the ORIGINAL result, never a double-apply.
+      schema:
+        type: string
+        minLength: 1
+
+  requestBodies:
+    TenantMoveManifestBody:
+      required: true
+      description: >-
+        The versioned tenant-move manifest. Field naming mirrors
+        ../orvex-studio-contracts/schemas/org-move-manifest.schema.json.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TenantMoveManifest'
+
+  responses:
+    Unauthorized:
+      description: Missing/invalid engine session (deny-by-default). Framework Nest shape (observed live).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NestError'
+          example:
+            statusCode: 401
+            error: Unauthorized
+            message: Unauthorized
+    VersionConflict:
+      description: >-
+        INTENDED — 409 optimistic-concurrency conflict: `ifVersion` did not match
+        the page's current persisted version. Family-vocabulary envelope
+        (errorCode VERSION_MISMATCH, ../orvex-studio-contracts/errors/vocabulary.yaml).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FamilyError'
+          example:
+            errorCode: VERSION_MISMATCH
+            message: ifVersion did not match; the write was rejected.
+    QuotaExceeded:
+      description: >-
+        INTENDED — 402 quota rejection (F-QUOTA). The FROZEN strict-superset
+        envelope, propagated UNCHANGED (never cached, never partial-written-around;
+        batch-atomic ⇒ the whole patch fails).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/QuotaExceeded'
+          example:
+            errorCode: QUOTA_EXCEEDED
+            quota: pages
+            state: blocked
+            limit: 50
+            usage: 50
+            percent: 100
+            plan: free
+            upgradeUrl: https://billing.example.invalid/upgrade
+            message: Page quota reached.
+    TenantMoveStepAccepted:
+      description: >-
+        INTENDED — the step was accepted / applied (delivery fills the receipt
+        shape in). Coarse-but-real: echoes the tenant + a per-step receipt.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TenantMoveStepResult'
+
+  schemas:
+    # ── The typed 501 sentinel — the ALL-REAL / no-op≠mock contract ──────────
+    # 'code' style follows the SCREAMING_SNAKE convention of
+    # ../orvex-studio-contracts/errors/vocabulary.yaml (which pins 501-status
+    # codes such as AI_EMBED_PROVIDER_NOT_CONFIGURED). `marker` is the greppable
+    # sentinel every unimplemented surface MUST carry.
+    NotImplementedError:
+      type: object
+      additionalProperties: false
+      required: [code, operationId, marker]
+      description: >-
+        Typed NotImplemented body returned by every 501 orvex primitive. NEVER a
+        plausible-looking value — the greppable `marker` proves it is an honest
+        "not wired yet", not a mock.
+      properties:
+        code:
+          const: NOT_IMPLEMENTED
+          description: Frozen-vocabulary-style code (SCREAMING_SNAKE).
+        operationId:
+          type: string
+          description: The operationId that is not yet wired (e.g. orvexApplyOps).
+        marker:
+          const: ORVEX_NOT_IMPLEMENTED
+          description: The greppable sentinel. Its presence proves the 501 is a real stub, not a mock.
+
+    # ── Framework (Nest/Fastify) error envelope — VERIFIED against the live
+    #    engine (curl http://localhost:3000 → {message,error,statusCode}). ─────
+    NestError:
+      type: object
+      description: >-
+        The upstream Nest/Fastify error envelope, as observed live from the engine
+        (e.g. 404 → {"message":"Workspace not found","error":"Not Found","statusCode":404}).
+        Used for framework-level errors (401/404/500). `message` may be a string or
+        a string array (class-validator).
+      required: [statusCode, error, message]
+      properties:
+        statusCode:
+          type: integer
+        error:
+          type: string
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+
+    # ── Family error envelope — ../orvex-studio-contracts/errors/vocabulary.yaml
+    #    (business/domain errors carry a frozen errorCode). ────────────────────
+    FamilyError:
+      type: object
+      additionalProperties: false
+      required: [errorCode, message]
+      description: >-
+        The family-vocabulary error envelope (errors/vocabulary.yaml). Used for
+        domain errors that carry a frozen family errorCode (e.g. VERSION_MISMATCH).
+      properties:
+        errorCode:
+          type: string
+          description: A frozen family errorCode (errors/vocabulary.yaml).
+          examples: [VERSION_MISMATCH, QUOTA_EXCEEDED]
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional per-code structured detail.
+
+    # ── 402 QUOTA_EXCEEDED strict-superset envelope — mirrors common.yaml
+    #    QuotaExceeded + errors/vocabulary.yaml. ─────────────────────────────
+    QuotaExceeded:
+      type: object
+      additionalProperties: false
+      required: [errorCode, quota, state, limit, usage, percent, plan, message]
+      description: >-
+        The FROZEN 402 QUOTA_EXCEEDED superset envelope. Propagated UNCHANGED
+        through wiki-api (never cached, never partial-written-around).
+      properties:
+        errorCode:
+          const: QUOTA_EXCEEDED
+        quota:
+          type: string
+          enum: [pages, storage_bytes, files, members, ai_actions, ai_spend]
+          description: Which quota tripped.
+        state:
+          type: string
+          enum: [over, grace, blocked]
+        limit:
+          type: integer
+          description: The billing-owned entitlement limit value.
+        usage:
+          type: integer
+          description: Current usage against the limit.
+        percent:
+          type: number
+          description: usage/limit as a percentage.
+        graceEndsAt:
+          type: string
+          format: date-time
+          description: Present only while state=grace.
+        plan:
+          type: string
+          description: The tenant's current plan id.
+        upgradeUrl:
+          type: string
+          format: uri
+          description: Entitlement/upgrade deep-link.
+        message:
+          type: string
+
+    # ── FR-W1 apply-ops request/response ─────────────────────────────────────
+    ApplyOpsRequest:
+      type: object
+      additionalProperties: false
+      required: [ifVersion, ops]
+      description: A typed PM-JSON op batch plus the CAS baseline.
+      properties:
+        ifVersion:
+          type: integer
+          minimum: 0
+          description: >-
+            Optimistic-concurrency baseline — a MONOTONIC version/etag (NOT a
+            wall-clock updated_at). The same per-document counter the produced
+            event `version` carries (D-CON-5).
+        ops:
+          type: array
+          minItems: 1
+          description: >-
+            Ordered typed ProseMirror-JSON write ops applied atomically. The op
+            grammar is pinned against the DfM parity corpus
+            (../orvex-studio-contracts/fixtures/dfm/) and the engine block-schema
+            catalog. TODO(delivery) — freeze the discriminated op grammar.
+          items:
+            $ref: '#/components/schemas/PmOp'
+      example:
+        ifVersion: 7
+        ops:
+          - type: replaceBlock
+            blockId: 01J000000000000000000BLOCK
+            pm:
+              type: paragraph
+              content:
+                - { type: text, text: 'The quick brown fox.' }
+
+    PmOp:
+      type: object
+      description: >-
+        A single typed PM-JSON / block-op. Coarse-but-real — the exact
+        discriminated grammar (replaceBlock / insertBlock / deleteBlock / mark /
+        opaque-node reattach) is TBD at delivery, proven against the DfM corpus.
+        Opaque/atom nodes (drawio/excalidraw/mermaid/embeds) round-trip
+        byte-identical via the `{block_id,type,summary}` handle.
+      required: [type]
+      properties:
+        type:
+          type: string
+          description: The op discriminant (e.g. replaceBlock). Grammar frozen at delivery.
+      additionalProperties: true
+
+    ApplyOpsResult:
+      type: object
+      additionalProperties: false
+      required: [pageId, version]
+      description: >-
+        Write receipt. Coarse-but-real (aligned with the contracts
+        write-receipt.schema.json intent). `version` is the NEW persisted
+        write-commit counter — the value a subsequent apply-ops passes as ifVersion.
+      properties:
+        pageId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          description: The new persisted write-commit counter (ifVersion / event-version space).
+        appliedOps:
+          type: integer
+          description: Count of ops applied (equals the request batch size on success).
+
+    # ── FR-W15 quota status — field names mirror entitlements.schema.json ────
+    QuotaStatus:
+      type: object
+      additionalProperties: false
+      required: [tenantId, planId, planVersion, quotas]
+      description: >-
+        Usage-vs-caps snapshot. `planId`/`planVersion` and the `quotas.*` keys
+        mirror ../orvex-studio-contracts/billing/entitlements.schema.json; each
+        quota value pairs the effective entitlement `limit` (cap; null = unlimited)
+        with current `usage`.
+      properties:
+        tenantId:
+          type: string
+        planId:
+          type: string
+          enum: [free, personal, teams, enterprise]
+        planVersion:
+          type: string
+          description: The plan-version the effective entitlement was minted under (grandfathering).
+        quotas:
+          type: object
+          additionalProperties: false
+          description: >-
+            Per-quota usage-vs-cap. Keys mirror entitlements.schema.json
+            #/properties/quotas exactly.
+          properties:
+            pages: { $ref: '#/components/schemas/QuotaUsage' }
+            storageBytes: { $ref: '#/components/schemas/QuotaUsage' }
+            maxFileBytes: { $ref: '#/components/schemas/QuotaUsage' }
+            files: { $ref: '#/components/schemas/QuotaUsage' }
+            members: { $ref: '#/components/schemas/QuotaUsage' }
+            historyVersions: { $ref: '#/components/schemas/QuotaUsage' }
+            historyDays: { $ref: '#/components/schemas/QuotaUsage' }
+            aiTrialActions: { $ref: '#/components/schemas/QuotaUsage' }
+            aiSpendCap: { $ref: '#/components/schemas/QuotaUsage' }
+        trial:
+          type: [object, 'null']
+          additionalProperties: false
+          description: Present during a card-required trial; on lapse, normal over-quota rules apply.
+          properties:
+            endsAt:
+              type: string
+              format: date-time
+        effectiveAt:
+          type: string
+          format: date-time
+
+    QuotaUsage:
+      type: object
+      additionalProperties: false
+      required: [limit, usage]
+      description: A single quota's cap + current usage.
+      properties:
+        limit:
+          type: [number, 'null']
+          description: Effective entitlement cap (from billing); null = unlimited.
+        usage:
+          type: [number, 'null']
+          description: Current usage against the cap.
+
+    # ── FR-W6 session exchange ───────────────────────────────────────────────
+    SessionExchangeRequest:
+      type: object
+      additionalProperties: false
+      required: [exchangeToken]
+      description: The identity-minted exchange token to consume.
+      properties:
+        exchangeToken:
+          type: string
+          description: >-
+            An orvex-studio-identity-minted RS256 JWT. Verified against the issuer
+            JWKS by the built+tested M7 core (alg-allowlist / iss / aud / exp /
+            claim-shape) before a session is minted.
+
+    SessionExchangeResult:
+      type: object
+      additionalProperties: false
+      required: [workspaceId, sub]
+      description: >-
+        INTENDED — the minted session's scope. The engine session is delivered as
+        the upstream session cookie on the response (the A-THIN fold-in). Fields
+        mirror the verified ExchangeTokenClaims the M7 verifier returns.
+      properties:
+        sub:
+          type: string
+          description: Identity subject; the engine maps this to its user.
+        workspaceId:
+          type: string
+          description: The workspace the session is scoped to (FR-W6 tenant scope).
+        expiresAt:
+          type: string
+          format: date-time
+          description: Session expiry, bounded so it never outlives the exchange token's exp.
+
+    # ── FR-W19 source offer ──────────────────────────────────────────────────
+    SourceOffer:
+      type: object
+      additionalProperties: false
+      required: [sha, sourceRepo]
+      description: >-
+        AGPL §13 written source offer. REAL values read from build-time env
+        (ORVEX_GIT_SHA / ORVEX_SOURCE_REPO) — never a fabricated placeholder.
+      properties:
+        sha:
+          type: string
+          description: The exact commit SHA the running binary was built from.
+        sourceRepo:
+          type: string
+          format: uri
+          description: URL of the corresponding-source repository.
+
+    # ── A-MOVE tenant-move manifest — field naming mirrors
+    #    ../orvex-studio-contracts/schemas/org-move-manifest.schema.json ───────
+    TenantMoveManifest:
+      type: object
+      additionalProperties: false
+      required: [schema_version, tenant_id, stores, s3_prefixes, cursors]
+      description: >-
+        The versioned manifest describing a single tenant-move (org-move
+        generalises to tenant-move: a tenant is a polymorphic user|org). Mirrors
+        org-move-manifest.schema.json field-for-field.
+
+
+        OPEN DECISION (store-list): `stores[]` is coverage-checked against the
+        service's DECLARED datastore inventory (cell-contract rule #10, per-repo
+        `ORG_MOVE.md`). The engine's declared store inventory for tenant-move is
+        NOT yet frozen — TBD-at-delivery (the ORG_MOVE.md coverage check pins it).
+      properties:
+        schema_version:
+          type: integer
+          minimum: 1
+          description: Manifest schema version; bumped on any breaking change so producers/consumers gate on it.
+        tenant_id:
+          type: string
+          format: uuid
+          description: The uuidv7 id of the tenant (user|org) being moved.
+        stores:
+          type: array
+          description: >-
+            The relational/logical datastores this service will
+            quiesce→export→import→activate for the tenant. OPEN — coverage-checked
+            against the engine's declared datastore inventory (TBD-at-delivery).
+          items:
+            $ref: '#/components/schemas/TenantMoveStore'
+        s3_prefixes:
+          type: array
+          description: The S3 key prefixes owned by this tenant that participate in the move.
+          items:
+            $ref: '#/components/schemas/TenantMoveS3Prefix'
+        cursors:
+          type: array
+          description: Durable checkpoints (Kafka offsets, outbox positions, external cursors) carried across the move.
+          items:
+            $ref: '#/components/schemas/TenantMoveCursor'
+
+    TenantMoveStore:
+      type: object
+      additionalProperties: false
+      required: [name, kind]
+      properties:
+        name:
+          type: string
+          description: Logical store name (must appear in the engine's declared datastore inventory).
+        kind:
+          type: string
+          enum: [postgres, redis, kafka, s3, external]
+          description: Backing store class.
+        row_estimate:
+          type: integer
+          minimum: 0
+          description: Optional coarse row estimate for sizing/quiesce planning.
+
+    TenantMoveS3Prefix:
+      type: object
+      additionalProperties: false
+      required: [bucket, prefix]
+      properties:
+        bucket:
+          type: string
+          description: Per-cell bucket name (carries the cell).
+        prefix:
+          type: string
+          description: Key prefix, must begin with the tenant_id ({tenant_id}/...).
+
+    TenantMoveCursor:
+      type: object
+      additionalProperties: false
+      required: [source, position]
+      properties:
+        source:
+          type: string
+          description: Cursor source (e.g. a topic {domain}-events.{cell}, an outbox table, or an external provider).
+        position:
+          type: string
+          description: Opaque durable position/offset/checkpoint (string to avoid precision loss).
+
+    TenantMoveStepResult:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, step, status]
+      description: >-
+        INTENDED — coarse-but-real per-step receipt. Delivery fills in the real
+        per-step payload (exported byte counts, cursor checkpoints, etc.).
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        step:
+          type: string
+          enum: [quiesce, export, import, activate]
+        status:
+          type: string
+          enum: [accepted, done]

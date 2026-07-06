@@ -27,6 +27,7 @@ import { LoggerModule } from './common/logger/logger.module';
 import { ClsModule } from 'nestjs-cls';
 import { NoopAuditModule } from './integrations/audit/audit.module';
 import { ThrottleModule } from './integrations/throttle/throttle.module';
+import { OrvexRootModule } from './orvex/orvex-root.module';
 
 const enterpriseModules = [];
 try {
@@ -37,8 +38,13 @@ try {
   }
 } catch (err) {
   if (process.env.CLOUD === 'true') {
-    console.warn('Failed to load enterprise modules. Exiting program.\n', err);
-    process.exit(1);
+    // FR-W20 CLOUD-clean boot decouple: the multi-tenant hot path must NOT depend
+    // on ee/. A missing ee/ under CLOUD=true is a loud warning, NEVER a
+    // boot-killing process.exit — the engine continues.
+    console.warn(
+      'CLOUD=true but ee/ absent — continuing; multi-tenant hot path must not depend on ee/ (FR-W20)',
+      err,
+    );
   }
 }
 
@@ -86,6 +92,7 @@ try {
     TelemetryModule,
     ThrottleModule,
     ...enterpriseModules,
+    OrvexRootModule.register(),
   ],
   controllers: [AppController],
   providers: [
