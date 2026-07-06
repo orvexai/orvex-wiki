@@ -5,7 +5,16 @@
 # GitOps auto-rollout. Live-infra suites (make smoke-test, make test-e2e) run
 # against a real environment and are NOT CI jobs yet — see the foundation
 # handoff for the promote-later plan (Houston e2e-gates pattern).
-# All jobs run on the self-hosted `runners` label (never GitHub-hosted).
+#
+# RUNNERS — DOCUMENTED CS §13 EXCEPTION (public repo). orvex-wiki is the family's
+# only PUBLIC repo (the AGPL engine). GitHub's Default runner group has
+# allows_public_repositories=false (secure default) and those self-hosted
+# runners hold cluster-admin + OpenBao access — a public repo's PRs must NOT run
+# on them. This repo's CI needs zero cluster access (lint/typecheck/test/build/
+# kubeconform/audit only), so it runs on GitHub-hosted runners (free + unlimited
+# for public repos, fully isolated). CS §13's "self-hosted `runners` label"
+# doctrine applies to the PRIVATE family repos; public repos use GitHub-hosted.
+# Images stay Tekton-only regardless (never built in CI).
 
 name: CI
 
@@ -29,7 +38,7 @@ jobs:
   # ---------------------------------------------------------------------------
   lint-client:
     name: Lint Client
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -44,7 +53,7 @@ jobs:
 
   lint-server:
     name: Lint Server
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -59,7 +68,7 @@ jobs:
 
   lint-boundary:
     name: Import Boundary (M1 fence)
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -77,7 +86,7 @@ jobs:
   # ---------------------------------------------------------------------------
   typecheck:
     name: Typecheck
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -99,7 +108,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -117,7 +126,7 @@ jobs:
   # ---------------------------------------------------------------------------
   test-client:
     name: Test Client (vitest)
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -132,7 +141,7 @@ jobs:
 
   test-server:
     name: Test Server (jest, CI set)
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -154,7 +163,7 @@ jobs:
   # ---------------------------------------------------------------------------
   smoke-module:
     name: Smoke Module (build/vet/fmt)
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -173,7 +182,7 @@ jobs:
   # ---------------------------------------------------------------------------
   k8s-validate:
     name: K8s Manifests (build-only)
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -193,7 +202,7 @@ jobs:
   # ---------------------------------------------------------------------------
   security:
     name: Security (audit + govulncheck)
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -217,7 +226,7 @@ jobs:
 
   sbom-generation:
     name: SBOM Generation
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install syft
@@ -252,7 +261,7 @@ jobs:
   # ---------------------------------------------------------------------------
   workflow-lint:
     name: Workflow Lint
-    runs-on: runners
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -296,7 +305,7 @@ jobs:
       - security
       - sbom-generation
       - workflow-lint
-    runs-on: runners
+    runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Check all gate results
