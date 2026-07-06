@@ -1,0 +1,21 @@
+{
+  "name": "orvex-wiki",
+  "// image": "Pinned tag (Foundation M7) so dependency scans are reproducible; bump deliberately, never 'latest'.",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-24-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.26" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.4.0 --activate && pnpm install --frozen-lockfile",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "golang.go",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "forwardPorts": [3000, 55432, 56379, 59000, 59001],
+  "remoteUser": "node"
+}
