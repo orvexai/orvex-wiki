@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import * as path from 'path';
 
@@ -13,5 +13,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: [],
+    // Playwright owns e2e/**; keep vitest from collecting those specs
+    // (they import @playwright/test and cannot run under vitest).
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 });

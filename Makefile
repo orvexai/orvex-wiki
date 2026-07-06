@@ -13,7 +13,8 @@ define with-env
 	set -a && . ./.env.dev && set +a && $(1)
 endef
 
-.PHONY: help build test test-server test-client lint typecheck security \
+.PHONY: help build test test-server test-server-full test-client test-e2e \
+        smoke-test smoke-test-strict lint typecheck security \
         env-up env-down env-destroy env-status env-logs env-info secrets \
         db-migrate run-local
 
@@ -24,13 +25,20 @@ help: ## Show this help
 build: ## Full monorepo build (nx run-many -t build)
 	pnpm build
 
-test: test-server test-client ## All unit tests
+test: test-server test-client ## All unit tests (CI shape)
 
-test-server: ## Server unit tests (jest)
+test-server: ## Server unit tests (jest, CI set — excludes the 16 named upstream never-green DI-scaffold specs; see test-server-full)
+	pnpm --dir apps/server run test:ci
+
+test-server-full: ## FULL upstream jest suite incl. the 16 known-red upstream DI-scaffold specs (upstream test debt, recorded in the foundation handoff)
 	pnpm --dir apps/server test
 
 test-client: ## Client unit tests (vitest)
 	pnpm --dir apps/client test
+
+test-e2e: ## Playwright smoke against a RUNNING local engine (make env-up + make run-local first)
+	pnpm --dir apps/client exec playwright install chromium
+	APP_URL=$${APP_URL:-http://localhost:3000} pnpm --dir apps/client exec playwright test
 
 lint: ## Per-app eslint (check-only) + repo import-boundary fence
 	pnpm --dir apps/client lint
@@ -43,6 +51,13 @@ typecheck: ## Typecheck client + server (workspace package dists required: run `
 
 security: ## Dependency audit (fails on high+; triage in M7)
 	pnpm audit --audit-level=high
+
+##@ Smoke suite (Foundation M3 — tiered Go smoke: Postgres + Redis + S3 + HTTP health; FAIL-never-SKIP)
+smoke-test: .env.dev ## Run the Go smoke suite against the local env (sources .env.dev)
+	$(call with-env, cd tests/smoke && go test ./... -count=1 -v)
+
+smoke-test-strict: ## Smoke suite with PRE-SET env ONLY, no .env.dev sourcing (the in-cluster Job shape)
+	cd tests/smoke && go test ./... -count=1 -v
 
 ##@ Local prod-parity environment (Postgres 17 CNPG-family + Redis 8 + MinIO S3)
 env-up: .env.dev ## Start engines, create the bucket, wait until healthy
