@@ -270,10 +270,8 @@ jobs:
   # pattern). Repo passes it as of 2026-07-06 (operator ruling 3b: annotated
   # cell-lint-allow exceptions for crew public-ingress sibling URLs).
   # ---------------------------------------------------------------------------
-  # cell-lint:
-  #   uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
-  # (temporarily commented for a parse-bisect of the first-ever CI run;
-  #  re-enable once the cross-repo call is proven resolvable)
+  cell-lint:
+    uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
 
   # ---------------------------------------------------------------------------
   # CI Success Gate — the single required check for branch protection.
