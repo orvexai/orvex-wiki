@@ -14,7 +14,7 @@ define with-env
 endef
 
 .PHONY: help build test test-server test-server-full test-client test-e2e \
-        smoke-test smoke-test-strict lint typecheck security ci-local \
+        smoke-test smoke-test-strict lint typecheck security ci-local k8s-validate \
         env-up env-down env-destroy env-status env-logs env-info secrets \
         db-migrate run-local
 
@@ -52,6 +52,9 @@ typecheck: ## Typecheck client + server (workspace package dists required: run `
 security: ## Dependency audit (fails on high+; triage in M7)
 	pnpm audit --audit-level=high
 
+k8s-validate: ## Build-only deploy-tree validation (kustomize + kubeconform; NEVER applies)
+	kustomize build --load-restrictor LoadRestrictionsNone deploy/kustomize | kubeconform -ignore-missing-schemas -summary
+
 ##@ Smoke suite (Foundation M3 — tiered Go smoke: Postgres + Redis + S3 + HTTP health; FAIL-never-SKIP)
 smoke-test: .env.dev ## Run the Go smoke suite against the local env (sources .env.dev)
 	$(call with-env, cd tests/smoke && go test ./... -count=1 -v)
@@ -66,6 +69,7 @@ ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smo
 	$(MAKE) test-server
 	$(MAKE) test-client
 	cd tests/smoke && test -z "$$(gofmt -l .)" && go vet ./...
+	$(MAKE) k8s-validate
 	$(MAKE) security
 	@echo "ci-local: ALL GATES GREEN"
 

@@ -9,3 +9,4 @@ resources:
   - service.yaml                    # wave 5
   - deployment.yaml                 # wave 6 (Deployment + ServiceAccount + PDB)
   - httproute.yaml                  # wave 6
+  - observability.yaml              # wave 6 (PrometheusRule + dashboard ConfigMap + GrafanaDashboard)

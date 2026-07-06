@@ -59,7 +59,11 @@ data:
   gitBranch: main
   branchSlug: main
 
-  # ── TLS ─────────────────────────────────────────────────────────────────
-  tlsIssuer: cloudflare-origin-issuer
-  tlsIssuerKind: ClusterOriginIssuer
-  tlsIssuerGroup: cert-manager.k8s.cloudflare.com
+  # ── TLS: NONE HERE (Foundation M5) ──────────────────────────────────────
+  # TLS terminates at the shared platform-gateway listener (orvex-eu1-https,
+  # hostname *.eu1.orvex.ai, platform-owned wildcard Secret) — this repo ships
+  # NO per-app Certificate, per platform convention. The former tlsIssuer/
+  # tlsIssuerKind/tlsIssuerGroup fields were dead boilerplate consumed by
+  # nothing and are removed. The per-cell TENANT wildcard (*.wiki.eu1.
+  # orvex.{ai,dev}) is a platform-gateway listener ask that lands with
+  # multi-tenant enablement (delivery), not a per-app cert.
