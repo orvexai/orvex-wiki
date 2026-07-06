@@ -52,6 +52,9 @@ typecheck: ## Typecheck client + server (workspace package dists required: run `
 security: ## Dependency audit (fails on high+; triage in M7)
 	pnpm audit --audit-level=high
 
+context-check: ## Fail if the carried Coding Standards copy drifted from the canonical wiki page
+	bash scripts/check-context-freshness.sh
+
 k8s-validate: ## Build-only deploy-tree validation (kustomize + kubeconform; NEVER applies)
 	kustomize build --load-restrictor LoadRestrictionsNone deploy/kustomize | kubeconform -ignore-missing-schemas -summary
 
@@ -71,6 +74,7 @@ ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smo
 	cd tests/smoke && test -z "$$(gofmt -l .)" && go vet ./...
 	$(MAKE) k8s-validate
 	$(MAKE) security
+	$(MAKE) context-check
 	@echo "ci-local: ALL GATES GREEN"
 
 ##@ Local prod-parity environment (Postgres 17 CNPG-family + Redis 8 + MinIO S3)

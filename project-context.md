@@ -1,10 +1,19 @@
 # project-context.md — orvex-wiki (Core Wiki Engine, AGPL)
 
+<!-- provenance: carried copy of the family Coding Standards.
+     cs-source: 6aMAzsYeQb
+     cs-source-sha256: 3a7f06ff56d4e533be64be3c229f77dd70bfc4de0bef576371f8502ef41564c2
+     materialized: 2026-07-06
+     Freshness is CI-gated by scripts/check-context-freshness.sh (make context-check):
+     it fails the build when the CS page's sha256 drifts from the pin above, so a
+     human folds the delta in (preserving this repo's overrides) and re-pins. -->
+
 **Carried doctrine (CS §9).** This file is the always-loaded copy of the family
 **Coding Standards** so the rules bind every agent at *planning* time, not only
 at review time. It is a concise carried copy — the wiki page is the single
-source of truth; never let this drift silently. If you observe this copy is
-stale against the wiki, refresh it.
+source of truth; never let this drift silently. Drift is caught by the
+freshness gate (`make context-check`); if it fails, refresh from the CS page
+below and re-pin the `cs-source-sha256` in the provenance header above.
 
 - **Coding Standards (CS)** — `orvexstudioarch`, slug **`6aMAzsYeQb`**
   `docmost-cli page get 6aMAzsYeQb --no-daemon`
@@ -136,6 +145,16 @@ is **no in-engine broker/DB client construction inside a domain function** — e
 external client is injected at its seam.
 
 ### Additive seam inventory (`apps/server/src/orvex/*`, behind one inert `OrvexRootModule`)
+
+> **Status (2026-07-06, post-foundation): this table is the TARGET seam set, not
+> the current tree.** The foundation run rebuilt the additive surface from
+> scratch: `session-mint/` carries a real RS256/JWKS `ExchangeTokenVerifier`
+> (M7); `config/`, `http/` (the OpenAPI-contracted 501 no-op skeleton), and
+> `not-implemented.ts` exist (M8); `page-meta/`, `quota/`, `outbox/`, `cell/`,
+> `api-key/`, `migrations/` are **delivery-pending** (not yet in the tree). The
+> authoritative current-state list is `contracts/openapi.yaml` +
+> `docs/delivery-checklist.md` (generated from the 501 marker set). Rows below
+> describe where each seam lands, not what is built today.
 
 | Dir | Primitive | PRD / ADR |
 | --- | --- | --- |
