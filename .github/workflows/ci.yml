@@ -239,7 +239,7 @@ jobs:
           print('SPDX packages:', len(spdx['packages']))
           PYEOF
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-reports
           path: |
