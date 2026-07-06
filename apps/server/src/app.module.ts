@@ -27,10 +27,6 @@ import { LoggerModule } from './common/logger/logger.module';
 import { ClsModule } from 'nestjs-cls';
 import { NoopAuditModule } from './integrations/audit/audit.module';
 import { ThrottleModule } from './integrations/throttle/throttle.module';
-// Orvex (additive, A-THIN allow-list): the single, INERT aggregation import.
-// `register()` is off unless ORVEX_MODULES_ENABLED=true, so with the flag unset
-// (the deployed default) it contributes NOTHING and runtime stays vanilla.
-import { OrvexRootModule } from './orvex/orvex-root.module';
 
 const enterpriseModules = [];
 try {
@@ -90,8 +86,6 @@ try {
     TelemetryModule,
     ThrottleModule,
     ...enterpriseModules,
-    // Inert by default (empty module unless ORVEX_MODULES_ENABLED=true).
-    OrvexRootModule.register(),
   ],
   controllers: [AppController],
   providers: [
