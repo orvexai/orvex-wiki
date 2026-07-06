@@ -31,7 +31,7 @@ data:
   openbaoAppPath: apps/orvex-wiki
 
   # ── Domain configuration ────────────────────────────────────────────────
-  baseDomain: orvex.ai
+  baseDomain: orvex.ai  # cell-lint-allow: own-domain build-time config, not a peer URL
   clusterDomain: eu-central-1.myidp.cloud
   loadBalancerIP: "37.27.73.18"
 

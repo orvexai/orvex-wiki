@@ -52,7 +52,7 @@ kind: Component
 
 labels:
   - pairs:
-      orvex-wiki.orvex.ai/resource-profile: crew
+      orvex-wiki.orvex.ai/resource-profile: crew  # cell-lint-allow: label namespace key, not a URL
     includeSelectors: false
 
 patches:
@@ -63,10 +63,10 @@ patches:
   - patch: |-
       - op: replace
         path: /spec/hostnames/0
-        value: wiki.PLACEHOLDER.orvex.dev
+        value: wiki.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
-        value: wiki.PLACEHOLDER.orvex.dev
+        value: wiki.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /spec/parentRefs/0/sectionName
         value: orvex-dev-https
@@ -84,7 +84,7 @@ patches:
   - patch: |-
       - op: replace
         path: /data/wikiHost
-        value: wiki.PLACEHOLDER.orvex.dev
+        value: wiki.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
     target:
       kind: ConfigMap
       name: cluster-config
@@ -102,25 +102,25 @@ patches:
         value: PLACEHOLDER
       - op: replace
         path: /data/ORVEX_IDENTITY_URL
-        value: https://identity.PLACEHOLDER.orvex.dev
+        value: https://identity.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_KNOWLEDGE_URL
-        value: https://knowledge.PLACEHOLDER.orvex.dev
+        value: https://knowledge.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_AI_URL
-        value: https://ai.PLACEHOLDER.orvex.dev
+        value: https://ai.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_BILLING_URL
-        value: https://billing.PLACEHOLDER.orvex.dev
+        value: https://billing.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_MCP_URL
-        value: https://mcp.PLACEHOLDER.orvex.dev
+        value: https://mcp.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_CONSOLE_URL
-        value: https://console.PLACEHOLDER.orvex.dev
+        value: https://console.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_WIKI_API_URL
-        value: https://wiki-api.PLACEHOLDER.orvex.dev
+        value: https://wiki-api.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
     target:
       kind: ConfigMap
       name: orvex-wiki-env

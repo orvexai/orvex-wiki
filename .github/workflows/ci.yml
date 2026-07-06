@@ -264,6 +264,16 @@ jobs:
         run: actionlint
 
   # ---------------------------------------------------------------------------
+  # Family cell-contract gate (reusable workflow from the contracts seam).
+  # NOT in the ci-success fan-in yet: first-ever cross-repo run — promote into
+  # `needs:` once it has run green on real pushes (Houston promote-later
+  # pattern). Repo passes it as of 2026-07-06 (operator ruling 3b: annotated
+  # cell-lint-allow exceptions for crew public-ingress sibling URLs).
+  # ---------------------------------------------------------------------------
+  cell-lint:
+    uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
+
+  # ---------------------------------------------------------------------------
   # CI Success Gate — the single required check for branch protection.
   # ---------------------------------------------------------------------------
   ci-success:

@@ -16,7 +16,7 @@ kind: Component
 
 labels:
   - pairs:
-      orvex-wiki.orvex.ai/resource-profile: staging
+      orvex-wiki.orvex.ai/resource-profile: staging  # cell-lint-allow: label namespace key, not a URL
     includeSelectors: false
 
 patches:
@@ -28,10 +28,10 @@ patches:
   - patch: |-
       - op: replace
         path: /spec/hostnames/0
-        value: wiki.eu1.orvex.dev
+        value: wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
-        value: wiki.eu1.orvex.dev
+        value: wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /spec/parentRefs/0/sectionName
         value: orvex-eu1-dev-https
@@ -43,7 +43,7 @@ patches:
   - patch: |-
       - op: replace
         path: /data/APP_URL
-        value: https://wiki.eu1.orvex.dev
+        value: https://wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
     target:
       kind: ConfigMap
       name: orvex-wiki-env
