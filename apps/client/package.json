@@ -56,7 +56,7 @@
     "nanoid": "3.3.8",
     "posthog-js": "1.391.2",
     "react": "19.2.7",
-    "react-clear-modal": "^2.0.18",
+    "react-clear-modal": "^3.0.1",
     "react-dom": "19.2.7",
     "react-drawio": "1.0.7",
     "react-error-boundary": "6.1.1",
