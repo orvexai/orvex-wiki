@@ -2,7 +2,7 @@
 
 <!-- provenance: carried copy of the family Coding Standards.
      cs-source: 6aMAzsYeQb
-     cs-source-sha256: 3a7f06ff56d4e533be64be3c229f77dd70bfc4de0bef576371f8502ef41564c2
+     cs-source-sha256: a91c55b5c75030d0cfb8d93dcfe1103402e0cc90c70d2ad228259ce056460fb7
      materialized: 2026-07-06
      Freshness is CI-gated by scripts/check-context-freshness.sh (make context-check):
      it fails the build when the CS page's sha256 drifts from the pin above, so a
@@ -207,6 +207,29 @@ AND it constrains future work. Load-bearing rulings still owed as filed ADRs
 removed, the frozen `402 QUOTA_EXCEEDED` contract, the A-QUOTA fail-open
 tradeoff, D-S27 URL ordering — **blocked** on the Studio Decision-Records parent +
 fresh `0001` registry (TBD Act-1).
+
+## Dependency updates — authoritative stable sourcing (§14)
+
+**"Stable" is the maintainer's authoritative release channel, NOT the
+highest-published version number.** Pre-releases publish *above* the stable tag,
+so "take the newest number" overshoots into an unratified channel — a build
+failure. When bumping a dependency, resolve the target from the ecosystem's
+authoritative stable channel, never the numerically-highest version the registry
+lists:
+
+- **npm / pnpm** (this engine + the React fronts) — the `latest` **dist-tag**
+  (`npm view <pkg> dist-tags.latest`); never `beta`/`rc`/`next`/`canary`/
+  `experimental`/`insiders`.
+- **Go** (the wiki-api twin, sibling services) — the highest **non-prerelease**
+  module-proxy tag (`go list -m -versions`); no `-rc`/`-beta`/`-alpha`.
+- **Python** — PyPI's latest **stable** release (pre-releases excluded).
+
+A **conforming bump** targets that stable tag, **resolves its full peer set**,
+**clears the supply-chain minimum-release-age window** (≥~24h since publish —
+never adopt a just-cut release), records the exact resolved version in
+`package.json`/`go.mod` (§5 names exact versions), and **passes the repo's real
+gate suite (§0/§13) before merge**. Dependabot PRs are held to the same bar —
+group them, and retarget any that grabbed a prerelease onto the `latest` tag.
 
 ---
 
