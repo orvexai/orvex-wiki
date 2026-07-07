@@ -198,6 +198,23 @@ jobs:
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
   # ---------------------------------------------------------------------------
+  # Engine license guard (ENG-1381 — P10: no closed EE submodule/gitlink/
+  # import re-enters the AGPL engine). Static gate: reads git metadata +
+  # source only, never runs product code. Runner: GitHub-hosted, same
+  # documented public-repo exception as every other job in this file (see
+  # file header) — not the self-hosted `runner` group.
+  # ---------------------------------------------------------------------------
+  engine-license-guard:
+    name: Engine License Guard (P10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: EngineHasNoClosedSubmoduleSpec (shell gate)
+        run: bash scripts/engine-license-guard.sh .
+
+  # ---------------------------------------------------------------------------
   # Security
   # ---------------------------------------------------------------------------
   security:
@@ -302,6 +319,7 @@ jobs:
       - test-server
       - smoke-module
       - k8s-validate
+      - engine-license-guard
       - security
       - sbom-generation
       - workflow-lint
