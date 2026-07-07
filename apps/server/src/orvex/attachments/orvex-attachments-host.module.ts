@@ -10,8 +10,11 @@ import {
  * (`/api/integrations/storage/*`, AC1-AC3/AC10). Guarded per-handler by
  * {@link JwtAuthGuard} + the workspace-settings CASL check; the engine
  * binary attachment up/down path itself (AC8/AC9) lives at
- * `core/attachment` and is unaffected — this module is additive, mounted by
- * {@link OrvexRootModule} only when the master flag is on.
+ * `core/attachment` and is unaffected — this module is additive, and wired
+ * unconditionally into {@link AppModule} (independent of the
+ * `ORVEX_MODULES_ENABLED` master flag, which only gates
+ * {@link OrvexRootModule}) — storage/mail admin ships even solo per PO
+ * ruling 5.
  */
 @Module({
   controllers: [OrvexStorageAdminController],

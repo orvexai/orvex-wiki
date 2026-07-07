@@ -8,8 +8,11 @@ import {
 /**
  * Mounts the SMTP mail operational-config admin surface
  * (`/api/integrations/mail/*`, AC4-AC7). Guarded per-handler by
- * {@link JwtAuthGuard} + the workspace-settings CASL check. Additive,
- * mounted by {@link OrvexRootModule} only when the master flag is on.
+ * {@link JwtAuthGuard} + the workspace-settings CASL check. Additive, and
+ * wired unconditionally into {@link AppModule} (independent of the
+ * `ORVEX_MODULES_ENABLED` master flag, which only gates
+ * {@link OrvexRootModule}) — storage/mail admin ships even solo per PO
+ * ruling 5.
  */
 @Module({
   controllers: [OrvexMailAdminController],
