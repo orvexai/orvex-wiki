@@ -35,6 +35,7 @@ export interface ExcalidrawAttributes {
   aspectRatio?: number;
   align?: string;
   attachmentId?: string;
+  sceneAttachmentId?: string | null;
 }
 
 declare module "@tiptap/core" {
@@ -138,6 +139,19 @@ export const Excalidraw = Node.create<ExcalidrawOptions>({
         parseHTML: (element) => element.getAttribute("data-attachment-id"),
         renderHTML: (attributes: ExcalidrawAttributes) => ({
           "data-attachment-id": attributes.attachmentId,
+        }),
+      },
+      sceneAttachmentId: {
+        // MUST be `null`, not `undefined` (ENG-1391 / the 050187 delta).
+        // y-prosemirror's JSON->Yjs sync only filters `null` attrs — a
+        // `default: undefined` here would write a phantom
+        // `{ sceneAttachmentId: undefined }` key into the Yjs map (JSONB
+        // silently drops `undefined`, Yjs keeps it), corrupting the round-trip.
+        default: null,
+        parseHTML: (element) =>
+          element.getAttribute("data-scene-attachment-id"),
+        renderHTML: (attributes: ExcalidrawAttributes) => ({
+          "data-scene-attachment-id": attributes.sceneAttachmentId,
         }),
       },
     };
