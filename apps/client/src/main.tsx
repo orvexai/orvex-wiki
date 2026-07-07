@@ -43,22 +43,28 @@ if (isCloud() && isPostHogEnabled) {
   });
 }
 
-const container = document.getElementById("root") as HTMLElement;
-const root = (container as any).__reactRoot ??= ReactDOM.createRoot(container);
+// Guarded so this module can be imported for its exported singletons (e.g.
+// `queryClient`, re-used by many query modules) without side-effecting a
+// mount — a real app entry (index.html) always has a `#root` element; a test
+// module graph that merely imports this file for `queryClient` does not.
+const container = document.getElementById("root") as HTMLElement | null;
+if (container) {
+  const root = (container as any).__reactRoot ??= ReactDOM.createRoot(container);
 
-root.render(
-  <BrowserRouter>
-    <MantineProvider theme={theme} cssVariablesResolver={mantineCssResolver}>
-      <ModalsProvider>
-        <QueryClientProvider client={queryClient}>
-          <Notifications position="bottom-center" limit={3} zIndex={10000} />
-          <HelmetProvider>
-            <PostHogProvider client={posthog}>
-              <App />
-            </PostHogProvider>
-          </HelmetProvider>
-        </QueryClientProvider>
-      </ModalsProvider>
-    </MantineProvider>
-  </BrowserRouter>,
-);
+  root.render(
+    <BrowserRouter>
+      <MantineProvider theme={theme} cssVariablesResolver={mantineCssResolver}>
+        <ModalsProvider>
+          <QueryClientProvider client={queryClient}>
+            <Notifications position="bottom-center" limit={3} zIndex={10000} />
+            <HelmetProvider>
+              <PostHogProvider client={posthog}>
+                <App />
+              </PostHogProvider>
+            </HelmetProvider>
+          </QueryClientProvider>
+        </ModalsProvider>
+      </MantineProvider>
+    </BrowserRouter>,
+  );
+}
