@@ -189,7 +189,7 @@ jobs:
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
           cache-dependency-path: tests/smoke/go.sum
@@ -208,7 +208,7 @@ jobs:
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
       - name: Install kustomize + kubeconform
@@ -232,7 +232,7 @@ jobs:
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
           cache-dependency-path: deploy/kustomize/go.sum
@@ -274,7 +274,7 @@ jobs:
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
       - name: Install kustomize + kubeconform
@@ -298,7 +298,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'pnpm'
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
           cache-dependency-path: tests/smoke/go.sum
@@ -352,7 +352,7 @@ jobs:
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26'
       - name: Install actionlint
