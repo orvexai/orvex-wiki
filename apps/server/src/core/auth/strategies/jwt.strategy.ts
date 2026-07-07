@@ -9,7 +9,7 @@ import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
 import { SessionActivityService } from '../../session/session-activity.service';
 import { FastifyRequest } from 'fastify';
 import { extractBearerTokenFromHeader, isUserDisabled } from '../../../common/helpers';
-import { ModuleRef } from '@nestjs/core';
+import { ApiKeyService } from '../../../core/api-key/api-key.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -21,7 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private userSessionRepo: UserSessionRepo,
     private sessionActivityService: SessionActivityService,
     private readonly environmentService: EnvironmentService,
-    private moduleRef: ModuleRef,
+    private readonly apiKeyService: ApiKeyService,
   ) {
     super({
       jwtFromRequest: (req: FastifyRequest) => {
@@ -71,32 +71,43 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       this.sessionActivityService.trackActivity(sessionId, payload.sub, payload.workspaceId);
     }
 
-    return { user, workspace };
+    return { user, workspace, tokenScope: payload.scope ?? 'full' };
   }
 
+  /**
+   * ENG-1380 (rewires jwt.strategy.ts:83) — dispatches to the in-tree AGPL
+   * in-tree AGPL api-key module (core/api-key) via normal Nest DI. No more dynamic
+   * `require()` of an EE path: `ApiKeyService` is a first-class
+   * constructor dependency, resolved from the module graph exactly like
+   * every other collaborator here.
+   */
   private async validateApiKey(req: any, payload: JwtApiKeyPayload) {
-    let ApiKeyModule: any;
-    let isApiKeyModuleReady = false;
+    const rawToken = extractBearerTokenFromHeader(req);
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      ApiKeyModule = require('./../../../ee/api-key/api-key.service');
-      isApiKeyModuleReady = true;
-    } catch (err) {
-      this.logger.debug(
-        'API Key module requested but enterprise module not bundled in this build',
-      );
-      isApiKeyModuleReady = false;
+    const record = await this.apiKeyService.validate(
+      { apiKeyId: payload.apiKeyId, workspaceId: payload.workspaceId },
+      rawToken,
+    );
+
+    const workspace = await this.workspaceRepo.findById(record.workspaceId);
+    if (!workspace) {
+      throw new UnauthorizedException();
     }
 
-    if (isApiKeyModuleReady) {
-      const ApiKeyService = this.moduleRef.get(ApiKeyModule.ApiKeyService, {
-        strict: false,
-      });
-
-      return ApiKeyService.validateApiKey(payload);
+    const user = await this.userRepo.findById(
+      record.creatorId,
+      record.workspaceId,
+    );
+    if (!user || isUserDisabled(user)) {
+      throw new UnauthorizedException();
     }
 
-    throw new UnauthorizedException('Enterprise API Key module missing');
+    return {
+      user,
+      workspace,
+      authMethod: 'api_key',
+      apiKeyId: record.apiKeyId,
+      tokenScope: payload.scope ?? 'full',
+    };
   }
 }
