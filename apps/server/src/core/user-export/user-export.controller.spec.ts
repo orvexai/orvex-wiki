@@ -29,7 +29,7 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
 import { SessionActivityService } from '../../core/session/session-activity.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { USER_EXPORT_THROTTLER } from '../../integrations/throttle/throttler-names';
+import { USER_EXPORT_THROTTLER } from '../../orvex/orvex-throttler-names';
 import { ApiKeyService } from '../../core/api-key/api-key.service';
 import type { DB } from '@docmost/db/types/db';
 

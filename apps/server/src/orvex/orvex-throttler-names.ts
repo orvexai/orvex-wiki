@@ -13,6 +13,14 @@
  *
  * `ALL_THROTTLER_NAMES` is the single source every skip-map is derived from
  * (CS §5c grep gate) — never hand-list a throttler name a second time.
+ *
+ * Scope of the CS §5c scrub claim (fix-pass-1, review F2): "Linear-scrubbed"
+ * means the fork's Linear-specific THROTTLER IDENTIFIERS/CODE do not survive
+ * the port — it is not a claim that the literal word "linear" has zero
+ * matches repo-wide. This provenance comment, and others like it, legitimately
+ * reference "Linear" by name to document what was removed and why; a
+ * code-only grep (identifiers/config, comments excluded) is the correct
+ * gate here, not a raw text grep.
  */
 
 export const AUTH_THROTTLER = 'auth';
