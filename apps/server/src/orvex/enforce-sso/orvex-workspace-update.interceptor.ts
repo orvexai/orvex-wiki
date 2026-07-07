@@ -22,6 +22,10 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
  * `AuditEvent.OIDC_ENFORCE_SSO_TOGGLED` — fire-and-forget, never awaited on
  * the response path, so an audit-sink hiccup can never delay or fail the
  * `/workspace/update` response (CS §10 operability).
+ *
+ * NOT YET BOUND to any route (no `@UseInterceptors`, no `APP_INTERCEPTOR`) —
+ * `/workspace/update` does not run through this interceptor today (ENG-1432
+ * review #1, finding F1/F1c). Route-binding is deferred to ENG-1490.
  */
 type WorkspaceLike = {
   id?: string;

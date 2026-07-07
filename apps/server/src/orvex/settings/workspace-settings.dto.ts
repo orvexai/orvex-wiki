@@ -20,11 +20,19 @@ import { IsTtlDaysOrNever } from './is-ttl-days-or-never.validator';
  * (plan.json: linear-integration-server + 4 siblings, D-S11 REMOVE) — those two
  * classes and the `linear?` field are DROPPED, not ported. No `Linear*` symbol
  * is exported from this module and no `linear` key exists on this schema.
+ * (Substantive exclusion, DTO-test-verified below. A literal, comment-blind
+ * `git grep -iE 'Linear'` over this directory will still trip on THIS
+ * scrub-explaining comment and the spec's own test titles/strings — ENG-1432
+ * review #1, finding F3. The §5c CI gate must scope to declarations/exports
+ * (as `workspace-settings.dto.spec.ts` does), not a bare directory-wide
+ * text grep.)
  *
- * This DTO validates a PATCH (every field is optional at every level) — the
+ * This DTO validates a PATCH (every field is optional at every level). The
  * separate, orthogonal `mergeWorkspaceSettings` helper (./merge-settings.ts)
- * is schema-agnostic and is the actual persistence path; this class is a
- * validation-tier gate only, never a source of merge logic.
+ * is schema-agnostic and is available for use at the persistence path, but is
+ * NOT YET the live persistence path (see merge-settings.ts doc-comment,
+ * finding F1/F1c) — this class is a validation-tier gate only, never a
+ * source of merge logic.
  */
 
 export class OrvexAiSettings {

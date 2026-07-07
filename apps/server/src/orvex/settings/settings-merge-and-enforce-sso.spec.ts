@@ -107,8 +107,22 @@ describe('TestSettingsMergeAndEnforceSso', () => {
     const emitter = new EventEmitter2();
     const service = new OrvexEnforceSsoCheckService(lookup, audit, emitter);
 
-    const revokeByWorkspaceId = jest.fn().mockResolvedValue(undefined);
-    const repo = { revokeByWorkspaceId } as unknown as UserSessionRepo;
+    // Owned, stateful fake (not a bare jest.fn spy) — the assertion below
+    // checks the ROW-EFFECT (which rows end up revoked), not a call-count
+    // (ENG-1432 review #1, finding F2; §4f/§5d row-effect mandate).
+    const rows: Array<{ id: string; workspaceId: string; revokedAt: Date | null }> = [
+      { id: 's1', workspaceId: 'ws1', revokedAt: null },
+      { id: 's2', workspaceId: 'ws2', revokedAt: null },
+    ];
+    const repo = {
+      async revokeByWorkspaceId(workspaceId: string) {
+        for (const row of rows) {
+          if (row.workspaceId === workspaceId && row.revokedAt === null) {
+            row.revokedAt = new Date();
+          }
+        }
+      },
+    } as unknown as UserSessionRepo;
     const listener = new OrvexSsoEventsListener(repo);
     emitter.on('orvex.enforce_sso.toggled', (event) =>
       listener.handleEnforceSsoToggled(event),
@@ -118,7 +132,7 @@ describe('TestSettingsMergeAndEnforceSso', () => {
     // let the (synchronous, but promise-returning) listener handler settle.
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(revokeByWorkspaceId).toHaveBeenCalledWith('ws1');
-    expect(revokeByWorkspaceId).toHaveBeenCalledTimes(1);
+    expect(rows[0].revokedAt).not.toBeNull(); // ws1 row revoked
+    expect(rows[1].revokedAt).toBeNull(); // ws2 row untouched
   });
 });

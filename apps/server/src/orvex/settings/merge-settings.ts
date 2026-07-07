@@ -1,6 +1,11 @@
 /**
- * mergeWorkspaceSettings — the SINGLE deep-merge/persistence helper for
- * `workspaces.settings` (jsonb). Ported from the fork at pin
+ * mergeWorkspaceSettings — a pure deep-merge helper for `workspaces.settings`
+ * (jsonb), ported for reuse at the `workspaces.settings` write path. NOT YET
+ * wired as that path's entry point: the live handler
+ * (`core/workspace/services/workspace.service.ts#update()`) still persists
+ * `settings` via its own per-key repo writes and does not call this function
+ * (ENG-1432 review #1, finding F1/F1c). Live wiring is deferred to ENG-1490.
+ * Ported from the fork at pin
  * `050187676624f2395c55b36ec60e365f87fd4a9f`
  * (`packages/orvex-extensions/src/settings/merge-settings.ts#L26-L57`).
  *

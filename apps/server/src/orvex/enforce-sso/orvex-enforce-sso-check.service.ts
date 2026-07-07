@@ -20,6 +20,11 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
  * `@Optional()` — never constructed inline (❌#8) — so the in-process
  * `orvex.enforce_sso.toggled` event degrades gracefully (AC11) when the event
  * module is not wired.
+ *
+ * NOT YET CALLED live: no login/auth controller invokes `checkOrThrow` today
+ * (ENG-1432 review #1, finding F1/F1c) — the `403 SSO_REQUIRED` gate below
+ * describes intended behaviour once called, not a delivered live path. Login
+ * wiring is deferred to ENG-1490.
  */
 
 export const ORVEX_MEMBER_LOOKUP = Symbol('ORVEX_MEMBER_LOOKUP');
