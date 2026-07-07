@@ -21,6 +21,7 @@ import {
   extractUserMentions,
 } from '../../common/helpers/prosemirror/utils';
 import { isDeepStrictEqual } from 'node:util';
+import { stripUndefinedDeep } from './strip-undefined-deep.util';
 import {
   IPageHistoryJob,
   IPageMentionNotificationJob,
@@ -127,7 +128,18 @@ export class PersistenceExtension implements Extension {
           return;
         }
 
-        if (isDeepStrictEqual(tiptapJson, page.content)) {
+        // Phantom-key guard (ENG-1469): strip undefined-valued keys from
+        // BOTH sides before comparing so a `default: undefined` ProseMirror
+        // attr that Yjs keeps as an explicit own-key but JSONB silently
+        // drops on write can never, by itself, look like a change. The
+        // persisted `content` below stays the raw `tiptapJson` — stripping
+        // is applied ONLY to this equality check, never to what is written.
+        if (
+          isDeepStrictEqual(
+            stripUndefinedDeep(tiptapJson),
+            stripUndefinedDeep(page.content),
+          )
+        ) {
           page = null;
           return;
         }
