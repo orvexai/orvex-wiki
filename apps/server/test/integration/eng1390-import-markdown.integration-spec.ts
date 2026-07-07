@@ -12,8 +12,15 @@
  *     mocked) + the real `ImportService` — no mock of the owned import
  *     service or of `markdownToHtml` (CS §5 ❌#4) — proves the engine still
  *     converts uploaded markdown to a stored page via the internal
- *     `markdownToHtml` path, and that a malformed/empty markdown import
- *     fails typed + recorded rather than silently dropping (CS §11).
+ *     `markdownToHtml` path. AC5 drives the actual recorded-failure path
+ *     used in production — `FileImportTaskService.processZIpImport` (real
+ *     `StorageService` + `LocalDriver`, a local-substitutable disk adapter
+ *     per CS §5, never a "true external") throwing on a missing source
+ *     file, followed by the same `updateTaskStatus(..., Failed, reason)`
+ *     call the BullMQ `FileTaskProcessor`'s `handleFailedImportJob` makes on
+ *     the worker's `'failed'` event — and asserts the failure lands in
+ *     Postgres as `status: 'failed'` + a non-empty `errorMessage`, never a
+ *     silent drop (CS §11).
  *
  * (b) Route-table / static contract gates (AC2, AC4): per the ticket's own
  *     §5c determinism gates ("grep gate: engine has no `to-dfm`/`fidelity`
@@ -25,10 +32,19 @@
  *     ONLY in the two retained import-ingestion files.
  */
 import * as path from 'path';
+import * as os from 'os';
 import { promises as fsp } from 'fs';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { ImportService } from 'src/integrations/import/services/import.service';
+import { FileImportTaskService } from 'src/integrations/import/services/file-import-task.service';
+import { StorageService } from 'src/integrations/storage/storage.service';
+import { LocalDriver } from 'src/integrations/storage/drivers/local.driver';
+import {
+  FileTaskStatus,
+  FileTaskType,
+  FileImportSource,
+} from 'src/integrations/import/utils/file.utils';
 import {
   seedSpace,
   seedUser,
@@ -60,6 +76,8 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
   let testDb: TestDb;
   let pageRepo: PageRepo;
   let importService: ImportService;
+  let fileImportTaskService: FileImportTaskService;
+  let storageService: StorageService;
   let spaceId: string;
   let workspaceId: string;
   let userId: string;
@@ -79,6 +97,33 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
       testDb.db as any,
       {} as any, // fileTaskQueue
       {} as any, // moduleRef
+    );
+
+    // Real StorageService backed by the real LocalDriver (a
+    // local-substitutable disk adapter, not a "true external" per CS §5) —
+    // pointed at a scratch dir under the OS tmpdir so `readStream` on a
+    // never-written path fails with a genuine filesystem error, not a mock.
+    storageService = new StorageService(
+      new LocalDriver({
+        storagePath: await fsp.mkdtemp(path.join(os.tmpdir(), 'eng1390-storage-')),
+      }),
+    );
+
+    // AC5's failure leg only ever reaches the first try/catch in
+    // processZIpImport (readStream -> throw), so pageService, backlinkRepo,
+    // importAttachmentService, moduleRef, eventEmitter and auditService are
+    // never invoked on that path — inert stand-ins are sufficient there
+    // (CS §5: the owned FileImportTaskService/StorageService are not mocked).
+    fileImportTaskService = new FileImportTaskService(
+      storageService,
+      importService,
+      {} as any, // pageService
+      {} as any, // backlinkRepo
+      testDb.db as any,
+      {} as any, // importAttachmentService
+      {} as any, // moduleRef
+      new EventEmitter2(),
+      {} as any, // auditService
     );
 
     const workspace = await seedWorkspace(testDb.db);
@@ -134,28 +179,56 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
     expect(storedJson).toContain('imported from markdown');
   });
 
-  it('AC5 — a malformed/empty markdown import fails typed + recorded, never a silent drop', async () => {
-    // Empty content still produces valid (empty) ProseMirror state — the
-    // documented failure mode of this path is a downstream page-create
-    // error, which must surface as a thrown error, not a silent no-op.
-    const prosemirrorState = await importService.processMarkdown('');
-    expect(prosemirrorState).toBeTruthy();
-
-    // Force the page-create leg to fail (invalid spaceId FK) and assert the
-    // failure is a real thrown error — never a silently-succeeded no-op.
-    await expect(
-      pageRepo.insertPage({
-        slugId: 'eng-1390-md-import-malformed',
-        title: 'Malformed',
-        content: prosemirrorState,
-        textContent: null,
-        position: 'a0',
-        spaceId: '00000000-0000-0000-0000-000000000000',
+  it('AC5 — a failed file import fails typed + is recorded on the fileTasks row, never a silent drop', async () => {
+    // Seed a real fileTasks row whose filePath was never written to the
+    // (real, disk-backed) storage — this reproduces the genuine
+    // "malformed/unreadable source" failure mode the file-import path must
+    // surface.
+    const fileTask = await testDb.db
+      .insertInto('fileTasks')
+      .values({
+        fileName: 'eng-1390-malformed.zip',
+        filePath: 'eng-1390/does-not-exist.zip',
+        type: FileTaskType.Import,
+        source: FileImportSource.Generic,
+        status: FileTaskStatus.Processing,
+        spaceId,
         creatorId: userId,
         workspaceId,
-        lastUpdatedById: userId,
-      }),
-    ).rejects.toThrow();
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+
+    // Drive the REAL production entrypoint (`FileImportTaskService.
+    // processZIpImport`, the same method `FileTaskProcessor.process` calls
+    // for QueueJob.IMPORT_TASK) — never a silent no-op, it rethrows.
+    let caught: Error | undefined;
+    try {
+      await fileImportTaskService.processZIpImport(fileTask.id);
+    } catch (err) {
+      caught = err as Error;
+    }
+    expect(caught).toBeDefined();
+    expect(caught!.message).toContain('does-not-exist.zip');
+
+    // Record the failure exactly as `FileTaskProcessor.handleFailedImportJob`
+    // does on the worker's 'failed' event — the real `updateTaskStatus`
+    // method, not a re-implementation.
+    await fileImportTaskService.updateTaskStatus(
+      fileTask.id,
+      FileTaskStatus.Failed,
+      caught!.message,
+    );
+
+    const stored = await testDb.db
+      .selectFrom('fileTasks')
+      .selectAll()
+      .where('id', '=', fileTask.id)
+      .executeTakeFirstOrThrow();
+
+    expect(stored.status).toBe(FileTaskStatus.Failed);
+    expect(stored.errorMessage).toBeTruthy();
+    expect(stored.errorMessage).toContain('does-not-exist.zip');
   });
 
   it('AC2/AC4 — no public convert/fidelity route or dangling serializer import remains on the engine', async () => {

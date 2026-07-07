@@ -13,7 +13,7 @@
     "^.+\\.(t|j)sx?$": "ts-jest"
   },
   "transformIgnorePatterns": [
-    "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose|@sindresorhus\\+[^/]+|@sindresorhus/[^/]+|escape-string-regexp|ansi-regex|ansi-styles)(@|/))",
+    "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose|@sindresorhus\\+[^/]+|@sindresorhus/[^/]+|escape-string-regexp|ansi-regex|ansi-styles|p-limit|yocto-queue)(@|/))",
     "packages/editor-ext/dist/"
   ],
   "moduleNameMapper": {
