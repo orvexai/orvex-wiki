@@ -114,6 +114,45 @@ export async function seedSpace(
     .executeTakeFirstOrThrow();
 }
 
+export async function seedSpaceMember(
+  db: Kysely<DB>,
+  opts: { spaceId: string; userId?: string; groupId?: string; role: string },
+) {
+  return db
+    .insertInto('spaceMembers')
+    .values({
+      spaceId: opts.spaceId,
+      userId: opts.userId ?? null,
+      groupId: opts.groupId ?? null,
+      role: opts.role,
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+}
+
+export async function seedGroup(db: Kysely<DB>, workspaceId: string) {
+  return db
+    .insertInto('groups')
+    .values({
+      name: uniqueSlug('group'),
+      isDefault: false,
+      workspaceId,
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+}
+
+export async function seedGroupUser(
+  db: Kysely<DB>,
+  opts: { groupId: string; userId: string },
+) {
+  return db
+    .insertInto('groupUsers')
+    .values({ groupId: opts.groupId, userId: opts.userId })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+}
+
 export async function seedPage(
   db: Kysely<DB>,
   opts: {

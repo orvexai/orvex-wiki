@@ -23,6 +23,7 @@ import { NotificationModule } from './notification/notification.module';
 import { WatcherModule } from './watcher/watcher.module';
 import { FavoriteModule } from './favorite/favorite.module';
 import { SessionModule } from './session/session.module';
+import { PermissionsModule } from './permissions/permissions.module';
 import { UserExportModule } from './user-export/user-export.module';
 import { ClsMiddleware } from 'nestjs-cls';
 
@@ -40,6 +41,7 @@ import { ClsMiddleware } from 'nestjs-cls';
     GroupModule,
     CaslModule,
     PageAccessModule,
+    PermissionsModule,
     ShareModule,
     LabelModule,
     NotificationModule,
