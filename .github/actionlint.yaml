@@ -1,8 +1,11 @@
 # actionlint config — declares the org's self-hosted runner labels
-# (CS §13 substrate; the family runs CI on the self-hosted `runners` label,
-# with dind-* variants for docker-needing jobs).
+# (CS §13 substrate). PRIVATE repos run CI on the shared self-hosted `runners`
+# label, with dind-* variants for docker-needing jobs. The PUBLIC AGPL repo
+# (orvex-wiki) runs on the dedicated ephemeral, non-privileged `public-runners`
+# group (org-scoped to this repo only; fork PRs require-approval).
 self-hosted-runner:
   labels:
     - runners
     - dind-runners
     - dind-runners-large
+    - public-runners

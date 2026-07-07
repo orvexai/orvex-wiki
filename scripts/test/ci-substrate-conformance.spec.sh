@@ -5,21 +5,24 @@
 # runs product code, never builds an image. Exit 0 = conformant, exit 1 = a
 # named violation was found (printed to stderr).
 #
-# CS §13 amendment (2026-07-06, ADR-0005, ratified — supersedes the plain
-# "self-hosted only" wording): PRIVATE family repos must run CI on the
-# self-hosted `runners` label. PUBLIC AGPL repos (today only orvex-wiki) are
-# a documented exception: they run CI on GitHub-hosted runners
-# (`runs-on: ubuntu-latest`) because the self-hosted runners hold
-# cluster-admin + OpenBao access and GitHub's `allows_public_repositories:
-# false` secure default correctly blocks public repos from them. Images stay
-# Tekton-only either way. This script encodes that amendment — it does not
-# re-litigate it.
+# CS §13 (2026-07-07, ADR-0005, ratified — supersedes the earlier GitHub-hosted
+# public-repo exception): ALL family repos run CI on self-hosted runners.
+# PRIVATE repos use the shared `runners` (+ `dind-runners`) group. The PUBLIC
+# AGPL repo (today only orvex-wiki) uses a DEDICATED ephemeral, non-privileged
+# `public-runners` group — org-scoped to that repo only, no cluster/OpenBao
+# reach, fork PRs gated by require-approval — so untrusted public CI never runs
+# on the privileged shared runners. GitHub-hosted runners are no longer used.
+# Images stay Tekton-only either way. This script encodes that rule — it does
+# not re-litigate it. (The ubuntu-latest check below remains as a guard: it
+# stays allowed ONLY behind a documented CS §13 public-repo exception, but the
+# repo no longer relies on it.)
 #
 # Checks (AC1-AC7 from ENG-1386):
-#   AC1 - every .github/workflows job's runs-on is either a self-hosted group
-#         OR (for this repo, the documented public-repo exception)
-#         ubuntu-latest with the exception documented in the file; never
-#         windows-latest/macos-latest.
+#   AC1 - every .github/workflows job's runs-on is a self-hosted label
+#         (`runners` / `dind-runners` / `public-runners`); ubuntu-latest is
+#         tolerated only behind a documented CS §13 public-repo exception;
+#         never windows-latest/macos-latest, never the nonexistent `{group:
+#         runner}` form.
 #   AC2 - no Actions job runs docker build/buildah/docker push/nerdctl/
 #         crane push (CI validates, never builds/ships images).
 #   AC3 - a Tekton branch-aware build Pipeline exists: clone-repo ->
