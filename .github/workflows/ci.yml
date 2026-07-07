@@ -237,6 +237,28 @@ jobs:
         run: bash scripts/engine-license-guard.sh .
 
   # ---------------------------------------------------------------------------
+  # CS §13 build/CI substrate conformance (ENG-1386 — CI-config layer gate).
+  # Static config scan: no hosted runners without a documented public-repo
+  # exception, no image build/push in Actions, Tekton build+rollout present,
+  # kustomize+kubeconform pass. Never executes product code.
+  # ---------------------------------------------------------------------------
+  ci-substrate-conformance:
+    name: CI Substrate Conformance (CS §13)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install kustomize + kubeconform
+        run: |
+          go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: ci-substrate-conformance.spec.sh
+        run: bash scripts/test/ci-substrate-conformance.spec.sh .
+
+  # ---------------------------------------------------------------------------
   # Security
   # ---------------------------------------------------------------------------
   security:
@@ -343,6 +365,7 @@ jobs:
       - smoke-module
       - k8s-validate
       - engine-license-guard
+      - ci-substrate-conformance
       - security
       - sbom-generation
       - workflow-lint
