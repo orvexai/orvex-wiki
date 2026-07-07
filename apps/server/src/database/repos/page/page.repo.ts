@@ -106,6 +106,62 @@ export class PageRepo {
     return query.executeTakeFirst();
   }
 
+  /**
+   * ENG-1471 dimension-2 lookup — resolves a page by its externalId within a
+   * workspace (via the `orvex_page_meta` side table, ruling 4).
+   */
+  async findByExternalId(
+    externalId: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<Page | undefined> {
+    if (!externalId) return undefined;
+    const db = dbOrTx(this.db, trx);
+
+    const meta = await db
+      .selectFrom('orvexPageMeta')
+      .select('pageId')
+      .where('externalId', '=', externalId)
+      .where('workspaceId', '=', workspaceId)
+      .executeTakeFirst();
+
+    if (!meta) return undefined;
+
+    return db
+      .selectFrom('pages')
+      .select(this.baseFields)
+      .where('id', '=', meta.pageId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+  }
+
+  /**
+   * ENG-1471 dimension-3 lookup — the fallback (spaceId, parentPageId,
+   * title) resolution used when neither slugId nor externalId is supplied.
+   */
+  async findBySpaceParentTitle(
+    spaceId: string,
+    parentPageId: string | null | undefined,
+    title: string,
+    trx?: KyselyTransaction,
+  ): Promise<Page | undefined> {
+    if (!title) return undefined;
+    const db = dbOrTx(this.db, trx);
+
+    let query = db
+      .selectFrom('pages')
+      .select(this.baseFields)
+      .where('spaceId', '=', spaceId)
+      .where('title', '=', title)
+      .where('deletedAt', 'is', null);
+
+    query = parentPageId
+      ? query.where('parentPageId', '=', parentPageId)
+      : query.where('parentPageId', 'is', null);
+
+    return query.executeTakeFirst();
+  }
+
   async findManyByIds(
     pageIds: string[],
     opts?: {

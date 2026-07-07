@@ -18,6 +18,7 @@ import {
   PageVerifications as _PageVerifications,
   PageVerifiers as _PageVerifiers,
   Pages,
+  OrvexPageMeta as _OrvexPageMeta,
   Spaces,
   Users,
   Workspaces,
@@ -106,6 +107,11 @@ export type UpdatablePage = Updateable<Omit<Pages, 'id'>>;
 export type PageHistory = Selectable<History>;
 export type InsertablePageHistory = Insertable<History>;
 export type UpdatablePageHistory = Updateable<Omit<History, 'id'>>;
+
+// OrvexPageMeta (ruling 4 — version/contentHash side table for `pages`)
+export type OrvexPageMeta = Selectable<_OrvexPageMeta>;
+export type InsertableOrvexPageMeta = Insertable<_OrvexPageMeta>;
+export type UpdatableOrvexPageMeta = Updateable<Omit<_OrvexPageMeta, 'pageId'>>;
 
 // Comment
 export type Comment = Selectable<Comments>;
