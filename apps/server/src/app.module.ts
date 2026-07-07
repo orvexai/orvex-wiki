@@ -28,6 +28,8 @@ import { ClsModule } from 'nestjs-cls';
 import { NoopAuditModule } from './integrations/audit/audit.module';
 import { ThrottleModule } from './integrations/throttle/throttle.module';
 import { OrvexRootModule } from './orvex/orvex-root.module';
+import { OrvexAttachmentsHostModule } from './orvex/attachments/orvex-attachments-host.module';
+import { OrvexMailModule } from './orvex/mail/orvex-mail.module';
 
 const enterpriseModules = [];
 try {
@@ -87,6 +89,8 @@ try {
     MailModule.forRootAsync({
       imports: [EnvironmentModule],
     }),
+    OrvexAttachmentsHostModule,
+    OrvexMailModule,
     EventEmitterModule.forRoot(),
     SecurityModule,
     TelemetryModule,
