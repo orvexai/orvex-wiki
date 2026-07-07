@@ -39,6 +39,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { OrvexEnforceSsoCheckService } from '../../orvex/enforce-sso/orvex-enforce-sso-check.service';
+import { OrvexNativeLoginGuard } from '../../orvex/http/orvex-native-login.guard';
 
 @SkipThrottle({ [AI_CHAT_THROTTLER]: true })
 @UseGuards(ThrottlerGuard)
@@ -55,6 +56,12 @@ export class AuthController {
     private readonly enforceSso: OrvexEnforceSsoCheckService,
   ) {}
 
+  // ENG-1490 AC1 — fail-closed BEFORE the ENG-1409 per-member enforce-SSO
+  // check (which still runs below and preserves the owner/admin break-glass
+  // exemption for the flag-off/vanilla and flag-on/SSO-off paths — AC5/AC6).
+  // This guard only ever fires additively when the orvex module tree is
+  // active AND the workspace enforces SSO.
+  @UseGuards(OrvexNativeLoginGuard)
   @HttpCode(HttpStatus.OK)
   @Post('login')
   async login(
@@ -148,6 +155,9 @@ export class AuthController {
     );
   }
 
+  // ENG-1490 AC3 — fail-closed BEFORE `validateSsoEnforcement` (which stays
+  // as the unconditional 400 path for flag-off deployments — untouched).
+  @UseGuards(OrvexNativeLoginGuard)
   @HttpCode(HttpStatus.OK)
   @Post('forgot-password')
   async forgotPassword(
