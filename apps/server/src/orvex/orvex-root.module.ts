@@ -4,6 +4,7 @@ import { createRemoteJWKSet } from 'jose';
 import { OrvexConfigModule } from './config/orvex-config.module';
 import { OrvexConfigService } from './config/orvex-config.service';
 import { OrvexHttpModule } from './http/orvex-http.module';
+import { OrvexEnforceSsoModule } from './enforce-sso/orvex-enforce-sso.module';
 import { ExchangeTokenVerifier } from './session-mint/exchange-token-verifier';
 import type { ExchangeTokenVerifierDeps } from './session-mint/exchange-token-verifier';
 import type { ExchangeTokenClaims } from './session-mint/exchange-token.types';
@@ -97,6 +98,7 @@ export class OrvexRootModule {
       imports: [
         OrvexConfigModule,
         OrvexHttpModule,
+        OrvexEnforceSsoModule,
         composeSessionMint(config),
       ],
     };
