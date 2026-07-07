@@ -211,6 +211,54 @@ describe('UserDataExportScopeSpec — POST /users/me/export', () => {
       })
       .execute();
 
+    // A-owned rows recorded under workspace B (data-integrity edge case,
+    // e.g. a stale/forged workspace_id on the row) — creatorId alone would
+    // NOT exclude these from A's export; only the workspaceId filter does.
+    // This is what makes the AC2 workspaceId scoping assertion discriminating
+    // (mutation check: dropping the `.where('workspaceId', ...)` clauses
+    // must fail these assertions).
+    const chatAInWorkspaceB = await seedDb
+      .insertInto('aiChats')
+      .values({
+        workspaceId: workspaceB,
+        creatorId: userA,
+        title: 'A chat mis-scoped to workspace B',
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    await seedDb
+      .insertInto('aiChatMessages')
+      .values({
+        chatId: chatAInWorkspaceB.id,
+        workspaceId: workspaceB,
+        userId: userA,
+        role: 'user',
+        content: 'A message mis-scoped to workspace B',
+      })
+      .execute();
+    await seedDb
+      .insertInto('apiKeys')
+      .values({
+        creatorId: userA,
+        workspaceId: workspaceB,
+        name: 'A key mis-scoped to workspace B',
+      })
+      .execute();
+
+    // A's own message, soft-deleted, inside A's LIVE chat — must be excluded
+    // from A's export (the aiChatMessages select must filter deletedAt too).
+    await seedDb
+      .insertInto('aiChatMessages')
+      .values({
+        chatId: chatA.id,
+        workspaceId: workspaceA,
+        userId: userA,
+        role: 'user',
+        content: 'A deleted message',
+        deletedAt: new Date(),
+      })
+      .execute();
+
     // B's chat/message/key, in B's own workspace — must never leak into A's
     // export (cross-user AND cross-workspace).
     const chatB = await seedDb
@@ -262,12 +310,26 @@ describe('UserDataExportScopeSpec — POST /users/me/export', () => {
     expect(body.apiKeys).toHaveLength(1);
     expect(body.apiKeys[0].name).toBe('A key');
 
-    // AC2 — cross-workspace isolation: nothing belonging to B or workspace B.
+    // AC2 — cross-workspace isolation: nothing belonging to B or workspace B,
+    // INCLUDING rows creatorId-owned by A but recorded under workspace B
+    // (the case creatorId-only filtering cannot catch — see seed comment).
     const chatTitles = body.aiChats.map((c: { title: string }) => c.title);
     expect(chatTitles).not.toContain('B chat');
     expect(chatTitles).not.toContain('A deleted chat');
+    expect(chatTitles).not.toContain('A chat mis-scoped to workspace B');
 
-    // AC3 — messages joined only to A's own (non-deleted) chat ids.
+    const apiKeyNames = body.apiKeys.map((k: { name: string }) => k.name);
+    expect(apiKeyNames).not.toContain('B key');
+    expect(apiKeyNames).not.toContain('A key mis-scoped to workspace B');
+
+    const messageContents = body.aiChatMessages.map(
+      (m: { content: string }) => m.content,
+    );
+    expect(messageContents).not.toContain('A message mis-scoped to workspace B');
+    expect(messageContents).not.toContain('A deleted message');
+
+    // AC3 — messages joined only to A's own (non-deleted) chat ids, from A's
+    // own (non-deleted) messages.
     expect(body.aiChatMessages).toHaveLength(1);
     expect(body.aiChatMessages[0].content).toBe('hello from A');
   });

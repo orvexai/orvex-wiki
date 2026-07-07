@@ -95,6 +95,7 @@ export class UserExportController {
             .select(['id', 'chatId', 'role', 'content', 'createdAt'])
             .where('chatId', 'in', chatIds)
             .where('workspaceId', '=', user.workspaceId)
+            .where('deletedAt', 'is', null)
             .execute()
         : [];
 
