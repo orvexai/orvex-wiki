@@ -335,6 +335,16 @@ export interface Pages {
   ydoc: Buffer | null;
 }
 
+export interface OrvexPageMeta {
+  contentHash: string | null;
+  createdAt: Generated<Timestamp>;
+  externalId: string | null;
+  pageId: string;
+  updatedAt: Generated<Timestamp>;
+  version: Generated<number>;
+  workspaceId: string;
+}
+
 export interface Shares {
   createdAt: Generated<Timestamp>;
   creatorId: string | null;
@@ -665,6 +675,7 @@ export interface DB {
   pageVerifications: PageVerifications;
   pageVerifiers: PageVerifiers;
   pages: Pages;
+  orvexPageMeta: OrvexPageMeta;
   scimTokens: ScimTokens;
   shares: Shares;
   spaceMembers: SpaceMembers;

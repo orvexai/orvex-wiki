@@ -14,6 +14,7 @@ import { PageService } from './services/page.service';
 import { BacklinkService } from './services/backlink.service';
 import { PageAccessService } from './page-access/page-access.service';
 import { CreatePageDto } from './dto/create-page.dto';
+import { UpsertPageDto } from './dto/upsert-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
 import { MovePageDto, MovePageToSpaceDto } from './dto/move-page.dto';
 import {
@@ -265,6 +266,90 @@ export class PageController {
     }
 
     return { ...page, permissions };
+  }
+
+  /**
+   * ENG-1471 — thin idempotent-write handler. The auth pre-flight lookup
+   * (edit-vs-create guard, closing the D2 externalId IDOR) happens HERE;
+   * every resolution/no-op/tx/retry decision lives in `PageService.upsert`.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('upsert')
+  async upsert(
+    @Body() upsertPageDto: UpsertPageDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    let existing: Page | undefined;
+    if (upsertPageDto.slugId) {
+      existing = await this.pageRepo.findById(upsertPageDto.slugId);
+      if (existing?.workspaceId !== workspace.id) existing = undefined;
+    }
+    if (!existing && upsertPageDto.externalId) {
+      existing = await this.pageRepo.findByExternalId(
+        upsertPageDto.externalId,
+        workspace.id,
+      );
+    }
+    if (!existing && upsertPageDto.spaceId && upsertPageDto.title) {
+      existing = await this.pageRepo.findBySpaceParentTitle(
+        upsertPageDto.spaceId,
+        upsertPageDto.parentPageId,
+        upsertPageDto.title,
+      );
+    }
+
+    if (existing) {
+      // Edit branch — closes the D2 externalId IDOR: a caller with Create on
+      // space A cannot update a page in an inaccessible space B merely by
+      // supplying a matching externalId.
+      await this.pageAccessService.validateCanEdit(existing, user);
+    } else {
+      if (!upsertPageDto.spaceId) {
+        throw new BadRequestException({ error: 'SPACE_ID_REQUIRED' });
+      }
+      if (upsertPageDto.parentPageId) {
+        const parentPage = await this.pageRepo.findById(
+          upsertPageDto.parentPageId,
+        );
+        if (
+          !parentPage ||
+          parentPage.deletedAt ||
+          parentPage.spaceId !== upsertPageDto.spaceId
+        ) {
+          throw new NotFoundException('Parent page not found');
+        }
+        await this.pageAccessService.validateCanEdit(parentPage, user);
+      } else {
+        const ability = await this.spaceAbility.createForUser(
+          user,
+          upsertPageDto.spaceId,
+        );
+        if (ability.cannot(SpaceCaslAction.Create, SpaceCaslSubject.Page)) {
+          throw new ForbiddenException();
+        }
+      }
+    }
+
+    const { page, upserted } = await this.pageService.upsert(
+      upsertPageDto,
+      user.id,
+      workspace.id,
+    );
+
+    if (upserted === 'created') {
+      this.auditService.log({
+        event: AuditEvent.PAGE_CREATED,
+        resourceType: AuditResource.PAGE,
+        resourceId: page.id,
+        spaceId: page.spaceId,
+        changes: {
+          after: { title: getPageTitle(page.title), spaceId: page.spaceId },
+        },
+      });
+    }
+
+    return { ...page, upserted };
   }
 
   @HttpCode(HttpStatus.OK)
