@@ -99,6 +99,10 @@ export const AuditEvent = {
   // Attachment
   ATTACHMENT_UPLOADED: 'attachment.uploaded',
   // ATTACHMENT_DELETED: 'attachment.deleted',
+
+  // Enforce-SSO (ENG-1432)
+  OIDC_LOGIN_BLOCKED_BY_ENFORCE_SSO: 'oidc.login_blocked_by_enforce_sso',
+  OIDC_ENFORCE_SSO_TOGGLED: 'oidc.enforce_sso_toggled',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];
