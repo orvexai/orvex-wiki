@@ -77,6 +77,8 @@ export const AuditEvent = {
   PAGE_APPROVAL_REQUESTED: 'page.approval_requested',
   PAGE_APPROVAL_REJECTED: 'page.approval_rejected',
   PAGE_MARKED_OBSOLETE: 'page.marked_obsolete',
+  // AI provenance (ENG-1447)
+  PAGE_PROVENANCE_CHANGED: 'page.provenance_changed',
 
   // Share
   SHARE_CREATED: 'share.created',

@@ -27,6 +27,7 @@ import {
 import { PageHistoryService } from './services/page-history.service';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
+import { AuthMethod } from '../../common/decorators/auth-method.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { Page, User, Workspace } from '@docmost/db/types/entity.types';
@@ -54,6 +55,7 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
+import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -67,6 +69,7 @@ export class PageController {
     private readonly backlinkService: BacklinkService,
     private readonly labelService: LabelService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly provenanceService: OrvexPageProvenanceService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -205,6 +208,7 @@ export class PageController {
     @Body() createPageDto: CreatePageDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
   ) {
     if (createPageDto.parentPageId) {
       // Creating under a parent page - check edit permission on parent
@@ -253,6 +257,18 @@ export class PageController {
         },
       },
     });
+
+    // ENG-1447 AC5 — any content written through the REST API (api_key
+    // caller) is stamped ai_produced. A real human browser session never
+    // triggers this (authMethod is undefined for cookie/session auth).
+    if (authMethod === 'api_key') {
+      await this.provenanceService.markAiCreated(page.id, {
+        userId: null,
+        workspaceId: workspace.id,
+        spaceId: page.spaceId,
+        isHuman: false,
+      });
+    }
 
     if (
       createPageDto.format &&
@@ -361,6 +377,8 @@ export class PageController {
     // ENG-1413 (AC3) — the `idempotency-key` HEADER takes precedence over
     // the body field when both are supplied.
     @Headers('idempotency-key') idempotencyKeyHeader?: string,
+    @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
   ) {
     const page = await this.pageRepo.findById(updatePageDto.pageId);
 
@@ -377,6 +395,16 @@ export class PageController {
       ifVersion: updatePageDto.ifVersion,
       idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
     });
+
+    // ENG-1447 AC5 — REST-API (api_key) content write = ai_produced.
+    if (authMethod === 'api_key') {
+      await this.provenanceService.markAiCreated(updatedPage.id, {
+        userId: null,
+        workspaceId: workspace.id,
+        spaceId: updatedPage.spaceId,
+        isHuman: false,
+      });
+    }
 
     const permissions = { canEdit: true, hasRestriction };
 

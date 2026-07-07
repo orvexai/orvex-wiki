@@ -62,6 +62,7 @@ import {
   TransclusionReference,
   TableView,
   BaseEmbed as BaseEmbedNode,
+  AiAuthored,
 } from "@docmost/editor-ext";
 import {
   randomElement,
@@ -389,6 +390,10 @@ export const mainExtensions = [
       return ReactNodeViewRenderer(BaseEmbedView);
     },
   }),
+  // ENG-1447 — bare schema registration only (no NodeView/badge here; that
+  // rendering lives in the separate `provenance-wiki-badge` leg). Needed so
+  // the client schema can parse/round-trip content the server marks.
+  AiAuthored,
   MarkdownClipboard.configure({
     transformPastedText: true,
   }),

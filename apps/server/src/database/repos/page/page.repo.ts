@@ -43,6 +43,9 @@ export class PageRepo {
     'updatedAt',
     'deletedAt',
     'contributorIds',
+    'provenanceStatus',
+    'provenanceChangedAt',
+    'provenanceChangedById',
   ];
 
   async findById(

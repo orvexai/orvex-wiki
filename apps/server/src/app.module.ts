@@ -31,6 +31,7 @@ import { ThrottleModule } from './integrations/throttle/throttle.module';
 import { OrvexRootModule } from './orvex/orvex-root.module';
 import { OrvexAttachmentsHostModule } from './orvex/attachments/orvex-attachments-host.module';
 import { OrvexMailModule } from './orvex/mail/orvex-mail.module';
+import { OrvexPageProvenanceModule } from './core/page-provenance/orvex-page-provenance.module';
 
 const enterpriseModules = [];
 try {
@@ -93,6 +94,7 @@ try {
     }),
     OrvexAttachmentsHostModule,
     OrvexMailModule,
+    OrvexPageProvenanceModule,
     EventEmitterModule.forRoot(),
     SecurityModule,
     TelemetryModule,
