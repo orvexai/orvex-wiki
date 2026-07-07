@@ -8,6 +8,52 @@ import {
   v8CssVariablesResolver,
 } from "@mantine/core";
 
+// Orvex brand indigo. Index 6 is pinned to #5658d6 and used as the
+// primaryShade in both light and dark schemes (Orvex does not lift
+// --brand in dark).
+const brand: MantineColorsTuple = [
+  "#eef0fc",
+  "#dcdff9",
+  "#b9bef2",
+  "#949ce9",
+  "#747de2",
+  "#5c66dc",
+  "#5658d6",
+  "#4a4bc0",
+  "#4040a8",
+  "#35358c",
+];
+
+// Mantine's default gray/dark scales, carried explicitly so
+// theme.colors exposes complete 10-stop tuples for every referenced
+// color (createTheme's output only contains what is passed in — it is
+// not merged with DEFAULT_THEME).
+const gray: MantineColorsTuple = [
+  "#f8f9fa",
+  "#f1f3f5",
+  "#e9ecef",
+  "#dee2e6",
+  "#ced4da",
+  "#adb5bd",
+  "#868e96",
+  "#495057",
+  "#343a40",
+  "#212529",
+];
+
+const dark: MantineColorsTuple = [
+  "#C9C9C9",
+  "#b8b8b8",
+  "#828282",
+  "#696969",
+  "#424242",
+  "#3b3b3b",
+  "#2e2e2e",
+  "#242424",
+  "#1f1f1f",
+  "#141414",
+];
+
 const blue: MantineColorsTuple = [
   "#e7f3ff",
   "#d0e4ff",
@@ -35,11 +81,25 @@ const red: MantineColorsTuple = [
 ];
 
 export const theme = createTheme({
+  primaryColor: "brand",
+  // Orvex keeps the brand shade fixed at index 6 in both schemes.
+  primaryShade: { light: 6, dark: 6 },
+  fontFamily:
+    'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  headings: {
+    fontWeight: "700",
+  },
+  defaultRadius: "md",
+  radius: {
+    md: "10px",
+  },
   colors: {
+    brand,
+    gray,
+    dark,
     blue,
     red,
   },
-  defaultRadius: 'sm',
   components: {
     Tooltip: Tooltip.extend({
       defaultProps: {
@@ -91,6 +151,11 @@ export const mantineCssResolver: CSSVariablesResolver = (theme) => ({
   },
   light: {
     ...v8CssVariablesResolver(theme).light,
+    // Orvex-pinned surface/text/border tokens (highest-impact,
+    // exact match — does not drift with Mantine's tuple-derivation).
+    "--mantine-color-body": "#ffffff",
+    "--mantine-color-text": "#18181d",
+    "--mantine-color-default-border": "#ececef",
     "--mantine-color-dimmed": "#4b5563",
     "--mantine-color-dark-light-color": "#4e5359",
     "--mantine-color-dark-light-hover": "var(--mantine-color-gray-light-hover)",
@@ -127,6 +192,12 @@ export const mantineCssResolver: CSSVariablesResolver = (theme) => ({
   },
   dark: {
     ...v8CssVariablesResolver(theme).dark,
+    // Orvex-pinned surface/text/border tokens (highest-impact,
+    // exact match — does not drift with Mantine's tuple-derivation).
+    "--mantine-color-body": "#16161c",
+    "--mantine-color-text": "#f0f0f5",
+    "--mantine-color-default": "#1e1e25",
+    "--mantine-color-default-border": "#2d2d38",
     "--mantine-color-dark-light-color": "var(--mantine-color-gray-4)",
     "--mantine-color-dark-light-hover": "var(--mantine-color-default-hover)",
   },

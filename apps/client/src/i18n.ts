@@ -12,6 +12,10 @@ i18n
   // init i18next
   // for all options read: https://www.i18next.com/overview/configuration-options
   .init({
+    // Orvex UI strings live in a separate `orvex` namespace so they
+    // survive an upstream translation.json replacement.
+    ns: ["translation", "orvex"],
+    defaultNS: "translation",
     fallbackLng: "en-US",
     debug: false,
     showSupportNotice: false,
