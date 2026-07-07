@@ -95,6 +95,12 @@ describe('PageUpsertDedupSpec', () => {
       addPageWatchers: async () => {},
       movePageWatchersToSpace: async () => {},
     } as any;
+    // Unreached in every scenario here — none supplies casOpts (ENG-1413's
+    // idempotency store is exercised by its own dedicated spec).
+    const idempotencyStoreStub = {
+      claim: async () => ({ claimed: true, degraded: true }),
+      record: async () => {},
+    } as any;
 
     const pageRepo = new PageRepo(db, spaceMemberRepoStub, eventEmitter);
     const pagePermissionRepo = new PagePermissionRepo(
@@ -137,6 +143,7 @@ describe('PageUpsertDedupSpec', () => {
       collaborationGatewayStub,
       watcherServiceStub,
       transclusionService,
+      idempotencyStoreStub,
     );
 
     const ws = await db

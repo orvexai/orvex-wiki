@@ -21,6 +21,7 @@ import { SecurityModule } from './integrations/security/security.module';
 import { TelemetryModule } from './integrations/telemetry/telemetry.module';
 import { RedisModule } from '@nestjs-labs/nestjs-ioredis';
 import { RedisConfigService } from './integrations/redis/redis-config.service';
+import { IdempotencyStoreModule } from './integrations/redis/idempotency-store.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
 import { LoggerModule } from './common/logger/logger.module';
@@ -64,6 +65,7 @@ try {
     RedisModule.forRootAsync({
       useClass: RedisConfigService,
     }),
+    IdempotencyStoreModule,
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async (environmentService: EnvironmentService) => {

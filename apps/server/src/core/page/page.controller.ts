@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Headers,
   HttpCode,
   HttpStatus,
   Inject,
@@ -354,7 +355,13 @@ export class PageController {
 
   @HttpCode(HttpStatus.OK)
   @Post('update')
-  async update(@Body() updatePageDto: UpdatePageDto, @AuthUser() user: User) {
+  async update(
+    @Body() updatePageDto: UpdatePageDto,
+    @AuthUser() user: User,
+    // ENG-1413 (AC3) — the `idempotency-key` HEADER takes precedence over
+    // the body field when both are supplied.
+    @Headers('idempotency-key') idempotencyKeyHeader?: string,
+  ) {
     const page = await this.pageRepo.findById(updatePageDto.pageId);
 
     if (!page) {
@@ -366,11 +373,10 @@ export class PageController {
       user,
     );
 
-    const updatedPage = await this.pageService.update(
-      page,
-      updatePageDto,
-      user,
-    );
+    const updatedPage = await this.pageService.update(page, updatePageDto, user, {
+      ifVersion: updatePageDto.ifVersion,
+      idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
+    });
 
     const permissions = { canEdit: true, hasRestriction };
 

@@ -131,6 +131,13 @@ describe('PageServiceBlockIdChokepointSpec', () => {
       undefined,
     );
 
+    // Unreached in every scenario here — none supplies casOpts (ENG-1413's
+    // idempotency store is exercised by its own dedicated spec).
+    const idempotencyStoreStub = {
+      claim: async () => ({ claimed: true, degraded: true }),
+      record: async () => {},
+    } as any;
+
     service = new PageService(
       pageRepo,
       pagePermissionRepo,
@@ -144,6 +151,7 @@ describe('PageServiceBlockIdChokepointSpec', () => {
       collaborationGatewayStub,
       watcherServiceStub,
       transclusionService,
+      idempotencyStoreStub,
     );
 
     const ws = await db

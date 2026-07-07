@@ -136,6 +136,94 @@ export class PageRepo {
   }
 
   /**
+   * ENG-1413 — read the side-table (`orvex_page_meta`, ruling 4) CAS/dedup
+   * row for a page. Returns `undefined` when the page has no meta row yet.
+   */
+  async getPageMeta(
+    pageId: string,
+    trx?: KyselyTransaction,
+  ): Promise<
+    | { pageId: string; externalId: string | null; contentHash: string | null; version: number; workspaceId: string }
+    | undefined
+  > {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .selectFrom('orvexPageMeta')
+      .selectAll()
+      .where('pageId', '=', pageId)
+      .executeTakeFirst();
+  }
+
+  /**
+   * ENG-1413 (AC1, AC6) — the atomic integer-CAS store-tier primitive. Folds
+   * the precondition into `UPDATE … WHERE page_id = ? AND version = ?`; a
+   * zero-rowcount result (`undefined` return) means either the meta row
+   * does not exist yet or `expectedVersion` has drifted — the caller 409s.
+   * There is NO separate read-then-write step here — this IS the check.
+   */
+  async casIncrementMeta(
+    pageId: string,
+    expectedVersion: number,
+    patch: { contentHash?: string | null; externalId?: string | null },
+    trx?: KyselyTransaction,
+  ): Promise<{ pageId: string; version: number } | undefined> {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .updateTable('orvexPageMeta')
+      .set({
+        version: sql`version + 1`,
+        ...(patch.contentHash !== undefined
+          ? { contentHash: patch.contentHash }
+          : {}),
+        ...(patch.externalId !== undefined
+          ? { externalId: patch.externalId }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where('pageId', '=', pageId)
+      .where('version', '=', expectedVersion)
+      .returning(['pageId', 'version'])
+      .executeTakeFirst();
+  }
+
+  /**
+   * ENG-1413 — unconditional version bump (no `ifVersion` supplied by the
+   * caller, so there is no CAS precondition to enforce). Upserts the
+   * side-table row defensively if it is somehow missing.
+   */
+  async bumpMeta(
+    pageId: string,
+    workspaceId: string,
+    patch: { contentHash?: string | null; externalId?: string | null },
+    trx?: KyselyTransaction,
+  ): Promise<{ pageId: string; version: number }> {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .insertInto('orvexPageMeta')
+      .values({
+        pageId,
+        workspaceId,
+        externalId: patch.externalId ?? null,
+        contentHash: patch.contentHash ?? null,
+        version: 1,
+      })
+      .onConflict((oc) =>
+        oc.column('pageId').doUpdateSet({
+          version: sql`orvex_page_meta.version + 1`,
+          ...(patch.contentHash !== undefined
+            ? { contentHash: patch.contentHash }
+            : {}),
+          ...(patch.externalId !== undefined
+            ? { externalId: patch.externalId }
+            : {}),
+          updatedAt: new Date(),
+        }),
+      )
+      .returning(['pageId', 'version'])
+      .executeTakeFirstOrThrow();
+  }
+
+  /**
    * ENG-1471 dimension-3 lookup — the fallback (spaceId, parentPageId,
    * title) resolution used when neither slugId nor externalId is supplied.
    */
