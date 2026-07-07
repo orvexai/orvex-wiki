@@ -17,7 +17,7 @@ export type LabelScope = 'space' | 'workspace';
  * A label is resolved/created against either a single space (`spaceId` set)
  * or the whole workspace (`spaceId` null). Uniqueness is enforced at the DB
  * layer by two partial unique indexes (see migration
- * 20260514T130000-orvex-space-scoped-labels) -- this service never has to
+ * 20260707T100000-orvex-space-scoped-labels) -- this service never has to
  * duplicate that invariant in application code, it just needs to query and
  * insert consistently with it.
  */

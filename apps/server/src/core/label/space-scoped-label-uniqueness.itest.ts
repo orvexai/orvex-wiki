@@ -63,7 +63,7 @@ describe('SpaceScopedLabelUniquenessSpec (ENG-1385)', () => {
     });
 
     // Run every real migration (up to and including
-    // 20260514T130000-orvex-space-scoped-labels) against a fresh Postgres --
+    // 20260707T100000-orvex-space-scoped-labels) against a fresh Postgres --
     // no mocked schema, the uniqueness tests must hit the real partial
     // indexes.
     const migrator = new Migrator({
@@ -298,7 +298,7 @@ describe('SpaceScopedLabelUniquenessSpec (ENG-1385)', () => {
 
     // Idempotent reconcile: re-running the migration's up() must not throw.
     const migrationModule = await import(
-      '../../database/migrations/20260514T130000-orvex-space-scoped-labels'
+      '../../database/migrations/20260707T100000-orvex-space-scoped-labels'
     );
     await expect(migrationModule.up(db)).resolves.not.toThrow();
   });
@@ -321,7 +321,7 @@ describe('SpaceScopedLabelUniquenessSpec (ENG-1385)', () => {
     );
 
     const migrationModule = await import(
-      '../../database/migrations/20260514T130000-orvex-space-scoped-labels'
+      '../../database/migrations/20260707T100000-orvex-space-scoped-labels'
     );
 
     await expect(migrationModule.down(db)).resolves.not.toThrow();
