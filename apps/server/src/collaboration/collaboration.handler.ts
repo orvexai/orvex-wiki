@@ -8,6 +8,7 @@ import {
 import { setYjsMark, updateYjsMarkAttribute, YjsSelection } from './yjs.util';
 import * as Y from 'yjs';
 import { User } from '@docmost/db/types/entity.types';
+import { markAiChangedBlocks } from '../core/page-provenance/provenance-content.util';
 
 export type CollabEventHandlers = ReturnType<
   CollaborationHandler['getHandlers']
@@ -81,9 +82,14 @@ export class CollaborationHandler {
           prosemirrorJson: any;
           operation: string;
           user: User;
+          // ENG-1447 (AC4) — when true, the AI-changed top-level blocks are
+          // tagged with the `aiAuthored` mark within this SAME live-ydoc
+          // transaction (no extra DB write, no debounce race). See
+          // OrvexPageProvenanceService / provenance-content.util.
+          markAiAuthored?: boolean;
         },
       ) => {
-        const { prosemirrorJson, operation, user } = payload;
+        const { prosemirrorJson, operation, user, markAiAuthored } = payload;
         this.logger.debug('Updating page content via yjs', documentName);
         await this.withYdocConnection(
           hocuspocus,
@@ -91,6 +97,12 @@ export class CollaborationHandler {
           { user },
           (doc) => {
             const fragment = doc.getXmlFragment('default');
+
+            // Snapshot the pre-edit document so we can diff it against the
+            // post-edit document and mark only the blocks the AI changed.
+            const oldJson = markAiAuthored
+              ? TiptapTransformer.fromYdoc(doc, 'default')
+              : null;
 
             if (operation === 'replace') {
               if (fragment.length > 0) {
@@ -108,6 +120,33 @@ export class CollaborationHandler {
               const yElements = newContent.map(prosemirrorNodeToYElement);
               const position = operation === 'prepend' ? 0 : fragment.length;
               fragment.insert(position, yElements);
+            }
+
+            if (markAiAuthored) {
+              // Read back the applied document, mark the AI-changed blocks,
+              // and re-write the marked doc — all still inside this
+              // transaction, so the marks land atomically with the edit.
+              try {
+                const newJson = TiptapTransformer.fromYdoc(doc, 'default');
+                const marked = markAiChangedBlocks(oldJson, newJson);
+                if (fragment.length > 0) {
+                  fragment.delete(0, fragment.length);
+                }
+                const markedDoc = TiptapTransformer.toYdoc(
+                  marked,
+                  'default',
+                  tiptapExtensions,
+                );
+                Y.applyUpdate(doc, Y.encodeStateAsUpdate(markedDoc));
+              } catch (err) {
+                // Marking is best-effort: a diff failure must never lose the
+                // user-visible content edit (already applied above).
+                this.logger.warn(
+                  `AI-provenance block marking failed for ${documentName}: ${
+                    (err as Error)?.message ?? err
+                  }`,
+                );
+              }
             }
           },
         );

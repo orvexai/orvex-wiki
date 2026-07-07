@@ -27,6 +27,7 @@ import {
 import { PageHistoryService } from './services/page-history.service';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
+import { AuthMethod } from '../../common/decorators/auth-method.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { Page, User, Workspace } from '@docmost/db/types/entity.types';
@@ -54,6 +55,9 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
+import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
+import { InjectKysely } from 'nestjs-kysely';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -67,6 +71,8 @@ export class PageController {
     private readonly backlinkService: BacklinkService,
     private readonly labelService: LabelService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly provenanceService: OrvexPageProvenanceService,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -205,6 +211,7 @@ export class PageController {
     @Body() createPageDto: CreatePageDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
   ) {
     if (createPageDto.parentPageId) {
       // Creating under a parent page - check edit permission on parent
@@ -230,11 +237,33 @@ export class PageController {
       }
     }
 
-    const page = await this.pageService.create(
-      user.id,
-      workspace.id,
-      createPageDto,
-    );
+    // ENG-1447 F1 fix — the REST create write and its ai_produced provenance
+    // stamp (AC5) run in the SAME db transaction, so there is no committed
+    // window where the page row exists with provenance_status = null
+    // (NFR-freshness / Dev-Context §4e "no lag window").
+    const page = await this.db.transaction().execute(async (trx) => {
+      const created = await this.pageService.create(
+        user.id,
+        workspace.id,
+        createPageDto,
+        trx,
+      );
+
+      if (authMethod === 'api_key') {
+        await this.provenanceService.markAiCreated(
+          created.id,
+          {
+            userId: null,
+            workspaceId: workspace.id,
+            spaceId: created.spaceId,
+            isHuman: false,
+          },
+          trx,
+        );
+      }
+
+      return created;
+    });
 
     const { canEdit, hasRestriction } =
       await this.pageAccessService.validateCanViewWithPermissions(page, user);
@@ -361,6 +390,8 @@ export class PageController {
     // ENG-1413 (AC3) — the `idempotency-key` HEADER takes precedence over
     // the body field when both are supplied.
     @Headers('idempotency-key') idempotencyKeyHeader?: string,
+    @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
   ) {
     const page = await this.pageRepo.findById(updatePageDto.pageId);
 
@@ -373,9 +404,36 @@ export class PageController {
       user,
     );
 
-    const updatedPage = await this.pageService.update(page, updatePageDto, user, {
-      ifVersion: updatePageDto.ifVersion,
-      idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
+    // ENG-1447 F1 fix — the REST update write and its ai_produced provenance
+    // stamp (AC5) run in the SAME db transaction, so there is no committed
+    // window where the page row is updated with provenance_status = null
+    // (NFR-freshness / Dev-Context §4e "no lag window").
+    const updatedPage = await this.db.transaction().execute(async (trx) => {
+      const result = await this.pageService.update(
+        page,
+        updatePageDto,
+        user,
+        {
+          ifVersion: updatePageDto.ifVersion,
+          idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
+        },
+        trx,
+      );
+
+      if (authMethod === 'api_key') {
+        await this.provenanceService.markAiCreated(
+          result.id,
+          {
+            userId: null,
+            workspaceId: workspace.id,
+            spaceId: result.spaceId,
+            isHuman: false,
+          },
+          trx,
+        );
+      }
+
+      return result;
     });
 
     const permissions = { canEdit: true, hasRestriction };

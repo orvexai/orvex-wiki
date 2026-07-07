@@ -459,6 +459,7 @@ export class PageService {
     updatePageDto: UpdatePageDto,
     user: User,
     casOpts?: { ifVersion?: number | string; idempotencyKey?: string },
+    trx?: KyselyTransaction,
   ): Promise<Page> {
     // ENG-1413 — atomic integer CAS + cross-replica idempotency, gated on
     // the caller explicitly opting in via `casOpts` (the `/pages/update`
@@ -548,6 +549,7 @@ export class PageService {
         contributorIds: contributorIds,
       },
       page.id,
+      trx,
     );
 
     this.generalQueue
@@ -581,6 +583,7 @@ export class PageService {
       includeCreator: true,
       includeLastUpdatedBy: true,
       includeContributors: true,
+      trx,
     });
 
     if (casOpts?.idempotencyKey) {

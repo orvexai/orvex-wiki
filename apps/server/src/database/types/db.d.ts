@@ -330,6 +330,9 @@ export interface Pages {
   lastUpdatedById: string | null;
   parentPageId: string | null;
   position: string | null;
+  provenanceStatus: string | null;
+  provenanceChangedAt: Timestamp | null;
+  provenanceChangedById: string | null;
   slugId: string;
   spaceId: string;
   textContent: string | null;
