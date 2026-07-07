@@ -5,7 +5,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { CreatePageDto, ContentFormat } from '../dto/create-page.dto';
 import { ContentOperation, UpdatePageDto } from '../dto/update-page.dto';
 import { UpsertPageDto } from '../dto/upsert-page.dto';
@@ -38,7 +37,7 @@ import {
   jsonToText,
   stampBlockIds,
 } from 'src/collaboration/collaboration.util';
-import { canonicalJsonStringify } from '../../../common/helpers/canonical-json';
+import { computeContentHash as sharedComputeContentHash } from '../../../common/helpers/content-hash';
 import {
   CopyPageMapEntry,
   ICopyPageAttachment,
@@ -215,17 +214,13 @@ export class PageService {
   }
 
   /**
-   * ENG-1397 AC8/AC9 — the single content_hash accessor. Uses a canonical
-   * (key-sorted) stringify: Postgres `jsonb` does not preserve key
-   * insertion order on round-trip, so hashing with plain `JSON.stringify`
-   * would make a freshly-built JS object hash differently from the exact
-   * same content read back out of the `content` jsonb column, breaking the
-   * idempotent-rewrite contract (AC3).
+   * ENG-1397 AC8/AC9 — the single content_hash accessor. Delegates to the
+   * shared `computeContentHash` helper (F-B) so this write chokepoint and
+   * the AC4 backfill migration can never silently drift apart on how a
+   * content hash is derived.
    */
   private computeContentHash(prosemirrorJson: unknown): string {
-    return createHash('sha256')
-      .update(canonicalJsonStringify(prosemirrorJson))
-      .digest('hex');
+    return sharedComputeContentHash(prosemirrorJson);
   }
 
   /**

@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto';
 import { Kysely } from 'kysely';
 import { backfillPageContent } from '../../collaboration/backfill-block-ids.util';
 import { tiptapExtensions } from '../../collaboration/collaboration.util';
-import { canonicalJsonStringify } from '../../common/helpers/canonical-json';
+import { computeContentHash } from '../../common/helpers/content-hash';
 
 /**
  * ENG-1397 AC4 — legacy block-ID backfill.
@@ -27,6 +26,11 @@ import { canonicalJsonStringify } from '../../common/helpers/canonical-json';
  * it — during that window `PageService`'s AC3 no-op short-circuit would
  * misfire (perform a real write instead of a true no-op). No data
  * corruption either way, but this closes the window entirely.
+ *
+ * F-B fix — the recomputed hash goes through the SAME shared
+ * `computeContentHash` helper the `PageService` write chokepoint uses,
+ * instead of an inline `sha256(canonicalJsonStringify(...))` duplicate, so
+ * the two can never silently drift apart.
  */
 const BATCH_SIZE = 500;
 
@@ -68,10 +72,9 @@ export async function up(db: Kysely<any>): Promise<void> {
 
           // F2 — keep the side-table content_hash in sync with the
           // content this migration just rewrote, so it doesn't go stale
-          // for pages that already have a meta row.
-          const recomputedHash = createHash('sha256')
-            .update(canonicalJsonStringify(stamped))
-            .digest('hex');
+          // for pages that already have a meta row. F-B — via the shared
+          // helper, not an inline re-derivation.
+          const recomputedHash = computeContentHash(stamped);
 
           await db
             .updateTable('orvex_page_meta')
