@@ -10,6 +10,7 @@ import { SessionActivityService } from '../../session/session-activity.service';
 import { FastifyRequest } from 'fastify';
 import { extractBearerTokenFromHeader, isUserDisabled } from '../../../common/helpers';
 import { ApiKeyService } from '../../../core/api-key/api-key.service';
+import { stampTokenScope } from '../../casl/scope-intersection';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -102,8 +103,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException();
     }
 
+    // ENG-1454 (C3/C4 wiring) — stamp the token's own scope grant onto the
+    // resolved user at the auth seam. `SpaceAbilityFactory.createForUser`
+    // is the sole reader (via `intersectWithTokenScope`), so every
+    // space-scoped REST handler downstream is floored to this grant.
+    const scopedUser = stampTokenScope(user, {
+      readOnly: record.readOnly,
+      spaceIds: record.scopes,
+    });
+
     return {
-      user,
+      user: scopedUser,
       workspace,
       authMethod: 'api_key',
       apiKeyId: record.apiKeyId,

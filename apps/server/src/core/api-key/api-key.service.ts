@@ -28,6 +28,9 @@ export interface ApiKeyAuthResult {
   apiKeyId: string;
   creatorId: string;
   workspaceId: string;
+  /** ENG-1454 — carried to the auth seam so it can stamp a TokenScopeGrant. */
+  scopes: string[] | null;
+  readOnly: boolean;
 }
 
 /**
@@ -299,6 +302,8 @@ export class ApiKeyService {
       apiKeyId: record.id,
       creatorId: record.creatorId,
       workspaceId: record.workspaceId,
+      scopes: record.scopes,
+      readOnly: record.readOnly,
     };
   }
 }

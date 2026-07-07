@@ -36,7 +36,7 @@ export interface TokenScopeGrant {
   spaceIds: string[] | null;
 }
 
-interface ScopeCarryingUser {
+export interface ScopeCarryingUser {
   [TOKEN_SCOPE_SYMBOL]?: TokenScopeGrant;
 }
 
@@ -101,12 +101,12 @@ function downgradeToReadOnly(
  * @param user the resolved user, possibly carrying a `TOKEN_SCOPE_SYMBOL`
  *   grant stamped by {@link stampTokenScope} at the auth seam.
  */
-export function intersectWithTokenScope(
+export function intersectWithTokenScope<T extends object>(
   ability: MongoAbility<ISpaceAbility>,
   spaceId: string,
-  user: ScopeCarryingUser,
+  user: T,
 ): MongoAbility<ISpaceAbility> {
-  const grant = user?.[TOKEN_SCOPE_SYMBOL];
+  const grant = (user as ScopeCarryingUser)?.[TOKEN_SCOPE_SYMBOL];
 
   // AC7 — absent symbol: session user / legacy unscoped key. Unrestricted.
   if (grant === undefined) {
