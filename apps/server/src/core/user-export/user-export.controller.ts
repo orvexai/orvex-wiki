@@ -17,7 +17,7 @@ import { UserThrottlerGuard } from '../../integrations/throttle/user-throttler.g
 import {
   USER_EXPORT_THROTTLER,
   SKIP_NON_EXPORT_THROTTLERS,
-} from '../../integrations/throttle/throttler-names';
+} from '../../orvex/orvex-throttler-names';
 
 /**
  * ENG-1473 — User data export (GDPR).

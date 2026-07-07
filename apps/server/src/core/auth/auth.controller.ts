@@ -14,7 +14,7 @@ import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   AI_CHAT_THROTTLER,
   AUTH_THROTTLER,
-} from '../../integrations/throttle/throttler-names';
+} from '../../orvex/orvex-throttler-names';
 import { LoginDto } from './dto/login.dto';
 import { AuthService } from './services/auth.service';
 import { SessionService } from '../session/session.service';
