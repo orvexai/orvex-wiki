@@ -20,7 +20,8 @@
     "^@docmost/db/(.*)$": "<rootDir>/src/database/$1",
     "^@docmost/transactional/(.*)$": "<rootDir>/src/integrations/transactional/$1",
     "^@docmost/ee/(.*)$": "<rootDir>/src/ee/$1",
-    "^src/(.*)$": "<rootDir>/src/$1"
+    "^src/(.*)$": "<rootDir>/src/$1",
+    "^@orvex/extensions$": "<rootDir>/../../packages/@orvex/extensions/src/index.ts"
   },
   "testTimeout": 120000
 }
