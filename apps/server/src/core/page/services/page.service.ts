@@ -1051,17 +1051,96 @@ export class PageService {
     };
   }
 
-  async movePage(dto: MovePageDto, movedPage: Page) {
-    // validate position value by attempting to generate a key
+  /**
+   * ENG-889 / ENG-1372 (AC1, AC2, AC8): resolve a movePage `position` value —
+   * either a keyword form (`child`, `before:<id>`, `after:<id>`) or an
+   * already-concrete fractional-index key — into a real, persistable
+   * fractional-index key.
+   *
+   * This is real branching over the sibling set (not a pass-through): the
+   * keyword forms look up the actual neighbour(s) in `targetParentPageId`'s
+   * children and call `generateJitteredKeyBetween` between them. Unknown
+   * keyword forms (anything containing `:` that isn't `before:`/`after:`)
+   * are rejected with a typed error rather than silently coerced (AC8).
+   */
+  async resolvePositionKey(
+    position: string,
+    spaceId: string,
+    targetParentPageId: string | null,
+    excludePageId?: string,
+  ): Promise<string> {
+    if (position.includes(':')) {
+      const match = /^(before|after):(.+)$/.exec(position);
+      if (!match) {
+        throw new BadRequestException(
+          `Unsupported move position keyword: ${position}`,
+        );
+      }
+      const [, keyword, refId] = match;
+
+      if (refId === excludePageId) {
+        throw new BadRequestException('Invalid move position');
+      }
+
+      const refPage = await this.pageRepo.findById(refId);
+      if (
+        !refPage ||
+        refPage.deletedAt ||
+        refPage.spaceId !== spaceId ||
+        (refPage.parentPageId ?? null) !== targetParentPageId
+      ) {
+        // AC6: reference id not resolvable in the caller's tree — reject,
+        // mutate nothing.
+        throw new BadRequestException('Invalid move position');
+      }
+
+      const siblings = await this.db
+        .selectFrom('pages')
+        .select(['id', 'position'])
+        .where('spaceId', '=', spaceId)
+        .where('deletedAt', 'is', null)
+        .where(
+          targetParentPageId ? 'parentPageId' : 'parentPageId',
+          targetParentPageId ? '=' : 'is',
+          targetParentPageId,
+        )
+        .orderBy('position', (ob) => ob.collate('C').asc())
+        .execute();
+
+      const idx = siblings.findIndex((s) => s.id === refPage.id);
+
+      if (keyword === 'before') {
+        const lower = idx > 0 ? siblings[idx - 1].position : null;
+        const upper = refPage.position;
+        return generateJitteredKeyBetween(lower, upper);
+      }
+
+      const lower = refPage.position;
+      const upper =
+        idx < siblings.length - 1 ? siblings[idx + 1].position : null;
+      return generateJitteredKeyBetween(lower, upper);
+    }
+
+    if (position === 'child') {
+      return this.nextPagePosition(spaceId, targetParentPageId ?? undefined);
+    }
+
+    // Not a keyword form — must already be a concrete, parseable key (AC2).
     try {
-      generateJitteredKeyBetween(dto.position, null);
+      generateJitteredKeyBetween(position, null);
     } catch (err) {
       throw new BadRequestException('Invalid move position');
     }
+    return position;
+  }
 
-    let parentPageId = null;
+  async movePage(dto: MovePageDto, movedPage: Page) {
+    let parentPageId: string | null | undefined = null;
+    let targetParentPageId: string | null = movedPage.parentPageId ?? null;
+
     if (movedPage.parentPageId === dto.parentPageId) {
       parentPageId = undefined;
+      targetParentPageId = movedPage.parentPageId ?? null;
     } else {
       // changing the page's parent
       if (dto.parentPageId) {
@@ -1092,15 +1171,31 @@ export class PageService {
         }
 
         parentPageId = parentPage.id;
+        targetParentPageId = parentPage.id;
+      } else {
+        parentPageId = null;
+        targetParentPageId = null;
       }
     }
 
+    const beforePosition = movedPage.position;
+    const resolvedPosition = await this.resolvePositionKey(
+      dto.position,
+      movedPage.spaceId,
+      targetParentPageId,
+      movedPage.id,
+    );
+
+    // AC3: exactly one PAGE_UPDATED emit for the move, carrying before/after
+    // position so search/AI reindex stay fresh (never-stale ruling).
     await this.pageRepo.updatePage(
       {
-        position: dto.position,
+        position: resolvedPosition,
         parentPageId: parentPageId,
       },
       dto.pageId,
+      undefined,
+      { before: beforePosition, after: resolvedPosition },
     );
   }
 

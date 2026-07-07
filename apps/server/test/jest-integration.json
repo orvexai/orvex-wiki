@@ -1,0 +1,20 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts", "tsx"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": ".integration-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)sx?$": "ts-jest"
+  },
+  "transformIgnorePatterns": [
+    "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose)(@|/))",
+    "packages/editor-ext/dist/"
+  ],
+  "moduleNameMapper": {
+    "^@docmost/db/(.*)$": "<rootDir>/src/database/$1",
+    "^@docmost/transactional/(.*)$": "<rootDir>/src/integrations/transactional/$1",
+    "^@docmost/ee/(.*)$": "<rootDir>/src/ee/$1",
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "testTimeout": 120000
+}
