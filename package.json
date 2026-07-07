@@ -137,7 +137,7 @@
       "axios": "1.16.0",
       "langsmith": "0.7.0",
       "follow-redirects": "1.16.0",
-      "protobufjs": "7.6.1",
+      "protobufjs": "7.6.5",
       "ip-address": "10.1.1",
       "fast-uri": "3.1.2",
       "form-data@4": "4.0.6",
