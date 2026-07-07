@@ -14,6 +14,8 @@ const MAX_TICKS = (args && args.maxTicks) || 40
 const FIRST_BATCH = 6
 const STEADY_BATCH = 12
 const BOUNCE_CAP = 3
+const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if the ready frontier is narrower than this, fill the spare slots with useful non-claiming pre-work.
+const GATE_MS = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','M14']
 
 const PROJECT_REPO = {
   'Orvex Wiki': '/home/daniel/repos/orvex-wiki',
@@ -115,6 +117,38 @@ let dryTicks = 0
 let complete = false
 let residueReport = null
 
+// ---- Capacity-fill (§3.31) -------------------------------------------------
+// When the ready frontier is narrower than CAPACITY_FLOOR, fill the spare slots
+// with useful NON-CLAIMING pre-work so the box never idles. These never build,
+// claim, or merge — comment-only analysis — so they can't race the delivery lane.
+function makeTopups(tick, slack) {
+  const thunks = []
+  for (let i = 0; i < slack; i++) {
+    const m = GATE_MS[(tick * 3 + i) % GATE_MS.length]
+    thunks.push(() => agent([
+      'CAPACITY-FILL pre-work for milestone ' + m + ' (the delivery frontier is narrow right now, so use this spare slot usefully). NON-CLAIMING, comment-only: NEVER claim/build/merge/change status — the delivery lane owns that.',
+      'Do a readiness + spec-drift pre-analysis: read the ' + m + ' closing gate + a sample of its issues LIVE (linearis); if any AC has drifted from current repo reality (route/package/test-name changes) or a Cancelled issue is still wired as a gate blocker (§3.24), post ONE corrective dev-context comment. Then re-verify ONE already-Done issue in ' + m + ' is not fake-done (§3.27: the named DoD test exists + impl present + any UI wired into the running app + real not-synthetic fixtures) and comment if suspect. If nothing needs fixing, no-op.',
+      RETDISC,
+    ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':fill:' + m + '-' + i, phase: 'Tick ' + tick, schema: NOTE_SCHEMA }).then(() => ({ out: 'topup' })))
+  }
+  return thunks
+}
+
+// ---- Startup reclaim (§3.20c / §3.31) --------------------------------------
+// A prior engine death can leave issues stranded In Progress (claimed, no live
+// agent) — invisible to the Todo/Backlog frontier and silently clogging capacity
+// (this is what narrowed the fleet to ~2). On launch, un-strand them so the box
+// never sits behind stale claims.
+phase('Startup reclaim')
+await agent([
+  'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '.',
+  '1. _bmad/lnr/tools/linear-sync.sh sync.',
+  '2. LIVE list every In-Progress issue across the Orvex Studio initiative + Delivery Gates project; for each check gh for an open PR in its repo.',
+  '3. NO open PR (dead build) -> reset it to Todo via linearis so this run frontier re-picks it fresh; archive any dangling branch ref + remove any stale worktree.',
+  '4. OPEN PR exists -> leave it In Progress and record it in ' + RDIR + '/startup-reclaim-prs.md so tick 1 can review+merge it (do NOT merge here).',
+  'Return ok + a one-line reset-vs-left count. ' + RETDISC,
+].join('\n'), { model: 'sonnet', effort: 'medium', label: 'startup-reclaim', phase: 'Startup reclaim', schema: NOTE_SCHEMA })
+
 // ---- Engine loop -----------------------------------------------------------
 for (let tick = 1; tick <= MAX_TICKS; tick++) {
   phase('Tick ' + tick)
@@ -141,9 +175,10 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
 
   const batchSize = tick === 1 ? FIRST_BATCH : STEADY_BATCH
   const batch = frontier.ready.slice(0, batchSize)
-  log('Tick ' + tick + ': dispatching ' + batch.length + ' issues (' + batch.map(b => b.eng).join(', ') + ')')
+  const slack = Math.max(0, CAPACITY_FLOOR - batch.length)
+  log('Tick ' + tick + ': ' + batch.length + ' build slots (' + batch.map(b => b.eng).join(', ') + ') + ' + slack + ' capacity-fill pre-work agents [floor ' + CAPACITY_FLOOR + ']')
 
-  const tickResults = await parallel(batch.map(item => async () => {
+  const buildThunks = batch.map(item => async () => {
     const repo = PROJECT_REPO[item.project] || 'CROSS_REPO'
     const T = 'Tick ' + tick
 
@@ -236,7 +271,10 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
     }
     escalated.push({ eng: item.eng, why: ((gate && gate.escalate) || 'done-gate failed').slice(0, 200) })
     return { eng: item.eng, out: 'gate-failed' }
-  }))
+  })
+
+  // §3.31: dispatch the build batch AND the capacity-fill pre-work together so ~CAPACITY_FLOOR slots stay warm even when the frontier is narrow.
+  const tickResults = await parallel([...buildThunks, ...makeTopups(tick, slack)])
 
   const advanced = (tickResults || []).filter(Boolean).filter(r => r.out === 'done').length
   log('Tick ' + tick + ' result: ' + advanced + ' Done, ' + ((tickResults || []).filter(Boolean).filter(r => r.out !== 'done').length) + ' not advanced')
