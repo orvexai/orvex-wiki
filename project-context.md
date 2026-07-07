@@ -2,8 +2,8 @@
 
 <!-- provenance: carried copy of the family Coding Standards.
      cs-source: 6aMAzsYeQb
-     cs-source-sha256: a91c55b5c75030d0cfb8d93dcfe1103402e0cc90c70d2ad228259ce056460fb7
-     materialized: 2026-07-06
+     cs-source-sha256: 691fde22c3af36f723549d6cea3064649ae8019286360b058ac50c6faed2b2a3
+     materialized: 2026-07-07
      Freshness is CI-gated by scripts/check-context-freshness.sh (make context-check):
      it fails the build when the CS page's sha256 drifts from the pin above, so a
      human folds the delta in (preserving this repo's overrides) and re-pins. -->
