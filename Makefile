@@ -15,7 +15,7 @@ endef
 
 .PHONY: help build test test-server test-server-full test-server-integration test-client test-e2e \
         smoke-test smoke-test-strict lint typecheck security ci-local k8s-validate \
-        engine-license-guard no-md-ext-in-doc-workflows \
+        engine-license-guard no-md-ext-in-doc-workflows ci-substrate-conformance \
         env-up env-down env-destroy env-status env-logs env-info secrets \
         db-migrate run-local
 
@@ -65,6 +65,9 @@ engine-license-guard: ## P10 gate (ENG-1381): no closed EE submodule/gitlink/imp
 no-md-ext-in-doc-workflows: ## ENG-1398 AC6 gate: no turndown/markdown-extension code in the doc-workflow queue tasks leg (belongs in @orvex/dfm)
 	bash scripts/no-md-ext-in-doc-workflows.sh .
 
+ci-substrate-conformance: ## CS §13 gate (ENG-1386): CI-config layer never builds images; Tekton build+rollout present
+	bash scripts/test/ci-substrate-conformance.spec.sh .
+
 k8s-validate: ## Build-only deploy-tree validation (kustomize + kubeconform; NEVER applies)
 	kustomize build --load-restrictor LoadRestrictionsNone deploy/kustomize | kubeconform -ignore-missing-schemas -summary
 
@@ -88,6 +91,7 @@ ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smo
 	$(MAKE) context-check
 	$(MAKE) engine-license-guard
 	$(MAKE) no-md-ext-in-doc-workflows
+	$(MAKE) ci-substrate-conformance
 	@echo "ci-local: ALL GATES GREEN"
 
 ##@ Local prod-parity environment (Postgres 17 CNPG-family + Redis 8 + MinIO S3)
