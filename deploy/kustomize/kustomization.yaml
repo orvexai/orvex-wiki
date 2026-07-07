@@ -270,6 +270,7 @@ replacements:
           - data.CELL_TOKEN
       - select:
           kind: HTTPRoute
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
         fieldPaths:
           - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
           - spec.hostnames.0
@@ -278,6 +279,7 @@ replacements:
           index: 1
       - select:
           kind: HTTPRoute
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
         fieldPaths:
           - spec.parentRefs.0.sectionName
         options:
