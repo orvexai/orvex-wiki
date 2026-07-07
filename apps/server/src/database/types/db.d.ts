@@ -41,6 +41,10 @@ export interface ApiKeys {
   updatedAt: Generated<Timestamp>;
   creatorId: string;
   workspaceId: string;
+  /** ENG-1454 — space-allowlist for the scope-intersection guard; native jsonb array, null = unrestricted. */
+  scopes: Json | null;
+  /** ENG-1454 — read-only mode for the scope-intersection guard. */
+  readOnly: Generated<boolean>;
 }
 
 export interface Attachments {
