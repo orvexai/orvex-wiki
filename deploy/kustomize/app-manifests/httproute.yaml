@@ -1,11 +1,15 @@
 ---
 # HTTPRoute for orvex-wiki (Gateway API).
-# Prod hostname: wiki.eu1.orvex.ai. components/staging patches to
-# wiki.eu1.orvex.dev (and re-pins the Gateway sectionName to
-# orvex-eu1-dev-https, since that hostname only intersects the
-# orvex.dev-zone cell listener).
+# Prod hostname: wiki.<cell-token>.orvex.ai. components/staging patches to
+# wiki.<cell-token>.orvex.dev (and re-pins the Gateway sectionName to the
+# matching dev listener), since that hostname only intersects the
+# orvex.dev-zone cell listener.
 # Cell TOKEN ruling (final form 2026-07-05): the public host carries the short
-# cell token (eu1), never the AWS-AZ cell id (eu-central-1a), which is internal-only.
+# cell token, never the AWS-AZ cell id (eu-central-1a), which is internal-only.
+# The CELLTOKEN placeholder below is NOT the literal — it is overwritten at
+# build time by the root `replacements` sourcing cluster-config.yaml's
+# `cellToken` field, the single place the literal token is typed
+# (ENG-1505 fix-pass).
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -15,18 +19,18 @@ metadata:
     app.kubernetes.io/name: orvex-wiki
   annotations:
     argocd.argoproj.io/sync-wave: "6"
-    external-dns.alpha.kubernetes.io/hostname: "wiki.eu1.orvex.ai"
+    external-dns.alpha.kubernetes.io/hostname: "wiki.CELLTOKEN.orvex.ai"
     external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
     external-dns.alpha.kubernetes.io/target: "37.27.73.18"
 spec:
   hostnames:
-    - wiki.eu1.orvex.ai
+    - wiki.CELLTOKEN.orvex.ai
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: platform-gateway
       namespace: traefik
-      sectionName: orvex-eu1-https
+      sectionName: orvex-CELLTOKEN-https
   rules:
     - backendRefs:
         - group: ""

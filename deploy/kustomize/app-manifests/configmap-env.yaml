@@ -45,6 +45,15 @@ data:
   CELL_ID: "PLACEHOLDER_CELL_ID"
   CLUSTER_NAME: "PLACEHOLDER_CLUSTER_NAME"
 
+  # Public short cell token (ENG-1505 fix-pass single source: cluster-config
+  # data.cellToken). Not consumed by the engine itself — this ConfigMap is
+  # the relay that carries the token PAST the base build (cluster-config.yaml
+  # is local-config: true and is pruned from the render) so that
+  # components/staging's own `replacements` can re-derive the dev HTTPRoute's
+  # host/annotation/sectionName from the SAME single source instead of
+  # re-typing the literal.
+  CELL_TOKEN: "PLACEHOLDER_CELL_TOKEN"
+
   # Event-spine crew-scoping (A-CELL rule #5). The engine is the first
   # studio-spine producer; topics are {domain}-events.{suffix}. Base = the
   # sentinel cell "solo"; components/crew patches to crew-{name} so a crew's

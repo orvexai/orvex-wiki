@@ -173,18 +173,15 @@ func TestHttpRouteHostnameShortCellToken(t *testing.T) {
 		require.Equal(t, "wiki.eu1.orvex.ai", cfg.Data["wikiHost"], "public wikiHost must carry the short cell token")
 	})
 
-	t.Run("AC5_cell_token_surface_is_bounded", func(t *testing.T) {
-		// The literal "eu1" token must live in a small, known set of files so
-		// a future 2nd cell (e.g. eu2) composes by touching only these —
-		// never a wide, undiscoverable fan-out across the deploy tree.
+	t.Run("AC5_cell_token_single_source", func(t *testing.T) {
+		// The literal "eu1" token must be typed in exactly ONE file —
+		// cluster-config.yaml's `cellToken` field — and reach every
+		// consumer (base HTTPRoute + the staging-overlay dev HTTPRoute) by
+		// kustomize `replacements`, never by re-typing the literal. A future
+		// 2nd cell (e.g. eu2) composes by editing cellToken alone.
 		deployDir := filepath.Dir(kustomizeDir)
 		allowed := map[string]bool{
-			filepath.Join(kustomizeDir, "app-manifests", "httproute.yaml"):             true,
-			filepath.Join(kustomizeDir, "cluster-config.yaml"):                         true,
-			filepath.Join(kustomizeDir, "components", "staging", "kustomization.yaml"): true,
-			// Comment-only cross-reference to the httproute.yaml host; no
-			// actual token config lives here.
-			filepath.Join(kustomizeDir, "kustomization.yaml"): true,
+			filepath.Join(kustomizeDir, "cluster-config.yaml"): true,
 		}
 		err := filepath.Walk(deployDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
@@ -201,10 +198,39 @@ func TestHttpRouteHostnameShortCellToken(t *testing.T) {
 				return rerr
 			}
 			if strings.Contains(string(raw), "eu1") && !allowed[path] {
-				t.Errorf("unexpected cell-token literal %q found outside the known surface — a 2nd cell would need to touch this file too", path)
+				t.Errorf("unexpected cell-token literal %q found outside cluster-config.yaml — the token must be sourced via replacements, not re-typed", path)
 			}
 			return nil
 		})
 		require.NoError(t, err)
+
+		// Functional proof the replacement chain actually wires up (not just
+		// an absence of the literal): both renders must carry CELL_TOKEN=eu1
+		// on the orvex-wiki-env ConfigMap, propagated from cluster-config's
+		// single cellToken source through the ConfigMap into the component.
+		for _, rendered := range []string{prodRendered, devRendered} {
+			dec := yaml.NewDecoder(strings.NewReader(rendered))
+			found := false
+			for {
+				var doc map[string]any
+				if err := dec.Decode(&doc); err != nil {
+					break
+				}
+				if doc == nil {
+					continue
+				}
+				if kind, _ := doc["kind"].(string); kind != "ConfigMap" {
+					continue
+				}
+				meta, _ := doc["metadata"].(map[string]any)
+				if name, _ := meta["name"].(string); name != "orvex-wiki-env" {
+					continue
+				}
+				data, _ := doc["data"].(map[string]any)
+				require.Equal(t, "eu1", data["CELL_TOKEN"], "orvex-wiki-env CELL_TOKEN must be sourced from cluster-config.cellToken")
+				found = true
+			}
+			require.True(t, found, "orvex-wiki-env ConfigMap not found in render")
+		}
 	})
 }
