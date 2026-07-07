@@ -17,6 +17,9 @@ import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
 import { PageStatus } from '@orvex/extensions';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import { EVT_PAGE_CREATED } from '../../../orvex/events/constants/orvex-event-types';
+import { WsService } from '../../../ws/ws.service';
 
 @Injectable()
 export class PageRepo {
@@ -24,6 +27,8 @@ export class PageRepo {
     @InjectKysely() private readonly db: KyselyDB,
     private spaceMemberRepo: SpaceMemberRepo,
     private eventEmitter: EventEmitter2,
+    private readonly outboxWriter: OutboxWriter,
+    private readonly wsService: WsService,
   ) {}
 
   private baseFields: Array<keyof Page> = [
@@ -312,21 +317,50 @@ export class PageRepo {
     return result;
   }
 
+  /**
+   * ENG-1383 AC1/AC2 — the page insert and its `page.created` outbox row
+   * commit ATOMICALLY. When the caller passes its own `trx`, both writes
+   * join it (a caller rollback takes the outbox row with it — AC2). When no
+   * `trx` is passed, both writes are wrapped in one transaction here so a
+   * page create still produces exactly one outbox row on commit (AC1).
+   *
+   * The legacy `EventName.PAGE_CREATED` EventEmitter2 emit and the
+   * Socket.IO `invalidate` sweep (T5/AC6) both stay post-commit /
+   * fire-and-forget — they are NOT the durable primitive (the outbox is);
+   * losing one is a degraded UX (stale cache, missed in-process listener),
+   * never a lost domain event.
+   */
   async insertPage(
     insertablePage: InsertablePage,
     trx?: KyselyTransaction,
   ): Promise<Page> {
-    const db = dbOrTx(this.db, trx);
-    const result = await db
-      .insertInto('pages')
-      .values(insertablePage)
-      .returning(this.baseFields)
-      .executeTakeFirst();
+    const result = await executeTx(
+      this.db,
+      async (innerTrx) => {
+        const row = await innerTrx
+          .insertInto('pages')
+          .values(insertablePage)
+          .returning(this.baseFields)
+          .executeTakeFirst();
+
+        await this.outboxWriter.enqueue(innerTrx, {
+          type: EVT_PAGE_CREATED,
+          aggregateId: row.id,
+          workspaceId: row.workspaceId,
+          payload: { id: row.id, workspaceId: row.workspaceId },
+        });
+
+        return row;
+      },
+      trx,
+    );
 
     this.eventEmitter.emit(EventName.PAGE_CREATED, {
       pageIds: [result.id],
       workspaceId: result.workspaceId,
     });
+
+    this.wsService.emitInvalidate(result.workspaceId, ['pages', result.slugId]);
 
     return result;
   }

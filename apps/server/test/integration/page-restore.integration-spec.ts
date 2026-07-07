@@ -6,6 +6,7 @@
  * history-row UUID for the page, not just the latest/first (AC5).
  */
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PageHistoryService } from 'src/core/page/services/page-history.service';
 import {
@@ -48,7 +49,13 @@ describe('PageHistoryService.restore (ENG-1372)', () => {
   beforeAll(async () => {
     testDb = await startTestDatabase();
     const eventEmitter = new EventEmitter2();
-    pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
+    pageRepo = new PageRepo(
+      testDb.db as any,
+      {} as any,
+      eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
+    );
     pageHistoryRepo = new PageHistoryRepo(testDb.db as any);
     // ENG-1369 widened the constructor (pageService/orvexAudit/db) to
     // support the NEW restoreFromHistory() method below. This suite only
