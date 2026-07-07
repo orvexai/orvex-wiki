@@ -58,6 +58,12 @@ import {
 import { WatcherService } from '../../watcher/watcher.service';
 import { sql } from 'kysely';
 import { TransclusionService } from '../transclusion/transclusion.service';
+import { IdempotencyStore } from '../../../integrations/redis/idempotency-store.service';
+import {
+  assertIfVersionMatches,
+  isIntegerVersion,
+  toIntegerVersion,
+} from '../if-version.util';
 
 @Injectable()
 export class PageService {
@@ -76,6 +82,7 @@ export class PageService {
     private collaborationGateway: CollaborationGateway,
     private readonly watcherService: WatcherService,
     private readonly transclusionService: TransclusionService,
+    private readonly idempotencyStore: IdempotencyStore,
   ) {}
 
   async findById(
@@ -162,6 +169,24 @@ export class PageService {
       }
       throw err;
     }
+
+    // ENG-1413 — every page gets an `orvex_page_meta` row (ruling 4) from
+    // creation, seeded at version 1, so the CAS/idempotency primitive on
+    // `POST /pages/update` always has a baseline version to check against
+    // (not just pages that went through `upsert`). Content is already
+    // parsed above (`content`) — hash it directly, no re-parse.
+    const initialContentHash =
+      content !== undefined ? this.computeContentHash(content) : null;
+    await (trx ?? this.db)
+      .insertInto('orvexPageMeta')
+      .values({
+        pageId: page.id,
+        externalId: null,
+        contentHash: initialContentHash,
+        version: 1,
+        workspaceId,
+      })
+      .execute();
 
     if (trx) {
       // Add the watcher inside the caller's transaction so the async worker
@@ -274,6 +299,10 @@ export class PageService {
         format: preparedContent !== undefined ? 'json' : undefined,
       } as CreatePageDto);
 
+      // ENG-1413 — `create()` above already seeded the `orvex_page_meta`
+      // row at version 1 (every page gets one now, not just `upsert`'d
+      // ones); this just layers the externalId on top via upsert — never
+      // a second INSERT (that would 23505 on the pageId primary key).
       await this.db
         .insertInto('orvexPageMeta')
         .values({
@@ -283,6 +312,11 @@ export class PageService {
           version: 1,
           workspaceId,
         })
+        .onConflict((oc) =>
+          oc.column('pageId').doUpdateSet({
+            externalId: dto.externalId ?? null,
+          }),
+        )
         .execute();
 
       return { page: created, upserted: 'created' };
@@ -424,10 +458,86 @@ export class PageService {
     page: Page,
     updatePageDto: UpdatePageDto,
     user: User,
+    casOpts?: { ifVersion?: number | string; idempotencyKey?: string },
   ): Promise<Page> {
+    // ENG-1413 — atomic integer CAS + cross-replica idempotency, gated on
+    // the caller explicitly opting in via `casOpts` (the `/pages/update`
+    // HTTP path). `upsert()`'s internal call into `update()` does NOT pass
+    // `casOpts` — it manages the side-table meta row itself (ENG-1471,
+    // AC7) — so this block never double-bumps `orvex_page_meta.version`.
+    let meta: { version: number } | undefined;
+    if (casOpts) {
+      meta = await this.pageRepo.getPageMeta(page.id);
+
+      // AC5: the CAS precondition is asserted BEFORE any idempotency slot
+      // is claimed — a stale `ifVersion` 409s here, leaving the slot free.
+      assertIfVersionMatches(page.updatedAt, casOpts.ifVersion, meta?.version);
+
+      if (casOpts.idempotencyKey) {
+        const claim = await this.idempotencyStore.claim<Page>(
+          'page-update',
+          page.id,
+          user.id,
+          casOpts.idempotencyKey,
+        );
+
+        if (!claim.claimed) {
+          // AC3: the loser does not re-apply — return the winner's result
+          // (or, if it hasn't been recorded yet, the page's current state).
+          return (
+            claim.result ??
+            (await this.pageRepo.findById(page.id, {
+              includeSpace: true,
+              includeContent: true,
+              includeCreator: true,
+              includeLastUpdatedBy: true,
+              includeContributors: true,
+            }))
+          );
+        }
+      }
+    }
+
     const contributors = new Set<string>(page.contributorIds);
     contributors.add(user.id);
     const contributorIds = Array.from(contributors);
+
+    let nextContentHash: string | null | undefined;
+    if (updatePageDto.content !== undefined && updatePageDto.format) {
+      const parsed = await this.parseProsemirrorContent(
+        updatePageDto.content,
+        updatePageDto.format,
+      );
+      nextContentHash = this.computeContentHash(parsed);
+    }
+
+    if (casOpts) {
+      // AC1/AC6: fold the precondition into the atomic store-tier UPDATE —
+      // zero-rowcount means the version drifted between the pre-check above
+      // and here (a genuine cross-replica race), and THAT is the real,
+      // race-proof guard (no read-then-write TOCTOU on the write decision).
+      if (isIntegerVersion(casOpts.ifVersion)) {
+        const expectedVersion = toIntegerVersion(casOpts.ifVersion);
+
+        const casResult = await this.pageRepo.casIncrementMeta(
+          page.id,
+          expectedVersion,
+          { contentHash: nextContentHash },
+        );
+
+        if (!casResult) {
+          const current = await this.pageRepo.getPageMeta(page.id);
+          throw new ConflictException({
+            code: 'VERSION_MISMATCH',
+            serverVersion: current?.version,
+          });
+        }
+      } else {
+        await this.pageRepo.bumpMeta(page.id, page.workspaceId, {
+          contentHash: nextContentHash,
+        });
+      }
+    }
 
     await this.pageRepo.updatePage(
       {
@@ -465,13 +575,27 @@ export class PageService {
       );
     }
 
-    return await this.pageRepo.findById(page.id, {
+    const result = await this.pageRepo.findById(page.id, {
       includeSpace: true,
       includeContent: true,
       includeCreator: true,
       includeLastUpdatedBy: true,
       includeContributors: true,
     });
+
+    if (casOpts?.idempotencyKey) {
+      // Best-effort — losers polling this key see the winner's result.
+      // Never blocks/fails the response (IdempotencyStore never throws).
+      await this.idempotencyStore.record(
+        'page-update',
+        page.id,
+        user.id,
+        casOpts.idempotencyKey,
+        result,
+      );
+    }
+
+    return result;
   }
 
   async updatePageContent(

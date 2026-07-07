@@ -50,6 +50,7 @@ describe('PageService.movePage (ENG-1372)', () => {
       {} as any, // collaborationGateway
       {} as any, // watcherService
       {} as any, // transclusionService
+      {} as any, // idempotencyStore
     );
 
     const workspace = await seedWorkspace(testDb.db);
