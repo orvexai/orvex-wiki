@@ -31,12 +31,14 @@ import { PasswordResetDto } from './dto/password-reset.dto';
 import { VerifyUserTokenDto } from './dto/verify-user-token.dto';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { validateSsoEnforcement } from './auth.util';
+import { setAuthCookie } from './auth-cookie.helper';
 import { ModuleRef } from '@nestjs/core';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
+import { OrvexEnforceSsoCheckService } from '../../orvex/enforce-sso/orvex-enforce-sso-check.service';
 
 @SkipThrottle({ [AI_CHAT_THROTTLER]: true })
 @UseGuards(ThrottlerGuard)
@@ -50,6 +52,7 @@ export class AuthController {
     private environmentService: EnvironmentService,
     private moduleRef: ModuleRef,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly enforceSso: OrvexEnforceSsoCheckService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -58,8 +61,16 @@ export class AuthController {
     @AuthWorkspace() workspace: Workspace,
     @Res({ passthrough: true }) res: FastifyReply,
     @Body() loginInput: LoginDto,
+    @Req() req: FastifyRequest,
   ) {
-    validateSsoEnforcement(workspace);
+    // ENG-1409 AC2/AC3/AC4 — enforce-SSO gate runs BEFORE credential
+    // verification. Member-block + admin/owner-exempt + defensive
+    // null-role handling all live in OrvexEnforceSsoCheckService.checkOrThrow;
+    // the controller stays a thin sequencer (CS handler-thinness).
+    await this.enforceSso.checkOrThrow(workspace, loginInput.email, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
 
     let MfaModule: any;
     let isMfaModuleReady = false;
@@ -94,14 +105,14 @@ export class AuthController {
           };
         } else if (mfaResult.authToken) {
           // User doesn't have MFA and workspace doesn't require it
-          this.setAuthCookie(res, mfaResult.authToken);
+          setAuthCookie(res, mfaResult.authToken, this.environmentService);
           return;
         }
       }
     }
 
     const authToken = await this.authService.login(loginInput, workspace.id);
-    this.setAuthCookie(res, authToken);
+    setAuthCookie(res, authToken, this.environmentService);
   }
 
   @UseGuards(SetupGuard)
@@ -114,7 +125,7 @@ export class AuthController {
     const { workspace, authToken } =
       await this.authService.setup(createAdminUserDto);
 
-    this.setAuthCookie(res, authToken);
+    setAuthCookie(res, authToken, this.environmentService);
     return workspace;
   }
 
@@ -154,6 +165,11 @@ export class AuthController {
     @Body() passwordResetDto: PasswordResetDto,
     @AuthWorkspace() workspace: Workspace,
   ) {
+    // ENG-1409 AC5 — a pre-SSO reset token must not be usable to mint a
+    // real session once the workspace enforces SSO; gate BEFORE the token
+    // is consumed, mirroring forgot-password's enforcement above.
+    validateSsoEnforcement(workspace);
+
     const result = await this.authService.passwordReset(
       passwordResetDto,
       workspace,
@@ -166,7 +182,7 @@ export class AuthController {
     }
 
     // Set auth cookie if no MFA is required
-    this.setAuthCookie(res, result.authToken);
+    setAuthCookie(res, result.authToken, this.environmentService);
     return {
       requiresLogin: false,
     };
@@ -216,16 +232,6 @@ export class AuthController {
       event: AuditEvent.USER_LOGOUT,
       resourceType: AuditResource.USER,
       resourceId: user.id,
-    });
-  }
-
-  setAuthCookie(res: FastifyReply, token: string) {
-    res.setCookie('authToken', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      expires: this.environmentService.getCookieExpiresIn(),
-      secure: this.environmentService.isHttps(),
     });
   }
 }

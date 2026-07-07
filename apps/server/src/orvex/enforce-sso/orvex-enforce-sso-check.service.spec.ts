@@ -55,6 +55,71 @@ describe('isExemptFromSso', () => {
   });
 });
 
+describe('OrvexEnforceSsoCheckService', () => {
+  it('blocks members + audits, exempts admins', async () => {
+    // ENG-1409 §5a named DoD binary gate — real service, real audit sink,
+    // real ForbiddenException; drives ONLY the exported checkOrThrow API.
+    const audit = new CapturingAuditService();
+    const memberLookup = new FakeMemberLookup({ id: 'u1', role: 'member' });
+    const service = new OrvexEnforceSsoCheckService(memberLookup, audit);
+    const workspace = { id: 'ws1', enforceSso: true };
+
+    // AC2 — member blocked, SSO_REQUIRED, workspace-scoped audit with
+    // attemptedEmail + userRole metadata.
+    let caught: ForbiddenException | undefined;
+    try {
+      await service.checkOrThrow(workspace, 'member@example.com', {
+        ipAddress: '10.0.0.1',
+        userAgent: 'jest',
+      });
+    } catch (err) {
+      caught = err as ForbiddenException;
+    }
+    expect(caught).toBeInstanceOf(ForbiddenException);
+    expect(caught!.getResponse()).toMatchObject({ error: 'SSO_REQUIRED' });
+    expect(audit.logs).toHaveLength(1);
+    expect(audit.logs[0].payload.metadata).toEqual({
+      attemptedEmail: 'member@example.com',
+      userRole: 'member',
+    });
+    expect(audit.logs[0].context).toMatchObject({
+      workspaceId: 'ws1',
+      actorType: 'user',
+      ipAddress: '10.0.0.1',
+      userAgent: 'jest',
+    });
+
+    // AC3 — owner/admin exempt: no throw, no audit.
+    const adminAudit = new CapturingAuditService();
+    const adminLookup = new FakeMemberLookup({ id: 'u2', role: 'admin' });
+    const adminService = new OrvexEnforceSsoCheckService(
+      adminLookup,
+      adminAudit,
+    );
+    await expect(
+      adminService.checkOrThrow(workspace, 'admin@example.com'),
+    ).resolves.toBeUndefined();
+    expect(adminAudit.logs).toHaveLength(0);
+  });
+
+  it('AC4 — defensive null-role: unresolvable member is blocked + audited with userRole:null', async () => {
+    const audit = new CapturingAuditService();
+    const lookup = new FakeMemberLookup(undefined);
+    const service = new OrvexEnforceSsoCheckService(lookup, audit);
+    const workspace = { id: 'ws1', enforceSso: true };
+
+    await expect(
+      service.checkOrThrow(workspace, 'ghost@example.com'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(audit.logs).toHaveLength(1);
+    expect(audit.logs[0].payload.metadata).toEqual({
+      attemptedEmail: 'ghost@example.com',
+      userRole: null,
+    });
+  });
+});
+
 describe('OrvexEnforceSsoCheckService.checkOrThrow', () => {
   it('AC7 — refuses a non-exempt member with SSO_REQUIRED and audits once', async () => {
     const audit = new CapturingAuditService();
