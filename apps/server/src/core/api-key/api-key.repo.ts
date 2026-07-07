@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { dbOrTx } from '@docmost/db/utils';
+import type { Json } from '@docmost/db/types/db';
 import { ApiKeyPublicView } from './dto/api-key.dto';
 
 /**
@@ -23,6 +24,8 @@ const PUBLIC_COLUMNS = [
   'createdAt',
   'updatedAt',
   'deletedAt',
+  'scopes',
+  'readOnly',
 ] as const;
 
 export interface ApiKeyAuthRecord {
@@ -32,6 +35,22 @@ export interface ApiKeyAuthRecord {
   workspaceId: string;
   deletedAt: Date | null;
   expiresAt: Date | null;
+  /** ENG-1454 — the space-allowlist read by `intersectWithTokenScope` at the auth seam. */
+  scopes: string[] | null;
+  readOnly: boolean;
+}
+
+/**
+ * ENG-1454 AC6 — the ONE place the jsonb `scopes` column is cast back to
+ * its concrete `string[] | null` domain shape (CS §12 any-laundering
+ * guard: cast once at the driver edge, never leaked as `unknown`/`any`
+ * into domain code). A native jsonb array reads back as a real JS array —
+ * this mapper does no parsing; if it ever saw a string here, that would
+ * mean a write path re-introduced the double-encode bug.
+ */
+function toScopesArray(raw: unknown): string[] | null {
+  if (raw == null) return null;
+  return raw as string[];
 }
 
 @Injectable()
@@ -44,20 +63,36 @@ export class ApiKeyRepo {
       creatorId: string;
       workspaceId: string;
       expiresAt?: Date | null;
+      /**
+       * ENG-1454 AC6 — the space-allowlist. Passed straight through as a
+       * native JS array and cast ONCE at this driver edge (`as unknown as
+       * Json`, CS §12 any-laundering guard) — NEVER `JSON.stringify`'d
+       * first. Stringifying here would double-encode the jsonb column into
+       * a jsonb STRING, which reads back as a string and breaks
+       * `scopes.some(...)` with a 500 on every scoped request (the
+       * postgres.js jsonb gotcha this AC fixes). `null`/absent = no space
+       * restriction (AC7 unrestricted); `[]` = an explicit empty scope
+       * (AC7 — the intersection of nothing is nothing).
+       */
+      scopes?: string[] | null;
+      readOnly?: boolean;
     },
     trx?: KyselyTransaction,
   ): Promise<ApiKeyPublicView> {
     const db = dbOrTx(this.db, trx);
-    return db
+    const row = await db
       .insertInto('apiKeys')
       .values({
         name: insertable.name,
         creatorId: insertable.creatorId,
         workspaceId: insertable.workspaceId,
         expiresAt: insertable.expiresAt ?? null,
+        scopes: (insertable.scopes ?? null) as unknown as Json | null,
+        readOnly: insertable.readOnly ?? false,
       })
       .returning(PUBLIC_COLUMNS)
       .executeTakeFirstOrThrow();
+    return { ...row, scopes: toScopesArray(row.scopes) };
   }
 
   async setKeyHash(
@@ -66,12 +101,13 @@ export class ApiKeyRepo {
     trx?: KyselyTransaction,
   ): Promise<ApiKeyPublicView> {
     const db = dbOrTx(this.db, trx);
-    return db
+    const row = await db
       .updateTable('apiKeys')
       .set({ keyHash, updatedAt: new Date() })
       .where('id', '=', apiKeyId)
       .returning(PUBLIC_COLUMNS)
       .executeTakeFirstOrThrow();
+    return { ...row, scopes: toScopesArray(row.scopes) };
   }
 
   /**
@@ -82,7 +118,7 @@ export class ApiKeyRepo {
     apiKeyId: string,
     workspaceId: string,
   ): Promise<ApiKeyAuthRecord | undefined> {
-    return this.db
+    const row = await this.db
       .selectFrom('apiKeys')
       .select([
         'id',
@@ -91,23 +127,27 @@ export class ApiKeyRepo {
         'workspaceId',
         'deletedAt',
         'expiresAt',
+        'scopes',
+        'readOnly',
       ])
       .where('id', '=', apiKeyId)
       .where('workspaceId', '=', workspaceId)
       .executeTakeFirst();
+    return row && { ...row, scopes: toScopesArray(row.scopes) };
   }
 
   async findPublicById(
     apiKeyId: string,
     workspaceId: string,
   ): Promise<ApiKeyPublicView | undefined> {
-    return this.db
+    const row = await this.db
       .selectFrom('apiKeys')
       .select(PUBLIC_COLUMNS)
       .where('id', '=', apiKeyId)
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null)
       .executeTakeFirst();
+    return row && { ...row, scopes: toScopesArray(row.scopes) };
   }
 
   async listPublic(
@@ -125,7 +165,8 @@ export class ApiKeyRepo {
       query = query.where('creatorId', '=', opts.creatorId);
     }
 
-    return query.execute();
+    const rows = await query.execute();
+    return rows.map((row) => ({ ...row, scopes: toScopesArray(row.scopes) }));
   }
 
   async updateName(
@@ -135,7 +176,7 @@ export class ApiKeyRepo {
     trx?: KyselyTransaction,
   ): Promise<ApiKeyPublicView | undefined> {
     const db = dbOrTx(this.db, trx);
-    return db
+    const row = await db
       .updateTable('apiKeys')
       .set({ name, updatedAt: new Date() })
       .where('id', '=', apiKeyId)
@@ -143,6 +184,7 @@ export class ApiKeyRepo {
       .where('deletedAt', 'is', null)
       .returning(PUBLIC_COLUMNS)
       .executeTakeFirst();
+    return row && { ...row, scopes: toScopesArray(row.scopes) };
   }
 
   async revoke(
@@ -151,7 +193,7 @@ export class ApiKeyRepo {
     trx?: KyselyTransaction,
   ): Promise<ApiKeyPublicView | undefined> {
     const db = dbOrTx(this.db, trx);
-    return db
+    const row = await db
       .updateTable('apiKeys')
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where('id', '=', apiKeyId)
@@ -159,6 +201,7 @@ export class ApiKeyRepo {
       .where('deletedAt', 'is', null)
       .returning(PUBLIC_COLUMNS)
       .executeTakeFirst();
+    return row && { ...row, scopes: toScopesArray(row.scopes) };
   }
 
   async touchLastUsed(apiKeyId: string): Promise<void> {

@@ -58,6 +58,10 @@ export interface ApiKeyPublicView {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  /** ENG-1454 — the space-allowlist; null = unrestricted, [] = explicit empty scope. */
+  scopes: string[] | null;
+  /** ENG-1454 — read-only mode for the scope-intersection guard. */
+  readOnly: boolean;
 }
 
 /** The one-time creation response — the ONLY place the raw token appears. */
