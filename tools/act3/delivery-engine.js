@@ -67,11 +67,14 @@ const FRONTIER_SCHEMA = {
   },
 }
 const BUILD_SCHEMA = {
-  type: 'object', required: ['eng', 'green'],
+  type: 'object', required: ['eng', 'green', 'blocked'],
   properties: {
     eng: { type: 'string', maxLength: 12 }, green: { type: 'boolean' },
+    blocked: { type: 'boolean' },
     branch: { type: 'string', maxLength: 80 }, pr: { type: 'string', maxLength: 120 },
-    headline: { type: 'string', maxLength: 250 }, escalate: { type: 'string', maxLength: 400 },
+    headline: { type: 'string', maxLength: 250 },
+    escalate: { type: 'string', maxLength: 400 },
+    notes: { type: 'array', maxItems: 5, items: { type: 'string', maxLength: 200 } },
     reportPath: { type: 'string', maxLength: 220 },
   },
 }
@@ -145,27 +148,29 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
     const T = 'Tick ' + tick
 
     // --- build (or gate-verify for gate issues) ---
+    const wt = WORKTREES + '/t' + tick + '-' + item.eng.toLowerCase()
     const build = await agent([
       item.isGate
-        ? 'GATE ISSUE ' + item.eng + ' (' + (item.title || '') + '): this is a VERIFICATION issue, not a coding task. Read its full body LIVE (linearis). Confirm every blocked-by constituent is Done (live relations). Execute its gate checklist honestly: run the milestone integration/E2E suites its body names, in the repos they belong to (repo map: ' + JSON.stringify(PROJECT_REPO) + '). Record every command + result. green=true ONLY if every named check actually ran and passed; anything unavailable (missing infra/credential) = escalate with the exact command + error.'
+        ? 'GATE ISSUE ' + item.eng + ' (' + (item.title || '') + '): this is a VERIFICATION issue, not a coding task. Read its full body LIVE (linearis). Confirm every blocked-by constituent is Done (live relations). Execute its gate checklist honestly: run the milestone integration/E2E suites its body names, in the repos they belong to (repo map: ' + JSON.stringify(PROJECT_REPO) + '). Record every command + result. green=true ONLY if every named check actually ran and passed; blocked=true ONLY if something unavailable (missing infra/credential) genuinely prevents verification — set escalate to the exact command + error then.'
         : 'BUILD ISSUE ' + item.eng + ' (' + (item.title || '') + ') in repo ' + repo + '.',
       item.isGate ? '' : [
         '1. CLAIM: advance ' + item.eng + ' to In Progress via linearis (explicit; you are the single claimer).',
         '2. Read the issue body LIVE and IN FULL (ACs, dev-context, DoD, named binary DoD test). The body is your spec; cite it as you work.',
-        '3. Isolate: cd ' + repo + '; git fetch origin; determine the integration branch (the repo default; orvex-wiki uses dev); mkdir -p ' + WORKTREES + '; git worktree add ' + WORKTREES + '/' + item.eng.toLowerCase() + ' -b ' + item.eng.toLowerCase() + '-work origin/<integration-branch>. Work ONLY inside the worktree.',
+        '3. Isolate in a PRIVATE worktree (never shared): cd ' + repo + '; git fetch origin; determine the integration branch (the repo default; orvex-wiki uses dev); mkdir -p ' + WORKTREES + '; git worktree add ' + wt + ' -b ' + item.eng.toLowerCase() + '-work origin/<integration-branch>. Work ONLY inside ' + wt + '. If that path somehow exists, add a numeric suffix — never reuse another agent\'s tree.',
         '4. TDD-build the issue to its ACs. Run the repo CI gates (make ci-local if present, else the targeted equivalents incl. gofmt -l separately for Go).',
-        '5. Commit green work only (trailer per doctrine). Push the branch (SSH url if HTTPS push is rejected: git push git@github.com:orvexai/<repo-name>.git <branch>). Open a PR to the integration branch via gh (title "' + item.eng + ': <short>", body references Part of ' + item.eng + ' — NEVER a closing keyword — and ends with the generated-with-Claude-Code footer).',
-        '6. If ANY needed infra/credential is genuinely unavailable: set escalate to the exact ask (command + error) and stop honestly. Never fake-pass or silently skip.',
+        '5. BASELINE-DIFF every gate failure (CRITICAL — do not attribute pre-existing breakage to your change): before treating any gate as red, re-run that SAME gate on a clean checkout of origin/<integration-branch> (git stash or a scratch clone). If it fails IDENTICALLY without your changes, it is PRE-EXISTING repo noise (e.g. make context-check CS-pin drift, lint:boundary parse errors) — record it in notes[], do NOT let it set green=false or blocked=true, and proceed. Only failures your diff actually introduced count against you.',
+        '6. Commit green work only (trailer per doctrine). Push the branch (SSH url if HTTPS push is rejected: git push git@github.com:orvexai/<repo-name>.git <branch>). Open a PR to the integration branch via gh (title "' + item.eng + ': <short>", body references Part of ' + item.eng + ' — NEVER a closing keyword — and ends with the generated-with-Claude-Code footer).',
+        '7. SEMANTICS (load-bearing — an earlier run wrongly parked green PRs by conflating these): green=true means your work is committed + pushed + PR opened + your own gates pass (pre-existing noise ignored per step 5). blocked=true means you genuinely could NOT finish (missing infra/credential the run cannot self-provide, or the ticket premise assumes code that does not exist in this repo) — set escalate to the exact ask then. A non-blocking observation is NEVER a blocker: put it in notes[], leave blocked=false. If green=true and blocked=false the engine sends you to review — do not put "None"/"non-blocking" text in escalate, leave escalate empty.',
       ].join('\n'),
       DOCTRINE, LNR, RETDISC,
       'Full build log -> ' + RDIR + '/' + item.eng + '-build.md.',
     ].join('\n'), { model: item.isGate ? 'opus' : 'sonnet', effort: item.isGate ? 'high' : 'medium', label: 't' + tick + ':build:' + item.eng, phase: T, schema: BUILD_SCHEMA })
 
     if (!build) { escalated.push({ eng: item.eng, why: 'build agent died' }); return { eng: item.eng, out: 'agent-died' } }
-    if (!build.green || build.escalate) {
+    if (!build.green || build.blocked) {
       escalated.push({ eng: item.eng, why: (build.escalate || 'build not green').slice(0, 200) })
       await agent([
-        'ESCALATION BOOKKEEPING for ' + item.eng + ': add a Linear comment (linearis) stating exactly what blocks it: ' + JSON.stringify(build.escalate || 'build not green') + ' — include the command/error from ' + RDIR + '/' + item.eng + '-build.md if present. If a work branch exists, archive it (git update-ref refs/archive/inflight/' + item.eng.toLowerCase() + ' <sha>) then remove the worktree ' + WORKTREES + '/' + item.eng.toLowerCase() + ' (git worktree remove --force) and delete the local branch only after archiving. Leave status as-is.',
+        'ESCALATION BOOKKEEPING for ' + item.eng + ': add a Linear comment (linearis) stating exactly what blocks it: ' + JSON.stringify(build.escalate || 'build not green') + ' — include the command/error from ' + RDIR + '/' + item.eng + '-build.md if present. If a work branch exists, archive it (git update-ref refs/archive/inflight/' + item.eng.toLowerCase() + ' <sha>) then remove the worktree ' + wt + ' (git worktree remove --force) and delete the local branch only after archiving. Leave status as-is.',
         LNR, RETDISC,
       ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
       return { eng: item.eng, out: 'escalated' }
@@ -176,7 +181,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
     bounces[item.eng] = bounces[item.eng] || 0
     for (;;) {
       review = await agent([
-        'ADVERSARIAL REVIEW of ' + item.eng + ' (reviewer != implementer — you did NOT write this; try to refute it). Worktree: ' + WORKTREES + '/' + item.eng.toLowerCase() + ' (repo ' + repo + '); PR: ' + (build.pr || 'see build report') + '; build report: ' + RDIR + '/' + item.eng + '-build.md.',
+        'ADVERSARIAL REVIEW of ' + item.eng + ' (reviewer != implementer — you did NOT write this; try to refute it). Worktree: ' + wt + ' (repo ' + repo + '); PR: ' + (build.pr || 'see build report') + '; build report: ' + RDIR + '/' + item.eng + '-build.md.',
         'RE-RUN everything yourself — never trust the self-report: the named binary DoD test, the repo CI gates at the pinned versions (gofmt -l SEPARATELY for Go; tsc -b for TS), the targeted suites. Check: tests are real and non-tautological (would fail if the impl broke); zero-mock delivery paths + honest states; auth not weakened; no orphan UI (components imported/routed); fixtures real; every AC actually met (list the AC ids you VERIFIED — these drive the DoD ticking, so only list what you truly confirmed); diff scope matches the ticket; slim-AGPL placement respected (Q22).',
         'verdict: PASS (all green, ACs met) | FINDINGS (fixable defects — list them) | ESCALATE (needs a human: missing infra/credential/product call).',
         DOCTRINE, LNR, RETDISC,
@@ -195,7 +200,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
       }
       bounces[item.eng]++
       await agent([
-        'FIX PASS ' + bounces[item.eng] + '/' + BOUNCE_CAP + ' for ' + item.eng + ' in worktree ' + WORKTREES + '/' + item.eng.toLowerCase() + '. Address EXACTLY these review findings (full detail in ' + RDIR + '/' + item.eng + '-review' + bounces[item.eng] + '.md):',
+        'FIX PASS ' + bounces[item.eng] + '/' + BOUNCE_CAP + ' for ' + item.eng + ' in worktree ' + wt + '. Address EXACTLY these review findings (full detail in ' + RDIR + '/' + item.eng + '-review' + bounces[item.eng] + '.md):',
         JSON.stringify(review.findings || []),
         'TDD discipline; re-run the gates yourself; amend/append commits (green only) and update the PR.', DOCTRINE, RETDISC,
         'Fix log -> ' + RDIR + '/' + item.eng + '-fix' + bounces[item.eng] + '.md.',
@@ -212,7 +217,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
           '(a) Merge the PR via gh (respect branch protection; if checks are pending, wait up to 10 minutes polling gh pr checks; if a conflict: rebase the branch once, re-push, retry merge once).',
           '(b) Tick the DoD checkboxes on ' + item.eng + ' ONLY for the ACs the review verified (' + JSON.stringify(review.verifiedAcs || []) + '): full-body read -> flip exactly those boxes -> temp-file write -> re-read to confirm body intact + boxes ticked. NEVER blanket-tick.',
           '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked).',
-          '(d) Cleanup (eager, mandatory): git worktree remove ' + WORKTREES + '/' + item.eng.toLowerCase() + '; git branch -d (merge-checked, NEVER -D) the local branch; delete the remote branch via gh/git push --delete.',
+          '(d) Cleanup (eager, mandatory): git worktree remove ' + wt + '; git branch -d (merge-checked, NEVER -D) the local branch; delete the remote branch via gh/git push --delete.',
         ].join('\n'),
       LNR, RETDISC,
       'Gate log -> ' + RDIR + '/' + item.eng + '-gate.md.',
