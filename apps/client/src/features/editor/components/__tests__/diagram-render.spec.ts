@@ -165,4 +165,53 @@ describe("DiagramRenderFidelity.spec", () => {
       "line1\nline2",
     );
   });
+
+  it("AC5 regression: renderMermaid must not mangle multi-line code-block source (real mermaid.render call args)", async () => {
+    const mod = await import("../mermaid-config");
+    mod.ensureMermaidConfig();
+    renderSpy.mockClear();
+
+    const multiLineSource = "graph TD\n  A --> B\n  B --> C";
+    await mod.renderMermaid("id-multiline", multiLineSource);
+
+    const lastCallArgs = renderSpy.mock.calls[renderSpy.mock.calls.length - 1];
+    expect(lastCallArgs[0]).toBe("id-multiline");
+    // The whole code-block source must reach mermaid.render UNCHANGED —
+    // real newlines are statement separators in Mermaid grammar; replacing
+    // them with <br/> (as normalizeMermaidLineBreaks does) breaks parsing.
+    expect(lastCallArgs[1]).toBe(multiLineSource);
+  });
+});
+
+describe("DiagramRenderFidelity.spec (real mermaid, unmocked)", () => {
+  // Full SVG layout (dagre + getBBox) is not available under jsdom, so this
+  // exercises the real grammar/parser only — the exact surface the
+  // regression broke (a parse error, not a layout error). This is the same
+  // check the ENG-1391 review used to empirically confirm the bug.
+  it("AC5 regression: a real multi-line Mermaid source parses without a grammar error (the string reaching mermaid must be untouched)", async () => {
+    vi.resetModules();
+    vi.doUnmock("mermaid");
+
+    const realMermaid = (await import("mermaid")).default;
+    const { normalizeMermaidLineBreaks } = await import("../mermaid-config");
+
+    const multiLineSource = "graph TD\n  A --> B\n  B --> C";
+
+    // Sanity: prove the pre-fix behavior (normalizing the whole source)
+    // really does break the grammar, so this test would have caught it.
+    await expect(
+      realMermaid.parse(normalizeMermaidLineBreaks(multiLineSource)),
+    ).rejects.toThrow(/Parse error/);
+
+    // The actual regression check: raw multi-line source (what
+    // renderMermaid now forwards unchanged) must parse cleanly.
+    await expect(realMermaid.parse(multiLineSource)).resolves.not.toThrow();
+
+    vi.doMock("mermaid", () => ({
+      default: {
+        initialize: (...args: unknown[]) => initializeSpy(...args),
+        render: (...args: unknown[]) => renderSpy(...args),
+      },
+    }));
+  });
 });

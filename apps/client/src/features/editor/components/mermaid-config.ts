@@ -86,6 +86,16 @@ export function denormalizeMermaidLineBreaks(text: string): string {
 /**
  * Renders a Mermaid diagram, gated on the one-time warm-up so the first
  * visible diagram on a page never lands blank.
+ *
+ * IMPORTANT: `text` is the full code-block source, not a single label.
+ * Mermaid source is line-oriented — real newlines are statement
+ * separators in the grammar. `normalizeMermaidLineBreaks` must NEVER be
+ * applied here (or anywhere else to the whole source): doing so turns
+ * every multi-line diagram into unparseable text (regression, ENG-1391
+ * review finding 1). Line-break normalization only applies to text
+ * *inside* a label (e.g. the mermaid->excalidraw label seed path), never
+ * to the source as a whole — callers that need that must scope the
+ * normalization to the label substring themselves.
  */
 export async function renderMermaid(
   id: string,
@@ -93,5 +103,5 @@ export async function renderMermaid(
 ): Promise<{ svg: string }> {
   ensureMermaidConfig();
   await ensureWarmup();
-  return mermaid.render(id, normalizeMermaidLineBreaks(text));
+  return mermaid.render(id, text);
 }
