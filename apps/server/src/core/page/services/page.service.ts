@@ -34,10 +34,11 @@ import {
   removeMarkTypeFromDoc,
 } from '../../../common/helpers/prosemirror/utils';
 import {
-  htmlToJson,
   jsonToNode,
   jsonToText,
+  stampBlockIds,
 } from 'src/collaboration/collaboration.util';
+import { canonicalJsonStringify } from '../../../common/helpers/canonical-json';
 import {
   CopyPageMapEntry,
   ICopyPageAttachment,
@@ -54,7 +55,6 @@ import {
   INTERNAL_LINK_REGEX,
   extractPageSlugId,
 } from '../../../integrations/export/utils';
-import { markdownToHtml } from '@docmost/editor-ext';
 import { WatcherService } from '../../watcher/watcher.service';
 import { sql } from 'kysely';
 import { TransclusionService } from '../transclusion/transclusion.service';
@@ -189,9 +189,17 @@ export class PageService {
     return page;
   }
 
+  /**
+   * ENG-1397 AC8/AC9 — the single content_hash accessor. Uses a canonical
+   * (key-sorted) stringify: Postgres `jsonb` does not preserve key
+   * insertion order on round-trip, so hashing with plain `JSON.stringify`
+   * would make a freshly-built JS object hash differently from the exact
+   * same content read back out of the `content` jsonb column, breaking the
+   * idempotent-rewrite contract (AC3).
+   */
   private computeContentHash(prosemirrorJson: unknown): string {
     return createHash('sha256')
-      .update(JSON.stringify(prosemirrorJson))
+      .update(canonicalJsonStringify(prosemirrorJson))
       .digest('hex');
   }
 
@@ -238,23 +246,33 @@ export class PageService {
         throw new BadRequestException({ error: 'SPACE_ID_REQUIRED' });
       }
 
+      // ENG-1397 — parse (+ block-ID stamp) ONCE and reuse the SAME
+      // resulting json for both the actual page insert and the hash. The
+      // chokepoint now mints fresh ids for previously-missing nodes; parsing
+      // the raw `dto.content` independently a second time (the old
+      // create-then-reparse-for-hash shape) would mint a DIFFERENT set of
+      // random ids each time, and the stored `contentHash` would silently
+      // stop matching the persisted content. Re-parsing the ALREADY-stamped
+      // `preparedContent` inside `create()` below is safe/idempotent: no
+      // ids are missing anymore, so `stampBlockIds` is a true no-op there.
+      let preparedContent: string | object | undefined = dto.content;
+      let contentHash: string | null = null;
+      if (dto.content !== undefined) {
+        preparedContent = await this.parseProsemirrorContent(
+          dto.content,
+          dto.format ?? 'json',
+        );
+        contentHash = this.computeContentHash(preparedContent);
+      }
+
       const created = await this.create(userId, workspaceId, {
         title: dto.title,
         icon: dto.icon,
         parentPageId: dto.parentPageId,
         spaceId: dto.spaceId,
-        content: dto.content,
-        format: dto.format ?? (dto.content !== undefined ? 'json' : undefined),
+        content: preparedContent,
+        format: preparedContent !== undefined ? 'json' : undefined,
       } as CreatePageDto);
-
-      let contentHash: string | null = null;
-      if (dto.content !== undefined) {
-        const parsed = await this.parseProsemirrorContent(
-          dto.content,
-          dto.format ?? 'json',
-        );
-        contentHash = this.computeContentHash(parsed);
-      }
 
       await this.db
         .insertInto('orvexPageMeta')
@@ -278,13 +296,16 @@ export class PageService {
       .executeTakeFirst();
 
     const operation = dto.operation ?? 'replace';
+    // ENG-1397 — same single-parse-then-reuse rationale as the create
+    // branch above: hash the SAME stamped json that actually gets written.
+    let preparedContent: string | object | undefined = dto.content;
     let inboundHash: string | undefined;
     if (dto.content !== undefined) {
-      const parsed = await this.parseProsemirrorContent(
+      preparedContent = await this.parseProsemirrorContent(
         dto.content,
         dto.format ?? 'json',
       );
-      inboundHash = this.computeContentHash(parsed);
+      inboundHash = this.computeContentHash(preparedContent);
     }
 
     // The safe no-op case: a keyless `replace` retry with byte-identical
@@ -325,7 +346,7 @@ export class PageService {
         pageId: existing.id,
         title: dto.title,
         icon: dto.icon,
-        content: dto.content,
+        content: preparedContent,
         operation: dto.operation,
         format: dto.format,
       } as UpdatePageDto,
@@ -1442,36 +1463,61 @@ export class PageService {
     await this.pageRepo.removePage(pageId, userId, workspaceId);
   }
 
+  /**
+   * ENG-1397 — the single block-ID-native write chokepoint.
+   *
+   * AC5/AC6: lossy write formats (markdown/html) and un-resolved dfm are
+   * rejected up front with typed codes — this chokepoint only accepts
+   * ProseMirror json, so no diagram/callout/column block-id is ever
+   * silently dropped by a lossy round-trip.
+   * AC7: malformed ProseMirror json is rejected (`INVALID_CONTENT_FORMAT`).
+   * AC2: every configured block-level node is guaranteed an `id` — missing
+   * ids are minted, existing ids are NEVER regenerated (`stampBlockIds` /
+   * `backfillPageContent` only touch nodes that lack one), which is what
+   * keeps re-stamping already-id'd content a true no-op (idempotent).
+   */
   private async parseProsemirrorContent(
     content: string | object,
     format: ContentFormat,
   ): Promise<any> {
-    let prosemirrorJson: any;
-
     switch (format) {
-      case 'markdown': {
-        const html = await markdownToHtml(content as string);
-        prosemirrorJson = htmlToJson(html as string);
-        break;
-      }
-      case 'html': {
-        prosemirrorJson = htmlToJson(content as string);
-        break;
-      }
+      case 'dfm':
+        // AC6 — a server-bug guard: DfM content must be resolved to
+        // ProseMirror json upstream (the `dfm-contracts-ts-serializer` leg,
+        // blocked-by) before it ever reaches this chokepoint.
+        throw new BadRequestException({
+          code: 'DFM_NOT_PRE_RESOLVED',
+          message:
+            'DfM content must be resolved to ProseMirror json before reaching the write chokepoint',
+        });
+      case 'markdown':
+      case 'html':
+        // AC5 — lossy write formats are rejected: writes must be
+        // block-ID-native ProseMirror json.
+        throw new BadRequestException({
+          code: 'LOSSY_WRITE_FORMAT_REJECTED',
+          message: `Writing content as '${format}' is not supported; submit ProseMirror json instead`,
+        });
       case 'json':
-      default: {
-        prosemirrorJson = content;
+      default:
         break;
-      }
     }
+
+    const prosemirrorJson: any = content;
 
     try {
       jsonToNode(prosemirrorJson);
     } catch (err) {
-      throw new BadRequestException('Invalid content format');
+      // AC7
+      throw new BadRequestException({
+        code: 'INVALID_CONTENT_FORMAT',
+        message: 'Invalid content format',
+      });
     }
 
-    return prosemirrorJson;
+    // AC2 — stamp missing block ids at the chokepoint.
+    const { content: stamped } = stampBlockIds(prosemirrorJson);
+    return stamped;
   }
 
   /**

@@ -185,8 +185,21 @@ describe('PageUpsertDedupSpec', () => {
       .where('spaceId', '=', spaceId)
       .executeTakeFirstOrThrow();
 
+    // ENG-1397 — the write chokepoint now stamps missing block ids, minting
+    // a fresh (random) id for any node that doesn't already have one. A
+    // true "identical content" retry must resubmit the STORED (already
+    // id-stamped) content byte-for-byte — resubmitting the original
+    // id-less literal a second time would mint a DIFFERENT set of ids and
+    // correctly NOT be treated as a no-op. Fetch the persisted content back
+    // (as a real idempotent-retry client would) and resubmit that.
+    const storedFirst = await db
+      .selectFrom('pages')
+      .select(['content'])
+      .where('id', '=', first.page.id)
+      .executeTakeFirstOrThrow();
+
     const second = await service.upsert(
-      { slugId, content, format: 'json' },
+      { slugId, content: storedFirst.content as any, format: 'json' },
       userId,
       workspaceId,
     );
