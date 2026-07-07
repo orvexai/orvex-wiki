@@ -387,11 +387,11 @@ export class PageController {
   async update(
     @Body() updatePageDto: UpdatePageDto,
     @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
     // ENG-1413 (AC3) — the `idempotency-key` HEADER takes precedence over
     // the body field when both are supplied.
     @Headers('idempotency-key') idempotencyKeyHeader?: string,
-    @AuthWorkspace() workspace: Workspace,
-    @AuthMethod() authMethod: 'api_key' | undefined,
   ) {
     const page = await this.pageRepo.findById(updatePageDto.pageId);
 
