@@ -4,10 +4,16 @@
   "testEnvironment": "node",
   "testRegex": ".integration-spec.ts$",
   "transform": {
+    "happy-dom.+\\.js$": [
+      "babel-jest",
+      {
+        "presets": [["@babel/preset-env", { "targets": { "node": "current" } }]]
+      }
+    ],
     "^.+\\.(t|j)sx?$": "ts-jest"
   },
   "transformIgnorePatterns": [
-    "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose)(@|/))",
+    "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose|@sindresorhus\\+[^/]+|@sindresorhus/[^/]+|escape-string-regexp|ansi-regex|ansi-styles|p-limit|yocto-queue)(@|/))",
     "packages/editor-ext/dist/"
   ],
   "moduleNameMapper": {
