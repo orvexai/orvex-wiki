@@ -343,6 +343,16 @@ export interface Pages {
   ydoc: Buffer | null;
 }
 
+export interface OrvexEventOutbox {
+  aggregateId: string;
+  createdAt: Generated<Timestamp>;
+  id: Generated<string>;
+  payload: Json;
+  relayedAt: Timestamp | null;
+  type: string;
+  workspaceId: string;
+}
+
 export interface OrvexPageMeta {
   contentHash: string | null;
   createdAt: Generated<Timestamp>;
@@ -675,6 +685,7 @@ export interface DB {
   groupUsers: GroupUsers;
   labels: Labels;
   notifications: Notifications;
+  orvexEventOutbox: OrvexEventOutbox;
   pageAccess: PageAccess;
   pageTransclusionReferences: PageTransclusionReferences;
   pageTransclusions: PageTransclusions;

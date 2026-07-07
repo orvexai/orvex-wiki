@@ -19,6 +19,7 @@ import {
   PageVerifiers as _PageVerifiers,
   Pages,
   OrvexPageMeta as _OrvexPageMeta,
+  OrvexEventOutbox as _OrvexEventOutbox,
   Spaces,
   Users,
   Workspaces,
@@ -112,6 +113,13 @@ export type UpdatablePageHistory = Updateable<Omit<History, 'id'>>;
 export type OrvexPageMeta = Selectable<_OrvexPageMeta>;
 export type InsertableOrvexPageMeta = Insertable<_OrvexPageMeta>;
 export type UpdatableOrvexPageMeta = Updateable<Omit<_OrvexPageMeta, 'pageId'>>;
+
+// OrvexEventOutbox (ENG-1383 — transactional outbox row)
+export type OrvexEventOutbox = Selectable<_OrvexEventOutbox>;
+export type InsertableOrvexEventOutbox = Insertable<_OrvexEventOutbox>;
+export type UpdatableOrvexEventOutbox = Updateable<
+  Omit<_OrvexEventOutbox, 'id'>
+>;
 
 // Comment
 export type Comment = Selectable<Comments>;

@@ -24,6 +24,23 @@ export class WsService {
     this.server = server;
   }
 
+  /**
+   * ENG-1383 T5/AC6 — the realtime-invalidate primitive, ported (narrow
+   * slice) from orvexai/docmost@050187676624f2395c55b36ec60e365f87fd4a9f
+   * `orvex-page-metadata.service.ts` (~L101). Cross-instance (Socket.IO
+   * Redis adapter) sweep: busts `['pages', slugId]`-shaped query-cache keys
+   * for every connected client in the workspace. Retained alongside the
+   * outbox write — this is fire-and-forget realtime UX, not the durable
+   * event primitive (that's the outbox); a missed invalidate degrades to
+   * next-poll, never a white-screen (4i Operational).
+   */
+  emitInvalidate(workspaceId: string, entity: string[], id?: string): void {
+    if (!this.server) return;
+    this.server
+      .to(`workspace-${workspaceId}`)
+      .emit('message', { operation: 'invalidate', entity, id });
+  }
+
   async handleTreeEvent(client: Socket, data: any): Promise<void> {
     const room = getSpaceRoomName(data.spaceId);
 
