@@ -21,10 +21,10 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
  * `orvex.enforce_sso.toggled` event degrades gracefully (AC11) when the event
  * module is not wired.
  *
- * NOT YET CALLED live: no login/auth controller invokes `checkOrThrow` today
- * (ENG-1432 review #1, finding F1/F1c) — the `403 SSO_REQUIRED` gate below
- * describes intended behaviour once called, not a delivered live path. Login
- * wiring is deferred to ENG-1490.
+ * LIVE as of ENG-1409: `AuthController.login` now calls `checkOrThrow` BEFORE
+ * credential verification (AC2/AC3/AC4). Corrects the prior ENG-1432 doc
+ * comment, which deferred that wiring to ENG-1490 — this ticket (which
+ * ENG-1490 depends on) delivers it instead.
  */
 
 export const ORVEX_MEMBER_LOOKUP = Symbol('ORVEX_MEMBER_LOOKUP');
@@ -48,8 +48,30 @@ export function isExemptFromSso(role: string): boolean {
 
 export type OrvexWorkspaceForSsoCheck = {
   id: string;
-  settings?: { oidc?: { enforceSso?: boolean } } | null;
+  /** The real `workspaces.enforceSso` column (AC2/AC3/AC4). */
+  enforceSso?: boolean | null;
+  /**
+   * Back-compat: the orvex settings-jsonb mirror, checked as a fallback.
+   * Typed `unknown` because the real `Workspace` entity's `settings` column
+   * is a generic `JsonValue`, not this feature's narrow shape — read
+   * defensively via {@link readSettingsEnforceSso}.
+   */
+  settings?: unknown;
 };
+
+/** Optional request context threaded through to the audit row (AC2). */
+export type OrvexSsoCheckContext = {
+  ipAddress?: string;
+  userAgent?: string;
+};
+
+/** Defensive read of `settings.oidc.enforceSso` from an untyped jsonb value. */
+function readSettingsEnforceSso(settings: unknown): boolean {
+  if (!settings || typeof settings !== 'object') return false;
+  const oidc = (settings as Record<string, unknown>).oidc;
+  if (!oidc || typeof oidc !== 'object') return false;
+  return (oidc as Record<string, unknown>).enforceSso === true;
+}
 
 @Injectable()
 export class OrvexEnforceSsoCheckService {
@@ -63,16 +85,21 @@ export class OrvexEnforceSsoCheckService {
 
   /**
    * Refuses password/OIDC login for a non-exempt member of a workspace with
-   * `enforceSso` enabled. Resolves silently when enforceSso is off, the user
-   * cannot be resolved (fails open on lookup miss — a genuinely unknown
-   * principal is rejected by the normal auth path, not this gate), or the
-   * user is exempt (owner/admin). AC7, AC8.
+   * `enforceSso` enabled. Resolves silently when enforceSso is off, or the
+   * resolved member is exempt (owner/admin) — AC3. Otherwise throws
+   * `SSO_REQUIRED` and audits `OIDC_LOGIN_BLOCKED_BY_ENFORCE_SSO`, INCLUDING
+   * when the member cannot be resolved at all (defensive null-role path,
+   * AC4) — an unresolvable principal under enforced SSO is blocked here,
+   * not silently waved through to the normal auth path.
    */
   async checkOrThrow(
     workspace: OrvexWorkspaceForSsoCheck,
     email: string,
+    ctx?: OrvexSsoCheckContext,
   ): Promise<void> {
-    if (!workspace.settings?.oidc?.enforceSso) {
+    const enforceSso =
+      workspace.enforceSso ?? readSettingsEnforceSso(workspace.settings);
+    if (!enforceSso) {
       return;
     }
 
@@ -80,17 +107,27 @@ export class OrvexEnforceSsoCheckService {
       workspace.id,
       email,
     );
-    if (!member || isExemptFromSso(member.role)) {
+
+    if (member && isExemptFromSso(member.role)) {
       return;
     }
+
+    const userRole = member?.role ?? null;
 
     await this.auditService.logWithContext(
       {
         event: AuditEvent.OIDC_LOGIN_BLOCKED_BY_ENFORCE_SSO,
-        resourceType: AuditResource.USER,
-        resourceId: member.id,
+        resourceType: AuditResource.WORKSPACE,
+        resourceId: workspace.id,
+        metadata: { attemptedEmail: email, userRole },
       },
-      { workspaceId: workspace.id, actorId: member.id },
+      {
+        workspaceId: workspace.id,
+        actorId: member?.id,
+        actorType: 'user',
+        ipAddress: ctx?.ipAddress,
+        userAgent: ctx?.userAgent,
+      },
     );
 
     throw new ForbiddenException({ error: 'SSO_REQUIRED' });

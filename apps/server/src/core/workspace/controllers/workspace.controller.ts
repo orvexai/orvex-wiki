@@ -36,6 +36,7 @@ import { LicenseCheckService } from '../../../integrations/environment/license-c
 import { CheckHostnameDto } from '../dto/check-hostname.dto';
 import { RemoveWorkspaceUserDto } from '../dto/remove-workspace-user.dto';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { setAuthCookie } from '../../auth/auth-cookie.helper';
 
 @UseGuards(JwtAuthGuard)
 @Controller('workspace')
@@ -308,12 +309,9 @@ export class WorkspaceController {
       };
     }
 
-    res.setCookie('authToken', result.authToken, {
-      httpOnly: true,
-      path: '/',
-      expires: this.environmentService.getCookieExpiresIn(),
-      secure: this.environmentService.isHttps(),
-    });
+    // ENG-1409 AC1/§5c — the ONE shared cookie-mint chokepoint; no
+    // hand-rolled `res.setCookie('authToken', ...)` calls elsewhere.
+    setAuthCookie(res, result.authToken, this.environmentService);
 
     return {
       requiresLogin: false,
