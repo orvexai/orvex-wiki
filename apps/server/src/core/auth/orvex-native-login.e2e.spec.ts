@@ -1,5 +1,5 @@
-import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Injectable, Module } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import {
   FastifyAdapter,
@@ -25,8 +25,12 @@ import {
   OrvexMemberLookup,
 } from '../../orvex/enforce-sso/orvex-enforce-sso-check.service';
 import { AUTH_THROTTLER } from '../../orvex/orvex-throttler-names';
-import { OrvexNativeLoginGuard } from '../../orvex/http/orvex-native-login.guard';
 import { WorkspaceController } from '../workspace/controllers/workspace.controller';
+import { WorkspaceService } from '../workspace/services/workspace.service';
+import { WorkspaceInvitationService } from '../workspace/services/workspace-invitation.service';
+import WorkspaceAbilityFactory from '../casl/abilities/workspace-ability.factory';
+import { LicenseCheckService } from '../../integrations/environment/license-check.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 
 /**
@@ -40,14 +44,20 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
  *
  * `AuthService`/`SessionService`/`EnvironmentService` are faked exactly as
  * in `auth.controller.spec.ts`: unrelated collaborators, not the guarded
- * interface under test. AC2 (the `invites/accept` self-registration surface)
- * is proven by a guard-metadata assertion rather than a second full
- * `WorkspaceController` bootstrap — `WorkspaceController` pulls a large,
- * unrelated dependency graph (license checks, ability factory, invitation
- * service, …) that AC1's real e2e already exercises the guard's actual
- * behaviour through; re-deriving all of it here would test the SAME guard
- * logic twice at disproportionate cost (mirrors the documented rationale in
- * `scope-intersection.rest-wiring.integration.spec.ts`).
+ * interface under test.
+ *
+ * AC2 (fix-pass 1, review finding 1) — the `invites/accept` self-registration
+ * surface is now driven through a REAL second `app.inject` against the real
+ * `WorkspaceController` + real `OrvexNativeLoginGuard` (a second, minimal
+ * Nest app below): asserts the actual 403 typed body AND that
+ * `WorkspaceInvitationService.acceptInvitation` — the sole DB-writing call on
+ * this path — was invoked zero times, i.e. no `users` row is created. This
+ * repo has no already-running Postgres testcontainers harness wired into the
+ * jest e2e project for this controller; asserting zero calls to the one
+ * function that performs the write is the equivalent behavioural proof
+ * (mirrors AC3's "mailer invoked 0 times" pattern below) without spinning up
+ * a second, disproportionate DB-integration harness for a guard that already
+ * has full DB-adjacent coverage via AC1.
  */
 
 class CapturingAuditService implements IAuditService {
@@ -183,9 +193,12 @@ describe('Native-login fail-closed under enforced SSO (ENG-1490) — e2e', () =>
     expect(raw).not.toMatch(/authtoken|jwt|password.?hash/);
   });
 
-  it('AC3 — forgot-password is rejected identically when flag ON + enforceSso ON', async () => {
+  it('AC3 — forgot-password is rejected identically when flag ON + enforceSso ON, mailer invoked 0 times', async () => {
     setFlag('true');
     currentWorkspace = { id: 'ws-sso', enforceSso: true };
+
+    const fakeAuthService = app.get<FakeAuthService>(AuthService);
+    fakeAuthService.forgotPassword.mockClear();
 
     const res = await app.inject({
       method: 'POST',
@@ -195,6 +208,10 @@ describe('Native-login fail-closed under enforced SSO (ENG-1490) — e2e', () =>
 
     expect([403, 404]).toContain(res.statusCode);
     expect(res.json().success).toBe(false);
+
+    // Zero reset-token emitted: the mailer-invoking call is never reached
+    // because the guard throws before the handler body runs.
+    expect(fakeAuthService.forgotPassword).not.toHaveBeenCalled();
   });
 
   it('AC5 — vanilla mode (flag unset): native login still works byte-for-byte', async () => {
@@ -225,11 +242,122 @@ describe('Native-login fail-closed under enforced SSO (ENG-1490) — e2e', () =>
     expect(res.cookies.some((c) => c.name === 'authToken')).toBe(true);
   });
 
-  it('AC2 (wiring proof) — OrvexNativeLoginGuard is attached to the invites/accept self-registration route', () => {
-    const guards = Reflect.getMetadata(
-      GUARDS_METADATA,
-      WorkspaceController.prototype.acceptInvite,
+});
+
+@Injectable()
+class FakeWorkspaceInvitationService {
+  acceptInvitation = jest.fn().mockResolvedValue({
+    requiresLogin: false,
+    authToken: 'unused-because-guard-must-block-first',
+  });
+}
+
+@Module({
+  controllers: [WorkspaceController],
+  providers: [
+    { provide: WorkspaceService, useValue: {} },
+    {
+      provide: WorkspaceInvitationService,
+      useClass: FakeWorkspaceInvitationService,
+    },
+    { provide: WorkspaceAbilityFactory, useValue: {} },
+    { provide: WorkspaceRepo, useValue: {} },
+    { provide: EnvironmentService, useClass: FakeEnvironmentService },
+    { provide: LicenseCheckService, useValue: {} },
+    Reflector,
+    JwtAuthGuard,
+  ],
+})
+class WorkspaceTestModule {}
+
+describe('Native self-registration fail-closed under enforced SSO (ENG-1490 AC2) — e2e', () => {
+  let app: NestFastifyApplication;
+  let currentWorkspace: { id: string; enforceSso: boolean };
+  let fakeInvitationService: FakeWorkspaceInvitationService;
+
+  const ORIGINAL_FLAG = process.env.ORVEX_MODULES_ENABLED;
+  const setFlag = (value: string | undefined) => {
+    if (value === undefined) {
+      delete process.env.ORVEX_MODULES_ENABLED;
+    } else {
+      process.env.ORVEX_MODULES_ENABLED = value;
+    }
+  };
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [WorkspaceTestModule],
+    }).compile();
+
+    app = moduleRef.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
     );
-    expect(guards).toContain(OrvexNativeLoginGuard);
+    app.setGlobalPrefix('api');
+    await app.register(fastifyCookie as never);
+
+    // Test-only stand-in for `DomainMiddleware`'s `req.workspace` attachment
+    // (mirrors the AuthController e2e above — same production seam).
+    app.use(
+      (
+        req: { workspace?: unknown },
+        _res: unknown,
+        next: () => void,
+      ) => {
+        req.workspace = currentWorkspace;
+        next();
+      },
+    );
+
+    await app.init();
+    await app.getHttpAdapter().getInstance().ready();
+
+    fakeInvitationService = app.get<FakeWorkspaceInvitationService>(
+      WorkspaceInvitationService,
+    );
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    setFlag(ORIGINAL_FLAG);
+  });
+
+  afterEach(() => {
+    setFlag(ORIGINAL_FLAG);
+    fakeInvitationService.acceptInvitation.mockClear();
+  });
+
+  it('AC2 — invites/accept is rejected fail-closed under flag ON + enforceSso ON; zero DB-writing calls made', async () => {
+    setFlag('true');
+    currentWorkspace = { id: 'ws-sso', enforceSso: true };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/workspace/invites/accept',
+      payload: { invitationId: 'inv-1', name: 'Someone', password: 'whatever' },
+    });
+
+    expect([403, 404]).toContain(res.statusCode);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.message).toMatch(/sso.?enforced|native login disabled/i);
+
+    // The sole DB-writing call on this path is never reached — equivalent to
+    // "no users row is created" (before === after row count) without a
+    // second Postgres testcontainers harness for this controller.
+    expect(fakeInvitationService.acceptInvitation).not.toHaveBeenCalled();
+  });
+
+  it('AC2 regression — invites/accept still works when enforceSso is OFF (no half-state removal)', async () => {
+    setFlag('true');
+    currentWorkspace = { id: 'ws-flag-only', enforceSso: false };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/workspace/invites/accept',
+      payload: { invitationId: 'inv-1', name: 'Someone', password: 'whatever' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(fakeInvitationService.acceptInvitation).toHaveBeenCalledTimes(1);
   });
 });
