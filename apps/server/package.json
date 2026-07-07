@@ -30,7 +30,7 @@
     "test:e2e": "jest --config test/jest-e2e.json",
     "test:integration": "jest --config test/jest-integration.json --runInBand",
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
-    "test:ci": "jest --testPathIgnorePatterns='.*(auth\\.controller|auth\\.service|token\\.service|comment\\.service|group\\.controller|group\\.service|page\\.controller|page\\.service|search\\.controller|search\\.service|space\\.controller|space\\.service|user\\.controller|workspace\\.service|environment\\.service|storage\\.service)\\.spec\\.ts$'"
+    "test:ci": "jest --testPathIgnorePatterns='.*(auth\\.service|token\\.service|comment\\.service|group\\.controller|group\\.service|page\\.controller|page\\.service|search\\.controller|search\\.service|space\\.controller|space\\.service|user\\.controller|workspace\\.service|environment\\.service|storage\\.service)\\.spec\\.ts$'"
   },
   "dependencies": {
     "@ai-sdk/google": "3.0.52",

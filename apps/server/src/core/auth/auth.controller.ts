@@ -165,6 +165,11 @@ export class AuthController {
     @Body() passwordResetDto: PasswordResetDto,
     @AuthWorkspace() workspace: Workspace,
   ) {
+    // ENG-1409 AC5 — a pre-SSO reset token must not be usable to mint a
+    // real session once the workspace enforces SSO; gate BEFORE the token
+    // is consumed, mirroring forgot-password's enforcement above.
+    validateSsoEnforcement(workspace);
+
     const result = await this.authService.passwordReset(
       passwordResetDto,
       workspace,

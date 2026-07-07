@@ -1,6 +1,7 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { LoginDto } from './dto/login.dto';
+import { PasswordResetDto } from './dto/password-reset.dto';
 import {
   IAuditService,
   AuditLogContext,
@@ -42,6 +43,7 @@ class FakeMemberLookup implements OrvexMemberLookup {
 function buildController(opts: {
   member?: { id: string; role: string };
   authServiceLogin?: jest.Mock;
+  authServicePasswordReset?: jest.Mock;
 }) {
   const audit = new CapturingAuditService();
   const enforceSso = new OrvexEnforceSsoCheckService(
@@ -50,6 +52,9 @@ function buildController(opts: {
   );
   const authService = {
     login: opts.authServiceLogin ?? jest.fn().mockResolvedValue('a-real-jwt'),
+    passwordReset:
+      opts.authServicePasswordReset ??
+      jest.fn().mockResolvedValue({ requiresLogin: false, authToken: 'jwt' }),
   };
   const environmentService = {
     getCookieExpiresIn: jest.fn().mockReturnValue(new Date('2030-01-01')),
@@ -127,5 +132,50 @@ describe('AuthController.login — enforce-SSO gate (ENG-1409)', () => {
 
     expect(authServiceLogin).toHaveBeenCalled();
     expect(audit.logs).toHaveLength(0);
+  });
+});
+
+describe('AuthController.passwordReset — enforce-SSO gate (ENG-1409 AC5)', () => {
+  const ssoWorkspace: any = { id: 'ws1', enforceSso: true };
+  const dto: PasswordResetDto = {
+    token: 'pre-sso-reset-token',
+    newPassword: 'newpassword123',
+  };
+  const res: any = { setCookie: jest.fn() };
+
+  it('AC5 — blocks a password-reset attempt when enforceSso is on, before minting a cookie', async () => {
+    const authServicePasswordReset = jest.fn();
+    const { controller } = buildController({ authServicePasswordReset });
+
+    await expect(
+      controller.passwordReset(res, dto, ssoWorkspace),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    // Gate runs BEFORE the reset token is ever consumed / a session minted.
+    expect(authServicePasswordReset).not.toHaveBeenCalled();
+    expect(res.setCookie).not.toHaveBeenCalled();
+  });
+
+  it('does not gate password-reset when enforceSso is off (fast path)', async () => {
+    const authServicePasswordReset = jest
+      .fn()
+      .mockResolvedValue({ requiresLogin: false, authToken: 'signed-jwt' });
+    const { controller } = buildController({ authServicePasswordReset });
+
+    await controller.passwordReset(
+      res,
+      dto,
+      { id: 'ws2', enforceSso: false } as any,
+    );
+
+    expect(authServicePasswordReset).toHaveBeenCalledWith(dto, {
+      id: 'ws2',
+      enforceSso: false,
+    });
+    expect(res.setCookie).toHaveBeenCalledWith(
+      'authToken',
+      'signed-jwt',
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/' }),
+    );
   });
 });
