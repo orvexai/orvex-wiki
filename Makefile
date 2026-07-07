@@ -13,7 +13,7 @@ define with-env
 	set -a && . ./.env.dev && set +a && $(1)
 endef
 
-.PHONY: help build test test-server test-server-full test-client test-e2e \
+.PHONY: help build test test-server test-server-full test-server-integration test-client test-e2e \
         smoke-test smoke-test-strict lint typecheck security ci-local k8s-validate \
         env-up env-down env-destroy env-status env-logs env-info secrets \
         db-migrate run-local
@@ -32,6 +32,9 @@ test-server: ## Server unit tests (jest, CI set — excludes the 16 named upstre
 
 test-server-full: ## FULL upstream jest suite incl. the 16 known-red upstream DI-scaffold specs (upstream test debt, recorded in the foundation handoff)
 	pnpm --dir apps/server test
+
+test-server-integration: ## ENG-1372: real-Postgres integration suite (testcontainers; requires a local Docker daemon)
+	pnpm --dir apps/server run test:integration
 
 test-client: ## Client unit tests (vitest)
 	pnpm --dir apps/client test
@@ -70,6 +73,7 @@ ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smo
 	$(MAKE) lint
 	$(MAKE) typecheck
 	$(MAKE) test-server
+	$(MAKE) test-server-integration
 	$(MAKE) test-client
 	cd tests/smoke && test -z "$$(gofmt -l .)" && go vet ./...
 	$(MAKE) k8s-validate

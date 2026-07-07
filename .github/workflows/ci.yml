@@ -157,6 +157,28 @@ jobs:
       - name: Jest (CI set)
         run: pnpm --dir apps/server run test:ci
 
+  test-server-integration:
+    name: Test Server (integration, testcontainers PG)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace package dists (test inputs)
+        run: |
+          pnpm --dir packages/editor-ext build
+          pnpm --dir packages/base-formula build
+      # ENG-1372: real-Postgres integration suite (testcontainers spins its
+      # own container via the runner's Docker daemon — GitHub-hosted
+      # ubuntu-latest runners ship Docker preinstalled).
+      - name: Jest (integration, real Postgres via testcontainers)
+        run: pnpm --dir apps/server run test:integration
+
   # ---------------------------------------------------------------------------
   # Smoke module hygiene (the live smoke RUN needs real infra; here we prove
   # the module compiles, vets and is gofmt-clean)
@@ -300,6 +322,7 @@ jobs:
       - build
       - test-client
       - test-server
+      - test-server-integration
       - smoke-module
       - k8s-validate
       - security

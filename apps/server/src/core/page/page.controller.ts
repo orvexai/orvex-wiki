@@ -526,6 +526,29 @@ export class PageController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @Post('/history/restore')
+  async restorePageFromHistory(
+    @Body() dto: PageHistoryIdDto,
+    @AuthUser() user: User,
+  ) {
+    const history = await this.pageHistoryService.findById(dto.historyId);
+    if (!history) {
+      throw new NotFoundException('Page history not found');
+    }
+
+    // ENG-1372 (AC5): any valid history row for the page is accepted — not
+    // restricted to the latest/first.
+    const page = await this.pageRepo.findById(history.pageId);
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    await this.pageAccessService.validateCanEdit(page, user);
+
+    return this.pageHistoryService.restore(dto.historyId, user.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
   @Post('/sidebar-pages')
   async getSidebarPages(
     @Body() dto: SidebarPageDto,

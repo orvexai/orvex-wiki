@@ -134,14 +134,19 @@ export class PageRepo {
     updatablePage: UpdatablePage,
     pageId: string,
     trx?: KyselyTransaction,
+    // ENG-1372 (AC3): optional extra fields merged into the single emitted
+    // PAGE_UPDATED payload for this write (e.g. movePage's before/after
+    // position) — never a second emit.
+    eventExtra?: Record<string, unknown>,
   ) {
-    return this.updatePages(updatablePage, [pageId], trx);
+    return this.updatePages(updatablePage, [pageId], trx, eventExtra);
   }
 
   async updatePages(
     updatePageData: UpdatablePage,
     pageIds: string[],
     trx?: KyselyTransaction,
+    eventExtra?: Record<string, unknown>,
   ) {
     const result = await dbOrTx(this.db, trx)
       .updateTable('pages')
@@ -156,6 +161,7 @@ export class PageRepo {
     this.eventEmitter.emit(EventName.PAGE_UPDATED, {
       pageIds: pageIds,
       workspaceId: updatePageData.workspaceId,
+      ...eventExtra,
     });
 
     return result;
