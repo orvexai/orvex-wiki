@@ -30,6 +30,7 @@ import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
 import { SessionActivityService } from '../../core/session/session-activity.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { USER_EXPORT_THROTTLER } from '../../integrations/throttle/throttler-names';
+import { ApiKeyService } from '../../core/api-key/api-key.service';
 import type { DB } from '@docmost/db/types/db';
 
 /**
@@ -113,6 +114,10 @@ describe('UserDataExportScopeSpec — POST /users/me/export', () => {
           provide: SessionActivityService,
           useValue: { trackActivity: () => {} },
         },
+        // ENG-1380 — JwtStrategy now DIs ApiKeyService (AGPL in-tree
+        // dispatch, no more dynamic EE require()). Unreached here: every
+        // test JWT below is `type=access`, never `type=api_key`.
+        { provide: ApiKeyService, useValue: {} },
       ],
       exports: [
         UserRepo,
@@ -121,6 +126,7 @@ describe('UserDataExportScopeSpec — POST /users/me/export', () => {
         EnvironmentService,
         UserSessionRepo,
         SessionActivityService,
+        ApiKeyService,
       ],
     })
     class TestSupportModule {}
