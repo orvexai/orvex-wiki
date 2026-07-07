@@ -48,6 +48,33 @@ import { canonicalJsonStringify } from '../../../../common/helpers/canonical-jso
  * attachments, real-time collab fan-out, or watcher notification) and are
  * given no-op doubles — same pattern as `page.service.upsert.spec.ts`.
  */
+/**
+ * F1 fix — AC1's expected coverage set, HARDCODED here rather than
+ * imported from `BLOCK_ID_TYPES`. The prior version of this test asserted
+ * `countMissingBlockIds(stored, BLOCK_ID_TYPES) === 0`, where BOTH the
+ * stamping (`UniqueID.configure({ types: BLOCK_ID_TYPES })`) and the
+ * counter derived from the SAME production constant — a regression that
+ * narrows `BLOCK_ID_TYPES` (e.g. dropping blockquote/list/table coverage,
+ * the exact thing AC1 exists to guarantee) would silently narrow what the
+ * test checks for too, and still pass. This literal list is copied from
+ * the ticket's AC1 node set and is independent of the production constant,
+ * so a narrowed `BLOCK_ID_TYPES` now shows up as missing ids on the node
+ * types this doc actually contains.
+ */
+const AC1_EXPECTED_BLOCK_TYPES = [
+  'heading',
+  'paragraph',
+  'blockquote',
+  'bulletList',
+  'listItem',
+  'taskList',
+  'taskItem',
+  'codeBlock',
+  'callout',
+  'columns',
+  'column',
+];
+
 describe('PageServiceBlockIdChokepointSpec', () => {
   jest.setTimeout(120_000);
 
@@ -223,9 +250,34 @@ describe('PageServiceBlockIdChokepointSpec', () => {
       .where('id', '=', page.id)
       .executeTakeFirstOrThrow();
 
-    expect(countMissingBlockIds(stored.content as any, BLOCK_ID_TYPES)).toBe(
-      0,
-    );
+    expect(
+      countMissingBlockIds(stored.content as any, AC1_EXPECTED_BLOCK_TYPES),
+    ).toBe(0);
+
+    // Belt-and-braces per-type assertion (not a loop over the shared
+    // constant): every top-level/nested node of each expected type in the
+    // doc above actually carries an id.
+    const storedContent = stored.content as any;
+    const idsByType = new Map<string, boolean[]>();
+    const visit = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.type && AC1_EXPECTED_BLOCK_TYPES.includes(node.type)) {
+        const list = idsByType.get(node.type) ?? [];
+        list.push(Boolean(node.attrs?.id));
+        idsByType.set(node.type, list);
+      }
+      if (Array.isArray(node.content)) {
+        for (const child of node.content) visit(child);
+      }
+    };
+    visit(storedContent);
+
+    for (const type of AC1_EXPECTED_BLOCK_TYPES) {
+      const results = idsByType.get(type);
+      expect(results).toBeDefined();
+      expect(results!.length).toBeGreaterThan(0);
+      expect(results!.every(Boolean)).toBe(true);
+    }
   });
 
   it('AC2 — existing ids are preserved (byte-identical), only missing ids are minted', async () => {
