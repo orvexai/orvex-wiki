@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS-only module; TS import-require form (upstream)
 import sanitize = require('sanitize-filename');
 import { FastifyRequest } from 'fastify';
+import * as crypto from 'crypto';
 import { Readable, Transform } from 'stream';
 
 export const envPath = path.resolve(process.cwd(), '..', '..', '.env');
@@ -190,4 +191,31 @@ export function createByteCountingStream(source: Readable) {
   source.on('error', (err) => stream.emit('error', err));
 
   return { stream, getBytesRead: () => bytesRead };
+}
+
+/**
+ * ENG-1398 AC5 — a pure stream helper (no I/O ownership; the source is
+ * injected). Pipes `source` through a passthrough `Transform` while
+ * incrementally feeding every chunk into a real `crypto.createHash('sha256')`
+ * (CS §11 — no placeholder/stub hash) and counting bytes read.
+ */
+export function createHashedByteCountingStream(source: Readable) {
+  let bytesRead = 0;
+  const hash = crypto.createHash('sha256');
+  const stream = new Transform({
+    transform(chunk, encoding, callback) {
+      bytesRead += chunk.length;
+      hash.update(chunk);
+      callback(null, chunk);
+    },
+  });
+
+  source.pipe(stream);
+  source.on('error', (err) => stream.emit('error', err));
+
+  return {
+    stream,
+    getBytesRead: () => bytesRead,
+    getHash: () => hash.digest('hex'),
+  };
 }
