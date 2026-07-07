@@ -1,18 +1,19 @@
 <div align="center">
-    <h1><b>Docmost</b></h1>
+    <h1><b>Orvex Wiki</b></h1>
     <p>
         Open-source collaborative wiki and documentation software.
         <br />
-        <a href="https://docmost.com"><strong>Website</strong></a> | 
-        <a href="https://docmost.com/docs"><strong>Documentation</strong></a> |
-        <a href="https://twitter.com/DocmostHQ"><strong>Twitter / X</strong></a>
+        Built on <a href="https://docmost.com">Docmost</a> — remains vanilla-Docmost-compatible under the hood.
+        <br />
+        <a href="https://docmost.com/docs"><strong>Upstream Documentation</strong></a> |
+        <a href="https://twitter.com/DocmostHQ"><strong>Upstream Twitter / X</strong></a>
     </p>
 </div>
 <br />
 
 ## Getting started
 
-To get started with Docmost, please refer to our [documentation](https://docmost.com/docs) or try our [cloud version](https://docmost.com/pricing) .
+To get started with Orvex Wiki, please refer to the upstream [documentation](https://docmost.com/docs) (this fork is vanilla-Docmost-compatible under the hood) or try the [cloud version](https://docmost.com/pricing) .
 
 ## Features
 

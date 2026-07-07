@@ -7,6 +7,7 @@ import type {
   ChatAttachment,
   PageMention,
 } from "@/ee/ai-chat/types/ai-chat.types";
+import { getAppName } from "@/lib/config";
 import classes from "./home-ai-prompt.module.css";
 
 export type HomeAiPromptInitialState = {
@@ -40,7 +41,7 @@ export default function HomeAiPrompt() {
   return (
     <div className={classes.wrapper}>
       <h1 className={classes.heading}>
-        {t("Welcome to {{name}}", { name: workspace?.name ?? "Docmost" })}
+        {t("Welcome to {{name}}", { name: workspace?.name ?? getAppName() })}
       </h1>
       <div className={classes.subtitle}>
         {t("Ask anything or search your workspace")}
