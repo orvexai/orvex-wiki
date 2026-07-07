@@ -2,15 +2,21 @@
 # Staging component — the standing dev environment (branch: dev).
 # Appended by the CMP plugin when RESOURCE_PROFILE=staging.
 #
-# Owns the dev hostname (wiki.eu1.orvex.dev) and a single replica for the
-# server Deployment.
+# Owns the dev hostname (wiki.<cell-token>.orvex.dev) and a single replica
+# for the server Deployment.
 #
 # Dev lives on the orvex.dev zone (NOT a dev-* subdomain of orvex.ai): prod =
-# wiki.orvex.ai, dev = wiki.eu1.orvex.dev. The orvex.dev zone (external-dns filter
-# + *.orvex.dev Cloudflare Origin cert + platform-gateway orvex-dev-https
-# listener) is wired in the my-idp platform repo and is LIVE.
+# wiki.orvex.ai, dev = wiki.<cell-token>.orvex.dev. The orvex.dev zone
+# (external-dns filter + *.orvex.dev Cloudflare Origin cert +
+# platform-gateway orvex-dev-https listener) is wired in the my-idp platform
+# repo and is LIVE.
 # Cell TOKEN ruling (final form 2026-07-05): the public host carries the short
-# cell token (eu1); the AWS-AZ cell id (eu-central-1a) is internal-only.
+# cell token; the AWS-AZ cell id (eu-central-1a) is internal-only.
+# The CELLTOKEN placeholder in the patches below is NOT the literal — the
+# `replacements` block at the end of this file overwrites it from
+# cluster-config.yaml's single-source `cellToken` field, relayed via
+# orvex-wiki-env's CELL_TOKEN (see root kustomization.yaml for why the relay
+# hop is needed) (ENG-1505 fix-pass).
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
@@ -20,21 +26,23 @@ labels:
     includeSelectors: false
 
 patches:
-  # ── Dev hostname: wiki.orvex.ai → wiki.eu1.orvex.dev ─────────────────────────
-  # Also re-pin the Gateway listener: the base attaches to the orvex-eu1-https
-  # listener (*.eu1.orvex.ai); the dev host wiki.eu1.orvex.dev only
-  # intersects the orvex-eu1-dev-https listener (*.eu1.orvex.dev), so
-  # the sectionName MUST switch too or the route is Accepted=False (hostname/listener mismatch).
+  # ── Dev hostname: wiki.orvex.ai → wiki.CELLTOKEN.orvex.dev ───────────────
+  # Also re-pin the Gateway listener: the base attaches to the
+  # orvex-CELLTOKEN-https listener; the dev host only intersects the
+  # orvex-CELLTOKEN-dev-https listener, so the sectionName MUST switch too or
+  # the route is Accepted=False (hostname/listener mismatch). CELLTOKEN is a
+  # placeholder — see the `replacements` block below for the single-source
+  # substitution.
   - patch: |-
       - op: replace
         path: /spec/hostnames/0
-        value: wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+        value: wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
-        value: wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+        value: wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /spec/parentRefs/0/sectionName
-        value: orvex-eu1-dev-https
+        value: orvex-CELLTOKEN-dev-https
     target:
       kind: HTTPRoute
       name: orvex-wiki
@@ -43,7 +51,7 @@ patches:
   - patch: |-
       - op: replace
         path: /data/APP_URL
-        value: https://wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+        value: https://wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
     target:
       kind: ConfigMap
       name: orvex-wiki-env
@@ -99,3 +107,43 @@ patches:
     target:
       kind: PodDisruptionBudget
       name: orvex-wiki
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cell token (ENG-1505 fix-pass — single source). Substitutes the CELLTOKEN
+# placeholders set by the patches above from orvex-wiki-env's CELL_TOKEN
+# field, which the root kustomization.yaml relays from cluster-config.yaml's
+# `cellToken` — the ONE place the literal short cell token is typed. This is
+# the dev-overlay half of the same single-source chain the base
+# app-manifests/httproute.yaml replacement uses for prod.
+# ═══════════════════════════════════════════════════════════════════════════
+replacements:
+  - source:
+      kind: ConfigMap
+      name: orvex-wiki-env
+      fieldPath: data.CELL_TOKEN
+    targets:
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+          - spec.hostnames.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki
+        fieldPaths:
+          - spec.parentRefs.0.sectionName
+        options:
+          delimiter: "-"
+          index: 1
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.APP_URL
+        options:
+          delimiter: "."
+          index: 1

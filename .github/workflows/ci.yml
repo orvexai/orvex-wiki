@@ -221,6 +221,33 @@ jobs:
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
   # ---------------------------------------------------------------------------
+  # Deploy render gate (ENG-1505 — M14 short-cell DNS/cert cutover). The named
+  # binary DoD gate: renders base (prod) + base+components/staging (dev) with
+  # the real kustomize binary and asserts every public hostname carries the
+  # short cell token (wiki.eu1.orvex.{ai,dev}), never the AWS-AZ id
+  # (eu-central-1), while cluster-config.yaml's internal AZ id stays put.
+  # ---------------------------------------------------------------------------
+  deploy-render-gate:
+    name: Deploy Render Gate (hostname cutover)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: deploy/kustomize/go.sum
+      - name: Install kustomize
+        run: go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+      - name: gofmt clean
+        working-directory: deploy/kustomize
+        run: test -z "$(gofmt -l .)"
+      - name: go test (TestHttpRouteHostnameShortCellToken)
+        working-directory: deploy/kustomize
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          go test ./... -run TestHttpRouteHostnameShortCellToken -v
+
+  # ---------------------------------------------------------------------------
   # Engine license guard (ENG-1381 — P10: no closed EE submodule/gitlink/
   # import re-enters the AGPL engine). Static gate: reads git metadata +
   # source only, never runs product code. Runner: public-runners (the dedicated
@@ -364,6 +391,7 @@ jobs:
       - test-server-integration
       - smoke-module
       - k8s-validate
+      - deploy-render-gate
       - engine-license-guard
       - ci-substrate-conformance
       - security

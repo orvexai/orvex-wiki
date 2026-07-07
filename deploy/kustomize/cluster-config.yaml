@@ -35,10 +35,20 @@ data:
   clusterDomain: eu-central-1.myidp.cloud
   loadBalancerIP: "37.27.73.18"
 
+  # ── Cell token (SINGLE SOURCE — ENG-1505 fix-pass). The literal short cell
+  # token is typed HERE ONLY. Every consumer (base HTTPRoute host/annotation/
+  # sectionName in app-manifests/httproute.yaml, and the dev-overlay
+  # equivalents in components/staging/kustomization.yaml) sources it via the
+  # root `replacements` chain: cellToken -> orvex-wiki-env ConfigMap's
+  # CELL_TOKEN field (which, unlike this build-time-only ConfigMap, survives
+  # into the components/staging render) -> the HTTPRoute fields. A 2nd cell
+  # (e.g. eu2) is added by changing this one value alone.
+  cellToken: "eu1"
+
   # ── Application hostname (prod). components/staging patches to the dev
   # equivalent (wiki.orvex.dev) directly on the HTTPRoute/ConfigMap. ───────
-  # Public host = short cell token (eu1); AWS-AZ cell id is internal-only
-  # (ruling final form 2026-07-05).
+  # Public host = short cell token (must match cellToken above); AWS-AZ cell
+  # id is internal-only (ruling final form 2026-07-05).
   wikiHost: wiki.eu1.orvex.ai
 
   # ── Harbor registry (image project shared across environments, tag = branch) ─
