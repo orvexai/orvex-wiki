@@ -28,6 +28,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json",
+    "test:integration": "jest --testPathIgnorePatterns='/node_modules/' --testRegex='\\.integration\\.spec\\.ts$' --runInBand",
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test:ci": "jest --testPathIgnorePatterns='.*(auth\\.controller|auth\\.service|token\\.service|comment\\.service|group\\.controller|group\\.service|page\\.controller|page\\.service|search\\.controller|search\\.service|space\\.controller|space\\.service|user\\.controller|workspace\\.service|environment\\.service|storage\\.service)\\.spec\\.ts$'"
   },
@@ -133,6 +134,7 @@
     "@nestjs/cli": "^11.0.21",
     "@nestjs/schematics": "^11.0.10",
     "@nestjs/testing": "^11.1.19",
+    "@testcontainers/postgresql": "^12.0.4",
     "@types/bcrypt": "^6.0.0",
     "@types/debounce": "^1.2.4",
     "@types/fs-extra": "^11.0.4",
@@ -153,6 +155,7 @@
     "prettier": "^3.8.1",
     "source-map-support": "^0.5.21",
     "supertest": "^7.2.2",
+    "testcontainers": "^12.0.4",
     "ts-jest": "^29.4.6",
     "ts-loader": "^9.5.7",
     "ts-node": "^10.9.2",
@@ -169,6 +172,10 @@
     ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "\\.integration\\.spec\\.ts$"
+    ],
     "transform": {
       "happy-dom.+\\.js$": [
         "babel-jest",
