@@ -164,6 +164,109 @@ describe('provenance-content.util', () => {
       expect(oldDoc).toEqual(oldSnapshot);
       expect(newDoc).toEqual(newSnapshot);
     });
+
+    // AC6 — a fixture with a table + a nested list: markAiChangedBlocks must
+    // not throw (Node.fromJSON on nested table/list structure) and must
+    // produce a correct changed-block set at the TOP-LEVEL block (the table
+    // / the list), leaving untouched top-level blocks unmarked.
+    describe('AC6 — table + nested-list fixture (no Node.fromJSON throw, correct changed-block set)', () => {
+      function tableDoc(cellText: string): any {
+        return doc(
+          paragraph(textNode('Leading paragraph untouched.')),
+          {
+            type: 'table',
+            content: [
+              {
+                type: 'tableRow',
+                content: [
+                  {
+                    type: 'tableCell',
+                    content: [paragraph(textNode(cellText))],
+                  },
+                  {
+                    type: 'tableCell',
+                    content: [paragraph(textNode('B1 untouched.'))],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: 'bulletList',
+            content: [
+              {
+                type: 'listItem',
+                content: [paragraph(textNode('List item untouched.'))],
+              },
+            ],
+          },
+        );
+      }
+
+      it('does not throw when parsing/diffing a doc containing a table + bulletList', () => {
+        const oldDoc = tableDoc('A1 original.');
+        const newDoc = tableDoc('A1 EDITED.');
+
+        expect(() => markAiChangedBlocks(oldDoc, newDoc)).not.toThrow();
+      });
+
+      it('marks the WHOLE table block (top-level granularity — both cells) and leaves the paragraph + list blocks unmarked', () => {
+        const oldDoc = tableDoc('A1 original.');
+        const newDoc = tableDoc('A1 EDITED.');
+
+        const result = markAiChangedBlocks(oldDoc, newDoc);
+
+        // Top-level blocks: [0] leading paragraph, [1] table, [2] bulletList.
+        expect(result.content).toHaveLength(3);
+
+        // Unrelated top-level blocks are not touched.
+        expect(blockHasAiMark(result, 0)).toBe(false);
+
+        // The edited cell's paragraph, nested inside the table block, carries
+        // the mark (block-level marking descends into non-inline structure).
+        const editedCellPara =
+          result.content[1].content[0].content[0].content[0];
+        expect(
+          (editedCellPara.content[0].marks ?? []).map((m: any) => m.type),
+        ).toContain('aiAuthored');
+
+        // Block-level granularity means the WHOLE top-level table block is
+        // marked, including the sibling cell that did not itself change —
+        // this mirrors the documented "block-level, not word-level" rule.
+        const untouchedCellPara =
+          result.content[1].content[0].content[1].content[0];
+        expect(
+          (untouchedCellPara.content[0].marks ?? []).map((m: any) => m.type),
+        ).toContain('aiAuthored');
+
+        // The bulletList block, a SEPARATE top-level block, is untouched.
+        const listItemPara = result.content[2].content[0].content[0];
+        expect(
+          (listItemPara.content[0].marks ?? []).map((m: any) => m.type),
+        ).not.toContain('aiAuthored');
+      });
+
+      it('editing the list item marks only the list block, not the table', () => {
+        const base = tableDoc('A1 untouched.');
+        const oldDoc = deepCopy(base);
+        const newDoc = deepCopy(base);
+        newDoc.content[2].content[0].content[0].content[0].text =
+          'List item EDITED.';
+
+        const result = markAiChangedBlocks(oldDoc, newDoc);
+
+        expect(blockHasAiMark(result, 0)).toBe(false);
+        const cellPara = result.content[1].content[0].content[0].content[0];
+        expect(
+          (cellPara.content[0].marks ?? []).map((m: any) => m.type),
+        ).not.toContain('aiAuthored');
+
+        const editedListPara = result.content[2].content[0].content[0];
+        expect(
+          (editedListPara.content[0].marks ?? []).map((m: any) => m.type),
+        ).toContain('aiAuthored');
+      });
+    });
   });
 
   describe('stripAiAuthoredMarks', () => {

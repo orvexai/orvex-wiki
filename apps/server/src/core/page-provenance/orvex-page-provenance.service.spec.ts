@@ -44,9 +44,12 @@ import { v4 as uuid } from 'uuid';
  *      the SAME markAiCreated call PageController makes for an
  *      api_key-authenticated create/update (AC5).
  *
- * Also covers AC7 (cross-DB reconcile / no orphans): provenance is stored
- * INLINE on `pages`, so a hard page delete structurally cannot leave an
- * orphaned provenance row — asserted directly below.
+ * AC7's reconcile/orphan-sweep backstop (`ProvenanceOrphanReconcileListener`)
+ * has its OWN dedicated integration spec
+ * (`eng1447-provenance-orphan-reconcile.integration-spec.ts`) that drives
+ * the real `@nestjs/event-emitter` wiring — the inline-column check below is
+ * a narrower, structural sanity check only (a hard delete removes the whole
+ * row, provenance columns included).
  */
 describe('AiProvenanceStampSpec', () => {
   jest.setTimeout(120_000);

@@ -56,6 +56,8 @@ import {
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
 import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
+import { InjectKysely } from 'nestjs-kysely';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -70,6 +72,7 @@ export class PageController {
     private readonly labelService: LabelService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private readonly provenanceService: OrvexPageProvenanceService,
+    @InjectKysely() private readonly db: KyselyDB,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -234,11 +237,33 @@ export class PageController {
       }
     }
 
-    const page = await this.pageService.create(
-      user.id,
-      workspace.id,
-      createPageDto,
-    );
+    // ENG-1447 F1 fix — the REST create write and its ai_produced provenance
+    // stamp (AC5) run in the SAME db transaction, so there is no committed
+    // window where the page row exists with provenance_status = null
+    // (NFR-freshness / Dev-Context §4e "no lag window").
+    const page = await this.db.transaction().execute(async (trx) => {
+      const created = await this.pageService.create(
+        user.id,
+        workspace.id,
+        createPageDto,
+        trx,
+      );
+
+      if (authMethod === 'api_key') {
+        await this.provenanceService.markAiCreated(
+          created.id,
+          {
+            userId: null,
+            workspaceId: workspace.id,
+            spaceId: created.spaceId,
+            isHuman: false,
+          },
+          trx,
+        );
+      }
+
+      return created;
+    });
 
     const { canEdit, hasRestriction } =
       await this.pageAccessService.validateCanViewWithPermissions(page, user);
@@ -257,18 +282,6 @@ export class PageController {
         },
       },
     });
-
-    // ENG-1447 AC5 — any content written through the REST API (api_key
-    // caller) is stamped ai_produced. A real human browser session never
-    // triggers this (authMethod is undefined for cookie/session auth).
-    if (authMethod === 'api_key') {
-      await this.provenanceService.markAiCreated(page.id, {
-        userId: null,
-        workspaceId: workspace.id,
-        spaceId: page.spaceId,
-        isHuman: false,
-      });
-    }
 
     if (
       createPageDto.format &&
@@ -391,20 +404,37 @@ export class PageController {
       user,
     );
 
-    const updatedPage = await this.pageService.update(page, updatePageDto, user, {
-      ifVersion: updatePageDto.ifVersion,
-      idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
-    });
+    // ENG-1447 F1 fix — the REST update write and its ai_produced provenance
+    // stamp (AC5) run in the SAME db transaction, so there is no committed
+    // window where the page row is updated with provenance_status = null
+    // (NFR-freshness / Dev-Context §4e "no lag window").
+    const updatedPage = await this.db.transaction().execute(async (trx) => {
+      const result = await this.pageService.update(
+        page,
+        updatePageDto,
+        user,
+        {
+          ifVersion: updatePageDto.ifVersion,
+          idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
+        },
+        trx,
+      );
 
-    // ENG-1447 AC5 — REST-API (api_key) content write = ai_produced.
-    if (authMethod === 'api_key') {
-      await this.provenanceService.markAiCreated(updatedPage.id, {
-        userId: null,
-        workspaceId: workspace.id,
-        spaceId: updatedPage.spaceId,
-        isHuman: false,
-      });
-    }
+      if (authMethod === 'api_key') {
+        await this.provenanceService.markAiCreated(
+          result.id,
+          {
+            userId: null,
+            workspaceId: workspace.id,
+            spaceId: result.spaceId,
+            isHuman: false,
+          },
+          trx,
+        );
+      }
+
+      return result;
+    });
 
     const permissions = { canEdit: true, hasRestriction };
 

@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { OrvexPageProvenanceService } from './orvex-page-provenance.service';
 import { OrvexPageProvenanceController } from './orvex-page-provenance.controller';
+import { ProvenanceOrphanReconcileListener } from './provenance-orphan-reconcile.listener';
 import { CaslModule } from '../../core/casl/casl.module';
 import { PageModule } from '../../core/page/page.module';
 import { OrvexAuditModule } from '../../core/audit/orvex-audit.module';
@@ -9,7 +10,8 @@ import { OrvexAuditModule } from '../../core/audit/orvex-audit.module';
  * ENG-1447 — AI-provenance orchestration.
  *
  * Provides {@link OrvexPageProvenanceService} (the status-row writer + audit
- * emitter) and the human-verify controller.
+ * emitter), the human-verify controller, and the AC7 orphan-sweep backstop
+ * ({@link ProvenanceOrphanReconcileListener}).
  *
  * `PageRepo` (DatabaseModule) and `OrvexAuditService` (OrvexAuditModule) are
  * both `@Global()`-provided, so no explicit import is needed for either.
@@ -22,7 +24,7 @@ import { OrvexAuditModule } from '../../core/audit/orvex-audit.module';
 @Module({
   imports: [CaslModule, OrvexAuditModule, forwardRef(() => PageModule)],
   controllers: [OrvexPageProvenanceController],
-  providers: [OrvexPageProvenanceService],
+  providers: [OrvexPageProvenanceService, ProvenanceOrphanReconcileListener],
   exports: [OrvexPageProvenanceService],
 })
 export class OrvexPageProvenanceModule {}
