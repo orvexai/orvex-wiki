@@ -25,8 +25,8 @@ import {
   TestDb,
 } from './db-test-harness';
 
-// AC1/AC11 — the 15 governance columns this ticket ports MUST live only on
-// `orvex_page_meta`, never (again) on `pages`.
+// AC1/AC11 — the 15 governance columns this ticket ports MUST live on
+// `orvex_page_meta`.
 const FORK_META_COLUMNS = [
   'status',
   'doc_type',
@@ -47,6 +47,31 @@ const FORK_META_COLUMNS = [
   'version',
   'content_hash',
 ];
+
+// AC1/AC11 negative check — the same list MINUS `provenance_status` /
+// `provenance_changed_at` / `provenance_changed_by_id`.
+//
+// Those three names are legitimately owned by ENG-1447 (`AI-provenance
+// stamp`, merged onto `pages` inline, deliberately, so a hard delete can't
+// orphan them — see 20260708T090000-orvex-provenance-columns.ts). ENG-1447
+// ports the SAME upstream fork columns as this ticket's provenance triad,
+// but chose pages-inline placement over the side table; it landed on `dev`
+// after this PR's original migration was authored, so `pages` now legally
+// carries a column named `provenance_status` for a wholly different
+// concept (the AI authorship state machine: ai_produced/ai_edited/
+// human_verified) than `orvex_page_meta.provenance_status` here (content-
+// verification workflow status). Same name, different table, different
+// owner, different semantics — asserting `pages` has zero columns named
+// this would false-fail on ENG-1447's legitimate, unrelated feature. This
+// is a real naming collision worth flagging at review (SE-Arch / ADR) for
+// a possible future rename, but is NOT something this ticket's migration
+// caused or can unilaterally fix by touching ENG-1447's shipped schema.
+const FORK_META_COLUMNS_EXPECTED_ABSENT_FROM_PAGES = FORK_META_COLUMNS.filter(
+  (col) =>
+    !['provenance_status', 'provenance_changed_at', 'provenance_changed_by_id'].includes(
+      col,
+    ),
+);
 
 describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
   let testDb: TestDb;
@@ -80,7 +105,7 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
       .execute();
     const pagesColumnNames = new Set(pagesColumns.map((r: any) => r.columnName));
 
-    for (const col of FORK_META_COLUMNS) {
+    for (const col of FORK_META_COLUMNS_EXPECTED_ABSENT_FROM_PAGES) {
       expect(pagesColumnNames.has(col)).toBe(false);
     }
 
