@@ -1,6 +1,7 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsEnum, IsString } from 'class-validator';
 import { PagePermissionRole } from '../../../common/helpers/types/permission';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
+import { ExactlyOnePrincipal } from '../../../common/validators/exactly-one-principal.validator';
 
 export class RestrictPageDto {
   @IsString()
@@ -12,45 +13,49 @@ export class RemoveRestrictionDto {
   pageId: string;
 }
 
+/**
+ * Principal contract (ENG-1373/ENG-1596 DoD 4d): a permission grant targets
+ * EXACTLY ONE principal — a single `userId` XOR a single `groupId`, never
+ * both and never neither. This is the decided, singular-principal shape the
+ * ENG-1375 client is repointed to (commit 71688b9e). Enforced here via
+ * `@ExactlyOnePrincipal` (400 from the global ValidationPipe) with
+ * `PagePermissionController.assertSinglePrincipal` kept as defense-in-depth.
+ */
 export class AddPagePermissionDto {
   @IsString()
   pageId: string;
 
-  @IsOptional()
-  @IsUUID()
+  @ExactlyOnePrincipal()
   userId?: string;
 
-  @IsOptional()
-  @IsUUID()
+  @ExactlyOnePrincipal()
   groupId?: string;
 
   @IsEnum(PagePermissionRole)
   role: PagePermissionRole;
 }
 
+/** Principal contract: see `AddPagePermissionDto` header. */
 export class RemovePagePermissionDto {
   @IsString()
   pageId: string;
 
-  @IsOptional()
-  @IsUUID()
+  @ExactlyOnePrincipal()
   userId?: string;
 
-  @IsOptional()
-  @IsUUID()
+  @ExactlyOnePrincipal()
   groupId?: string;
 }
 
+/** Principal contract: see `AddPagePermissionDto` header. */
 export class UpdatePagePermissionDto {
   @IsString()
   pageId: string;
 
-  @IsOptional()
-  @IsUUID()
+  @ExactlyOnePrincipal()
   userId?: string;
 
-  @IsOptional()
-  @IsUUID()
+  @ExactlyOnePrincipal()
   groupId?: string;
 
   @IsEnum(PagePermissionRole)

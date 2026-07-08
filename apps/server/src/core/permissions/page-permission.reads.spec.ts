@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import * as jwt from 'jsonwebtoken';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Global, Module, ValidationPipe } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -38,6 +39,7 @@ import { EnvironmentService } from '../../integrations/environment/environment.s
 import { ApiKeyService } from '../api-key/api-key.service';
 import SpaceAbilityFactory from '../casl/abilities/space-ability.factory';
 import { UserRole, SpaceRole } from '../../common/helpers/types/permission';
+import { TransformHttpResponseInterceptor } from '../../common/interceptors/http-response.interceptor';
 import type { DB } from '@docmost/db/types/db';
 
 /**
@@ -72,6 +74,22 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
     );
 
   const authHeader = (token: string) => ({ authorization: `Bearer ${token}` });
+
+  /**
+   * AC9 — unwraps the global `TransformHttpResponseInterceptor` envelope
+   * (`{ data, success, status }`, prod-registered in main.ts on every
+   * response neither read opts out of via `@SkipTransform`) and asserts
+   * its shape, so every assertion below exercises the actual wrapped
+   * contract the ENG-1375 client consumes, not a bare body.
+   */
+  function unwrap(res: { statusCode: number; body: string }): any {
+    const envelope = JSON.parse(res.body);
+    expect(envelope).toEqual(
+      expect.objectContaining({ success: true, status: res.statusCode }),
+    );
+    expect(envelope.data).toBeDefined();
+    return envelope.data;
+  }
 
   beforeAll(async () => {
     pgContainer = await new PostgreSqlContainer('postgres:16-alpine').start();
@@ -168,6 +186,13 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
     app.setGlobalPrefix('api');
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, stopAtFirstError: true, transform: true }),
+    );
+    // AC9 — register the SAME global response envelope prod uses
+    // (main.ts registers this on every request; neither read sets
+    // @SkipTransform), so this DoD test exercises the actual wrapped
+    // {data, success, status} shape the ENG-1375 client consumes.
+    app.useGlobalInterceptors(
+      new TransformHttpResponseInterceptor(app.get(Reflector)),
     );
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
@@ -298,7 +323,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
+      const body = unwrap(res);
       expect(body.items).toHaveLength(2);
       expect(body.meta).toBeDefined();
       const ids = body.items.map((i: any) => i.id).sort();
@@ -320,7 +345,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
+      const body = unwrap(res);
       expect(body.items).toEqual([]);
     });
 
@@ -355,7 +380,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
+      const body = unwrap(res);
       expect(body.hasDirectRestriction).toBe(true);
       expect(body.hasInheritedRestriction).toBe(false);
       expect(body.inheritedFrom).toBeNull();
@@ -378,7 +403,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
+      const body = unwrap(res);
       expect(body.hasDirectRestriction).toBe(false);
       expect(body.hasInheritedRestriction).toBe(true);
       expect(body.inheritedFrom).toEqual(ancestorId);
@@ -402,7 +427,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
         headers: authHeader(signAccess(adminId, workspaceId)),
         payload: { pageId: writerPageId },
       });
-      expect(JSON.parse(writerRes.body).userAccess).toEqual({
+      expect(unwrap(writerRes).userAccess).toEqual({
         canAccess: true,
         canEdit: true,
       });
@@ -413,7 +438,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
         headers: authHeader(signAccess(adminId, workspaceId)),
         payload: { pageId: readerPageId },
       });
-      expect(JSON.parse(readerRes.body).userAccess).toEqual({
+      expect(unwrap(readerRes).userAccess).toEqual({
         canAccess: true,
         canEdit: false,
       });
@@ -430,7 +455,7 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
       });
 
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
+      const body = unwrap(res);
       expect(body.hasDirectRestriction).toBe(false);
       expect(body.hasInheritedRestriction).toBe(false);
       expect(body.inheritedFrom).toBeNull();
