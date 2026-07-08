@@ -140,6 +140,7 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
       {} as any, // watcherService
       {} as any, // transclusionService
       { record: async () => {} } as any, // idempotencyStore
+      {} as any, // entitlementService — restore path never enforces quota
     );
 
     service = new PageHistoryService(

@@ -87,6 +87,10 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
       { addPageWatchers: async () => {} } as any, // watcherService
       {} as any, // transclusionService
       {} as any, // idempotencyStore — casOpts never passed on this path, so claim/record are never invoked
+      {
+        assertWithinQuota: async () => undefined,
+        hasFeature: async () => true,
+      } as any, // entitlementService — this spec exercises provenance atomicity, not F-QUOTA
     );
 
     provenanceService = new OrvexPageProvenanceService(

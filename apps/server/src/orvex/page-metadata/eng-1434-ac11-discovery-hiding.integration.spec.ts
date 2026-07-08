@@ -34,6 +34,7 @@ import { CollaborationGateway } from '../../collaboration/collaboration.gateway'
 import { WatcherService } from '../../core/watcher/watcher.service';
 import { TransclusionService } from '../../core/page/transclusion/transclusion.service';
 import { IdempotencyStore } from '../../integrations/redis/idempotency-store.service';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { PaginationOptions } from '../../database/pagination/pagination-options';
 import { SearchSuggestionDTO } from '../../core/search/dto/search.dto';
 import { PageStatus } from '@orvex/extensions';
@@ -138,6 +139,7 @@ describe('ENG-1434 AC11 — discovery-hiding (sidebar/suggestions/recent)', () =
       {} as unknown as WatcherService,
       {} as unknown as TransclusionService,
       {} as unknown as IdempotencyStore,
+      {} as unknown as EntitlementService, // unused by getSidebarPages
     );
 
     searchService = new SearchService(
