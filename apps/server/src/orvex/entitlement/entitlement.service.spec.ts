@@ -110,6 +110,76 @@ describe('EntitlementService', () => {
     ).resolves.toBeUndefined();
   });
 
+  // ENG-1382 fix pass 1 (F3) — assertIncrementWithinQuota: the AC4 literal
+  // "would exceed" shape (currentUsage + increment > limit), distinct from
+  // assertWithinQuota's "already at/over" shape.
+  describe('assertIncrementWithinQuota', () => {
+    it('allows an increment that lands exactly AT the cap', async () => {
+      const port: BillingEntitlementPort = {
+        checkEntitlement: async () =>
+          fixture({
+            caps: { ...fixture().caps, wiki_storage_bytes_aggregate: 1_000 },
+          }),
+      };
+      const service = new EntitlementService(port, new InMemoryEntitlementCache());
+
+      await expect(
+        service.assertIncrementWithinQuota(workspaceId, 'storage', 900, 100),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects an increment that would push the aggregate past the cap (AC4 "would exceed")', async () => {
+      const port: BillingEntitlementPort = {
+        checkEntitlement: async () =>
+          fixture({
+            caps: { ...fixture().caps, wiki_storage_bytes_aggregate: 1_000 },
+          }),
+      };
+      const service = new EntitlementService(port, new InMemoryEntitlementCache());
+
+      // Under the aggregate cap (900 < 1000) but the incoming file (200)
+      // would push it to 1100 — this is the F3 semantic gap: a pre-write
+      // `currentUsage >= limit` check would have wrongly allowed this.
+      await expect(
+        service.assertIncrementWithinQuota(workspaceId, 'storage', 900, 200),
+      ).rejects.toBeInstanceOf(QuotaExceededException);
+    });
+
+    it('a single oversized file is rejected against the per-file wiki_max_file_bytes cap', async () => {
+      const port: BillingEntitlementPort = {
+        checkEntitlement: async () =>
+          fixture({
+            caps: { ...fixture().caps, wiki_max_file_bytes: 500 },
+          }),
+      };
+      const service = new EntitlementService(port, new InMemoryEntitlementCache());
+
+      await expect(
+        service.assertIncrementWithinQuota(workspaceId, 'file_bytes', 0, 501),
+      ).rejects.toBeInstanceOf(QuotaExceededException);
+      await expect(
+        service.assertIncrementWithinQuota(workspaceId, 'file_bytes', 0, 500),
+      ).resolves.toBeUndefined();
+    });
+
+    it('a cap of 0 is uncapped for increments too', async () => {
+      const port: BillingEntitlementPort = {
+        checkEntitlement: async () =>
+          fixture({ caps: { ...fixture().caps, wiki_max_file_bytes: 0 } }),
+      };
+      const service = new EntitlementService(port, new InMemoryEntitlementCache());
+
+      await expect(
+        service.assertIncrementWithinQuota(
+          workspaceId,
+          'file_bytes',
+          0,
+          1_000_000_000,
+        ),
+      ).resolves.toBeUndefined();
+    });
+  });
+
   it('caches the resolved entitlement so a second call does not re-hit the port', async () => {
     let calls = 0;
     const port: BillingEntitlementPort = {
