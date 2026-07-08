@@ -13,10 +13,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "kysely": "0.28.17"
+    "kysely": "0.29.3"
   },
   "devDependencies": {
     "typescript": "5.9.3",
-    "vitest": "4.1.6"
+    "vitest": "4.1.10"
   }
 }
