@@ -8,30 +8,36 @@ import {
   IUpdatePagePermissionRole,
 } from "@/ee/page-permission/types/page-permission.types";
 
+// ENG-1375: repointed to the real `page-permissions` engine controller
+// (`apps/server/src/core/permissions/page-permission.controller.ts`,
+// `@Controller('page-permissions')`, shipped by ENG-1373). The 5 routes
+// below all exist server-side today. `/page-permissions/list` and
+// `/page-permissions/permission-info` (below) do NOT exist yet — that read
+// side is tracked separately in ENG-1596 (blocked-by this ticket).
 export async function restrictPage(pageId: string): Promise<void> {
-  await api.post("/pages/restrict", { pageId });
+  await api.post("/page-permissions/restrict", { pageId });
 }
 
 export async function addPagePermission(
   data: IAddPagePermission,
 ): Promise<void> {
-  await api.post("/pages/add-permission", data);
+  await api.post("/page-permissions/add-permission", data);
 }
 
 export async function removePagePermission(
   data: IRemovePagePermission,
 ): Promise<void> {
-  await api.post("/pages/remove-permission", data);
+  await api.post("/page-permissions/remove-permission", data);
 }
 
 export async function updatePagePermissionRole(
   data: IUpdatePagePermissionRole,
 ): Promise<void> {
-  await api.post("/pages/update-permission", data);
+  await api.post("/page-permissions/update-permission", data);
 }
 
 export async function unrestrictPage(pageId: string): Promise<void> {
-  await api.post("/pages/remove-restriction", { pageId });
+  await api.post("/page-permissions/remove-restriction", { pageId });
 }
 
 export async function getPagePermissions(

@@ -25,3 +25,21 @@ if (typeof window !== "undefined" && !window.ResizeObserver) {
   window.ResizeObserver = NoopResizeObserver as unknown as typeof ResizeObserver;
   globalThis.ResizeObserver = NoopResizeObserver as unknown as typeof ResizeObserver;
 }
+
+// jsdom does not implement IntersectionObserver; components with
+// infinite-scroll sentinels (e.g. PagePermissionList) observe on mount.
+// Provide a minimal no-op stub so those components don't throw in tests.
+if (typeof window !== "undefined" && !window.IntersectionObserver) {
+  class NoopIntersectionObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  window.IntersectionObserver =
+    NoopIntersectionObserver as unknown as typeof IntersectionObserver;
+  globalThis.IntersectionObserver =
+    NoopIntersectionObserver as unknown as typeof IntersectionObserver;
+}
