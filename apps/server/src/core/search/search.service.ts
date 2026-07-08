@@ -215,6 +215,12 @@ export class SearchService {
         .where('deletedAt', 'is', null)
         .where('workspaceId', '=', workspaceId)
         .limit(limit);
+      // ENG-1434 AC11 — a superseded page is excluded from search
+      // suggestions by default (opt-in reveal).
+      pageSearch = this.pageRepo.excludeSupersededUnless(
+        pageSearch,
+        suggestion.includeSuperseded,
+      );
 
       // search all spaces the user has access to, prioritizing the current space
       const userSpaceIds = await this.spaceMemberRepo.getUserSpaceIds(userId);

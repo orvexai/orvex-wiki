@@ -28,11 +28,15 @@ fi
 # Every *.ts file under apps/server/src/orvex, excluding the chokepoint
 # itself, DTOs (which only EXCLUDE `superseded` from an allow-list — AC9 —
 # never write it) and *.spec.ts fixtures, that WRITES the literal
-# `status: PageStatus.SUPERSEDED` (a Kysely `.set(`/`.values(` object key)
-# is a candidate divergent mutation path. A bare reference (e.g. a
-# read-only classification list) is not a write and is not flagged.
+# `status: PageStatus.SUPERSEDED` OR the raw string literal
+# `status: 'superseded'` / `status: "superseded"` (review1 F3 — a
+# hand-rolled write using the bare string, bypassing the `PageStatus` enum
+# entirely, must be caught too; a Kysely `.set(`/`.values(` object key in
+# either form) is a candidate divergent mutation path. A bare reference
+# (e.g. a read-only classification list) is not a write and is not
+# flagged.
 violations=$(
-  grep -rlE --include='*.ts' "status:\s*PageStatus\.SUPERSEDED" "$SRC_DIR" 2>/dev/null \
+  grep -rlE --include='*.ts' "status:\s*(PageStatus\.SUPERSEDED|['\"]superseded['\"])" "$SRC_DIR" 2>/dev/null \
     | grep -v -F "$CHOKEPOINT" \
     | grep -v '/dto/' \
     | grep -v '\.spec\.ts$' \

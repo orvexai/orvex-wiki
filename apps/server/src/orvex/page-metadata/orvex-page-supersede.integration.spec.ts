@@ -582,4 +582,125 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  // ---------------------------------------------------------------------
+  // review1 F1 — the resolved TARGET page must be authorized too, not
+  // just the requesting page. Global-unique slugId can resolve into
+  // another workspace entirely, or another space in the SAME workspace.
+  // ---------------------------------------------------------------------
+  describe('review1 F1: target-page authorization', () => {
+    it('rejects a target slug that resolves to a page in a DIFFERENT workspace — 404 SUPERSESSION_TARGET_NOT_FOUND, no mutation', async () => {
+      const otherWs = await db
+        .insertInto('workspaces')
+        .values({ name: 'ENG-1434 Other Workspace' })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const otherSpace = await db
+        .insertInto('spaces')
+        .values({
+          name: 'ENG-1434 Other Space',
+          slug: 'eng-1434-other-space',
+          workspaceId: otherWs.id,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const otherUser = await db
+        .insertInto('users')
+        .values({ email: 'eng-1434-victim@example.com', workspaceId: otherWs.id })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      const victim = await db
+        .insertInto('pages')
+        .values({
+          title: 'Victim page in other workspace',
+          spaceId: otherSpace.id,
+          workspaceId: otherWs.id,
+          slugId: `eng-1434-victim-${Date.now()}`,
+          creatorId: otherUser.id,
+          lastUpdatedById: otherUser.id,
+        })
+        .returning(['id', 'slugId'])
+        .executeTakeFirstOrThrow();
+
+      const audit = new CapturingAuditService();
+      const service = buildService(audit, new CapturingBroadcaster());
+      const attacker = await createPage('F1 attacker page');
+
+      await expect(
+        service.supersedeAtomic(
+          attacker.id,
+          { supersedes: victim.slugId },
+          { authMethod: undefined, actorId: humanUserId },
+        ),
+      ).rejects.toMatchObject({
+        status: 404,
+        response: { error: 'SUPERSESSION_TARGET_NOT_FOUND' },
+      });
+
+      const victimMeta = await db
+        .selectFrom('orvexPageMeta')
+        .selectAll()
+        .where('pageId', '=', victim.id)
+        .executeTakeFirst();
+      expect(victimMeta).toBeUndefined();
+
+      const victimPageRow = await db
+        .selectFrom('pages')
+        .select(['isLocked'])
+        .where('id', '=', victim.id)
+        .executeTakeFirstOrThrow();
+      expect(victimPageRow.isLocked).toBe(false);
+    });
+
+    it('calls the authorizeTargetSpace callback for the RESOLVED TARGET space, and propagates its refusal with no mutation', async () => {
+      const audit = new CapturingAuditService();
+      const service = buildService(audit, new CapturingBroadcaster());
+      const attacker = await createPage('F1 same-workspace attacker');
+      const victim = await createPage('F1 same-workspace victim');
+
+      const seenSpaceIds: string[] = [];
+      await expect(
+        service.supersedeAtomic(
+          attacker.id,
+          { supersedes: victim.slugId },
+          {
+            authMethod: undefined,
+            actorId: humanUserId,
+            authorizeTargetSpace: async (targetSpaceId: string) => {
+              seenSpaceIds.push(targetSpaceId);
+              throw new ForbiddenException();
+            },
+          },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(seenSpaceIds).toEqual([spaceId]);
+
+      const victimMeta = await db
+        .selectFrom('orvexPageMeta')
+        .selectAll()
+        .where('pageId', '=', victim.id)
+        .executeTakeFirst();
+      expect(victimMeta).toBeUndefined();
+    });
+
+    it('proceeds normally when authorizeTargetSpace resolves (allows)', async () => {
+      const audit = new CapturingAuditService();
+      const service = buildService(audit, new CapturingBroadcaster());
+      const canonical = await createPage('F1 allow canonical');
+      const target = await createPage('F1 allow target');
+
+      const result = await service.supersedeAtomic(
+        target.id,
+        { supersededBy: canonical.slugId },
+        {
+          authMethod: undefined,
+          actorId: humanUserId,
+          authorizeTargetSpace: async () => {},
+        },
+      );
+
+      expect(result.status).toBe(PageStatus.SUPERSEDED);
+    });
+  });
 });

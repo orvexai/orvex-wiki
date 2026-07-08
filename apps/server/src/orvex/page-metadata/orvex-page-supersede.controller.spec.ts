@@ -80,8 +80,87 @@ describe('OrvexPageSupersedeController', () => {
         confirmToken: 'ct1.x.y',
         forceSupersede: undefined,
         forceReason: undefined,
+        authorizeTargetSpace: expect.any(Function),
       },
     );
+  });
+
+  it('review1 F1: authorizeTargetSpace re-runs the same space-CASL Manage check against the resolved target space', async () => {
+    const pageRepo: Pick<PageRepo, 'findById'> = {
+      findById: jest.fn(async () => ({
+        id: 'page-1',
+        workspaceId: WORKSPACE.id,
+        spaceId: 'space-1',
+        deletedAt: null,
+      })) as unknown as PageRepo['findById'],
+    };
+    const canManageMock = jest.fn(async () => ({ cannot: () => false }));
+    const spaceAbilityFactory: Pick<SpaceAbilityFactory, 'createForUser'> = {
+      createForUser: canManageMock as unknown as SpaceAbilityFactory['createForUser'],
+    };
+    const metadataService: Pick<OrvexPageMetadataService, 'supersedeAtomic'> = {
+      supersedeAtomic: jest.fn(async (_pageId, _direction, gate) => {
+        await (
+          gate as unknown as { authorizeTargetSpace: (s: string) => Promise<void> }
+        ).authorizeTargetSpace('target-space-99');
+        return { status: PageStatus.SUPERSEDED };
+      }) as unknown as OrvexPageMetadataService['supersedeAtomic'],
+    };
+    const controller = new OrvexPageSupersedeController(
+      metadataService as OrvexPageMetadataService,
+      pageRepo as PageRepo,
+      spaceAbilityFactory as SpaceAbilityFactory,
+    );
+
+    await controller.supersede(
+      { pageId: 'page-1', supersededBy: 'x' } as SupersedePageDto,
+      USER,
+      WORKSPACE,
+      undefined,
+    );
+
+    // Once for the requesting page's own space ('space-1'), once (via the
+    // callback the service invoked) for the resolved target's space.
+    expect(canManageMock).toHaveBeenCalledWith(USER, 'space-1');
+    expect(canManageMock).toHaveBeenCalledWith(USER, 'target-space-99');
+  });
+
+  it('review1 F1: authorizeTargetSpace rejects when the caller cannot Manage the resolved target space', async () => {
+    const pageRepo: Pick<PageRepo, 'findById'> = {
+      findById: jest.fn(async () => ({
+        id: 'page-1',
+        workspaceId: WORKSPACE.id,
+        spaceId: 'space-1',
+        deletedAt: null,
+      })) as unknown as PageRepo['findById'],
+    };
+    const spaceAbilityFactory: Pick<SpaceAbilityFactory, 'createForUser'> = {
+      createForUser: jest.fn(async (_user, spaceId: string) => ({
+        cannot: () => spaceId === 'target-space-99',
+      })) as unknown as SpaceAbilityFactory['createForUser'],
+    };
+    const metadataService: Pick<OrvexPageMetadataService, 'supersedeAtomic'> = {
+      supersedeAtomic: jest.fn(async (_pageId, _direction, gate) => {
+        await (
+          gate as unknown as { authorizeTargetSpace: (s: string) => Promise<void> }
+        ).authorizeTargetSpace('target-space-99');
+        return { status: PageStatus.SUPERSEDED };
+      }) as unknown as OrvexPageMetadataService['supersedeAtomic'],
+    };
+    const controller = new OrvexPageSupersedeController(
+      metadataService as OrvexPageMetadataService,
+      pageRepo as PageRepo,
+      spaceAbilityFactory as SpaceAbilityFactory,
+    );
+
+    await expect(
+      controller.supersede(
+        { pageId: 'page-1', supersededBy: 'x' } as SupersedePageDto,
+        USER,
+        WORKSPACE,
+        undefined,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('404s when the page is not in the caller workspace', async () => {

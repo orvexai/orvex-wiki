@@ -398,12 +398,28 @@ export class OrvexPageMetadataService {
       async (innerTrx) => {
         const otherPage = await innerTrx
           .selectFrom('pages')
-          .select(['id', 'slugId', 'deletedAt'])
+          .select(['id', 'slugId', 'deletedAt', 'workspaceId', 'spaceId'])
           .where('slugId', '=', otherSlug)
           .executeTakeFirst();
 
         if (!otherPage || otherPage.deletedAt) {
           throw new NotFoundException({ error: 'SUPERSESSION_TARGET_NOT_FOUND' });
+        }
+
+        // review1 F1 — `slugId` carries a GLOBAL unique constraint, so the
+        // above lookup can resolve into any workspace. The caller is only
+        // ever authorized against the REQUESTING page (controller); this
+        // is the unconditional, non-delegable guard against resolving a
+        // target outside the requester's own workspace. A same-workspace
+        // target is additionally authorized against its own space via
+        // `gate.authorizeTargetSpace` below, mirroring the controller's
+        // own space-CASL Manage check on the requesting page.
+        if (otherPage.workspaceId !== requestPage.workspaceId) {
+          throw new NotFoundException({ error: 'SUPERSESSION_TARGET_NOT_FOUND' });
+        }
+
+        if (gate.authorizeTargetSpace) {
+          await gate.authorizeTargetSpace(otherPage.spaceId);
         }
 
         const supersededPageId = hasSupersededBy ? requestPage.id : otherPage.id;

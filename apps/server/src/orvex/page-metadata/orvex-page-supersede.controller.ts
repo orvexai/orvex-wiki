@@ -66,6 +66,11 @@ export class OrvexPageSupersedeController {
         confirmToken: dto.confirmToken,
         forceSupersede: dto.forceSupersede,
         forceReason: dto.forceReason,
+        // review1 F1 — authorizes the RESOLVED TARGET's space too, not
+        // just the requesting page's (`page` above). Invoked by the
+        // service after it resolves the target, before any mutation.
+        authorizeTargetSpace: (targetSpaceId: string) =>
+          this.assertCanManage(user, targetSpaceId),
       },
     );
   }

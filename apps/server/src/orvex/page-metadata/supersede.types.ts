@@ -17,6 +17,20 @@ export interface SupersedeGateContext {
   confirmToken?: string;
   forceSupersede?: boolean;
   forceReason?: string;
+  /**
+   * review1 F1 — `supersedeAtomic` resolves the OTHER page (the request's
+   * pair partner) by a globally-unique `slugId`, which can land in ANY
+   * workspace/space, not just the requester's own. The controller only
+   * ever authorizes the REQUESTING page before calling in; this callback
+   * is how it also authorizes the RESOLVED TARGET's space (CASL Manage),
+   * invoked by the service after the target is found but before any row
+   * is mutated. A harness that omits it (unit tests driving the service
+   * directly against known-safe fixtures) gets no additional check here —
+   * but the workspace-identity check in `supersedeAtomic` itself is
+   * unconditional and never delegated, so cross-workspace resolution is
+   * always blocked regardless of whether this callback is wired.
+   */
+  authorizeTargetSpace?: (spaceId: string) => Promise<void>;
 }
 
 /** The XOR-guarded pair a supersede write resolves (AC1). */
