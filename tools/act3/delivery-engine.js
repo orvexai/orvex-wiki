@@ -58,8 +58,9 @@ const RETDISC = 'RETURN DISCIPLINE (an oversized return kills the run): return O
 
 // ---- Schemas ---------------------------------------------------------------
 const FRONTIER_SCHEMA = {
-  type: 'object', required: ['ready', 'blockedResidue', 'doneTotal'],
+  type: 'object', required: ['ready', 'blockedResidue', 'doneTotal', 'readComplete'],
   properties: {
+    readComplete: { type: 'boolean' },
     ready: { type: 'array', maxItems: 24, items: { type: 'object', required: ['eng', 'project', 'milestone'], properties: {
       eng: { type: 'string', maxLength: 12 }, title: { type: 'string', maxLength: 90 },
       project: { type: 'string', maxLength: 50 }, milestone: { type: 'string', maxLength: 40 },
@@ -154,22 +155,29 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
   phase('Tick ' + tick)
   log('Tick ' + tick + ': computing frontier (escalated so far: ' + escalated.length + ', done this run: ' + doneThisRun.length + ')')
 
-  const frontier = await agent([
-    'FRONTIER COMPUTATION (read-only + one cache sync). Work from ' + HUB + '.',
-    '1. Run _bmad/lnr/tools/linear-sync.sh sync (best effort; live reads are authoritative).',
-    '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold and keycloak-parked (PO holds), and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
-    '3. For each candidate read its blocked-by relations LIVE: ready = every blocker is Done/Canceled/Duplicate (no open blockers). A gate issue (label gate) is ready ONLY when every blocker is Done/Canceled.',
-    '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 24.',
-    '5. Also return: doneTotal (initiative-wide Done count), todoTotal (remaining Todo/Backlog incl. held), blockedResidue (candidates excluded ONLY by holds/escalations).',
-    RETDISC, LNR,
-    'Write the full candidate table to ' + RDIR + '/tick' + tick + '-frontier.md.',
-  ].join('\n'), { model: 'sonnet', effort: 'medium', label: 't' + tick + ':frontier', phase: 'Tick ' + tick, schema: FRONTIER_SCHEMA })
-
-  if (!frontier) { log('Frontier agent died — checkpointing'); break }
+  let frontier = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    frontier = await agent([
+      'FRONTIER COMPUTATION (read-only + one cache sync). Work from ' + HUB + '. Attempt ' + attempt + ' of 3.',
+      '1. Run _bmad/lnr/tools/linear-sync.sh sync (best effort; live reads are authoritative).',
+      '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold and keycloak-parked (PO holds), and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
+      '3. For each candidate read its blocked-by relations LIVE: ready = every blocker is Done/Canceled/Duplicate (no open blockers). A gate issue (label gate) is ready ONLY when every blocker is Done/Canceled.',
+      '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 24.',
+      '5. Also return: doneTotal (initiative-wide Done count), todoTotal (remaining Todo/Backlog incl. held), blockedResidue (candidates excluded ONLY by holds/escalations).',
+      '6. HONESTY BIT (load-bearing — a prior run declared the whole backlog delivered off a rate-limited read that returned zeros): readComplete=true ONLY if every listing + relation read genuinely succeeded. If you hit rate limits or any query failed so the state might be incomplete, set readComplete=false, do NOT fabricate zeros, space your requests (small sleeps between calls are fine), and note what failed. A doneTotal of 0 is IMPOSSIBLE in this workspace — returning it means your reads failed.',
+      RETDISC, LNR,
+      'Write the full candidate table to ' + RDIR + '/tick' + tick + '-frontier.md.',
+    ].join('\n'), { model: 'sonnet', effort: 'medium', label: 't' + tick + ':frontier:a' + attempt, phase: 'Tick ' + tick, schema: FRONTIER_SCHEMA })
+    if (frontier && frontier.readComplete && (frontier.doneTotal || 0) > 0) break
+    log('Tick ' + tick + ': frontier read incomplete/degenerate (attempt ' + attempt + ') — retrying')
+    frontier = null
+  }
+  if (!frontier) { log('Frontier unreadable after 3 attempts (rate limit?) — checkpointing, NOT complete'); break }
   if (!frontier.ready || frontier.ready.length === 0) {
-    if ((frontier.todoTotal || 0) - (frontier.blockedResidue || 0) <= 0 && (frontier.blockedResidue || 0) === 0) { complete = true }
+    // Complete ONLY on a sane, fully-read state: nothing left to do, nothing held, and a plausible done count.
+    if ((frontier.todoTotal || 0) === 0 && (frontier.blockedResidue || 0) === 0 && (frontier.doneTotal || 0) > 0) { complete = true }
     residueReport = frontier
-    log('Frontier empty (residue: ' + (frontier.blockedResidue || 0) + ') — ending run')
+    log('Frontier empty (residue: ' + (frontier.blockedResidue || 0) + ', todo: ' + (frontier.todoTotal || 0) + ') — ending run; complete=' + complete)
     break
   }
 
