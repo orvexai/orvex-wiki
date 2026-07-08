@@ -80,6 +80,37 @@ export class EntitlementService {
    * AC5 — catalog-driven feature unlock. Returns exactly what billing's
    * catalog grants for the workspace's current plan; there is no local
    * all-true fallback (the retired `ORVEX_SELF_HOSTED_FEATURES` stub).
+   *
+   * ENG-1382 fix pass 2 (F2, tracked deviation — NOT fixed in this pass):
+   * as of this pass, `hasFeature` has ZERO production callers. The real
+   * feature gates (`space.service.ts` L~150-165, `workspace.service.ts`
+   * L350-383 for `mcp`/`scim`/`security_settings`, `share.controller.ts`)
+   * still call the pre-existing synchronous `LicenseCheckService.hasFeature
+   * (licenseKey, feature, plan)`. The T1/AC5 GREEN step (replace that stub
+   * with a delegate to this service) was NOT delivered here.
+   *
+   * Deliberately NOT rewired in this fix pass: `LicenseCheckService` is a
+   * synchronous, inline `if (!licenseCheckService.hasFeature(...))` guard
+   * called from many unrelated call sites across space/workspace/share;
+   * this service's `hasFeature` is async and keyed by `workspaceId` (not
+   * `licenseKey`+`plan`) and its `GatedFeature` taxonomy does not map 1:1
+   * onto `LicenseCheckService`'s `Feature` enum (`mcp`, `SCIM`,
+   * `SECURITY_SETTINGS`, ...). Doing that rewire correctly needs a taxonomy
+   * mapping + an async conversion of every call site touched — real
+   * production surfaces entirely outside this ticket's file-table
+   * (space/workspace/share), which is a materially bigger and riskier
+   * change than a targeted quota-bypass fix pass should make.
+   *
+   * Mitigating (confirmed, not just asserted): the file-table target
+   * `ee/licence/license.service.ts` does not exist in this repo (removed
+   * by an earlier AGPL/EE split), so `LicenseCheckService` already fails
+   * CLOSED — no all-true bypass, no security regression from leaving this
+   * unwired. AC5's literal service-level assertion (this method resolves
+   * true/false from the catalog) still passes and is test-covered.
+   *
+   * Follow-up: a dedicated ticket should map `GatedFeature` <-> the
+   * license `Feature` enum and convert the space/workspace/share call
+   * sites to await this service, off the entitlement-quota critical path.
    */
   async hasFeature(workspaceId: string, feature: GatedFeature): Promise<boolean> {
     const entitlement = await this.resolve(workspaceId);

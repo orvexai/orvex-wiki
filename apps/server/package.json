@@ -210,7 +210,7 @@
       "^.+\\.(t|j)sx?$": "ts-jest"
     },
     "transformIgnorePatterns": [
-      "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose)(@|/))"
+      "/node_modules/(?!(\\.pnpm/)?(nanoid|uuid|image-dimensions|marked|happy-dom|lib0|jose|@sindresorhus[\\+/](slugify|transliterate)|escape-string-regexp)(@|/))"
     ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
