@@ -45,6 +45,7 @@ import {
   getWorkspaceDefaultPageEditMode,
   isAdminActingOnOwner,
 } from '../workspace.util';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
 
 @Injectable()
 export class WorkspaceInvitationService {
@@ -60,6 +61,7 @@ export class WorkspaceInvitationService {
     @InjectQueue(QueueName.BILLING_QUEUE) private billingQueue: Queue,
     private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async getInvitations(workspaceId: string, pagination: PaginationOptions) {
@@ -244,6 +246,18 @@ export class WorkspaceInvitationService {
 
     validateSsoEnforcement(workspace);
     validateAllowedEmail(invitation.email, workspace);
+
+    // ENG-1382 (AC3/AC6) — F-QUOTA write chokepoint: a member is actually
+    // added to the workspace here (the invite itself doesn't consume the
+    // cap, only acceptance does). Cap VALUE from billing, never hard-coded.
+    const currentMemberCount = await this.userRepo.countByWorkspaceId(
+      workspace.id,
+    );
+    await this.entitlementService.assertWithinQuota(
+      workspace.id,
+      'members',
+      currentMemberCount,
+    );
 
     let newUser: User;
 

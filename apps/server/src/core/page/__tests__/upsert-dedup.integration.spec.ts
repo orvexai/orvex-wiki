@@ -108,6 +108,13 @@ describe('IdempotencyStore + if-version CAS — integration', () => {
     const redisServiceStub = { getOrNil: () => redisClient } as any;
     const idempotencyStore = new IdempotencyStore(redisServiceStub);
 
+    // ENG-1382 — this spec exercises upsert dedup, not F-QUOTA; a stub that
+    // never blocks keeps prior scenarios unaffected.
+    const entitlementServiceStub = {
+      assertWithinQuota: async () => undefined,
+      hasFeature: async () => true,
+    } as any;
+
     return new PageService(
       pageRepo,
       pagePermissionRepo,
@@ -122,6 +129,7 @@ describe('IdempotencyStore + if-version CAS — integration', () => {
       watcherServiceStub,
       transclusionService,
       idempotencyStore,
+      entitlementServiceStub,
     );
   }
 

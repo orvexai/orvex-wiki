@@ -142,6 +142,18 @@ export class UserRepo {
       .executeTakeFirst();
   }
 
+  /** ENG-1382 (AC3) — F-QUOTA `members` usage count for a workspace. */
+  async countByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('users')
+      .select((eb) => eb.fn.countAll().as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+
+    return Number(result?.count ?? 0);
+  }
+
   async roleCountByWorkspaceId(
     role: string,
     workspaceId: string,

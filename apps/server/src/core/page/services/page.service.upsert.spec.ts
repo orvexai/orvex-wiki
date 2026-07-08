@@ -130,6 +130,13 @@ describe('PageUpsertDedupSpec', () => {
       undefined,
     );
 
+    // ENG-1382 — this spec exercises upsert semantics, not F-QUOTA; a stub
+    // that never blocks keeps prior scenarios unaffected.
+    const entitlementServiceStub = {
+      assertWithinQuota: async () => undefined,
+      hasFeature: async () => true,
+    } as any;
+
     service = new PageService(
       pageRepo,
       pagePermissionRepo,
@@ -144,6 +151,7 @@ describe('PageUpsertDedupSpec', () => {
       watcherServiceStub,
       transclusionService,
       idempotencyStoreStub,
+      entitlementServiceStub,
     );
 
     const ws = await db

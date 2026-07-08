@@ -218,6 +218,13 @@ export class EnvironmentService {
     return this.configService.get<string>('STRIPE_PUBLISHABLE_KEY');
   }
 
+  // ENG-1382 — base URL of the `orvex-studio-billing` entitlement seam
+  // (`GET /v1/entitlements/{principal_type}/{principal_id}`). Billing owns
+  // cap VALUES + Stripe (❌#8/❌#10); the engine only reads this endpoint.
+  getBillingApiUrl(): string {
+    return this.configService.get<string>('ORVEX_BILLING_API_URL');
+  }
+
   getStripeSecretKey(): string {
     return this.configService.get<string>('STRIPE_SECRET_KEY');
   }
