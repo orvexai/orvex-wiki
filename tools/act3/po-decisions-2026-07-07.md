@@ -61,3 +61,8 @@
 - Done total: 56+. Ready frontier: ~21 and widening as M0 closes. M0 gate ENG-1580: 8/14 constituents done; critical path ENG-1357 unblocked (clean-room) and building.
 - Live digest for the PO: **ENG-1594** (Delivery Gates project). Engine: tools/act3/delivery-engine.js, relaunched with resume after the host reboot.
 - Standing holds: keycloak-parked; deferred-future (ENG-1586). stripe-hold lifted.
+
+## Run notes (2026-07-08)
+- ENG-1393 §3.27 audit: verdict HONEST-for-scope (corpus = 29 real JSON fixtures for all registered types; the "seed" is the separate fixtures/dfm v0.3 artifact). Follow-up ENG-1598 (M1) owns the full Q21 byte-parity catalog (31 embeds + Excalidraw, language-neutral, one canonical fixtures/dfm) + activating the dfm-parity gate; blocks ENG-1429.
+- §3.19 signal: some Done issues carry unticked DoD boxes (merge lanes in recovery workflows skipped ticking). Standalone backfill sweep attempted, aborted CLEANLY on Linear rate-limiting (shared quota with the live engine; 0 writes). DEFERRED to the next engine checkpoint — engine capacity-fill re-verifies Done issues incrementally meanwhile. LESSON: heavy Linear sweeps and the engine must SERIALIZE (shared API quota); never run both at full fan-out.
+- Engine v4 (cc2bf9a0): startup reclaim resets ALL stranded In-Progress (finish-not-rebuild comments on open-PR ones); launch nonce defeats stale cache replay; completed runs relaunch FRESH (no resumeFromRunId).
