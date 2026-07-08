@@ -48,6 +48,21 @@ function makeConflictError(shape: "nested" | "flat", activeReferenceCount = 2) {
   return { response: { status: 409, data } };
 }
 
+function makeManyReferencesConflictError(count: number) {
+  const impact = {
+    activeReferenceCount: count,
+    references: Array.from({ length: count }, (_, i) => ({
+      referencePageId: `page-${i}`,
+      // First reference has no title, to exercise the slugId fallback.
+      referencePageTitle: i === 0 ? null : `Page ${i}`,
+      referencePageSlugId: `slug${i}`,
+      transclusionId: `tx-${i}`,
+    })),
+  };
+  const body = { errorCode: "TRANSCLUSION_REFERENCES_ACTIVE", impact };
+  return { response: { status: 409, data: body } };
+}
+
 describe("TransclusionConflictRetrySpec (named DoD test)", () => {
   // AC1
   test("extractTransclusionConflict parses nested and flat 409 bodies, rejects non-match and non-409", () => {
@@ -146,6 +161,36 @@ describe("TransclusionConflictRetrySpec (named DoD test)", () => {
       originalError,
     );
     expect(screen.queryByText("Unsync All and Continue")).toBeNull();
+  });
+
+  // AC5
+  test("modal lists at most 10 impacted pages with /p/<slugId> anchors, an overflow line, and slugId fallback for an empty title", async () => {
+    const conflictError = makeManyReferencesConflictError(13);
+    const mutationFn = vi.fn().mockRejectedValueOnce(conflictError);
+
+    const { result } = renderHook(
+      () => useTransclusionConflict(mutationFn),
+      { wrapper },
+    );
+
+    act(() => {
+      result.current.execute({ pageId: "p1" });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Unsync All and Continue")).toBeTruthy();
+    });
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(10);
+
+    const firstAnchor = screen.getByRole("link", { name: "slug0" });
+    expect(firstAnchor.getAttribute("href")).toBe("/p/slug0");
+
+    const secondAnchor = screen.getByRole("link", { name: "Page 1" });
+    expect(secondAnchor.getAttribute("href")).toBe("/p/slug1");
+
+    expect(screen.getByText("…and 3 more")).toBeTruthy();
   });
 });
 
