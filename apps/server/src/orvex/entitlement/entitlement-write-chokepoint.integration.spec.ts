@@ -14,8 +14,20 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { PageRepo } from '../../database/repos/page/page.repo';
+import { SpaceMemberRepo } from '../../database/repos/space/space-member.repo';
+import { PagePermissionRepo } from '../../database/repos/page/page-permission.repo';
+import { AttachmentRepo } from '../../database/repos/attachment/attachment.repo';
 import { PageService } from '../../core/page/services/page.service';
+import { CreatePageDto } from '../../core/page/dto/create-page.dto';
+import { StorageService } from '../../integrations/storage/storage.service';
+import { Queue } from 'bullmq';
+import { QueueJob } from '../../integrations/queue/constants';
+import { CollaborationGateway } from '../../collaboration/collaboration.gateway';
+import { WatcherService } from '../../core/watcher/watcher.service';
+import { TransclusionService } from '../../core/page/transclusion/transclusion.service';
+import { IdempotencyStore } from '../../integrations/redis/idempotency-store.service';
+import { KyselyDB } from '../../database/types/kysely.types';
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
@@ -25,7 +37,7 @@ import {
   Principal,
 } from './entitlement.types';
 import { QuotaExceededException } from './quota.exception';
-import type { DB } from '@docmost/db/types/db';
+import type { DB } from '../../database/types/db';
 
 /**
  * ENG-1382 — `EntitlementWriteChokepointSpec` (the named DoD test).
@@ -114,7 +126,7 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     pgContainer = await new PostgreSqlContainer('postgres:16-alpine').start();
     sqlClient = postgres(pgContainer.getConnectionUri());
 
-    const rawDb = new Kysely<any>({
+    const rawDb = new Kysely<Record<string, unknown>>({
       dialect: new PostgresJSDialect({ postgres: sqlClient }),
     });
     const migrationFolder = path.join(__dirname, '../../database/migrations');
@@ -141,30 +153,37 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     });
 
     const eventEmitter = new EventEmitter2();
+    const kyselyDb = db as unknown as KyselyDB;
     // SpaceMemberRepo is a PageRepo constructor dependency but is never
     // called by the create()/countByWorkspaceId() paths this spec exercises.
-    pageRepo = new PageRepo(db as any, undefined as any, eventEmitter);
+    pageRepo = new PageRepo(
+      kyselyDb,
+      undefined as unknown as SpaceMemberRepo,
+      eventEmitter,
+    );
 
     stubPort = new StubBillingEntitlementPort();
     checkCalls = [];
     cache = new InMemoryEntitlementCache();
     entitlementService = new EntitlementService(stubPort, cache);
 
-    const noopQueue = { add: async () => undefined } as any;
-    pageService = new (PageService as any)(
+    const noopQueue = {
+      add: async () => undefined,
+    } as unknown as Queue<QueueJob>;
+    pageService = new PageService(
       pageRepo,
-      undefined, // pagePermissionRepo — unused by create()
-      undefined, // attachmentRepo — unused by create()
-      db,
-      undefined, // storageService — unused by create() (no content)
+      undefined as unknown as PagePermissionRepo, // unused by create()
+      undefined as unknown as AttachmentRepo, // unused by create()
+      kyselyDb,
+      undefined as unknown as StorageService, // unused by create() (no content)
       noopQueue, // attachmentQueue
       noopQueue, // aiQueue
       noopQueue, // generalQueue — .add() used for the watcher fire-and-forget
       eventEmitter,
-      undefined, // collaborationGateway — unused by create()
-      undefined, // watcherService — only used when a trx is passed
-      undefined, // transclusionService — unused by create()
-      undefined, // idempotencyStore — unused by create()
+      undefined as unknown as CollaborationGateway, // unused by create()
+      undefined as unknown as WatcherService, // only used when a trx is passed
+      undefined as unknown as TransclusionService, // unused by create()
+      undefined as unknown as IdempotencyStore, // unused by create()
       entitlementService,
     );
   });
@@ -212,7 +231,7 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
       await pageService.create(userId, workspaceId, {
         spaceId,
         title: `pre-existing-${i}`,
-      } as any);
+      });
     }
 
     const beforeCount = await pageRepo.countByWorkspaceId(workspaceId);
@@ -223,7 +242,7 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
       await pageService.create(userId, workspaceId, {
         spaceId,
         title: 'over-the-cap',
-      } as any);
+      });
     } catch (err) {
       caught = err;
     }
@@ -251,7 +270,7 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     const page = await pageService.create(userId, workspaceId, {
       spaceId,
       title: 'under-cap-page',
-    } as any);
+    });
 
     expect(page.id).toEqual(expect.any(String));
     const afterCount = await pageRepo.countByWorkspaceId(workspaceId);
@@ -287,14 +306,14 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     await pageService.create(userId, workspaceId, {
       spaceId,
       title: 'first-page',
-    } as any);
+    });
 
     let caught: unknown;
     try {
       await pageService.create(userId, workspaceId, {
         spaceId,
         title: 'second-page-should-block',
-      } as any);
+      });
     } catch (err) {
       caught = err;
     }
@@ -315,7 +334,7 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
       await pageService.create(userId, workspaceId, {
         spaceId,
         title: `race-preexisting-${i}`,
-      } as any);
+      });
     }
 
     const beforeCount = await pageRepo.countByWorkspaceId(workspaceId);
@@ -337,9 +356,10 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     // transaction has committed.
     const countSpy = jest.spyOn(pageRepo, 'countByWorkspaceId');
     countSpy.mockImplementation(async (...args) => {
-      const result = await (
-        PageRepo.prototype.countByWorkspaceId as any
-      ).apply(pageRepo, args);
+      const result = await PageRepo.prototype.countByWorkspaceId.apply(
+        pageRepo,
+        args,
+      );
       await new Promise((resolve) => setTimeout(resolve, 75));
       return result;
     });
@@ -351,7 +371,7 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
           pageService.create(userId, workspaceId, {
             spaceId,
             title: `race-${i}`,
-          } as any),
+          }),
         ),
       );
 
