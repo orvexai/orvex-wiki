@@ -32,6 +32,7 @@ import { OrvexRootModule } from './orvex/orvex-root.module';
 import { OrvexAttachmentsHostModule } from './orvex/attachments/orvex-attachments-host.module';
 import { OrvexMailModule } from './orvex/mail/orvex-mail.module';
 import { OrvexPageProvenanceModule } from './core/page-provenance/orvex-page-provenance.module';
+import { OrvexPageVisualsModule } from './orvex/page-visuals/orvex-page-visuals.module';
 
 const enterpriseModules = [];
 try {
@@ -95,6 +96,7 @@ try {
     OrvexAttachmentsHostModule,
     OrvexMailModule,
     OrvexPageProvenanceModule,
+    OrvexPageVisualsModule,
     EventEmitterModule.forRoot(),
     SecurityModule,
     TelemetryModule,
