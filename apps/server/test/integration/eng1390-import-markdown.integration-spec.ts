@@ -97,6 +97,10 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
       testDb.db as any,
       {} as any, // fileTaskQueue
       {} as any, // moduleRef
+      {
+        assertWithinQuota: async () => undefined,
+        hasFeature: async () => true,
+      } as any, // entitlementService — this spec exercises markdown import, not F-QUOTA
     );
 
     // Real StorageService backed by the real LocalDriver (a

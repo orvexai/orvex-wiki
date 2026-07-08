@@ -51,6 +51,7 @@ describe('PageService.movePage (ENG-1372)', () => {
       {} as any, // watcherService
       {} as any, // transclusionService
       {} as any, // idempotencyStore
+      {} as any, // entitlementService — movePage never enforces quota
     );
 
     const workspace = await seedWorkspace(testDb.db);

@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
+import { MultipartFile } from '@fastify/multipart';
 import {
   CamelCasePlugin,
   FileMigrationProvider,
@@ -171,7 +172,7 @@ describe('EntitlementImportChokepointSpec (integration, F1 fix pass 2)', () => {
     return Promise.resolve({
       filename: name,
       toBuffer: async () => Buffer.from(`# ${name}\n\nSome body text.`),
-    } as any);
+    } as unknown as MultipartFile);
   }
 
   it('F1 — a workspace AT its page cap gets 402 QUOTA_EXCEEDED on import, no row inserted', async () => {
