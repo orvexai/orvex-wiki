@@ -141,12 +141,12 @@ function makeTopups(tick, slack) {
 // never sits behind stale claims.
 phase('Startup reclaim')
 await agent([
-  'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '.',
+  'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '. Launch nonce: ' + ((args && args.nonce) || 'none') + ' (ignore; it only prevents stale cache replay).',
   '1. _bmad/lnr/tools/linear-sync.sh sync.',
   '2. LIVE list every In-Progress issue across the Orvex Studio initiative + Delivery Gates project; for each check gh for an open PR in its repo.',
-  '3. NO open PR (dead build) -> reset it to Todo via linearis so this run frontier re-picks it fresh; archive any dangling branch ref + remove any stale worktree.',
-  '4. OPEN PR exists -> leave it In Progress and record it in ' + RDIR + '/startup-reclaim-prs.md so tick 1 can review+merge it (do NOT merge here).',
-  'Return ok + a one-line reset-vs-left count. ' + RETDISC,
+  '3. Reset EVERY stranded In-Progress issue to Todo via linearis so the frontier re-picks it (In Progress issues are invisible to the frontier — leaving them strands the work).',
+  '4. For issues that HAVE an open PR with substantive work: BEFORE resetting, post a comment "Prior work exists: PR <url> (<branch>). FINISH it — rebase onto the integration branch and complete the remaining ACs on top; do NOT rebuild from scratch." Archive dangling branch refs for no-PR issues; remove stale worktrees.',
+  'Return ok + a one-line reset count (with-PR vs no-PR). ' + RETDISC,
 ].join('\n'), { model: 'sonnet', effort: 'medium', label: 'startup-reclaim', phase: 'Startup reclaim', schema: NOTE_SCHEMA })
 
 // ---- Engine loop -----------------------------------------------------------
