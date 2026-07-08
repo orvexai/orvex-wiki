@@ -10,6 +10,11 @@ import { ConfirmTokenService } from './confirm-token.service';
 import { RatifyGateSettingsService } from './ratify-gate-settings.service';
 import { RatifyGateSettingsController } from './ratify-gate-settings.controller';
 import { OrvexPagePromoteController } from './orvex-page-promote.controller';
+import { ForceSupersedeSettingsService } from './force-supersede-settings.service';
+import { ForceSupersedeSettingsController } from './force-supersede-settings.controller';
+import { OrvexPageSupersedeController } from './orvex-page-supersede.controller';
+import { WsPageLifecycleBroadcaster } from './ws-page-lifecycle-broadcaster';
+import { PAGE_LIFECYCLE_BROADCASTER } from './supersede.types';
 
 /**
  * ENG-1371 — the page-metadata domain module. `WorkspaceRepo`/`KyselyDB` are
@@ -37,15 +42,32 @@ import { OrvexPagePromoteController } from './orvex-page-promote.controller';
  * an `api_key` caller to flip a page to `canonical` — `PageRepo` and
  * `SpaceAbilityFactory` are both `@Global()`-provided (`DatabaseModule`/
  * `CaslModule`), so no explicit import is needed for either.
+ *
+ * ENG-1434 — also declares/exports the forced-supersede break-glass
+ * primitive (`ForceSupersedeSettingsService`/
+ * `ForceSupersedeSettingsController`) and the real supersede/unsupersede/
+ * status HTTP chokepoint (`OrvexPageSupersedeController`), plus the
+ * `WsService`-backed realtime broadcaster (`WsPageLifecycleBroadcaster`,
+ * bound to `PAGE_LIFECYCLE_BROADCASTER`) for AC13's post-commit freshness
+ * push. `WsService` is `@Global()`-provided (`WsModule`), so no explicit
+ * import is needed.
  */
 @Module({
-  controllers: [RatifyGateSettingsController, OrvexPagePromoteController],
+  controllers: [
+    RatifyGateSettingsController,
+    OrvexPagePromoteController,
+    ForceSupersedeSettingsController,
+    OrvexPageSupersedeController,
+  ],
   providers: [
     OrvexPageMetadataService,
     OrvexMarkdownInterceptor,
     RatifyTokenService,
     ConfirmTokenService,
     RatifyGateSettingsService,
+    ForceSupersedeSettingsService,
+    WsPageLifecycleBroadcaster,
+    { provide: PAGE_LIFECYCLE_BROADCASTER, useExisting: WsPageLifecycleBroadcaster },
   ],
   exports: [
     OrvexPageMetadataService,
@@ -53,6 +75,7 @@ import { OrvexPagePromoteController } from './orvex-page-promote.controller';
     RatifyTokenService,
     ConfirmTokenService,
     RatifyGateSettingsService,
+    ForceSupersedeSettingsService,
   ],
 })
 export class OrvexPageMetadataModule {}

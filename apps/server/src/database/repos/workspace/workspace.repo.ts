@@ -13,6 +13,9 @@ import { DB, Workspaces } from '@docmost/db/types/db';
 /** review1 F6 — whitelist for `WorkspaceRepo.updateRatifyGateSettings`'s `prefKey`. */
 const ALLOWED_RATIFY_GATE_PREF_KEYS = new Set(['required']);
 
+/** ENG-1434 AC5 — whitelist for `WorkspaceRepo.updateForceSupersedeSettings`'s `prefKey`. */
+const ALLOWED_FORCE_SUPERSEDE_PREF_KEYS = new Set(['enabled']);
+
 @Injectable()
 export class WorkspaceRepo {
   public baseFields: Array<keyof Workspaces> = [
@@ -302,6 +305,39 @@ export class WorkspaceRepo {
         settings: sql`COALESCE(settings, '{}'::jsonb)
                 || jsonb_build_object('ratifyGate', COALESCE(settings->'ratifyGate', '{}'::jsonb)
                 || jsonb_build_object(${prefKey}, ${sql.lit(prefValue)}))`,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', workspaceId)
+      .returning(this.baseFields)
+      .executeTakeFirst();
+  }
+
+  /**
+   * ENG-1434 AC5 — per-workspace forced-supersede break-glass toggle, stored
+   * at `settings.forceSupersede.enabled` (jsonb). Fail-closed by default
+   * (CS ❌#10): absent/missing key reads as `false` (see
+   * `ForceSupersedeSettingsService.getEnabled`) — this method only ever
+   * flips it on via an explicit, audited workspace-admin write. Mirrors
+   * `updateRatifyGateSettings` (ENG-1445).
+   */
+  async updateForceSupersedeSettings(
+    workspaceId: string,
+    prefKey: string,
+    prefValue: string | boolean,
+    trx?: KyselyTransaction,
+  ) {
+    if (!ALLOWED_FORCE_SUPERSEDE_PREF_KEYS.has(prefKey)) {
+      throw new Error(
+        `updateForceSupersedeSettings: unsupported prefKey "${prefKey}"`,
+      );
+    }
+    const db = dbOrTx(this.db, trx);
+    return db
+      .updateTable('workspaces')
+      .set({
+        settings: sql`COALESCE(settings, '{}'::jsonb)
+                || jsonb_build_object('forceSupersede', COALESCE(settings->'forceSupersede', '{}'::jsonb)
+                || jsonb_build_object('${sql.raw(prefKey)}', ${sql.lit(prefValue)}))`,
         updatedAt: new Date(),
       })
       .where('id', '=', workspaceId)
