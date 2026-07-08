@@ -408,6 +408,22 @@ export class PageRepo {
   }
 
   /**
+   * ENG-1382 (AC1/AC2) — the F-QUOTA `pages` usage count for a workspace.
+   * Soft-deleted pages don't count against the cap (mirrors the fork's
+   * trash semantics — a trashed page has already freed its quota slot).
+   */
+  async countByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('pages')
+      .select((eb) => eb.fn.countAll().as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+
+    return Number(result?.count ?? 0);
+  }
+
+  /**
    * ENG-1383 AC1/AC2 — the page insert and its `page.created` outbox row
    * commit ATOMICALLY. When the caller passes its own `trx`, both writes
    * join it (a caller rollback takes the outbox row with it — AC2). When no

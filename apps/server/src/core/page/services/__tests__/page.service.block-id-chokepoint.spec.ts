@@ -174,6 +174,13 @@ describe('PageServiceBlockIdChokepointSpec', () => {
       record: async () => {},
     } as any;
 
+    // ENG-1382 — this spec exercises block-id chokepoint behaviour, not
+    // F-QUOTA; a stub that never blocks keeps prior scenarios unaffected.
+    const entitlementServiceStub = {
+      assertWithinQuota: async () => undefined,
+      hasFeature: async () => true,
+    } as any;
+
     service = new PageService(
       pageRepo,
       pagePermissionRepo,
@@ -188,6 +195,7 @@ describe('PageServiceBlockIdChokepointSpec', () => {
       watcherServiceStub,
       transclusionService,
       idempotencyStoreStub,
+      entitlementServiceStub,
     );
 
     const ws = await db
