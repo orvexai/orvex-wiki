@@ -31,6 +31,7 @@ import { PageListener } from '@docmost/db/listeners/page.listener';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
 import { normalizePostgresUrl } from '../common/helpers';
+import { OrvexKyselySpanPlugin } from '../orvex/obs/orvex-kysely-span.plugin';
 
 @Global()
 @Module({
@@ -56,7 +57,19 @@ import { normalizePostgresUrl } from '../common/helpers';
             },
           ),
         }),
-        plugins: [new CamelCasePlugin()],
+        // ENG-1599 AC1 seam coverage: the Postgres span wrapper is flag-gated
+        // on ORVEX_MODULES_ENABLED (read directly, matching
+        // OrvexRootModule.register()'s pre-DI gate) so this ALWAYS-loaded
+        // core module stays byte-for-byte vanilla when the flag is off
+        // (AC5) — with no SDK registered, the plugin's spans resolve to the
+        // OTel API's own no-op tracer, but skipping it entirely off-flag
+        // keeps the vanilla path free of even that no-op overhead.
+        plugins: [
+          new CamelCasePlugin(),
+          ...(process.env.ORVEX_MODULES_ENABLED === 'true'
+            ? [new OrvexKyselySpanPlugin()]
+            : []),
+        ],
         log: (event: LogEvent) => {
           if (environmentService.getNodeEnv() !== 'development') return;
           const logger = new Logger(DatabaseModule.name);
