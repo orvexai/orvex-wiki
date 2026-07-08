@@ -123,6 +123,10 @@ export const AuditEvent = {
   PAGE_UNSUPERSEDED: 'page.unsuperseded',
   SUPERSEDE_FORCED_BYPASS: 'page.supersede_forced_bypass',
   FORCE_SUPERSEDE_SETTING_UPDATED: 'force_supersede.setting_updated',
+
+  // Transclusion write-block safeguard (ENG-1470)
+  TRANSCLUSION_REFERENCE_UNSYNCED: 'transclusion.reference_unsynced',
+  TRANSCLUSION_FORCE_DELETE: 'transclusion.force_delete',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];
