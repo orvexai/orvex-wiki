@@ -1,0 +1,20 @@
+/*
+ * ENG-1460 — AI-provenance wash + badge styles.
+ *
+ * Kept visually and structurally separate from
+ * `page-verification/components/page-verification-modal.module.css` (the
+ * QMS surface) — AC4 boundary.
+ */
+
+.aiAuthoredWash {
+  background-color: light-dark(
+    rgba(121, 80, 242, 0.12),
+    rgba(121, 80, 242, 0.22)
+  );
+  border-radius: 2px;
+}
+
+.badge {
+  text-transform: none;
+  font-weight: 500;
+}

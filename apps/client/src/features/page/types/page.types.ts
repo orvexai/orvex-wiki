@@ -25,6 +25,11 @@ export interface IPage {
   deletedBy: IDeletedBy;
   contributors?: IContributor[];
   space: Partial<ISpace>;
+  /**
+   * ENG-1447 (engine) / ENG-1460 (client projection) — AI-provenance
+   * status stamped by the engine. `null`/absent means unstamped.
+   */
+  provenanceStatus?: "ai_produced" | "ai_edited" | "human_verified" | null;
   permissions?: {
     canEdit: boolean;
     hasRestriction: boolean;
