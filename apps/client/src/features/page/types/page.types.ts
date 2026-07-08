@@ -105,6 +105,8 @@ export interface SidebarPagesParams {
   pageId?: string;
   cursor?: string;
   limit?: number;
+  /** ENG-1440 (AC7) — reveal superseded pages in this sidebar query (opt-in). */
+  includeSuperseded?: boolean;
 }
 
 export interface IPageInput {

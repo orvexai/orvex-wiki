@@ -2,6 +2,7 @@ import { ActionIcon, Group, Menu, Text, ThemeIcon, Tooltip } from "@mantine/core
 import {
   IconArrowRight,
   IconArrowsHorizontal,
+  IconArrowsExchange,
   IconDots,
   IconEye,
   IconEyeOff,
@@ -42,6 +43,7 @@ import {
 import { formattedDate } from "@/lib/time.ts";
 import { PageEditModeToggle } from "@/features/user/components/page-state-pref.tsx";
 import MovePageModal from "@/features/page/components/move-page-modal.tsx";
+import { SupersedePageModal } from "@/features/page/components/supersede-page-modal";
 import { useTimeAgo } from "@/hooks/use-time-ago.tsx";
 import { PageShareModal } from "@/ee/page-permission";
 import {
@@ -139,6 +141,9 @@ interface PageActionMenuProps {
 }
 function PageActionMenu({ readOnly }: PageActionMenuProps) {
   const { t } = useTranslation();
+  // ENG-1440 (T5) — the new "Supersede" menu string lives in the `orvex`
+  // namespace (upstream-replaceable translation.json is untouched).
+  const { t: tOrvex } = useTranslation("orvex");
   const [, setHistoryModalOpen] = useAtom(historyAtoms);
   const clipboard = useClipboard({ timeout: 500 });
   const { pageSlug, spaceSlug } = useParams();
@@ -152,6 +157,10 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
   const [
     movePageModalOpened,
     { open: openMovePageModal, close: closeMoveSpaceModal },
+  ] = useDisclosure(false);
+  const [
+    supersedeModalOpened,
+    { open: openSupersedeModal, close: closeSupersedeModal },
   ] = useDisclosure(false);
   const [
     verificationOpened,
@@ -311,6 +320,15 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
             </Menu.Item>
           )}
 
+          {!readOnly && !page?.isBase && (
+            <Menu.Item
+              leftSection={<IconArrowsExchange size={16} />}
+              onClick={openSupersedeModal}
+            >
+              {tOrvex("Supersede")}
+            </Menu.Item>
+          )}
+
           <Menu.Item
             leftSection={<IconFileExport size={16} />}
             onClick={openExportModal}
@@ -388,6 +406,12 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
         currentSpaceSlug={spaceSlug}
         onClose={closeMoveSpaceModal}
         open={movePageModalOpened}
+      />
+
+      <SupersedePageModal
+        pageId={page.id}
+        opened={supersedeModalOpened}
+        onClose={closeSupersedeModal}
       />
 
       <PageVerificationModal

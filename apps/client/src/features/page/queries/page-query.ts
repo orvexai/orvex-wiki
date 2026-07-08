@@ -342,9 +342,16 @@ export function useGetSidebarPagesQuery(
 
 export function useGetRootSidebarPagesQuery(data: SidebarPagesParams) {
   return useInfiniteQuery({
-    queryKey: ["root-sidebar-pages", data.spaceId],
+    // ENG-1440 (AC7 fix) — `includeSuperseded` is part of the cache key so
+    // toggling "show superseded" actually refetches with the new filter.
+    queryKey: ["root-sidebar-pages", data.spaceId, data.includeSuperseded],
     queryFn: async ({ pageParam }) => {
-      return getSidebarPages({ spaceId: data.spaceId, cursor: pageParam, limit: 100 });
+      return getSidebarPages({
+        spaceId: data.spaceId,
+        includeSuperseded: data.includeSuperseded,
+        cursor: pageParam,
+        limit: 100,
+      });
     },
     initialPageParam: undefined,
     getNextPageParam: (lastPage) =>
