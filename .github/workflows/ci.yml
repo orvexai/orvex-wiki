@@ -42,7 +42,7 @@ jobs:
     name: Lint Client
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -57,7 +57,7 @@ jobs:
     name: Lint Server
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -72,7 +72,7 @@ jobs:
     name: Import Boundary (M1 fence)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -90,7 +90,7 @@ jobs:
     name: Typecheck
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -112,7 +112,7 @@ jobs:
     name: Build
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -130,7 +130,7 @@ jobs:
     name: Test Client (vitest)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -145,7 +145,7 @@ jobs:
     name: Test Server (jest, CI set)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -163,7 +163,7 @@ jobs:
     name: Test Server (integration, testcontainers PG)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -188,7 +188,7 @@ jobs:
     name: Smoke Module (build/vet/fmt)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
@@ -207,7 +207,7 @@ jobs:
     name: K8s Manifests (build-only)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
@@ -231,7 +231,7 @@ jobs:
     name: Deploy Render Gate (hostname cutover)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
@@ -257,7 +257,7 @@ jobs:
     name: Engine License Guard (P10)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: EngineHasNoClosedSubmoduleSpec (shell gate)
@@ -273,7 +273,7 @@ jobs:
     name: License Header Check (AGPL §13)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: license-header-check.sh
         run: bash scripts/ci/license-header-check.sh .
 
@@ -288,7 +288,7 @@ jobs:
     name: Engine-Only Import Guard (Q22)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: engine-only-import-guard.sh
         run: bash scripts/ci/engine-only-import-guard.sh .
 
@@ -302,7 +302,7 @@ jobs:
     name: CI Substrate Conformance (CS §13)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
@@ -321,7 +321,7 @@ jobs:
     name: Security (audit + govulncheck)
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -345,7 +345,7 @@ jobs:
     name: SBOM Generation
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install syft
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "$HOME/.local/bin"
@@ -380,7 +380,7 @@ jobs:
     name: Workflow Lint
     runs-on: public-runners
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
