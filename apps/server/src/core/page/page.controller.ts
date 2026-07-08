@@ -10,6 +10,7 @@ import {
   NotFoundException,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { PageService } from './services/page.service';
 import { BacklinkService } from './services/backlink.service';
@@ -57,6 +58,7 @@ import {
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
 import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
+import { OrvexMarkdownInterceptor } from '../../orvex/page-metadata/markdown/orvex-markdown.interceptor';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 
@@ -206,6 +208,11 @@ export class PageController {
     );
   }
 
+  // ENG-1371 (AC8, review1 F1) — parses/strips markdown frontmatter into
+  // `orvex_page_meta` at the request edge, before `PageService.create`
+  // converts markdown -> ProseMirror JSON. No-op for non-markdown /
+  // frontmatter-less requests (see interceptor doc comment).
+  @UseInterceptors(OrvexMarkdownInterceptor)
   @HttpCode(HttpStatus.OK)
   @Post('create')
   async create(
@@ -383,6 +390,8 @@ export class PageController {
     return { ...page, upserted };
   }
 
+  // ENG-1371 (AC8, review1 F1) — see the `create` handler's comment above.
+  @UseInterceptors(OrvexMarkdownInterceptor)
   @HttpCode(HttpStatus.OK)
   @Post('update')
   async update(

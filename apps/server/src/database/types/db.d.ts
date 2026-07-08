@@ -344,11 +344,23 @@ export interface Pages {
 }
 
 export interface OrvexPageMeta {
+  archiveReason: string | null;
   contentHash: string | null;
   createdAt: Generated<Timestamp>;
+  docType: string | null;
   externalId: string | null;
+  lastReviewedAt: Timestamp | null;
+  ownerId: string | null;
   pageId: string;
+  redirectFrom: string | null;
+  specConfirmed: Generated<boolean>;
+  status: Generated<string>;
+  supersededBy: string | null;
+  supersedes: Json | null;
+  unknownFrontmatter: string | null;
   updatedAt: Generated<Timestamp>;
+  verifiedAgainst: string | null;
+  verifiedAt: Timestamp | null;
   version: Generated<number>;
   workspaceId: string;
 }
