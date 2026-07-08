@@ -118,6 +118,53 @@ describe('TestEngineEmitsConformantSpan', () => {
     expect(serialized).not.toContain('Patient');
   });
 
+  it('review-3 F1/AC6: http.url/http.target are stripped ALSO under the stable HTTP semconv opt-in', () => {
+    // Same probe process, same PII-laden request line, but this time run
+    // the probe in a FRESH process with the real
+    // OTEL_SEMCONV_STABILITY_OPT_IN=http/dup flag set — the documented OTel
+    // migration flag that makes @opentelemetry/instrumentation-http emit
+    // url.full/url.path/url.query (stable semconv) IN ADDITION TO
+    // http.url/http.target (old semconv) on the very same span. Reviewer 3
+    // proved this bypasses a strip that only knew about the old keys.
+    const probeScript = join(__dirname, '__fixtures__/dod-probe.ts');
+    const stdout = execFileSync(
+      'node',
+      ['-r', 'ts-node/register/transpile-only', '-r', 'tsconfig-paths/register', probeScript],
+      {
+        cwd: join(__dirname, '../../..'),
+        encoding: 'utf-8',
+        env: { ...process.env, OTEL_SEMCONV_STABILITY_OPT_IN: 'http/dup' },
+      },
+    );
+
+    const dupSpans: ProbeSpan[] = [];
+    for (const line of stdout.split('\n')) {
+      if (line.startsWith('SPAN:')) {
+        dupSpans.push(JSON.parse(line.slice('SPAN:'.length)));
+      }
+    }
+
+    const tagged = dupSpans.find(
+      (s) => s.attributes[ORVEX_CORRELATION_ID_ATTR] === 'dod-correlation-pii',
+    );
+    expect(tagged).toBeDefined();
+
+    // Both old (http.url/http.target) AND stable (url.full/url.path/
+    // url.query) keys must be absent from the EXPORTED span. Pre-fix, this
+    // is a genuine RED test: OrvexPiiRedactingSpanProcessor only knew about
+    // the old two keys, so under this exact env
+    // @opentelemetry/instrumentation-http@0.220.0 populates url.path/
+    // url.query with the page-title slug + query PII and they survive to
+    // export untouched — this assertion fails against that code.
+    for (const key of ['http.url', 'http.target', 'url.full', 'url.path', 'url.query']) {
+      expect(tagged!.attributes).not.toHaveProperty(key);
+    }
+    const serialized = JSON.stringify(tagged!.attributes);
+    expect(serialized).not.toContain('Jane-Doe');
+    expect(serialized).not.toContain('jane@acme.com');
+    expect(serialized).not.toContain('Patient');
+  });
+
   it('AC2: a request with no inbound traceparent starts a fresh trace', () => {
     const inboundTraceId = '4bf92f3577b34da6a3ce929d0e0e4736';
     const knownTraceIds = new Set(spans.map((s) => s.traceId));

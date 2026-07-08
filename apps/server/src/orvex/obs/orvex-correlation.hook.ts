@@ -73,6 +73,18 @@ export interface OrvexFastifyInstanceLike {
  * through every async continuation spawned from inside `done()`, the same
  * mechanism the HTTP/Fastify instrumentations use to propagate the span
  * itself.
+ *
+ * review-3 F2 (AC3): the ONLY prior coverage of this asserted
+ * `getActiveCorrelationId()` synchronously inside `done()` itself, which
+ * does not exercise Fastify's OWN lifecycle dispatch into a later phase
+ * (preValidation/handler — where request-scoped log lines actually
+ * originate). `orvex-correlation.fastify.integration.spec.ts` closes that
+ * gap with a REAL `fastify()` instance + the production
+ * `AsyncHooksContextManager`, asserting from inside an actual route
+ * HANDLER (reached only via Fastify's own dispatch) that both
+ * `getActiveCorrelationId()` and a real pino log line carry the
+ * correlation id. Empirically: it does propagate correctly — no code
+ * change was needed here, only the missing proof.
  */
 export function registerOrvexCorrelationHook(instance: OrvexFastifyInstanceLike): void {
   instance.addHook('onRequest', (request, _reply, done) => {
