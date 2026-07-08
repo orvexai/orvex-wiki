@@ -11,8 +11,8 @@ const DECISIONS = SESSION_SCRATCH + '/act2a/po-decisions-2026-07-07.md'
 const HUB = '/home/daniel/repos/orvex-wiki'
 const WORKTREES = '/tmp/worktrees'
 const MAX_TICKS = (args && args.maxTicks) || 40
-const FIRST_BATCH = 6
-const STEADY_BATCH = 12
+const FIRST_BATCH = 16
+const STEADY_BATCH = 28  // > the ~16 concurrency cap on purpose: keeps all 16 slots CONTINUOUSLY saturated — as one build/review/merge chain finishes, the next dequeues immediately instead of the tick draining to its slow (per-repo-serialized-merge) tail before refilling
 const BOUNCE_CAP = 3
 const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if the ready frontier is narrower than this, fill the spare slots with useful non-claiming pre-work.
 const GATE_MS = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','M14']
@@ -62,7 +62,7 @@ const FRONTIER_SCHEMA = {
   type: 'object', required: ['ready', 'blockedResidue', 'doneTotal', 'readComplete'],
   properties: {
     readComplete: { type: 'boolean' },
-    ready: { type: 'array', maxItems: 24, items: { type: 'object', required: ['eng', 'project', 'milestone'], properties: {
+    ready: { type: 'array', maxItems: 32, items: { type: 'object', required: ['eng', 'project', 'milestone'], properties: {
       eng: { type: 'string', maxLength: 12 }, title: { type: 'string', maxLength: 90 },
       project: { type: 'string', maxLength: 50 }, milestone: { type: 'string', maxLength: 40 },
       isGate: { type: 'boolean' } } } },
@@ -172,7 +172,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
       '1. Run _bmad/lnr/tools/linear-sync.sh sync (best effort; live reads are authoritative).',
       '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold, keycloak-parked, deferred-future (PO holds); ENG-1594 (the orchestrator status tracker — NEVER a work item); any issue whose body says it is a stub needing context-fill before dev; and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
       '3. For each candidate read its blocked-by relations LIVE: ready = every blocker is Done/Canceled/Duplicate (no open blockers). A gate issue (label gate) is ready ONLY when every blocker is Done/Canceled.',
-      '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 24. IMMEDIATELY before returning, re-verify each returned candidate is STILL Todo/Backlog right now — never return an issue that is already Done or In Progress (stale-list re-dispatches waste the whole slot).',
+      '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 32 (keeps a full queue behind the ~16 concurrency cap). IMMEDIATELY before returning, re-verify each returned candidate is STILL Todo/Backlog right now — never return an issue that is already Done or In Progress (stale-list re-dispatches waste the whole slot).',
       '5. Also return: doneTotal (initiative-wide Done count), todoTotal (remaining Todo/Backlog incl. held), blockedResidue (candidates excluded ONLY by holds/escalations).',
       '6. HONESTY BIT (load-bearing — a prior run declared the whole backlog delivered off a rate-limited read that returned zeros): readComplete=true ONLY if every listing + relation read genuinely succeeded. If you hit rate limits or any query failed so the state might be incomplete, set readComplete=false, do NOT fabricate zeros, space your requests (small sleeps between calls are fine), and note what failed. A doneTotal of 0 is IMPOSSIBLE in this workspace — returning it means your reads failed.',
       RETDISC, LNR,
