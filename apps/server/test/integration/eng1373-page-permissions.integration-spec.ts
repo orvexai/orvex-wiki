@@ -18,6 +18,7 @@ import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo'
 import SpaceAbilityFactory from 'src/core/casl/abilities/space-ability.factory';
 import { OrvexPermissionsService } from 'src/core/permissions/orvex-permissions.service';
 import { PagePermissionController } from 'src/core/permissions/page-permission.controller';
+import { PagePermissionService } from 'src/core/permissions/page-permission.service';
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
 import { AuditEvent } from 'src/common/events/audit-events';
 import { SpaceRole, PagePermissionRole } from 'src/common/helpers/types/permission';
@@ -101,12 +102,14 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       spaceAbility,
     );
     const orvexAudit = new OrvexAuditService(db);
+    const pagePermissionService = new PagePermissionService(pagePermissionRepo);
     controller = new PagePermissionController(
       db,
       pageRepo,
       pagePermissionRepo,
       spaceAbility,
       orvexAudit,
+      pagePermissionService,
     );
   }, 120_000);
 
@@ -396,6 +399,81 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
         { id: workspaceId } as any,
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('ENG-1596 AC6 — reject path: both userId+groupId or neither is a 400 on every mutating endpoint, no ACL row / audit row written', async () => {
+    const user = await memberWithRole(SpaceRole.READER);
+    const group = await seedGroup(testDb.db, workspaceId);
+    const page = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: admin.id,
+      position: 'a7b',
+      title: 'eng1596-ac6',
+    });
+    await controller.restrict({ pageId: page.id }, admin as any, {
+      id: workspaceId,
+    } as any);
+
+    // both principals provided
+    await expect(
+      controller.addPermission(
+        {
+          pageId: page.id,
+          userId: user.id,
+          groupId: group.id,
+          role: PagePermissionRole.READER,
+        } as any,
+        admin as any,
+        { id: workspaceId } as any,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    // neither principal provided
+    await expect(
+      controller.addPermission(
+        { pageId: page.id, role: PagePermissionRole.READER } as any,
+        admin as any,
+        { id: workspaceId } as any,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      controller.removePermission(
+        { pageId: page.id, userId: user.id, groupId: group.id } as any,
+        admin as any,
+        { id: workspaceId } as any,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    await expect(
+      controller.updatePermission(
+        { pageId: page.id, role: PagePermissionRole.WRITER } as any,
+        admin as any,
+        { id: workspaceId } as any,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    // No permission row was ever inserted for either principal, and no
+    // audit row was emitted — the reject happens before any ACL write.
+    const pageAccess = await pagePermissionRepo.findPageAccessByPageId(
+      page.id,
+    );
+    expect(
+      await pagePermissionRepo.findPagePermissionByUserId(
+        pageAccess!.id,
+        user.id,
+      ),
+    ).toBeUndefined();
+    expect(
+      await pagePermissionRepo.findPagePermissionByGroupId(
+        pageAccess!.id,
+        group.id,
+      ),
+    ).toBeUndefined();
+    expect(
+      await countAuditRows(testDb, AuditEvent.PAGE_PERMISSION_ADDED, page.id),
+    ).toBe(0);
   });
 
   it('AC8 — IDOR: a non-admin caller is rejected 403 on every mutating endpoint and mutates nothing / emits no audit rows', async () => {

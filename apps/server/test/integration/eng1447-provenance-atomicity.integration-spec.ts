@@ -21,6 +21,16 @@
  * are inert stand-ins, following the established `page-move.integration-
  * spec.ts` convention — none of them are invoked on the code path under
  * test.
+ *
+ * ENG-1596 fix-pass note: this file, unmodified by ENG-1596, had drifted
+ * from `PageService`'s constructor/`update()` signatures grown by later
+ * tickets (ENG-1413's `casOpts` param, plus another ctor arg) — a pre-
+ * existing base breakage unrelated to ENG-1596's diff, but blocking the PR's
+ * `tsc -b` gate and (once compiling) silently defeating the "update:
+ * failure path" rollback assertion (the stray `trx` landed in the
+ * `casOpts` slot, so `update()` never received a transaction and committed
+ * for real). Both call sites now pass `casOpts=undefined, trx` in the
+ * correct positions.
  */
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
@@ -68,6 +78,7 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
       {} as any, // collaborationGateway
       { addPageWatchers: async () => {} } as any, // watcherService
       {} as any, // transclusionService
+      {} as any, // idempotencyStore — casOpts never passed on this path, so claim/record are never invoked
     );
 
     provenanceService = new OrvexPageProvenanceService(
@@ -156,6 +167,7 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
         page as any,
         { pageId: page.id, title: 'F1 update happy path (after)' } as any,
         { id: userId } as any,
+        undefined, // casOpts — this path opts out of CAS/idempotency
         trx as any,
       );
       await provenanceService.markAiCreated(
@@ -187,6 +199,7 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
           page as any,
           { pageId: page.id, title: 'F1 update rollback path (after)' } as any,
           { id: userId } as any,
+          undefined, // casOpts — this path opts out of CAS/idempotency
           trx as any,
         );
 
