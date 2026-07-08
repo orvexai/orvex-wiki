@@ -2,11 +2,11 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { Global, Module, OnModuleInit } from '@nestjs/common';
+import { Global, Module, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { APP_INTERCEPTOR, HttpAdapterHost } from '@nestjs/core';
 
 import { getActiveCorrelationId, registerOrvexCorrelationHook } from './orvex-correlation.hook';
-import { getOrvexTracer } from './orvex-tracing.bootstrap';
+import { getOrvexTracer, shutdownOrvexTracing } from './orvex-tracing.bootstrap';
 import { OrvexTracingInterceptor } from './orvex-tracing.interceptor';
 
 /**
@@ -23,7 +23,16 @@ import { OrvexTracingInterceptor } from './orvex-tracing.interceptor';
  * DELETION TEST (CS §3.1 — not a pass-through): removing this module loses
  * the W3C ingress-continue wiring's downstream consumers (the correlation
  * join + workspace stamping), the FR-C18 attribute shaping, and the pino
- * join — none of which the raw OTel SDK provides by itself.
+ * join — none of which the raw OTel SDK provides by itself. It would ALSO
+ * lose the F3 graceful-flush wiring below (`onApplicationShutdown`), the
+ * only production caller of `shutdownOrvexTracing`.
+ *
+ * GRACEFUL FLUSH (§4i): `main.ts` already calls `app.enableShutdownHooks()`,
+ * which invokes `OnApplicationShutdown` across every module on SIGTERM/
+ * SIGINT. `onApplicationShutdown` here calls the bootstrap's handle-free
+ * `shutdownOrvexTracing()` seam so the `BatchSpanProcessor`'s buffered spans
+ * flush before the process exits, instead of being silently dropped. A
+ * no-op when tracing was never activated (flag-off boot, AC5).
  *
  * Gated only by `ORVEX_MODULES_ENABLED` (via `OrvexRootModule.register()`,
  * like every other orvex sub-module) — NOT by the OTel endpoint. When the
@@ -42,7 +51,7 @@ import { OrvexTracingInterceptor } from './orvex-tracing.interceptor';
   ],
   exports: [OrvexTracingInterceptor],
 })
-export class OrvexTracingModule implements OnModuleInit {
+export class OrvexTracingModule implements OnModuleInit, OnApplicationShutdown {
   constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
 
   onModuleInit(): void {
@@ -50,6 +59,10 @@ export class OrvexTracingModule implements OnModuleInit {
     if (instance) {
       registerOrvexCorrelationHook(instance);
     }
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    await shutdownOrvexTracing();
   }
 }
 

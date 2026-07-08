@@ -20,6 +20,7 @@ import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
 // pins for this leg; a follow-up ADR may migrate it (tracked, not scope here).
 import { FastifyInstrumentation } from '@opentelemetry/instrumentation-fastify';
 
+import { OrvexConfigService } from '../config/orvex-config.service';
 import { buildResourceAttributes } from './orvex-span-attributes.util';
 
 /** Handle returned by a successful `initOrvexTracing` — the only way to flush/stop the SDK. */
@@ -49,6 +50,7 @@ export interface InitOrvexTracingOptions {
 }
 
 let activeProvider: NodeTracerProvider | null = null;
+let activeShutdownHandle: ShutdownHandle | null = null;
 
 /**
  * initOrvexTracing — process-level OTel SDK bootstrap (CS §4c: process
@@ -76,7 +78,12 @@ export function initOrvexTracing(
     return null;
   }
 
-  const endpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  // F2 fix (ENG-1599 T2/§4a): the endpoint is resolved through
+  // OrvexConfigService — its documented first consumer — same pre-DI direct-
+  // construction pattern as `OrvexRootModule.register()`'s
+  // `new OrvexConfigService()` (DI does not exist yet at this boot tier).
+  const endpoint = new OrvexConfigService(env as NodeJS.ProcessEnv)
+    .otelExporterOtlpEndpoint;
   if (!endpoint) {
     return null;
   }
@@ -103,6 +110,14 @@ export function initOrvexTracing(
     contextManager,
   });
 
+  // F4 (LOW, flagged for the tracing ADR / collector-side scrubbing — not
+  // fixed here): `HttpInstrumentation` derives its server SPAN NAME from the
+  // request route/target, which is outside this leg's AC6 deny-list (that
+  // list covers the `orvex.tenant`/`correlation_id` ATTRIBUTE builder only,
+  // via `buildSpanAttributes`/`denyIfLikelyPii`). A non-opaque path segment
+  // could theoretically surface in a span name; span-name sanitisation is a
+  // separate, larger surface (would need a route-template allowlist, not a
+  // deny-list) and is out of scope for this leg.
   registerInstrumentations({
     tracerProvider: provider,
     instrumentations: [
@@ -114,14 +129,35 @@ export function initOrvexTracing(
 
   activeProvider = provider;
 
-  return {
+  const handle: ShutdownHandle = {
     async shutdown(): Promise<void> {
       await provider.shutdown();
       if (activeProvider === provider) {
         activeProvider = null;
       }
+      if (activeShutdownHandle === handle) {
+        activeShutdownHandle = null;
+      }
     },
   };
+  activeShutdownHandle = handle;
+
+  return handle;
+}
+
+/**
+ * shutdownOrvexTracing — the handle-FREE graceful-flush seam (F3 fix, §4i).
+ * `OrvexTracingModule`'s `OnApplicationShutdown` calls this via Nest's
+ * existing `app.enableShutdownHooks()` wiring (already present in
+ * `main.ts`) so a SIGTERM flushes the `BatchSpanProcessor`'s buffered spans
+ * before the process exits — WITHOUT `main.ts` needing to thread the
+ * `ShutdownHandle` returned by `initOrvexTracing` through app bootstrap
+ * itself (that handle stays available for callers, e.g. tests, that DO hold
+ * it directly). A no-op, never throws, when tracing was never activated
+ * (flag-off boot, AC5) or has already been shut down (idempotent).
+ */
+export async function shutdownOrvexTracing(): Promise<void> {
+  await activeShutdownHandle?.shutdown();
 }
 
 /**
