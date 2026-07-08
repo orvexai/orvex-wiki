@@ -370,17 +370,22 @@ describe('OutboxAtomicityAndRelaySpec', () => {
       .execute();
   });
 
-  it('ENG-1383 F1 — an ACTUAL content write (PageRepo.updatePages) produces exactly one page.content_updated outbox row, atomically, with NO embed pipeline involved', async () => {
+  it('ENG-1383 F5 — an ACTUAL content write (PageRepo.updatePages, REAL caller shape — no workspaceId in the SET, exactly what PersistenceExtension.onStoreDocument sends) produces exactly one page.content_updated outbox row, atomically, with NO embed pipeline involved', async () => {
     const page = await executeTx(db, (trx) =>
-      insertPageWithOutbox(trx, { title: 'F1 content page' }),
+      insertPageWithOutbox(trx, { title: 'F5 content page' }),
     );
     await db
       .deleteFrom('orvexEventOutbox')
       .where('aggregateId', '=', page.id)
       .execute(); // drop the page.created row from setup; isolate this assertion
 
+    // NB: no `workspaceId` key here — this is the REAL production caller
+    // shape (`PersistenceExtension.onStoreDocument` never re-sets a page's
+    // workspaceId on a content edit). Prior to the F5 fix, the repo's
+    // `&& updatePageData.workspaceId` guard was false here and silently
+    // dropped the row — this test would have failed against that code.
     await pageRepo.updatePage(
-      { content: { type: 'doc', content: [] } as any, workspaceId },
+      { content: { type: 'doc', content: [] } as any },
       page.id,
     );
 
@@ -393,11 +398,44 @@ describe('OutboxAtomicityAndRelaySpec', () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].relayedAt).toBeNull();
+    expect((rows[0].payload as any).workspaceId).toBe(workspaceId);
   });
 
-  it('ENG-1383 F1 — a rolled-back content write leaves NO page.content_updated outbox row (same-tx atomicity)', async () => {
+  it('ENG-1383 AC5 — the real content-write path threads changedBlockIds into the page.content_updated outbox payload (no dead-handler shortcut)', async () => {
     const page = await executeTx(db, (trx) =>
-      insertPageWithOutbox(trx, { title: 'F1 rollback page' }),
+      insertPageWithOutbox(trx, { title: 'AC5 content page' }),
+    );
+    await db
+      .deleteFrom('orvexEventOutbox')
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    // Same real caller shape as F5 (no workspaceId), plus the
+    // `contentOutboxExtra` param PersistenceExtension threads through once
+    // it has computed a genuine diff via `computeChangedBlockIds`.
+    await pageRepo.updatePage(
+      { content: { type: 'doc', content: [] } as any },
+      page.id,
+      undefined,
+      undefined,
+      { changedBlockIds: ['block-a', 'block-b'] },
+    );
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    const payload = rows[0].payload as { changedBlockIds?: string[] };
+    expect(payload.changedBlockIds).toEqual(['block-a', 'block-b']);
+  });
+
+  it('ENG-1383 F5 — a rolled-back content write (real caller shape) leaves NO page.content_updated outbox row (same-tx atomicity)', async () => {
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'F5 rollback page' }),
     );
     await db
       .deleteFrom('orvexEventOutbox')
@@ -407,7 +445,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     await expect(
       executeTx(db, async (trx) => {
         await pageRepo.updatePage(
-          { content: { type: 'doc', content: [] } as any, workspaceId },
+          { content: { type: 'doc', content: [] } as any },
           page.id,
           trx,
         );
@@ -431,14 +469,14 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     expect(contentRow.content).toBeNull();
   });
 
-  it('ENG-1383 F3 — a page mutation (content update) also fires the realtime-invalidate sweep, not just create', async () => {
+  it('ENG-1383 F3 — a page mutation (content update, real caller shape) also fires the realtime-invalidate sweep, not just create', async () => {
     const page = await executeTx(db, (trx) =>
       insertPageWithOutbox(trx, { title: 'F3 invalidate page' }),
     );
     invalidateCalls = [];
 
     await pageRepo.updatePage(
-      { content: { type: 'doc', content: [] } as any, workspaceId },
+      { content: { type: 'doc', content: [] } as any },
       page.id,
     );
 

@@ -293,8 +293,18 @@ export class PageRepo {
     // PAGE_UPDATED payload for this write (e.g. movePage's before/after
     // position) — never a second emit.
     eventExtra?: Record<string, unknown>,
+    // ENG-1383 (AC5) fix-pass-2: optional extra fields merged ONLY into the
+    // `page.content_updated` outbox payload (e.g. `changedBlockIds`) — never
+    // written to the `pages` table, never merged into eventExtra above.
+    contentOutboxExtra?: Record<string, unknown>,
   ) {
-    return this.updatePages(updatablePage, [pageId], trx, eventExtra);
+    return this.updatePages(
+      updatablePage,
+      [pageId],
+      trx,
+      eventExtra,
+      contentOutboxExtra,
+    );
   }
 
   /**
@@ -314,6 +324,7 @@ export class PageRepo {
     activeDb: KyselyDB | KyselyTransaction,
     updatePageData: UpdatablePage,
     pageIds: string[],
+    contentOutboxExtra?: Record<string, unknown>,
   ) {
     const rows = await activeDb
       .updateTable('pages')
@@ -326,7 +337,14 @@ export class PageRepo {
       .returning(['id', 'slugId', 'workspaceId'])
       .execute();
 
-    if (this.hasContentChange(updatePageData) && updatePageData.workspaceId) {
+    // ENG-1383 F5 fix-pass-2: gate ONLY on the content change itself. The
+    // real production caller (`PersistenceExtension.onStoreDocument`) never
+    // sets `workspaceId` in the SET payload (you don't re-home a page during
+    // a content edit) — the previous `&& updatePageData.workspaceId` guard
+    // was therefore false on every real write and silently dropped the row.
+    // `row.workspaceId` (from `.returning(...)`) is always present and is
+    // what the enqueue below actually uses.
+    if (this.hasContentChange(updatePageData)) {
       // Only reachable via the two branches below that guarantee `activeDb`
       // is a REAL transaction (the caller's own `trx`, or one this method
       // opens itself) — never the plain non-transactional `this.db`.
@@ -336,7 +354,11 @@ export class PageRepo {
           type: EVT_PAGE_CONTENT_UPDATED,
           aggregateId: row.id,
           workspaceId: row.workspaceId,
-          payload: { pageId: row.id, workspaceId: row.workspaceId },
+          payload: {
+            pageId: row.id,
+            workspaceId: row.workspaceId,
+            ...contentOutboxExtra,
+          },
         });
       }
     }
@@ -349,14 +371,25 @@ export class PageRepo {
     pageIds: string[],
     trx?: KyselyTransaction,
     eventExtra?: Record<string, unknown>,
+    contentOutboxExtra?: Record<string, unknown>,
   ) {
     const contentChange = this.hasContentChange(updatePageData);
 
     const rows = trx
-      ? await this.runUpdatePages(trx, updatePageData, pageIds)
+      ? await this.runUpdatePages(
+          trx,
+          updatePageData,
+          pageIds,
+          contentOutboxExtra,
+        )
       : contentChange
         ? await executeTx(this.db, (innerTrx) =>
-            this.runUpdatePages(innerTrx, updatePageData, pageIds),
+            this.runUpdatePages(
+              innerTrx,
+              updatePageData,
+              pageIds,
+              contentOutboxExtra,
+            ),
           )
         : await this.runUpdatePages(this.db, updatePageData, pageIds);
 

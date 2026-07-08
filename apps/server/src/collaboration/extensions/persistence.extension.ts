@@ -22,6 +22,7 @@ import {
 } from '../../common/helpers/prosemirror/utils';
 import { isDeepStrictEqual } from 'node:util';
 import { stripUndefinedDeep } from './strip-undefined-deep.util';
+import { computeChangedBlockIds } from '../changed-block-ids.util';
 import {
   IPageHistoryJob,
   IPageMentionNotificationJob,
@@ -158,6 +159,13 @@ export class PersistenceExtension implements Extension {
           //this.logger.debug('Contributors error:' + err?.['message']);
         }
 
+        // ENG-1383 F5/AC5 fix-pass-2 — real content-delta, computed from the
+        // locked before-read (`page.content`) vs the after-write
+        // `tiptapJson` we already have in hand here. Never fabricated; empty
+        // when nothing block-level actually changed (e.g. a metadata-only
+        // Yjs write), per AC5's "when available".
+        const changedBlockIds = computeChangedBlockIds(page.content, tiptapJson);
+
         await this.pageRepo.updatePage(
           {
             content: tiptapJson,
@@ -168,6 +176,8 @@ export class PersistenceExtension implements Extension {
           },
           pageId,
           trx,
+          undefined,
+          changedBlockIds.length > 0 ? { changedBlockIds } : undefined,
         );
 
         this.logger.debug(`Page updated: ${pageId} - SlugId: ${page.slugId}`);
