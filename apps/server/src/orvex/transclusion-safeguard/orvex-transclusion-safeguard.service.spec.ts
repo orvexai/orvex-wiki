@@ -288,6 +288,49 @@ describe('TransclusionSafeguardBlockAndUnsyncSpec', () => {
   });
 
   // ---------------------------------------------------------------------
+  // AC3 / T3 — mid-transaction failure rolls back all deletes (F1 fix)
+  // ---------------------------------------------------------------------
+  it('AC3: a mid-loop deleteOne failure rolls back the entire unsync transaction (all-or-nothing)', async () => {
+    const audit = new CapturingAuditService();
+    const repo = new PageTransclusionReferencesRepo(db);
+    const originalDeleteOne = repo.deleteOne.bind(repo);
+    let callCount = 0;
+    jest
+      .spyOn(repo, 'deleteOne')
+      .mockImplementation(async (...args: Parameters<typeof repo.deleteOne>) => {
+        callCount += 1;
+        if (callCount === 2) {
+          throw new Error('simulated mid-tx failure');
+        }
+        return originalDeleteOne(...args);
+      });
+    const service = new OrvexTransclusionSafeguardService(db, repo, audit);
+
+    const source = await createPage('AC3 rollback source');
+    const ref1 = await createPage('AC3 rollback ref 1');
+    const ref2 = await createPage('AC3 rollback ref 2');
+    await addReference(source.id, ref1.id, 'tx-rollback-1');
+    await addReference(source.id, ref2.id, 'tx-rollback-2');
+
+    await expect(
+      service.enforceOrUnsync(source.id, 'archive', 'unsync', {
+        workspaceId,
+        actorId: userId,
+      }),
+    ).rejects.toThrow('simulated mid-tx failure');
+
+    // All-or-nothing: even though the first deleteOne succeeded before the
+    // second threw, the surrounding Kysely transaction must roll it back.
+    expect(await countReferenceRows(source.id)).toBe(2);
+    expect(callCount).toBe(2);
+
+    const unsyncLogs = audit.logs.filter(
+      (l) => l.payload.event === 'transclusion.reference_unsynced',
+    );
+    expect(unsyncLogs).toHaveLength(0);
+  });
+
+  // ---------------------------------------------------------------------
   // (c) zero-reference fast path (AC5)
   // ---------------------------------------------------------------------
   it.each(['block', 'unsync', 'force'] as const)(
