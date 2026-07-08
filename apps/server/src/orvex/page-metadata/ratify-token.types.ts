@@ -41,3 +41,21 @@ export type TokenVerifyFailureReason =
 export type TokenVerifyResult<TPayload> =
   | { ok: true; payload: TPayload }
   | { ok: false; reason: TokenVerifyFailureReason };
+
+/**
+ * AC5/AC6 — the caller context the ratify-gate chokepoint (promote to
+ * `PageStatus.CANONICAL`) evaluates. Threaded from the HTTP edge
+ * (`OrvexPagePromoteController`) into `OrvexPageMetadataService
+ * .applyMetadata` so a real, non-human caller can never flip a page to
+ * `canonical` without either a valid `RATIFY_TOKEN` or an explicitly
+ * audited `forceSelfRatify` override.
+ */
+export interface RatifyGateContext {
+  /** `'api_key'` for an agent/non-human caller, `undefined` for a human
+   * browser session. Only `api_key` callers are gated (AC5). */
+  authMethod: 'api_key' | undefined;
+  actorId: string;
+  ratifyToken?: string;
+  forceSelfRatify?: boolean;
+  forceReason?: string;
+}

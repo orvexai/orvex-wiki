@@ -9,6 +9,7 @@ import { RatifyTokenService } from './ratify-token.service';
 import { ConfirmTokenService } from './confirm-token.service';
 import { RatifyGateSettingsService } from './ratify-gate-settings.service';
 import { RatifyGateSettingsController } from './ratify-gate-settings.controller';
+import { OrvexPagePromoteController } from './orvex-page-promote.controller';
 
 /**
  * ENG-1371 — the page-metadata domain module. `WorkspaceRepo`/`KyselyDB` are
@@ -29,15 +30,16 @@ import { RatifyGateSettingsController } from './ratify-gate-settings.controller'
  * ENG-1445 — also declares/exports the ratify/confirm token governance
  * primitives (`RatifyTokenService`/`ConfirmTokenService`) and the
  * per-workspace ratify-gate settings surface
- * (`RatifyGateSettingsService`/`RatifyGateSettingsController`). Exported
- * (not just declared) so the future promote/supersede chokepoint — which
- * this leg does not itself add (see `RatifyGateSettingsService`'s scope-
- * note docstring) — can inject them from whichever module ends up owning
- * that HTTP surface, same "primitive here, wiring there" split as
- * `OrvexPageMetadataService` uses today.
+ * (`RatifyGateSettingsService`/`RatifyGateSettingsController`), AND
+ * (review1 F1/F3) the real promote-to-`canonical` HTTP chokepoint
+ * (`OrvexPagePromoteController`) that CONSULTS `getRequired()` /
+ * `RatifyTokenService.verify()` / `assertForceSelfRatify()` before allowing
+ * an `api_key` caller to flip a page to `canonical` — `PageRepo` and
+ * `SpaceAbilityFactory` are both `@Global()`-provided (`DatabaseModule`/
+ * `CaslModule`), so no explicit import is needed for either.
  */
 @Module({
-  controllers: [RatifyGateSettingsController],
+  controllers: [RatifyGateSettingsController, OrvexPagePromoteController],
   providers: [
     OrvexPageMetadataService,
     OrvexMarkdownInterceptor,

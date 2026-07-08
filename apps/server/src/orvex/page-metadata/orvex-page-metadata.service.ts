@@ -4,9 +4,11 @@
 
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
@@ -25,6 +27,9 @@ import {
   PageStatus,
   validateSlugTitle,
 } from '@orvex/extensions';
+import { RatifyGateSettingsService } from './ratify-gate-settings.service';
+import { RatifyTokenService } from './ratify-token.service';
+import { RatifyGateContext } from './ratify-token.types';
 
 /**
  * ENG-1371 — the fork's page-metadata domain service, ported to land its
@@ -53,6 +58,14 @@ export class OrvexPageMetadataService {
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly workspaceRepo: WorkspaceRepo,
+    // review1 F1/F5 (AC5) — optional so pre-existing test harnesses that
+    // build this service without the full ENG-1445 governance providers
+    // (none currently do, but `OrvexMarkdownInterceptor` sets the
+    // precedent — see its own `@Optional()` docstring) keep degrading to a
+    // pure metadata write instead of throwing a DI error. Real app wiring
+    // (`OrvexPageMetadataModule`) always provides both.
+    @Optional() private readonly ratifyGateSettingsService?: RatifyGateSettingsService,
+    @Optional() private readonly ratifyTokenService?: RatifyTokenService,
   ) {}
 
   /**
@@ -113,11 +126,20 @@ export class OrvexPageMetadataService {
   /**
    * AC4 — validates and upserts page metadata fields into `orvex_page_meta`
    * (never `pages`), inside the caller's transaction when supplied.
+   *
+   * AC5/AC6 (review1 F1) — `gate` is the real promote chokepoint: when the
+   * write resolves `status` to `PageStatus.CANONICAL` for an `api_key`
+   * (agent) caller, this consults `RatifyGateSettingsService.getRequired()`
+   * and refuses the promotion unless the caller presents a token that
+   * `RatifyTokenService.verify()` accepts for THIS page+workspace, or an
+   * audited `forceSelfRatify` override. A human caller (`gate` omitted or
+   * `authMethod !== 'api_key'`) is never gated here.
    */
   async applyMetadata(
     pageId: string,
     dto: OrvexPageMetadataDto,
     trx?: KyselyTransaction,
+    gate?: RatifyGateContext,
   ): Promise<OrvexPageMetaFields> {
     const db = dbOrTx(this.db, trx);
 
@@ -136,6 +158,10 @@ export class OrvexPageMetadataService {
         error: 'INVALID_STATUS',
         validValues: Object.values(PageStatus),
       });
+    }
+
+    if (dto.status === PageStatus.CANONICAL && gate?.authMethod === 'api_key') {
+      await this.enforceRatifyGate(page.workspaceId, pageId, gate);
     }
 
     // AC5/AC6 — enforce the ported banned-suffix / date-slug governance
@@ -219,12 +245,67 @@ export class OrvexPageMetadataService {
     status: PageStatus,
     opts?: { archiveReason?: string },
     trx?: KyselyTransaction,
+    gate?: RatifyGateContext,
   ): Promise<OrvexPageMetaFields> {
     return this.applyMetadata(
       pageId,
       { status, archiveReason: opts?.archiveReason },
       trx,
+      gate,
     );
+  }
+
+  /**
+   * AC5/AC6 — the actual enforcement: refuses a tokenless `api_key`
+   * promotion to `canonical` when the workspace's ratify-gate is
+   * `required` (the default), unless a valid `forceSelfRatify` override
+   * (audited) or a scope-verified `RATIFY_TOKEN` is presented. Throws
+   * `ForbiddenException`/`PreconditionFailedException` (never silently
+   * allows) — this is the literal AC5 assertion the DoD test exercises.
+   */
+  private async enforceRatifyGate(
+    workspaceId: string,
+    pageId: string,
+    gate: RatifyGateContext,
+  ): Promise<void> {
+    if (!this.ratifyGateSettingsService || !this.ratifyTokenService) {
+      // Governance providers not wired into this harness (see the
+      // constructor's @Optional() docstring) — nothing to enforce against.
+      return;
+    }
+
+    const required = await this.ratifyGateSettingsService.getRequired(
+      workspaceId,
+    );
+    if (!required) {
+      return;
+    }
+
+    if (gate.forceSelfRatify) {
+      // Throws PreconditionFailedException on a too-short reason, and
+      // audits exactly once on success (RatifyGateSettingsService's own
+      // invariant) — we deliberately do not duplicate that logic here.
+      await this.ratifyGateSettingsService.assertForceSelfRatify({
+        workspaceId,
+        pageId,
+        actorId: gate.actorId,
+        forceSelfRatify: gate.forceSelfRatify,
+        forceReason: gate.forceReason,
+      });
+      return;
+    }
+
+    const result = this.ratifyTokenService.verify(gate.ratifyToken, {
+      expectPageId: pageId,
+      expectWorkspaceId: workspaceId,
+    });
+
+    if (result.ok === false) {
+      throw new ForbiddenException({
+        error: 'RATIFY_TOKEN_REQUIRED',
+        reason: result.reason,
+      });
+    }
   }
 
   /** Marks a page superseded-by another, atomically, in a transaction. */

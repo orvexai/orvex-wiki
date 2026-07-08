@@ -26,6 +26,7 @@ import {
   PageInfoDto,
   RestorePageFromHistoryDto,
 } from './dto/page.dto';
+import { BulkDeletePagesDto } from './dto/bulk-delete-page.dto';
 import { PageHistoryService } from './services/page-history.service';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
@@ -59,6 +60,7 @@ import {
 import { getPageTitle } from '../../common/helpers';
 import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
 import { OrvexMarkdownInterceptor } from '../../orvex/page-metadata/markdown/orvex-markdown.interceptor';
+import { ConfirmTokenService } from '../../orvex/page-metadata/confirm-token.service';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 
@@ -76,6 +78,8 @@ export class PageController {
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private readonly provenanceService: OrvexPageProvenanceService,
     @InjectKysely() private readonly db: KyselyDB,
+    // ENG-1445 AC4 (review1 F2) — the real bulk-delete confirm-token gate.
+    private readonly confirmTokenService: ConfirmTokenService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -526,6 +530,77 @@ export class PageController {
         },
       });
     }
+  }
+
+  /**
+   * ENG-1445 AC4 (review1 F2) — the real bulk-delete chokepoint. An
+   * `api_key` (agent) caller MUST present a `confirmToken` that
+   * `ConfirmTokenService.verify()` accepts for `action: 'bulk_delete'` and
+   * the exact `scopeId` presented — a missing/tampered/wrong-scope/
+   * wrong-action token is refused (403), never silently allowed. A human
+   * caller is not gated here (already trusted via the per-page Manage
+   * ability check below, same posture as `delete`'s `permanentlyDelete`).
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('bulk-delete')
+  async bulkDelete(
+    @Body() dto: BulkDeletePagesDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
+  ): Promise<{ deletedIds: string[] }> {
+    if (authMethod === 'api_key') {
+      const result = this.confirmTokenService.verify(dto.confirmToken, {
+        expectWorkspaceId: workspace.id,
+        expectAction: 'bulk_delete',
+        expectScopeId: dto.scopeId,
+      });
+      if (result.ok === false) {
+        throw new ForbiddenException({
+          error: 'CONFIRM_TOKEN_REQUIRED',
+          reason: result.reason,
+        });
+      }
+    }
+
+    const deletedIds: string[] = [];
+    for (const pageId of dto.pageIds) {
+      const page = await this.pageRepo.findById(pageId);
+      if (!page || page.workspaceId !== workspace.id) {
+        continue;
+      }
+
+      const ability = await this.spaceAbility.createForUser(
+        user,
+        page.spaceId,
+      );
+      if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
+        throw new ForbiddenException(
+          'Only space admins can bulk-delete pages',
+        );
+      }
+
+      await this.pageService.forceDelete(pageId, workspace.id);
+
+      this.auditService.log({
+        event: AuditEvent.PAGE_DELETED,
+        resourceType: AuditResource.PAGE,
+        resourceId: page.id,
+        spaceId: page.spaceId,
+        changes: {
+          before: {
+            pageId: page.id,
+            slugId: page.slugId,
+            title: getPageTitle(page.title),
+            spaceId: page.spaceId,
+          },
+        },
+      });
+
+      deletedIds.push(pageId);
+    }
+
+    return { deletedIds };
   }
 
   @HttpCode(HttpStatus.OK)
