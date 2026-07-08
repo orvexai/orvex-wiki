@@ -31,6 +31,22 @@ export class AttachmentRepo {
     'deletedAt',
   ];
 
+  /**
+   * ENG-1382 (AC4) — F-QUOTA `storage` usage: the workspace's aggregate
+   * attachment byte size (soft-deleted attachments have already freed
+   * their storage — excluded, mirroring `PageRepo.countByWorkspaceId`).
+   */
+  async sumFileSizeByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('attachments')
+      .select((eb) => eb.fn.sum('fileSize').as('total'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+
+    return Number(result?.total ?? 0);
+  }
+
   async findById(
     attachmentId: string,
     opts?: {

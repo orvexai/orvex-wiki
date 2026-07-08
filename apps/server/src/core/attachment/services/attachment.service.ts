@@ -27,6 +27,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
 
 @Injectable()
 export class AttachmentService {
@@ -39,6 +40,7 @@ export class AttachmentService {
     private readonly spaceRepo: SpaceRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async uploadFile(opts: {
@@ -81,6 +83,19 @@ export class AttachmentService {
     } else {
       attachmentId = uuid7();
     }
+
+    // ENG-1382 (AC4/AC6) — F-QUOTA write chokepoint: assert the workspace's
+    // current aggregate storage is under its plan's cap BEFORE streaming
+    // any bytes to the storage driver. Cap VALUE from billing, never
+    // hard-coded (❌#10). A workspace already at cap is rejected here; no
+    // attachment row and no object are ever written.
+    const currentStorageBytes =
+      await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
+    await this.entitlementService.assertWithinQuota(
+      workspaceId,
+      'storage',
+      currentStorageBytes,
+    );
 
     const filePath = `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${preparedFile.fileName}`;
 

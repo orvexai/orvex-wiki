@@ -314,6 +314,22 @@ export class PageRepo {
     return result;
   }
 
+  /**
+   * ENG-1382 (AC1/AC2) — the F-QUOTA `pages` usage count for a workspace.
+   * Soft-deleted pages don't count against the cap (mirrors the fork's
+   * trash semantics — a trashed page has already freed its quota slot).
+   */
+  async countByWorkspaceId(workspaceId: string): Promise<number> {
+    const result = await this.db
+      .selectFrom('pages')
+      .select((eb) => eb.fn.countAll().as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+
+    return Number(result?.count ?? 0);
+  }
+
   async insertPage(
     insertablePage: InsertablePage,
     trx?: KyselyTransaction,
