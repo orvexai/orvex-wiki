@@ -14,10 +14,21 @@ import {
 } from '@testcontainers/postgresql';
 import { v4 as uuid4 } from 'uuid';
 
-import { UserRepo } from '@docmost/db/repos/user/user.repo';
-import { GroupRepo } from '@docmost/db/repos/group/group.repo';
-import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
+import { UserRepo } from '../../database/repos/user/user.repo';
+import { GroupRepo } from '../../database/repos/group/group.repo';
+import { GroupUserRepo } from '../../database/repos/group/group-user.repo';
 import { WorkspaceInvitationService } from '../../core/workspace/services/workspace-invitation.service';
+import { AcceptInviteDto } from '../../core/workspace/dto/invitation.dto';
+import { MailService } from '../../integrations/mail/mail.service';
+import { DomainService } from '../../integrations/environment/domain.service';
+import { TokenService } from '../../core/auth/services/token.service';
+import { SessionService } from '../../core/session/session.service';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { IAuditService } from '../../integrations/audit/audit.service';
+import { Queue } from 'bullmq';
+import { QueueJob } from '../../integrations/queue/constants';
+import { Workspace } from '../../database/types/entity.types';
+import { KyselyDB } from '../../database/types/kysely.types';
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
@@ -27,7 +38,7 @@ import {
   Principal,
 } from './entitlement.types';
 import { QuotaExceededException } from './quota.exception';
-import type { DB } from '@docmost/db/types/db';
+import type { DB } from '../../database/types/db';
 
 /**
  * ENG-1382 fix pass 1 — F2: `WorkspaceInvitationService.acceptInvitation`
@@ -96,19 +107,21 @@ describe('EntitlementMemberChokepointSpec (integration)', () => {
   }
 
   let stubPort: StubBillingEntitlementPort;
-  const noopMail = { sendToQueue: async () => undefined } as any;
-  const noopAudit = { log: () => undefined } as any;
-  const noopQueue = { add: async () => undefined } as any;
-  const noCloudEnv = { isCloud: () => false } as any;
+  const noopMail = {
+    sendToQueue: async () => undefined,
+  } as unknown as MailService;
+  const noopAudit = { log: () => undefined } as unknown as IAuditService;
+  const noopQueue = { add: async () => undefined } as unknown as Queue<QueueJob>;
+  const noCloudEnv = { isCloud: () => false } as unknown as EnvironmentService;
   const stubSession = {
     createSessionAndToken: async () => 'stub-auth-token',
-  } as any;
+  } as unknown as SessionService;
 
   beforeAll(async () => {
     pgContainer = await new PostgreSqlContainer('postgres:16-alpine').start();
     sqlClient = postgres(pgContainer.getConnectionUri());
 
-    const rawDb = new Kysely<any>({
+    const rawDb = new Kysely<Record<string, unknown>>({
       dialect: new PostgresJSDialect({ postgres: sqlClient }),
     });
     const migrationFolder = path.join(__dirname, '../../database/migrations');
@@ -134,22 +147,23 @@ describe('EntitlementMemberChokepointSpec (integration)', () => {
       plugins: [new CamelCasePlugin()],
     });
 
-    userRepo = new UserRepo(db as any);
-    groupRepo = new GroupRepo(db as any);
-    groupUserRepo = new GroupUserRepo(db as any, groupRepo, userRepo);
+    const kyselyDb = db as unknown as KyselyDB;
+    userRepo = new UserRepo(kyselyDb);
+    groupRepo = new GroupRepo(kyselyDb);
+    groupUserRepo = new GroupUserRepo(kyselyDb, groupRepo, userRepo);
 
     stubPort = new StubBillingEntitlementPort();
     cache = new InMemoryEntitlementCache();
     entitlementService = new EntitlementService(stubPort, cache);
 
-    invitationService = new (WorkspaceInvitationService as any)(
+    invitationService = new WorkspaceInvitationService(
       userRepo,
       groupUserRepo,
       noopMail, // mailService — only reached past acceptance, unused on 402/race paths' rejected branch
-      undefined, // domainService — unused by acceptInvitation
-      undefined, // tokenService — unused by acceptInvitation
+      undefined as unknown as DomainService, // unused by acceptInvitation
+      undefined as unknown as TokenService, // unused by acceptInvitation
       stubSession, // sessionService — reached on a successful (non-402) acceptance
-      db,
+      kyselyDb,
       noopQueue, // billingQueue
       noCloudEnv, // environmentService
       noopAudit, // auditService
@@ -229,14 +243,17 @@ describe('EntitlementMemberChokepointSpec (integration)', () => {
       emailDomains: [],
       enforceMfa: false,
       settings: {},
-    } as any;
+    } as unknown as Workspace;
 
     let caught: unknown;
     try {
-      await invitationService.acceptInvitation(
-        { invitationId, token, name: 'Over Cap', password: 'password123' } as any,
-        workspace,
-      );
+      const dto: AcceptInviteDto = {
+        invitationId,
+        token,
+        name: 'Over Cap',
+        password: 'password123',
+      };
+      await invitationService.acceptInvitation(dto, workspace);
     } catch (err) {
       caught = err;
     }
@@ -294,20 +311,18 @@ describe('EntitlementMemberChokepointSpec (integration)', () => {
       emailDomains: [],
       enforceMfa: false,
       settings: {},
-    } as any;
+    } as unknown as Workspace;
 
     const results = await Promise.allSettled(
-      invites.map((invite, i) =>
-        invitationService.acceptInvitation(
-          {
-            invitationId: invite.invitationId,
-            token: invite.token,
-            name: `Racer ${i}`,
-            password: 'password123',
-          } as any,
-          workspace,
-        ),
-      ),
+      invites.map((invite, i) => {
+        const dto: AcceptInviteDto = {
+          invitationId: invite.invitationId,
+          token: invite.token,
+          name: `Racer ${i}`,
+          password: 'password123',
+        };
+        return invitationService.acceptInvitation(dto, workspace);
+      }),
     );
 
     const fulfilled = results.filter((r) => r.status === 'fulfilled');
