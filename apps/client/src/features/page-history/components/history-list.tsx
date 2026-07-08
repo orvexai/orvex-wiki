@@ -50,7 +50,8 @@ function HistoryList({ pageId }: Props) {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const prefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { canRestore, confirmRestore } = useHistoryRestore(pageId);
+  const { canRestore, confirmRestore, pendingRestoreId } =
+    useHistoryRestore(pageId);
 
   const clearPrefetchTimeout = useCallback(() => {
     if (prefetchTimeoutRef.current) {
@@ -159,7 +160,12 @@ function HistoryList({ pageId }: Props) {
             >
               {t("Cancel")}
             </Button>
-            <Button size="compact-md" onClick={confirmRestore}>
+            <Button
+              size="compact-md"
+              onClick={confirmRestore}
+              loading={!!pendingRestoreId}
+              disabled={!!pendingRestoreId}
+            >
               {t("Restore")}
             </Button>
           </Group>

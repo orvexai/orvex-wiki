@@ -138,29 +138,63 @@ export class PageHistoryService {
     }
 
     // AC3: page-mutation + audit commit or roll back together.
-    await executeTx(this.db, async (trx) => {
-      await this.pageRepo.updatePage(
-        { lastUpdatedById: user.id },
-        page.id,
-        trx,
-      );
+    try {
+      await executeTx(this.db, async (trx) => {
+        await this.pageRepo.updatePage(
+          { lastUpdatedById: user.id },
+          page.id,
+          trx,
+        );
 
-      await this.orvexAudit.logAndCommit(trx, {
-        workspaceId,
-        actorId: user.id,
-        actorType: 'user',
-        event: AuditEvent.PAGE_HISTORY_RESTORED,
-        resourceType: AuditResource.PAGE,
-        resourceId: page.id,
-        spaceId: page.spaceId,
-        metadata: {
-          restoredFromHistoryId: history.id,
-          // AC9 (❌#9 time/rand in projection): derived from the history
-          // row's own createdAt, never a fresh Date.now() call.
-          restoredFromTimestamp: history.createdAt,
-        },
+        await this.orvexAudit.logAndCommit(trx, {
+          workspaceId,
+          actorId: user.id,
+          actorType: 'user',
+          event: AuditEvent.PAGE_HISTORY_RESTORED,
+          resourceType: AuditResource.PAGE,
+          resourceId: page.id,
+          spaceId: page.spaceId,
+          metadata: {
+            restoredFromHistoryId: history.id,
+            // AC9 (❌#9 time/rand in projection): derived from the history
+            // row's own createdAt, never a fresh Date.now() call.
+            restoredFromTimestamp: history.createdAt,
+          },
+        });
       });
-    });
+    } catch (auditTxError) {
+      // F2 mitigation: `updatePageContent` above (when restoredContent !=
+      // null) is a durable, already-committed write via the collab-safe
+      // path — CS §4i sanctions ordering the content write before the
+      // audit, but that means a failure HERE can no longer be rolled back
+      // out of the content. Without this fallback, a page could end up
+      // genuinely restored with ZERO trace that it happened (worse than the
+      // metadata bump also failing, since that part IS transactional and
+      // does roll back cleanly). Reuse the existing fire-and-forget audit
+      // path (same safety valve `AUTH_FAILED` uses) so the mutation is
+      // always attributable, even in this degraded case.
+      if (restoredContent != null) {
+        await this.orvexAudit.logFireAndForget({
+          workspaceId,
+          actorId: user.id,
+          actorType: 'user',
+          event: AuditEvent.PAGE_HISTORY_RESTORED,
+          resourceType: AuditResource.PAGE,
+          resourceId: page.id,
+          spaceId: page.spaceId,
+          metadata: {
+            restoredFromHistoryId: history.id,
+            restoredFromTimestamp: history.createdAt,
+            // Marks this row as NOT covered by the metadata+audit
+            // transaction (the tx itself failed) — an honest signal to
+            // anyone reading the audit trail that the usual atomicity
+            // guarantee did not hold for this particular row.
+            degradedNonTransactional: true,
+          },
+        });
+      }
+      throw auditTxError;
+    }
 
     return this.pageRepo.findById(page.id, { includeContent: true });
   }

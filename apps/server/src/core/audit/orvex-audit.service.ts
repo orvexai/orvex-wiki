@@ -49,10 +49,14 @@ export class OrvexAuditService {
 
   /**
    * Fire-and-forget variant (AC8: `AUTH_FAILED` must never block the 403
-   * response it accompanies). Errors are logged, never rethrown.
+   * response it accompanies). Errors are logged, never rethrown. Returns the
+   * underlying promise (resolved, never rejected) so callers that DO need
+   * to know when the write has landed (e.g. a test, or a caller chaining
+   * cleanup) may await it — existing fire-and-forget callers are unaffected
+   * as long as they keep not awaiting it.
    */
-  logFireAndForget(data: AuditLogData): void {
-    this.db
+  logFireAndForget(data: AuditLogData): Promise<void> {
+    return this.db
       .insertInto('audit')
       .values({
         workspaceId: data.workspaceId,
@@ -67,6 +71,7 @@ export class OrvexAuditService {
         ipAddress: data.ipAddress ?? null,
       })
       .execute()
+      .then(() => undefined)
       .catch((err) => {
         this.logger.error(
           `Failed to persist fire-and-forget audit event ${data.event}`,

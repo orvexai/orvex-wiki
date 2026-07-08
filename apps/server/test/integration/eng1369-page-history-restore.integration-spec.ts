@@ -283,6 +283,74 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     expect(await countAuditRows(page.id)).toBe(0);
   });
 
+  it('F2 (audit-tx failure AFTER a real content write) — content stays restored and a degraded, non-transactional fallback audit row is written so the mutation is never silently unaccounted for', async () => {
+    // Unlike the AC3 test above (which deliberately uses null content to
+    // isolate the metadata+audit tx), this test uses a REAL content-differing
+    // history row, so the collab-safe content write actually lands BEFORE
+    // the metadata+audit tx runs. If the tx's audit insert then fails, the
+    // content is already durably committed — F2 requires that this can never
+    // be a completely silent, unaudited mutation.
+    const liveContent = stampBlockIds({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'f2-pre' }] }],
+    }).content;
+    const historicalContent = stampBlockIds({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'f2-historical' }] },
+      ],
+    }).content;
+
+    const page = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: userId,
+      position: 'a1b',
+      title: 'eng1369-f2',
+      content: liveContent,
+    });
+    const history = await insertHistory(testDb.db, page, historicalContent);
+
+    const faultyAudit = {
+      logAndCommit: async () => {
+        throw new Error('injected audit-tx failure');
+      },
+      logFireAndForget: (data: any) => orvexAudit.logFireAndForget(data),
+    } as any;
+    const faultyService = new PageHistoryService(
+      pageHistoryRepo,
+      pageRepo,
+      pageService,
+      faultyAudit,
+      testDb.db as any,
+    );
+
+    await expect(
+      faultyService.restoreFromHistory(page.id, history.id, user, workspaceId),
+    ).rejects.toThrow('injected audit-tx failure');
+
+    // Content is durably restored (the collab-safe write already committed).
+    const after = await pageRepo.findById(page.id, { includeContent: true });
+    expect(after.content).toEqual(historicalContent);
+
+    // Even though the transactional audit insert failed, a degraded
+    // fire-and-forget fallback row still exists — the mutation is never
+    // completely invisible to audit.
+    const rows = await testDb.db
+      .selectFrom('audit' as any)
+      .selectAll()
+      .where('event', '=', 'page.history_restored')
+      .where('resourceId', '=', page.id)
+      .execute();
+    expect(rows).toHaveLength(1);
+    const metadata =
+      typeof (rows[0] as any).metadata === 'string'
+        ? JSON.parse((rows[0] as any).metadata)
+        : (rows[0] as any).metadata;
+    expect(metadata.restoredFromHistoryId).toBe(history.id);
+    expect(metadata.degradedNonTransactional).toBe(true);
+  });
+
   it('AC4 (negative) — a historyId belonging to a different page rejects with INVALID_PAGE_HISTORY_REF and mutates nothing', async () => {
     const pageA = await seedPage(testDb.db, {
       spaceId,

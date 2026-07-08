@@ -78,7 +78,8 @@ export default function HistoryModalMobile({ pageId, pageTitle }: Props) {
   );
 
   useHistoryReset(pageId);
-  const { canRestore, confirmRestore } = useHistoryRestore(pageId);
+  const { canRestore, confirmRestore, pendingRestoreId } =
+    useHistoryRestore(pageId);
   const { currentChangeIndex, handlePrevChange, handleNextChange } =
     useDiffNavigation(scrollViewportRef);
 
@@ -166,7 +167,13 @@ export default function HistoryModalMobile({ pageId, pageTitle }: Props) {
           <Button variant="default" onClick={() => setHistoryModalOpen(false)}>
             {t("Cancel")}
           </Button>
-          <Button onClick={confirmRestore}>{t("Restore")}</Button>
+          <Button
+            onClick={confirmRestore}
+            loading={!!pendingRestoreId}
+            disabled={!!pendingRestoreId}
+          >
+            {t("Restore")}
+          </Button>
         </Group>
       )}
 
