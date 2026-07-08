@@ -50,7 +50,7 @@ function HistoryList({ pageId }: Props) {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const prefetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { canRestore, confirmRestore } = useHistoryRestore();
+  const { canRestore, confirmRestore } = useHistoryRestore(pageId);
 
   const clearPrefetchTimeout = useCallback(() => {
     if (prefetchTimeoutRef.current) {

@@ -78,7 +78,7 @@ export default function HistoryModalMobile({ pageId, pageTitle }: Props) {
   );
 
   useHistoryReset(pageId);
-  const { canRestore, confirmRestore } = useHistoryRestore();
+  const { canRestore, confirmRestore } = useHistoryRestore(pageId);
   const { currentChangeIndex, handlePrevChange, handleNextChange } =
     useDiffNavigation(scrollViewportRef);
 

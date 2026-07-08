@@ -50,7 +50,19 @@ describe('PageHistoryService.restore (ENG-1372)', () => {
     const eventEmitter = new EventEmitter2();
     pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
     pageHistoryRepo = new PageHistoryRepo(testDb.db as any);
-    service = new PageHistoryService(pageHistoryRepo, pageRepo);
+    // ENG-1369 widened the constructor (pageService/orvexAudit/db) to
+    // support the NEW restoreFromHistory() method below. This suite only
+    // exercises the ENG-1372 restore() primitive, which never touches
+    // those deps, so unused-but-required stubs are enough here.
+    const pageServiceStub = {} as any;
+    const orvexAuditStub = {} as any;
+    service = new PageHistoryService(
+      pageHistoryRepo,
+      pageRepo,
+      pageServiceStub,
+      orvexAuditStub,
+      testDb.db as any,
+    );
 
     const workspace = await seedWorkspace(testDb.db);
     workspaceId = workspace.id;

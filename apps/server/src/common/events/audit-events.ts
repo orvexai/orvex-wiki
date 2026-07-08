@@ -61,6 +61,9 @@ export const AuditEvent = {
   PAGE_TRASHED: 'page.trashed',
   PAGE_DELETED: 'page.deleted',
   PAGE_RESTORED: 'page.restored',
+  // ENG-1369: page-history restore (distinct from PAGE_RESTORED above,
+  // which is the trash-restore event).
+  PAGE_HISTORY_RESTORED: 'page.history_restored',
   PAGE_MOVED_TO_SPACE: 'page.moved_to_space',
   PAGE_DUPLICATED: 'page.duplicated',
   // Page permission
