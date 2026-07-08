@@ -158,9 +158,9 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
 
   // §quota-gate: never fan a batch into a drained Linear window — wait it out in ONE cheap agent instead of burning N build slots.
   const qg = await agent([
-    'LINEAR QUOTA GATE (tick ' + tick + '). Work from ' + HUB + '. Probe the shared 2500/hr Linear quota with ONE cheap call (linearis issues read ENG-1594 or similar single read).',
-    'If it succeeds: return ok=true immediately.',
-    'If rate_limited: WAIT IT OUT here — sleep in 120-300s chunks (bash sleep works in your shell), re-probing after each chunk, up to 65 minutes total. Return ok=true once a probe succeeds; ok=false only if still limited after 65 minutes.',
+    'LINEAR QUOTA GATE (tick ' + tick + '). Work from ' + HUB + '. Probe the shared 2500/hr Linear quota with ONE cheap call USING THE LINEARIS CLI ONLY: linearis issues read ENG-1594. NEVER use the Linear MCP tools for this — they authenticate via a separate OAuth token that is currently expired, and an MCP auth error is NOT a quota signal (a prior run false-checkpointed on exactly that).',
+    'If the linearis read succeeds: return ok=true immediately.',
+    'If linearis returns rate_limited: WAIT IT OUT here — sleep in 120-300s chunks (bash sleep works in your shell), re-probing with linearis after each chunk, up to 65 minutes total. Return ok=true once a probe succeeds; ok=false only if STILL rate-limited after 65 minutes, or if linearis itself has an auth failure (say which in detail).',
     RETDISC,
   ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':quota-gate', phase: 'Tick ' + tick, schema: NOTE_SCHEMA })
   if (!qg || !qg.ok) { log('Linear quota still exhausted after 65 min — checkpointing, NOT complete'); break }
