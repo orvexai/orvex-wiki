@@ -113,6 +113,10 @@ export const AuditEvent = {
   // Enforce-SSO (ENG-1432)
   OIDC_LOGIN_BLOCKED_BY_ENFORCE_SSO: 'oidc.login_blocked_by_enforce_sso',
   OIDC_ENFORCE_SSO_TOGGLED: 'oidc.enforce_sso_toggled',
+
+  // Ratify gate (ENG-1445)
+  RATIFY_GATE_SETTING_UPDATED: 'ratify_gate.setting_updated',
+  RATIFY_GATE_FORCE_SELF_RATIFY: 'ratify_gate.force_self_ratify',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];

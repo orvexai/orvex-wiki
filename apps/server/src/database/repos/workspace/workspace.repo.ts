@@ -271,6 +271,32 @@ export class WorkspaceRepo {
       .executeTakeFirst();
   }
 
+  /**
+   * ENG-1445 AC5 — per-workspace ratify-gate toggle, stored at
+   * `settings.ratifyGate.required` (jsonb). Mirrors the sibling
+   * `update*Settings` merge-in-place helpers above (❌#6 guard: no new
+   * schema/table for a single boolean flag).
+   */
+  async updateRatifyGateSettings(
+    workspaceId: string,
+    prefKey: string,
+    prefValue: string | boolean,
+    trx?: KyselyTransaction,
+  ) {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .updateTable('workspaces')
+      .set({
+        settings: sql`COALESCE(settings, '{}'::jsonb)
+                || jsonb_build_object('ratifyGate', COALESCE(settings->'ratifyGate', '{}'::jsonb)
+                || jsonb_build_object('${sql.raw(prefKey)}', ${sql.lit(prefValue)}))`,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', workspaceId)
+      .returning(this.baseFields)
+      .executeTakeFirst();
+  }
+
   async updateDefaultPageEditMode(
     workspaceId: string,
     pageEditMode: string,

@@ -5,6 +5,10 @@
 import { Module } from '@nestjs/common';
 import { OrvexPageMetadataService } from './orvex-page-metadata.service';
 import { OrvexMarkdownInterceptor } from './markdown/orvex-markdown.interceptor';
+import { RatifyTokenService } from './ratify-token.service';
+import { ConfirmTokenService } from './confirm-token.service';
+import { RatifyGateSettingsService } from './ratify-gate-settings.service';
+import { RatifyGateSettingsController } from './ratify-gate-settings.controller';
 
 /**
  * ENG-1371 — the page-metadata domain module. `WorkspaceRepo`/`KyselyDB` are
@@ -21,9 +25,32 @@ import { OrvexMarkdownInterceptor } from './markdown/orvex-markdown.interceptor'
  * Deliberately NOT mounted by `OrvexRootModule.register()` — see that
  * module's docstring: its flag-ON e2e harness boots without `DatabaseModule`,
  * and `OrvexPageMetadataService` needs `@InjectKysely()`.
+ *
+ * ENG-1445 — also declares/exports the ratify/confirm token governance
+ * primitives (`RatifyTokenService`/`ConfirmTokenService`) and the
+ * per-workspace ratify-gate settings surface
+ * (`RatifyGateSettingsService`/`RatifyGateSettingsController`). Exported
+ * (not just declared) so the future promote/supersede chokepoint — which
+ * this leg does not itself add (see `RatifyGateSettingsService`'s scope-
+ * note docstring) — can inject them from whichever module ends up owning
+ * that HTTP surface, same "primitive here, wiring there" split as
+ * `OrvexPageMetadataService` uses today.
  */
 @Module({
-  providers: [OrvexPageMetadataService, OrvexMarkdownInterceptor],
-  exports: [OrvexPageMetadataService, OrvexMarkdownInterceptor],
+  controllers: [RatifyGateSettingsController],
+  providers: [
+    OrvexPageMetadataService,
+    OrvexMarkdownInterceptor,
+    RatifyTokenService,
+    ConfirmTokenService,
+    RatifyGateSettingsService,
+  ],
+  exports: [
+    OrvexPageMetadataService,
+    OrvexMarkdownInterceptor,
+    RatifyTokenService,
+    ConfirmTokenService,
+    RatifyGateSettingsService,
+  ],
 })
 export class OrvexPageMetadataModule {}
