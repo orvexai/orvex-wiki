@@ -7,8 +7,9 @@
  *
  * Named DoD test: TestSubpageCards_StatusFilteredWithBlurbs (AC1-AC3).
  */
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
+import { sql } from 'kysely';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
@@ -19,6 +20,7 @@ import {
   SpaceCaslSubject,
 } from 'src/core/casl/interfaces/space-ability.type';
 import { PageStatus } from '@orvex/extensions';
+import { OrvexPageVisualsController } from 'src/orvex/page-visuals/orvex-page-visuals.controller';
 import { OrvexPageVisualsService } from 'src/orvex/page-visuals/orvex-page-visuals.service';
 import { extractTldrText } from 'src/orvex/page-blocks/page-blocks-utils';
 import { SpaceRole } from 'src/common/helpers/types/permission';
@@ -82,8 +84,10 @@ describe('ENG-1376: page-visuals server projections', () => {
   let testDb: TestDb;
   let service: OrvexPageVisualsService;
   let abilityFactory: SpaceAbilityFactory;
+  let controller: OrvexPageVisualsController;
   let workspaceId: string;
   let otherWorkspaceId: string;
+  let otherSpaceId: string;
   let spaceId: string;
   let userId: string;
   let readerId: string;
@@ -102,6 +106,11 @@ describe('ENG-1376: page-visuals server projections', () => {
       fakeCache(),
     );
     abilityFactory = new SpaceAbilityFactory(spaceMemberRepo);
+    controller = new OrvexPageVisualsController(
+      service,
+      abilityFactory,
+      testDb.db as any,
+    );
 
     const workspace = await seedWorkspace(testDb.db);
     workspaceId = workspace.id;
@@ -129,6 +138,22 @@ describe('ENG-1376: page-visuals server projections', () => {
     // AC6 — a real user with NO membership in `spaceId` at all.
     const outsider = await seedUser(testDb.db, workspaceId);
     outsiderId = outsider.id;
+
+    // F1 fixtures — a page that genuinely lives in a different workspace,
+    // owned by its own user/space, so the cross-workspace 404 path is a
+    // real cross-tenant scenario rather than a synthetic id swap.
+    const otherWorkspaceUser = await seedUser(testDb.db, otherWorkspaceId);
+    const otherSpace = await seedSpace(
+      testDb.db,
+      otherWorkspaceId,
+      otherWorkspaceUser.id,
+    );
+    otherSpaceId = otherSpace.id;
+    await seedSpaceMember(testDb.db, {
+      spaceId: otherSpaceId,
+      userId: otherWorkspaceUser.id,
+      role: SpaceRole.ADMIN,
+    });
   }, 120000);
 
   afterAll(async () => {
@@ -296,6 +321,11 @@ describe('ENG-1376: page-visuals server projections', () => {
       verifiedAt: new Date(),
     });
 
+    // F3 fixture — explicit, strictly-increasing `createdAt` stamps
+    // (rather than relying on wall-clock timing between statements) so
+    // the newest-first ordering assertion below is deterministic, not a
+    // race against timestamp resolution.
+    const baseTime = Date.parse('2026-01-01T00:00:00.000Z');
     for (let i = 0; i < 3; i++) {
       await testDb.db
         .insertInto('pageHistory')
@@ -308,7 +338,8 @@ describe('ENG-1376: page-visuals server projections', () => {
           workspaceId,
           lastUpdatedById: userId,
           content: { type: 'doc', content: [] } as any,
-        })
+          createdAt: new Date(baseTime + i * 1000),
+        } as any)
         .execute();
     }
 
@@ -320,6 +351,18 @@ describe('ENG-1376: page-visuals server projections', () => {
     expect(result.verifiedAgainst).toBe('rev-9');
     for (const entry of result.entries) {
       expect((entry as any).content).toBeUndefined();
+    }
+    // F3 — newest-first ordering (createdAt desc). The three seeded
+    // versions are inserted in order 0,1,2 with strictly increasing
+    // `createdAt` (default now()); a limit=2 changelog must return the two
+    // NEWEST versions (2 then 1), not an arbitrary or ascending slice. A
+    // regression to `.orderBy('createdAt', 'asc')` would return [0, 1]
+    // instead and this assertion would catch it.
+    expect(result.entries.map((e) => e.version)).toEqual([2, 1]);
+    for (let i = 1; i < result.entries.length; i++) {
+      expect(result.entries[i - 1].createdAt.getTime()).toBeGreaterThanOrEqual(
+        result.entries[i].createdAt.getTime(),
+      );
     }
 
     const noHistory = await seedPage(testDb.db, {
@@ -351,5 +394,198 @@ describe('ENG-1376: page-visuals server projections', () => {
     await expect(
       abilityFactory.createForUser({ id: outsiderId } as any, spaceId),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  // F1 — the AC6 test above exercises `SpaceAbilityFactory` directly and
+  // never touches `OrvexPageVisualsController.authorizePageRead`, which is
+  // where the AC6-asserted HTTP behavior (cross-workspace 404, non-member
+  // 403) actually lives. These three cases drive the real controller
+  // method end to end so a scoping regression (e.g. dropping the
+  // `page.workspaceId !== workspace.id` check) fails a test.
+  describe('AC6 — controller.authorizePageRead (via subpageCards/freshness/changelog)', () => {
+    it('a page belonging to a DIFFERENT workspace yields 404 PAGE_NOT_FOUND (no cross-tenant existence leak)', async () => {
+      const otherWorkspacePage = await seedPage(testDb.db, {
+        spaceId: otherSpaceId,
+        workspaceId: otherWorkspaceId,
+        creatorId: userId,
+        position: 'e0',
+        title: 'Lives in the other workspace',
+      });
+
+      const dto = { pageId: otherWorkspacePage.id };
+      const caller = { id: userId } as any;
+      const callerWorkspace = { id: workspaceId } as any;
+
+      await expect(
+        controller.subpageCards(dto, caller, callerWorkspace),
+      ).rejects.toMatchObject({
+        status: 404,
+        response: { error: 'PAGE_NOT_FOUND' },
+      });
+      await expect(
+        controller.freshness(dto, caller, callerWorkspace),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        controller.changelog(dto, caller, callerWorkspace),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('a missing/soft-deleted pageId yields 404 PAGE_NOT_FOUND', async () => {
+      const deletedPage = await seedPage(testDb.db, {
+        spaceId,
+        workspaceId,
+        creatorId: userId,
+        position: 'e1',
+        title: 'Will be soft-deleted',
+      });
+      await testDb.db
+        .updateTable('pages')
+        .set({ deletedAt: new Date() } as any)
+        .where('id', '=', deletedPage.id)
+        .execute();
+
+      await expect(
+        controller.subpageCards(
+          { pageId: deletedPage.id },
+          { id: userId } as any,
+          { id: workspaceId } as any,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      await expect(
+        controller.subpageCards(
+          { pageId: '00000000-0000-0000-0000-000000000000' },
+          { id: userId } as any,
+          { id: workspaceId } as any,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('an in-workspace page but a caller with NO role in its space yields 403 Forbidden', async () => {
+      const inWorkspacePage = await seedPage(testDb.db, {
+        spaceId,
+        workspaceId,
+        creatorId: userId,
+        position: 'e2',
+        title: 'In workspace, outsider has no role here',
+      });
+
+      await expect(
+        controller.subpageCards(
+          { pageId: inWorkspacePage.id },
+          { id: outsiderId } as any,
+          { id: workspaceId } as any,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('a caller WITH a space role (reader) successfully reads through the controller', async () => {
+      const inWorkspacePage = await seedPage(testDb.db, {
+        spaceId,
+        workspaceId,
+        creatorId: userId,
+        position: 'e3',
+        title: 'Reader can read this',
+      });
+
+      const result = await controller.subpageCards(
+        { pageId: inWorkspacePage.id },
+        { id: readerId } as any,
+        { id: workspaceId } as any,
+      );
+      expect(result).toEqual({ cards: [], rollup: {} });
+    });
+  });
+
+  // F2 — AC9 asserts the two hot queries this ported code runs are backed
+  // by the intended index. On a fresh testcontainer DB the tables hold a
+  // handful of rows, so the planner's row-count-based cost model will
+  // happily pick a Seq Scan on a tiny table even with a matching index
+  // present — asserting "no Seq Scan" directly would be a flaky/misleading
+  // test of the *planner's row-count heuristic*, not of the index's
+  // existence/fit. Instead we force `enable_seqscan = off` (LOCAL to a
+  // throwaway transaction) so the planner is compelled to route the query
+  // through the index if-and-only-if it actually matches the predicate.
+  // If the index existed but didn't cover the predicate/columns (e.g. a
+  // ruling-10 typo'd index), the plan would fall back to a Bitmap Heap
+  // Scan on an *unrelated* index or still fail to name our index — this
+  // is a real, deterministic proof the index fits the query.
+  describe('AC9 — the intended index actually matches the query predicate', () => {
+    it('subpage-cards query (pages.parent_page_id) can be served by idx_pages_parent_page_id', async () => {
+      const parent = await seedPage(testDb.db, {
+        spaceId,
+        workspaceId,
+        creatorId: userId,
+        position: 'f0',
+        title: 'EXPLAIN parent',
+      });
+      await seedPage(testDb.db, {
+        spaceId,
+        workspaceId,
+        creatorId: userId,
+        parentPageId: parent.id,
+        position: 'f1',
+        title: 'EXPLAIN child',
+      });
+
+      const plan = await testDb.db.transaction().execute(async (trx) => {
+        await sql`SET LOCAL enable_seqscan = off`.execute(trx);
+        const rows = await sql<{ 'QUERY PLAN': string }>`
+          EXPLAIN SELECT id, title, position
+          FROM pages
+          WHERE parent_page_id = ${parent.id} AND deleted_at IS NULL
+          ORDER BY position ASC
+        `.execute(trx);
+        return rows.rows.map((r) => r['QUERY PLAN']).join('\n');
+      });
+
+      // The planner may route this through either the single-column
+      // `idx_pages_parent_page_id` or the covering composite
+      // `idx_pages_space_parent_position` (space_id, parent_page_id,
+      // position) — both are real, both satisfy the predicate, and the
+      // composite additionally serves the `ORDER BY position` for free.
+      // Either is a pass; a plan naming neither means no eligible index
+      // matches the predicate.
+      expect(plan).toMatch(
+        /idx_pages_parent_page_id|idx_pages_space_parent_position/i,
+      );
+    });
+
+    it('changelog query (page_history.page_id, created_at desc) can be served by idx_page_history_page_created', async () => {
+      const page = await seedPage(testDb.db, {
+        spaceId,
+        workspaceId,
+        creatorId: userId,
+        position: 'f2',
+        title: 'EXPLAIN changelog page',
+      });
+      await testDb.db
+        .insertInto('pageHistory')
+        .values({
+          pageId: page.id,
+          slugId: 'slug-explain',
+          title: 'v0',
+          version: 0,
+          spaceId,
+          workspaceId,
+          lastUpdatedById: userId,
+          content: { type: 'doc', content: [] } as any,
+        })
+        .execute();
+
+      const plan = await testDb.db.transaction().execute(async (trx) => {
+        await sql`SET LOCAL enable_seqscan = off`.execute(trx);
+        const rows = await sql<{ 'QUERY PLAN': string }>`
+          EXPLAIN SELECT version, title, created_at, last_updated_by_id
+          FROM page_history
+          WHERE page_id = ${page.id}
+          ORDER BY created_at DESC
+          LIMIT 2
+        `.execute(trx);
+        return rows.rows.map((r) => r['QUERY PLAN']).join('\n');
+      });
+
+      expect(plan).toMatch(/idx_page_history_page_created/i);
+    });
   });
 });
