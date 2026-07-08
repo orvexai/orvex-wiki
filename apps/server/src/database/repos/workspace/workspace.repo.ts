@@ -10,6 +10,9 @@ import {
 import { ExpressionBuilder, sql } from 'kysely';
 import { DB, Workspaces } from '@docmost/db/types/db';
 
+/** review1 F6 — whitelist for `WorkspaceRepo.updateRatifyGateSettings`'s `prefKey`. */
+const ALLOWED_RATIFY_GATE_PREF_KEYS = new Set(['required']);
+
 @Injectable()
 export class WorkspaceRepo {
   public baseFields: Array<keyof Workspaces> = [
@@ -264,6 +267,41 @@ export class WorkspaceRepo {
         settings: sql`COALESCE(settings, '{}'::jsonb)
                 || jsonb_build_object('spaces', COALESCE(settings->'spaces', '{}'::jsonb)
                 || jsonb_build_object('${sql.raw(prefKey)}', ${sql.lit(prefValue)}))`,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', workspaceId)
+      .returning(this.baseFields)
+      .executeTakeFirst();
+  }
+
+  /**
+   * ENG-1445 AC5 — per-workspace ratify-gate toggle, stored at
+   * `settings.ratifyGate.required` (jsonb). Mirrors the sibling
+   * `update*Settings` merge-in-place helpers above (❌#6 guard: no new
+   * schema/table for a single boolean flag).
+   */
+  async updateRatifyGateSettings(
+    workspaceId: string,
+    prefKey: string,
+    prefValue: string | boolean,
+    trx?: KyselyTransaction,
+  ) {
+    // review1 F6 (low) — `prefKey` used to be spliced into the query text via
+    // `sql.raw`, safe only because the sole caller passes the literal
+    // 'required'. A whitelist + a bound parameter (not `sql.raw`) closes the
+    // injection foot-gun for any future caller that forwards untrusted input.
+    if (!ALLOWED_RATIFY_GATE_PREF_KEYS.has(prefKey)) {
+      throw new Error(
+        `updateRatifyGateSettings: unsupported prefKey "${prefKey}"`,
+      );
+    }
+    const db = dbOrTx(this.db, trx);
+    return db
+      .updateTable('workspaces')
+      .set({
+        settings: sql`COALESCE(settings, '{}'::jsonb)
+                || jsonb_build_object('ratifyGate', COALESCE(settings->'ratifyGate', '{}'::jsonb)
+                || jsonb_build_object(${prefKey}, ${sql.lit(prefValue)}))`,
         updatedAt: new Date(),
       })
       .where('id', '=', workspaceId)
