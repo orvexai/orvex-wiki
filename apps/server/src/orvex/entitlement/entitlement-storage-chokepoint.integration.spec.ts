@@ -17,11 +17,18 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 
-import { AttachmentRepo } from '@docmost/db/repos/attachment/attachment.repo';
+import { MultipartFile } from '@fastify/multipart';
+import { AttachmentRepo } from '../../database/repos/attachment/attachment.repo';
+import { UserRepo } from '../../database/repos/user/user.repo';
+import { WorkspaceRepo } from '../../database/repos/workspace/workspace.repo';
+import { SpaceRepo } from '../../database/repos/space/space.repo';
 import { AttachmentService } from '../../core/attachment/services/attachment.service';
 import { AttachmentType } from '../../core/attachment/attachment.constants';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { LocalDriver } from '../../integrations/storage/drivers/local.driver';
+import { Queue } from 'bullmq';
+import { QueueJob } from '../../integrations/queue/constants';
+import { KyselyDB } from '../../database/types/kysely.types';
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
@@ -31,7 +38,7 @@ import {
   Principal,
 } from './entitlement.types';
 import { QuotaExceededException } from './quota.exception';
-import type { DB } from '@docmost/db/types/db';
+import type { DB } from '../../database/types/db';
 
 /**
  * ENG-1382 fix pass 1 — F3: AC4 (storage cap) had zero test coverage, and
@@ -100,7 +107,10 @@ describe('EntitlementStorageChokepointSpec (integration)', () => {
 
   let stubPort: StubBillingEntitlementPort;
 
-  function fakeMultipartFile(fileName: string, content: Buffer) {
+  function fakeMultipartFile(
+    fileName: string,
+    content: Buffer,
+  ): Promise<MultipartFile> {
     return Promise.resolve({
       type: 'file',
       toBuffer: async () => content,
@@ -110,14 +120,14 @@ describe('EntitlementStorageChokepointSpec (integration)', () => {
       encoding: '7bit',
       mimetype: 'application/octet-stream',
       fields: {},
-    } as any);
+    } as unknown as MultipartFile);
   }
 
   beforeAll(async () => {
     pgContainer = await new PostgreSqlContainer('postgres:16-alpine').start();
     sqlClient = postgres(pgContainer.getConnectionUri());
 
-    const rawDb = new Kysely<any>({
+    const rawDb = new Kysely<Record<string, unknown>>({
       dialect: new PostgresJSDialect({ postgres: sqlClient }),
     });
     const migrationFolder = path.join(__dirname, '../../database/migrations');
@@ -143,7 +153,8 @@ describe('EntitlementStorageChokepointSpec (integration)', () => {
       plugins: [new CamelCasePlugin()],
     });
 
-    attachmentRepo = new AttachmentRepo(db as any);
+    const kyselyDb = db as unknown as KyselyDB;
+    attachmentRepo = new AttachmentRepo(kyselyDb);
 
     storageRoot = await fsExtra.mkdtemp(
       path.join(os.tmpdir(), 'eng-1382-storage-'),
@@ -156,14 +167,14 @@ describe('EntitlementStorageChokepointSpec (integration)', () => {
     cache = new InMemoryEntitlementCache();
     entitlementService = new EntitlementService(stubPort, cache);
 
-    attachmentService = new (AttachmentService as any)(
+    attachmentService = new AttachmentService(
       storageService,
       attachmentRepo,
-      undefined, // userRepo — unused by uploadFile()
-      undefined, // workspaceRepo — unused by uploadFile()
-      undefined, // spaceRepo — unused by uploadFile()
-      db,
-      { add: async () => undefined } as any, // attachmentQueue
+      undefined as unknown as UserRepo, // unused by uploadFile()
+      undefined as unknown as WorkspaceRepo, // unused by uploadFile()
+      undefined as unknown as SpaceRepo, // unused by uploadFile()
+      kyselyDb,
+      { add: async () => undefined } as unknown as Queue<QueueJob>, // attachmentQueue
       entitlementService,
     );
   });

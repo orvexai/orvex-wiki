@@ -1,7 +1,11 @@
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
-import { EntitlementCheckResponse, Principal } from './entitlement.types';
+import {
+  EntitlementCheckResponse,
+  GatedFeature,
+  Principal,
+} from './entitlement.types';
 import {
   EntitlementUnavailableException,
   QuotaExceededException,
@@ -85,16 +89,18 @@ describe('EntitlementService', () => {
   });
 
   it('AC5: hasFeature tracks the catalog exactly', async () => {
+    const mcpFeature = 'mcp' as unknown as GatedFeature;
+    const scimFeature = 'scim' as unknown as GatedFeature;
     const port: BillingEntitlementPort = {
-      checkEntitlement: async () => fixture({ features: ['mcp' as any] }),
+      checkEntitlement: async () => fixture({ features: [mcpFeature] }),
     };
     const service = new EntitlementService(port, new InMemoryEntitlementCache());
 
-    await expect(service.hasFeature(workspaceId, 'mcp' as any)).resolves.toBe(
+    await expect(service.hasFeature(workspaceId, mcpFeature)).resolves.toBe(
       true,
     );
     await expect(
-      service.hasFeature(workspaceId, 'scim' as any),
+      service.hasFeature(workspaceId, scimFeature),
     ).resolves.toBe(false);
   });
 
