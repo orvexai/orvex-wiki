@@ -9,6 +9,7 @@ import { setYjsMark, updateYjsMarkAttribute, YjsSelection } from './yjs.util';
 import * as Y from 'yjs';
 import { User } from '@docmost/db/types/entity.types';
 import { markAiChangedBlocks } from '../core/page-provenance/provenance-content.util';
+import { PersistenceExtension } from './extensions/persistence.extension';
 
 export type CollabEventHandlers = ReturnType<
   CollaborationHandler['getHandlers']
@@ -18,7 +19,7 @@ export type CollabEventHandlers = ReturnType<
 export class CollaborationHandler {
   private readonly logger = new Logger(CollaborationHandler.name);
 
-  constructor() {}
+  constructor(private readonly persistenceExtension: PersistenceExtension) {}
 
   getHandlers(hocuspocus: Hocuspocus) {
     return {
@@ -84,13 +85,24 @@ export class CollaborationHandler {
           user: User;
           // ENG-1447 (AC4) — when true, the AI-changed top-level blocks are
           // tagged with the `aiAuthored` mark within this SAME live-ydoc
-          // transaction (no extra DB write, no debounce race). See
-          // OrvexPageProvenanceService / provenance-content.util.
+          // transaction. ENG-1603 (AC4) additionally flags the document so
+          // its next debounced persistence store also stamps the DB
+          // provenance row (orvex_page_meta) in the same content-write
+          // transaction — see PersistenceExtension.onStoreDocument.
           markAiAuthored?: boolean;
         },
       ) => {
         const { prosemirrorJson, operation, user, markAiAuthored } = payload;
         this.logger.debug('Updating page content via yjs', documentName);
+
+        if (markAiAuthored) {
+          // Set BEFORE the ydoc transact below so it is guaranteed to be
+          // present by the time the debounced onStoreDocument persist
+          // fires for this edit (which happens strictly after this
+          // transaction commits and the connection is released).
+          this.persistenceExtension.markPendingAiAuthored(documentName);
+        }
+
         await this.withYdocConnection(
           hocuspocus,
           documentName,

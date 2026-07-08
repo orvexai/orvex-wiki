@@ -34,11 +34,18 @@ import {
   HISTORY_INTERVAL,
 } from '../constants';
 import { TransclusionService } from '../../core/page/transclusion/transclusion.service';
+import { OrvexPageProvenanceService } from '../../core/page-provenance/orvex-page-provenance.service';
 
 @Injectable()
 export class PersistenceExtension implements Extension {
   private readonly logger = new Logger(PersistenceExtension.name);
   private contributors: Map<string, Set<string>> = new Map();
+  // ENG-1603 (AC4) — documentNames whose NEXT persisted store must also
+  // stamp AI provenance in orvex_page_meta, in the SAME db transaction as
+  // the content write (no lag window). Set by CollaborationHandler when a
+  // collab `markAiAuthored` edit lands on the live ydoc; consumed here on
+  // the debounced store that actually persists that edit to Postgres.
+  private pendingAiAuthored: Set<string> = new Set();
 
   constructor(
     private readonly pageRepo: PageRepo,
@@ -48,7 +55,22 @@ export class PersistenceExtension implements Extension {
     @InjectQueue(QueueName.NOTIFICATION_QUEUE) private notificationQueue: Queue,
     private readonly collabHistory: CollabHistoryService,
     private readonly transclusionService: TransclusionService,
+    private readonly provenanceService: OrvexPageProvenanceService,
   ) {}
+
+  /**
+   * ENG-1603 (AC4) — called by `CollaborationHandler.updatePageContent` when
+   * `markAiAuthored` is true, BEFORE the debounced store fires. Marks the
+   * given collab document so its next `onStoreDocument` also stamps
+   * provenance in the same transaction as the content write.
+   */
+  markPendingAiAuthored(documentName: string): void {
+    this.pendingAiAuthored.add(documentName);
+  }
+
+  private consumePendingAiAuthored(documentName: string): boolean {
+    return this.pendingAiAuthored.delete(documentName);
+  }
 
   async onLoadDocument(data: onLoadDocumentPayload) {
     const { documentName, document } = data;
@@ -114,6 +136,7 @@ export class PersistenceExtension implements Extension {
 
     let page: Page = null;
     const editingUserIds = this.consumeContributors(documentName);
+    const hadPendingAiAuthored = this.consumePendingAiAuthored(documentName);
 
     try {
       await executeTx(this.db, async (trx) => {
@@ -158,6 +181,8 @@ export class PersistenceExtension implements Extension {
           //this.logger.debug('Contributors error:' + err?.['message']);
         }
 
+        const priorContent = page.content;
+
         await this.pageRepo.updatePage(
           {
             content: tiptapJson,
@@ -169,6 +194,28 @@ export class PersistenceExtension implements Extension {
           pageId,
           trx,
         );
+
+        // ENG-1603 (AC4) — the collab AI-authorship stamp lands in
+        // orvex_page_meta in this SAME transaction as the content write
+        // (no lag window). `applyAiEdit` re-derives the block marks purely
+        // to decide/persist the status transition (ai_produced stays
+        // ai_produced; otherwise -> ai_edited); the content already
+        // written above (marked in the live ydoc by CollaborationHandler)
+        // is authoritative and is never overwritten by its return value.
+        if (hadPendingAiAuthored) {
+          await this.provenanceService.applyAiEdit(
+            pageId,
+            priorContent,
+            tiptapJson,
+            {
+              userId: null,
+              workspaceId: page.workspaceId,
+              spaceId: page.spaceId,
+              isHuman: false,
+            },
+            trx,
+          );
+        }
 
         this.logger.debug(`Page updated: ${pageId} - SlugId: ${page.slugId}`);
       });

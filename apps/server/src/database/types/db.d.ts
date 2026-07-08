@@ -330,9 +330,6 @@ export interface Pages {
   lastUpdatedById: string | null;
   parentPageId: string | null;
   position: string | null;
-  provenanceStatus: string | null;
-  provenanceChangedAt: Timestamp | null;
-  provenanceChangedById: string | null;
   slugId: string;
   spaceId: string;
   textContent: string | null;
@@ -352,6 +349,9 @@ export interface OrvexPageMeta {
   lastReviewedAt: Timestamp | null;
   ownerId: string | null;
   pageId: string;
+  provenanceStatus: string | null;
+  provenanceChangedAt: Timestamp | null;
+  provenanceChangedById: string | null;
   redirectFrom: string | null;
   specConfirmed: Generated<boolean>;
   status: Generated<string>;

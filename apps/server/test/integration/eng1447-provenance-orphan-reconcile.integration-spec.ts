@@ -70,13 +70,21 @@ describe('ENG-1447 AC7 — ProvenanceOrphanReconcileListener (real event-emitter
 
   async function stampProvenance(pageId: string) {
     await testDb.db
-      .updateTable('pages')
-      .set({
+      .insertInto('orvexPageMeta' as any)
+      .values({
+        pageId,
+        workspaceId,
         provenanceStatus: 'ai_produced',
         provenanceChangedAt: new Date(),
         provenanceChangedById: null,
       } as any)
-      .where('id', '=', pageId)
+      .onConflict((oc: any) =>
+        oc.column('pageId').doUpdateSet({
+          provenanceStatus: 'ai_produced',
+          provenanceChangedAt: new Date(),
+          provenanceChangedById: null,
+        }),
+      )
       .execute();
   }
 
@@ -134,14 +142,18 @@ describe('ENG-1447 AC7 — ProvenanceOrphanReconcileListener (real event-emitter
     await tick();
 
     const row = await testDb.db
-      .selectFrom('pages')
-      .select(['provenanceStatus', 'provenanceChangedAt', 'provenanceChangedById'])
-      .where('id', '=', page.id)
+      .selectFrom('orvexPageMeta' as any)
+      .select([
+        'provenanceStatus' as any,
+        'provenanceChangedAt' as any,
+        'provenanceChangedById' as any,
+      ])
+      .where('pageId' as any, '=', page.id)
       .executeTakeFirstOrThrow();
 
-    expect(row.provenanceStatus).toBeNull();
-    expect(row.provenanceChangedAt).toBeNull();
-    expect(row.provenanceChangedById).toBeNull();
+    expect((row as any).provenanceStatus).toBeNull();
+    expect((row as any).provenanceChangedAt).toBeNull();
+    expect((row as any).provenanceChangedById).toBeNull();
   });
 
   it('is a genuine no-op for an unrelated, still-alive, still-stamped page (never sweeps pages it was not told about)', async () => {
@@ -161,10 +173,10 @@ describe('ENG-1447 AC7 — ProvenanceOrphanReconcileListener (real event-emitter
     await tick();
 
     const row = await testDb.db
-      .selectFrom('pages')
-      .select(['provenanceStatus'])
-      .where('id', '=', untouched.id)
+      .selectFrom('orvexPageMeta' as any)
+      .select(['provenanceStatus' as any])
+      .where('pageId' as any, '=', untouched.id)
       .executeTakeFirstOrThrow();
-    expect(row.provenanceStatus).toBe('ai_produced');
+    expect((row as any).provenanceStatus).toBe('ai_produced');
   });
 });

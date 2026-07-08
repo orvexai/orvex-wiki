@@ -101,6 +101,14 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
     await testDb.teardown();
   });
 
+  async function readProvenance(pageId: string) {
+    return testDb.db
+      .selectFrom('orvexPageMeta' as any)
+      .select(['provenanceStatus' as any])
+      .where('pageId' as any, '=', pageId)
+      .executeTakeFirst();
+  }
+
   it('create: happy path — content row and ai_produced stamp commit together in one transaction', async () => {
     const page = await testDb.db.transaction().execute(async (trx) => {
       const created = await pageService.create(
@@ -119,7 +127,8 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
 
     const persisted = await pageRepo.findById(page.id);
     expect(persisted).toBeDefined();
-    expect((persisted as any).provenanceStatus).toBe('ai_produced');
+    const meta = await readProvenance(page.id);
+    expect((meta as any)?.provenanceStatus).toBe('ai_produced');
   });
 
   it('create: failure path — a failing provenance stamp rolls back the just-inserted page row (no committed null-provenance window)', async () => {
@@ -181,7 +190,8 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
     expect(updated.title).toBe('F1 update happy path (after)');
     const persisted = await pageRepo.findById(page.id);
     expect((persisted as any).title).toBe('F1 update happy path (after)');
-    expect((persisted as any).provenanceStatus).toBe('ai_produced');
+    const meta = await readProvenance(page.id);
+    expect((meta as any)?.provenanceStatus).toBe('ai_produced');
   });
 
   it('update: failure path — a failing provenance stamp rolls back the title write (no committed null-provenance window)', async () => {
@@ -213,6 +223,7 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
 
     const persisted = await pageRepo.findById(page.id);
     expect((persisted as any).title).toBe('F1 update rollback path (before)');
-    expect((persisted as any).provenanceStatus).toBeNull();
+    const meta = await readProvenance(page.id);
+    expect((meta as any)?.provenanceStatus ?? null).toBeNull();
   });
 });

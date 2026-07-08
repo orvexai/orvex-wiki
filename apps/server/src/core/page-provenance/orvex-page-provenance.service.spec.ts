@@ -25,14 +25,22 @@ import { v4 as uuid } from 'uuid';
 /**
  * ENG-1447 — `AiProvenanceStampSpec`, the named binary DoD gate.
  *
+ * ENG-1603 update: the provenance trio now lives in the `orvex_page_meta`
+ * side table (migrated off `pages`, ENG-1371 AC11 side-table-only
+ * invariant), so this spec's assertions read the trio via
+ * `orvexPageMeta`/`pageId` rather than `pages`/`id`. The migration chain run
+ * by the harness below includes
+ * `20260709T090000-migrate-provenance-trio-to-page-meta`, so the trio is
+ * exercised on the side table exactly as it is in production.
+ *
  * Real Kysely against a testcontainers Postgres (RED->GREEN, no mocking of
- * the store under test) with the provenance-columns migration applied,
- * exercising {@link OrvexPageProvenanceService} through its exported
- * interface. Per CS §5 mocking strategy: Postgres is real (testcontainers,
- * the store this ticket owns); `SpaceMemberRepo`/`EventEmitter2` are unused
- * side channels for the paths under test and are given no-op doubles.
- * `PageRepo` and `OrvexAuditService` are the real production classes
- * against the real database.
+ * the store under test) with every migration applied, exercising
+ * {@link OrvexPageProvenanceService} through its exported interface. Per CS
+ * §5 mocking strategy: Postgres is real (testcontainers, the store this
+ * ticket owns); `SpaceMemberRepo`/`EventEmitter2` are unused side channels
+ * for the paths under test and are given no-op doubles. `PageRepo` and
+ * `OrvexAuditService` are the real production classes against the real
+ * database.
  *
  * Covers DoD (a)-(d):
  *  (a) markAiCreated -> ai_produced + exactly one audit event.
@@ -47,9 +55,9 @@ import { v4 as uuid } from 'uuid';
  * AC7's reconcile/orphan-sweep backstop (`ProvenanceOrphanReconcileListener`)
  * has its OWN dedicated integration spec
  * (`eng1447-provenance-orphan-reconcile.integration-spec.ts`) that drives
- * the real `@nestjs/event-emitter` wiring — the inline-column check below is
- * a narrower, structural sanity check only (a hard delete removes the whole
- * row, provenance columns included).
+ * the real `@nestjs/event-emitter` wiring — the check below is a narrower,
+ * structural sanity check only (a hard page delete FK-cascades the
+ * `orvex_page_meta` row, provenance columns included).
  */
 describe('AiProvenanceStampSpec', () => {
   jest.setTimeout(120_000);
@@ -160,9 +168,9 @@ describe('AiProvenanceStampSpec', () => {
     });
 
     const row = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(['provenanceStatus'])
-      .where('id', '=', page.id)
+      .where('pageId', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(row.provenanceStatus).toBe('ai_produced');
     expect(await auditCountFor(page.id)).toBe(1);
@@ -196,9 +204,9 @@ describe('AiProvenanceStampSpec', () => {
     expect(result.contentJson).toEqual(newDoc);
 
     const row = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(['provenanceStatus'])
-      .where('id', '=', page.id)
+      .where('pageId', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(row.provenanceStatus).toBe('ai_produced');
     // No second audit row — the re-edit did not churn status.
@@ -232,9 +240,9 @@ describe('AiProvenanceStampSpec', () => {
     expect(result.statusChanged).toBe(true);
 
     const row = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(['provenanceStatus'])
-      .where('id', '=', page.id)
+      .where('pageId', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(row.provenanceStatus).toBe('ai_edited');
   });
@@ -272,9 +280,9 @@ describe('AiProvenanceStampSpec', () => {
     ).not.toContainEqual({ type: 'aiAuthored' });
 
     const row = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(['provenanceStatus', 'provenanceChangedById'])
-      .where('id', '=', page.id)
+      .where('pageId', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(row.provenanceStatus).toBe('human_verified');
     expect(row.provenanceChangedById).toBe(humanUserId);
@@ -292,11 +300,11 @@ describe('AiProvenanceStampSpec', () => {
     ).rejects.toThrow();
 
     const row = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(['provenanceStatus'])
-      .where('id', '=', page.id)
-      .executeTakeFirstOrThrow();
-    expect(row.provenanceStatus).not.toBe('human_verified');
+      .where('pageId', '=', page.id)
+      .executeTakeFirst();
+    expect(row?.provenanceStatus ?? null).not.toBe('human_verified');
   });
 
   it('(d) a REST-API write (api_key caller) stamps ai_produced — the PageController api_key branch calls exactly this', async () => {
@@ -313,14 +321,14 @@ describe('AiProvenanceStampSpec', () => {
     });
 
     const row = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(['provenanceStatus'])
-      .where('id', '=', page.id)
+      .where('pageId', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(row.provenanceStatus).toBe('ai_produced');
   });
 
-  it('AC7 — provenance is inline on pages; a hard page delete leaves zero orphaned provenance rows', async () => {
+  it('AC7 (ENG-1603) — provenance lives in orvex_page_meta; a hard page delete cascades and leaves zero orphaned provenance rows', async () => {
     const page = await insertPage();
     await service.markAiCreated(page.id, {
       userId: null,
@@ -331,10 +339,13 @@ describe('AiProvenanceStampSpec', () => {
 
     await db.deleteFrom('pages').where('id', '=', page.id).execute();
 
+    // The ON DELETE CASCADE FK (ENG-1471) removes the orvex_page_meta row —
+    // provenance trio included — in the same delete, so no orphaned
+    // provenance row survives the page.
     const orphans = await db
-      .selectFrom('pages')
+      .selectFrom('orvexPageMeta')
       .select(db.fn.countAll().as('n'))
-      .where('id', '=', page.id)
+      .where('pageId', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(Number(orphans.n)).toBe(0);
   });

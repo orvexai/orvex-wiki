@@ -4,10 +4,17 @@
  * Integration test against a REAL Postgres (testcontainers), running the
  * exact migration set that ships to production (via db-test-harness).
  *
+ * ENG-1603 update (AC6): the PD-4d carve-out is retired. The ENG-1447
+ * provenance trio (`provenance_status`/`provenance_changed_at`/
+ * `provenance_changed_by_id`) has been migrated off `pages` onto
+ * `orvex_page_meta` (`20260709T090000-migrate-provenance-trio-to-page-meta`),
+ * so the "zero new pages fork columns" static gate now covers it too — no
+ * more carve-out exception.
+ *
  * Proves (AC1-AC4, AC7, AC9-AC11):
- *  (a) the migrated `pages` table has ZERO NEW fork metadata columns beyond
- *      the already-merged ENG-1447 provenance trio (PD-4d carve-out;
- *      information_schema assertion);
+ *  (a) the migrated `pages` table has ZERO fork metadata columns, including
+ *      the (now-migrated) ENG-1447 provenance trio (information_schema
+ *      assertion);
  *  (b) writes status/doc_type/supersede/version/content_hash via
  *      `OrvexPageMetadataService`;
  *  (c) reads them back through the join and gets identical values.
@@ -29,15 +36,10 @@ import {
 // AC1/AC11 — the governance columns this ticket ports MUST live on
 // `orvex_page_meta`.
 //
-// PD-4d carve-out (2026-07-08): `provenance_status` / `provenance_changed_at`
-// / `provenance_changed_by_id` are deliberately EXCLUDED from this list.
-// ENG-1447 (merged) already put a trio of the same names directly on
-// `pages` for an unrelated AI-authorship concept (ai_produced/ai_edited/
-// human_verified); this ticket does not duplicate those names into
-// `orvex_page_meta` (that would be a real naming/semantics collision — same
-// name, two tables, two owners). Per the PO ruling the trio stays solely on
-// `pages` for now; follow-up ENG-1603 (blocked-by this ticket) moves it into
-// `orvex_page_meta` once its consumers repoint.
+// ENG-1603: the PD-4d carve-out is retired — the ENG-1447 provenance trio
+// (`provenance_status`/`provenance_changed_at`/`provenance_changed_by_id`)
+// has been migrated off `pages` and onto `orvex_page_meta`, so it now
+// belongs in this same "must be on orvex_page_meta, never on pages" list.
 const FORK_META_COLUMNS = [
   'status',
   'doc_type',
@@ -54,6 +56,10 @@ const FORK_META_COLUMNS = [
   // ruling 4 — version/content_hash never re-added to `pages` either.
   'version',
   'content_hash',
+  // ENG-1603 (AC6, PD-4d carve-out retired) — the provenance trio.
+  'provenance_status',
+  'provenance_changed_at',
+  'provenance_changed_by_id',
 ];
 
 describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
@@ -92,12 +98,6 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
       expect(pagesColumnNames.has(col)).toBe(false);
     }
 
-    // PD-4d carve-out — the ENG-1447 provenance trio MAY still be present on
-    // `pages` (it is, by design; ENG-1371 does not touch it).
-    expect(pagesColumnNames.has('provenance_status')).toBe(true);
-    expect(pagesColumnNames.has('provenance_changed_at')).toBe(true);
-    expect(pagesColumnNames.has('provenance_changed_by_id')).toBe(true);
-
     const metaColumns = await testDb.db
       .selectFrom('information_schema.columns' as any)
       .select('column_name' as any)
@@ -108,12 +108,6 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
     for (const col of FORK_META_COLUMNS) {
       expect(metaColumnNames.has(col)).toBe(true);
     }
-
-    // PD-4d carve-out — `orvex_page_meta` must NOT yet duplicate the
-    // ENG-1447 provenance trio; that move is follow-up ENG-1603's job.
-    expect(metaColumnNames.has('provenance_status')).toBe(false);
-    expect(metaColumnNames.has('provenance_changed_at')).toBe(false);
-    expect(metaColumnNames.has('provenance_changed_by_id')).toBe(false);
   });
 
   it('AC3 — a page with no orvex_page_meta row reads back sane defaults, no crash', async () => {

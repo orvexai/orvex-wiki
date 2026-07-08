@@ -7,6 +7,7 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { Page } from '@docmost/db/types/entity.types';
 import { OrvexAuditService } from '../../core/audit/orvex-audit.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import {
@@ -224,26 +225,52 @@ export class OrvexPageProvenanceService {
   // ─── Helpers ────────────────────────────────────────────────────────────
 
   /**
-   * Loads the page (scoped to the workspace) and returns it. Throws 404 when
-   * the page does not exist / is not in the caller's workspace.
+   * Loads the page (scoped to the workspace) and returns it, augmented with
+   * its current provenance status resolved via the `orvex_page_meta`
+   * side-table join (ENG-1603 — the trio no longer lives on `pages`). Throws
+   * 404 when the page does not exist / is not in the caller's workspace.
    */
   private async loadPage(
     pageId: string,
     workspaceId: string,
     trx?: KyselyTransaction,
-  ) {
+  ): Promise<
+    Page & {
+      provenanceStatus: ProvenanceStatus;
+      provenanceChangedAt: Date | null;
+      provenanceChangedById: string | null;
+    }
+  > {
     const page = await this.pageRepo.findById(pageId, { trx });
     if (!page || page.workspaceId !== workspaceId || page.deletedAt) {
       throw new NotFoundException({ error: 'PAGE_NOT_FOUND', pageId });
     }
-    return page;
+
+    const db = trx ?? this.db;
+    const meta = await db
+      .selectFrom('orvexPageMeta')
+      .select([
+        'provenanceStatus',
+        'provenanceChangedAt',
+        'provenanceChangedById',
+      ])
+      .where('pageId', '=', pageId)
+      .executeTakeFirst();
+
+    return {
+      ...page,
+      provenanceStatus: (meta?.provenanceStatus ?? null) as ProvenanceStatus,
+      provenanceChangedAt: meta?.provenanceChangedAt ?? null,
+      provenanceChangedById: meta?.provenanceChangedById ?? null,
+    };
   }
 
   /**
-   * Centralizes the provenance row update + audit emission so every public
-   * method stays DRY and consistent. Runs the row update AND the audit
-   * write in the SAME transaction (AC1 — exactly one audit event per stamp,
-   * atomic with the write — no lag window).
+   * Centralizes the provenance row upsert + audit emission so every public
+   * method stays DRY and consistent. Runs the `orvex_page_meta` upsert AND
+   * the audit write in the SAME transaction (AC1/AC4 — exactly one audit
+   * event per stamp, atomic with the write — no lag window). ENG-1603:
+   * the trio is upserted into `orvex_page_meta` (not `pages`).
    */
   private async writeStatus(
     pageId: string,
@@ -258,15 +285,24 @@ export class OrvexPageProvenanceService {
     const before = (page.provenanceStatus ?? null) as ProvenanceStatus;
 
     const run = async (tx: KyselyTransaction) => {
-      await this.pageRepo.updatePage(
-        {
+      await tx
+        .insertInto('orvexPageMeta')
+        .values({
+          pageId,
+          workspaceId,
           provenanceStatus: status,
           provenanceChangedAt: new Date(),
           provenanceChangedById: changedById,
-        } as any,
-        pageId,
-        tx,
-      );
+        } as any)
+        .onConflict((oc) =>
+          oc.column('pageId').doUpdateSet({
+            provenanceStatus: status,
+            provenanceChangedAt: new Date(),
+            provenanceChangedById: changedById,
+            updatedAt: new Date(),
+          } as any),
+        )
+        .execute();
 
       await this.auditService.logAndCommit(tx, {
         event: AuditEvent.PAGE_PROVENANCE_CHANGED,
