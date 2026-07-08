@@ -154,7 +154,16 @@ await agent([
 // ---- Engine loop -----------------------------------------------------------
 for (let tick = 1; tick <= MAX_TICKS; tick++) {
   phase('Tick ' + tick)
-  log('Tick ' + tick + ': computing frontier (escalated so far: ' + escalated.length + ', done this run: ' + doneThisRun.length + ')')
+  log('Tick ' + tick + ': quota gate, then frontier (escalated so far: ' + escalated.length + ', done this run: ' + doneThisRun.length + ')')
+
+  // §quota-gate: never fan a batch into a drained Linear window — wait it out in ONE cheap agent instead of burning N build slots.
+  const qg = await agent([
+    'LINEAR QUOTA GATE (tick ' + tick + '). Work from ' + HUB + '. Probe the shared 2500/hr Linear quota with ONE cheap call (linearis issues read ENG-1594 or similar single read).',
+    'If it succeeds: return ok=true immediately.',
+    'If rate_limited: WAIT IT OUT here — sleep in 120-300s chunks (bash sleep works in your shell), re-probing after each chunk, up to 65 minutes total. Return ok=true once a probe succeeds; ok=false only if still limited after 65 minutes.',
+    RETDISC,
+  ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':quota-gate', phase: 'Tick ' + tick, schema: NOTE_SCHEMA })
+  if (!qg || !qg.ok) { log('Linear quota still exhausted after 65 min — checkpointing, NOT complete'); break }
 
   let frontier = null
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -163,7 +172,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
       '1. Run _bmad/lnr/tools/linear-sync.sh sync (best effort; live reads are authoritative).',
       '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold, keycloak-parked, deferred-future (PO holds); ENG-1594 (the orchestrator status tracker — NEVER a work item); any issue whose body says it is a stub needing context-fill before dev; and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
       '3. For each candidate read its blocked-by relations LIVE: ready = every blocker is Done/Canceled/Duplicate (no open blockers). A gate issue (label gate) is ready ONLY when every blocker is Done/Canceled.',
-      '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 24.',
+      '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 24. IMMEDIATELY before returning, re-verify each returned candidate is STILL Todo/Backlog right now — never return an issue that is already Done or In Progress (stale-list re-dispatches waste the whole slot).',
       '5. Also return: doneTotal (initiative-wide Done count), todoTotal (remaining Todo/Backlog incl. held), blockedResidue (candidates excluded ONLY by holds/escalations).',
       '6. HONESTY BIT (load-bearing — a prior run declared the whole backlog delivered off a rate-limited read that returned zeros): readComplete=true ONLY if every listing + relation read genuinely succeeded. If you hit rate limits or any query failed so the state might be incomplete, set readComplete=false, do NOT fabricate zeros, space your requests (small sleeps between calls are fine), and note what failed. A doneTotal of 0 is IMPOSSIBLE in this workspace — returning it means your reads failed.',
       RETDISC, LNR,
