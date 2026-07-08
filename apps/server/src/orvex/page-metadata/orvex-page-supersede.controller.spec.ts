@@ -69,7 +69,7 @@ describe('OrvexPageSupersedeController', () => {
       confirmToken: 'ct1.x.y',
     } as SupersedePageDto;
 
-    await controller.supersede(dto, USER, WORKSPACE, 'api_key');
+    await controller.supersede(dto, USER, WORKSPACE, 'api_key', 'apikey-1');
 
     expect(metadataService.supersedeAtomic).toHaveBeenCalledWith(
       'page-1',
@@ -80,6 +80,7 @@ describe('OrvexPageSupersedeController', () => {
         confirmToken: 'ct1.x.y',
         forceSupersede: undefined,
         forceReason: undefined,
+        clientId: 'apikey-1',
         authorizeTargetSpace: expect.any(Function),
       },
     );
@@ -116,6 +117,7 @@ describe('OrvexPageSupersedeController', () => {
       { pageId: 'page-1', supersededBy: 'x' } as SupersedePageDto,
       USER,
       WORKSPACE,
+      undefined,
       undefined,
     );
 
@@ -159,6 +161,7 @@ describe('OrvexPageSupersedeController', () => {
         USER,
         WORKSPACE,
         undefined,
+        undefined,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -179,6 +182,7 @@ describe('OrvexPageSupersedeController', () => {
         USER,
         WORKSPACE,
         undefined,
+        undefined,
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -191,6 +195,7 @@ describe('OrvexPageSupersedeController', () => {
         { pageId: 'page-1', supersededBy: 'x' } as SupersedePageDto,
         USER,
         WORKSPACE,
+        undefined,
         undefined,
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -209,6 +214,7 @@ describe('OrvexPageSupersedeController', () => {
         USER,
         WORKSPACE,
         'api_key',
+        undefined,
       ),
     ).rejects.toThrow(ForbiddenException);
   });

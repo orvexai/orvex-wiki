@@ -7,6 +7,13 @@ export type AuditLogContext = {
   actorType?: ActorType;
   ipAddress?: string;
   userAgent?: string;
+  /**
+   * ENG-1434 review2 F1 — the calling API key's own identity (distinct
+   * from `actorId`, which for an `api_key` actor is the confirming human
+   * behind the token/force). Optional: only `api_key`-attributed rows
+   * populate it; `user`-attributed rows leave it undefined.
+   */
+  clientId?: string;
 };
 
 export type IAuditService = {

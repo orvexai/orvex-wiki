@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { AuthMethod } from '../../common/decorators/auth-method.decorator';
+import { AuthApiKeyId } from '../../common/decorators/auth-api-key-id.decorator';
 import { User, Workspace } from '../../database/types/entity.types';
 import { PageRepo } from '../../database/repos/page/page.repo';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
@@ -53,6 +54,7 @@ export class OrvexPageSupersedeController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
     @AuthMethod() authMethod: 'api_key' | undefined,
+    @AuthApiKeyId() apiKeyId: string | undefined,
   ): Promise<OrvexPageMetaFields> {
     const page = await this.assertPageInWorkspace(dto.pageId, workspace.id);
     await this.assertCanManage(user, page.spaceId);
@@ -66,6 +68,9 @@ export class OrvexPageSupersedeController {
         confirmToken: dto.confirmToken,
         forceSupersede: dto.forceSupersede,
         forceReason: dto.forceReason,
+        // review2 F1 — the api_key CLIENT's own identity (distinct from
+        // `actorId`, the confirming human), threaded onto the AC4 audit row.
+        clientId: apiKeyId,
         // review1 F1 — authorizes the RESOLVED TARGET's space too, not
         // just the requesting page's (`page` above). Invoked by the
         // service after it resolves the target, before any mutation.

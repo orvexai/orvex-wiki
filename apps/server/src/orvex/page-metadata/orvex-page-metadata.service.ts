@@ -493,6 +493,7 @@ export class OrvexPageMetadataService {
             workspaceId: requestPage.workspaceId,
             actorId: attribution.actorId,
             actorType: attribution.actorType,
+            clientId: attribution.clientId,
           },
         );
 
@@ -510,6 +511,7 @@ export class OrvexPageMetadataService {
               workspaceId: requestPage.workspaceId,
               actorId: attribution.actorId,
               actorType: attribution.actorType,
+              clientId: attribution.clientId,
             },
           );
         }
@@ -553,6 +555,7 @@ export class OrvexPageMetadataService {
     actorType: 'user' | 'api_key';
     actorId: string;
     usedForcedSupersede: boolean;
+    clientId?: string;
   }> {
     if (gate.authMethod !== 'api_key') {
       return { actorType: 'user', actorId: gate.actorId, usedForcedSupersede: false };
@@ -567,24 +570,37 @@ export class OrvexPageMetadataService {
       if (result.ok) {
         // AC8 — a verified token always wins; attribution follows the
         // token's own confirming human, never downgraded to forced.
+        // review2 F1 — `clientId` still records the calling api_key's own
+        // identity alongside the confirming-human `actorId`.
         return {
           actorType: 'api_key',
           actorId: result.payload.confirmingUserId,
           usedForcedSupersede: false,
+          clientId: gate.clientId,
         };
       }
     }
 
     if (gate.forceSupersede) {
       if (!this.forceSupersedeSettingsService) {
-        return { actorType: 'api_key', actorId: gate.actorId, usedForcedSupersede: false };
+        return {
+          actorType: 'api_key',
+          actorId: gate.actorId,
+          usedForcedSupersede: false,
+          clientId: gate.clientId,
+        };
       }
       // AC5/AC6 — throws ForbiddenException/BadRequestException on refusal.
       await this.forceSupersedeSettingsService.assertForceSupersedeAllowed({
         workspaceId,
         forceReason: gate.forceReason,
       });
-      return { actorType: 'api_key', actorId: gate.actorId, usedForcedSupersede: true };
+      return {
+        actorType: 'api_key',
+        actorId: gate.actorId,
+        usedForcedSupersede: true,
+        clientId: gate.clientId,
+      };
     }
 
     // AC3 — no token, no force: refused outright, no mutation.

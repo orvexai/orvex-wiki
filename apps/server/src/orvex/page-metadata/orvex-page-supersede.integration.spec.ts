@@ -326,7 +326,12 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
     const result = await service.supersedeAtomic(
       target.id,
       { supersededBy: canonical.slugId },
-      { authMethod: 'api_key', actorId: agentUserId, confirmToken: token },
+      {
+        authMethod: 'api_key',
+        actorId: agentUserId,
+        confirmToken: token,
+        clientId: 'apikey_eng1434_ac4',
+      },
     );
 
     expect(result.status).toBe(PageStatus.SUPERSEDED);
@@ -335,6 +340,9 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
     );
     expect(supersededAudit?.context.actorType).toBe('api_key');
     expect(supersededAudit?.context.actorId).toBe(agentUserId);
+    // review2 F1 — AC4 requires the api_key client's own identity
+    // (the api-key id, not just the confirming human) to land on the row.
+    expect(supersededAudit?.context.clientId).toBe('apikey_eng1434_ac4');
   });
 
   // ---------------------------------------------------------------------

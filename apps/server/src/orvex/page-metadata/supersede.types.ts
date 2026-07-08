@@ -18,6 +18,14 @@ export interface SupersedeGateContext {
   forceSupersede?: boolean;
   forceReason?: string;
   /**
+   * review2 F1 — AC4 requires the api_key CLIENT's own identity (the api
+   * key id itself) to land on the audit row, distinct from `actorId`
+   * (which for `api_key` callers is the confirming human behind the
+   * token/force, never the key). Threaded from the HTTP edge's
+   * `request.user.apiKeyId`; `undefined` for human sessions.
+   */
+  clientId?: string;
+  /**
    * review1 F1 — `supersedeAtomic` resolves the OTHER page (the request's
    * pair partner) by a globally-unique `slugId`, which can land in ANY
    * workspace/space, not just the requester's own. The controller only
