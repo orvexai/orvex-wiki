@@ -1,0 +1,17 @@
+/*
+ * ENG-1460 — AI-provenance badge styles.
+ *
+ * (The AI-wash highlight itself is a *global* rule — see
+ * `features/editor/styles/ai-authored-wash.css` — because the mark renders
+ * a literal global class, which a CSS-module class can never match. See
+ * review finding F2.)
+ *
+ * Kept visually and structurally separate from
+ * `page-verification/components/page-verification-modal.module.css` (the
+ * QMS surface) — AC4 boundary.
+ */
+
+.badge {
+  text-transform: none;
+  font-weight: 500;
+}
