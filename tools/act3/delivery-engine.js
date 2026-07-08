@@ -38,6 +38,7 @@ const PROJECT_REPO = {
 // ---- Shared doctrine blocks ------------------------------------------------
 const LNR = [
   'Linear via linearis, LIVE reads and writes (list --limit <=50, paginate; blocked-by relations only exist live). Verify every write by live re-read.',
+  'QUOTA DISCIPLINE: the workspace allows 2500 requests/hour SHARED across all agents — be frugal: batch reads, avoid redundant re-reads, sleep 2-5s between bursts. On rate_limited: your WRITE payload goes to a file under ' + RDIR + ' with the exact command, report it as escalate (transient-quota), never spin retrying.',
   'issues update --description is a FULL-BODY REPLACE: read full body -> edit -> write whole body back via temp file -> re-read intact. Never blind-write, never blanket-tick.',
   'Never auto-close, never advance status except as your task explicitly says.',
 ].join('\n')
@@ -160,7 +161,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
     frontier = await agent([
       'FRONTIER COMPUTATION (read-only + one cache sync). Work from ' + HUB + '. Attempt ' + attempt + ' of 3.',
       '1. Run _bmad/lnr/tools/linear-sync.sh sync (best effort; live reads are authoritative).',
-      '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold and keycloak-parked (PO holds), and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
+      '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold, keycloak-parked, deferred-future (PO holds); ENG-1594 (the orchestrator status tracker — NEVER a work item); any issue whose body says it is a stub needing context-fill before dev; and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
       '3. For each candidate read its blocked-by relations LIVE: ready = every blocker is Done/Canceled/Duplicate (no open blockers). A gate issue (label gate) is ready ONLY when every blocker is Done/Canceled.',
       '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 24.',
       '5. Also return: doneTotal (initiative-wide Done count), todoTotal (remaining Todo/Backlog incl. held), blockedResidue (candidates excluded ONLY by holds/escalations).',
