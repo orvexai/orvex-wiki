@@ -319,8 +319,11 @@ export class PageRepo {
    * Soft-deleted pages don't count against the cap (mirrors the fork's
    * trash semantics — a trashed page has already freed its quota slot).
    */
-  async countByWorkspaceId(workspaceId: string): Promise<number> {
-    const result = await this.db
+  async countByWorkspaceId(
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<number> {
+    const result = await dbOrTx(this.db, trx)
       .selectFrom('pages')
       .select((eb) => eb.fn.countAll().as('count'))
       .where('workspaceId', '=', workspaceId)

@@ -143,8 +143,11 @@ export class UserRepo {
   }
 
   /** ENG-1382 (AC3) — F-QUOTA `members` usage count for a workspace. */
-  async countByWorkspaceId(workspaceId: string): Promise<number> {
-    const result = await this.db
+  async countByWorkspaceId(
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<number> {
+    const result = await dbOrTx(this.db, trx)
       .selectFrom('users')
       .select((eb) => eb.fn.countAll().as('count'))
       .where('workspaceId', '=', workspaceId)

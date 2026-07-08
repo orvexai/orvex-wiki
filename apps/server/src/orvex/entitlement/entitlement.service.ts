@@ -113,4 +113,33 @@ export class EntitlementService {
       throw new QuotaExceededException(resource, limit);
     }
   }
+
+  /**
+   * ENG-1382 fix pass 1 (F3) — the AC4 literal: reject when an upload
+   * "would exceed" the cap, not only when the workspace is ALREADY at/over
+   * it. `assertWithinQuota` compares a pre-write count/aggregate against the
+   * cap (correct for `pages`/`members`, where the unit being added is always
+   * exactly 1); it is the wrong shape for a byte aggregate where the
+   * increment size varies per call. This asserts
+   * `projectedUsage = currentUsage + incrementAmount` against the cap
+   * instead, so a workspace under the aggregate cap that uploads a file
+   * large enough to cross it is correctly rejected.
+   */
+  async assertIncrementWithinQuota(
+    workspaceId: string,
+    resource: QuotaResource,
+    currentUsage: number,
+    incrementAmount: number,
+  ): Promise<void> {
+    const entitlement = await this.resolve(workspaceId);
+    const limit = capValueForResource(entitlement.caps, resource);
+
+    if (limit === 0) {
+      return; // uncapped
+    }
+
+    if (currentUsage + incrementAmount > limit) {
+      throw new QuotaExceededException(resource, limit);
+    }
+  }
 }
