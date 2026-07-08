@@ -78,7 +78,9 @@ for src_dir in apps/server/src apps/client/src; do
   [[ -d "$src_dir" ]] || continue
   hits="$(grep -RnE "from ['\"](${BANNED_IMPORT_REGEX})" "$src_dir" \
             --include='*.ts' --include='*.tsx' \
-            --exclude='engine-license-guard.spec.ts' 2>/dev/null || true)"
+            --exclude='engine-license-guard.spec.ts' \
+            --exclude='engine-only-import-guard.spec.ts' \
+            --exclude='license-header-check.spec.ts' 2>/dev/null || true)"
   if [[ -n "$hits" ]]; then
     echo "FAIL (d): banned closed-package import found under $src_dir:" >&2
     echo "$hits" >&2

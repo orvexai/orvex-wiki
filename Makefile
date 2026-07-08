@@ -62,6 +62,12 @@ context-check: ## Fail if the carried Coding Standards copy drifted from the can
 engine-license-guard: ## P10 gate (ENG-1381): no closed EE submodule/gitlink/import re-enters the AGPL engine
 	bash scripts/engine-license-guard.sh .
 
+license-header-check: ## AGPL §13 gate (ENG-1491 AC3): every non-spec apps/server/src/orvex/*.ts carries the AGPL header
+	bash scripts/ci/license-header-check.sh .
+
+engine-only-import-guard: ## Q22 gate (ENG-1491 AC4): no apps/server/src/orvex/*.ts imports a closed-satellite/non-AGPL package
+	bash scripts/ci/engine-only-import-guard.sh .
+
 no-md-ext-in-doc-workflows: ## ENG-1398 AC6 gate: no turndown/markdown-extension code in the doc-workflow queue tasks leg (belongs in @orvex/dfm)
 	bash scripts/no-md-ext-in-doc-workflows.sh .
 
@@ -90,6 +96,8 @@ ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smo
 	$(MAKE) security
 	$(MAKE) context-check
 	$(MAKE) engine-license-guard
+	$(MAKE) license-header-check
+	$(MAKE) engine-only-import-guard
 	$(MAKE) no-md-ext-in-doc-workflows
 	$(MAKE) ci-substrate-conformance
 	@echo "ci-local: ALL GATES GREEN"
