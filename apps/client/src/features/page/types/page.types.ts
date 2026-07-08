@@ -1,5 +1,19 @@
 import { ISpace } from "@/features/space/types/space.types.ts";
 
+/**
+ * ENG-1440 — client-local mirror of `@orvex/extensions`' `PageStatus`
+ * enum values (CS §13 slim-AGPL: no workspace dep pulled in for a leaf
+ * UI feature — the client never imports the engine's internal package,
+ * only talks to it over `/api/orvex/pages/*`).
+ */
+export type PageStatusValue =
+  | "draft"
+  | "published"
+  | "canonical"
+  | "deprecated"
+  | "superseded"
+  | "archived";
+
 export interface IPage {
   id: string;
   slugId: string;
@@ -34,6 +48,20 @@ export interface IPage {
     canEdit: boolean;
     hasRestriction: boolean;
   };
+  status?: PageStatusValue;
+  supersedes?: string | null;
+  supersededBy?: string | null;
+  archiveReason?: string | null;
+}
+
+/** ENG-1440 — the lifecycle fields the `/api/orvex/pages/*` mutations
+ * return (a subset of the engine's `OrvexPageMetaFields`). */
+export interface IPageLifecycleMeta {
+  status: PageStatusValue;
+  supersedes: string | null;
+  supersededBy: string | null;
+  archiveReason: string | null;
+  version: number;
 }
 
 export interface IContributor {
@@ -82,6 +110,8 @@ export interface SidebarPagesParams {
   pageId?: string;
   cursor?: string;
   limit?: number;
+  /** ENG-1440 (AC7) — reveal superseded pages in this sidebar query (opt-in). */
+  includeSuperseded?: boolean;
 }
 
 export interface IPageInput {

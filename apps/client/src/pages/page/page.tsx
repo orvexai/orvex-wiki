@@ -18,10 +18,12 @@ import { BaseView } from "@/ee/base/components/base-view";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { getPageTitle } from "@/features/page/page.utils";
+import { SupersededBanner } from "@/features/page/components/superseded-banner";
 const MemoizedFullEditor = React.memo(FullEditor);
 const MemoizedTitleEditor = React.memo(TitleEditor);
 const MemoizedPageHeader = React.memo(PageHeader);
 const MemoizedHistoryModal = React.memo(HistoryModal);
+const MemoizedSupersededBanner = React.memo(SupersededBanner);
 
 export default function Page() {
   const { t } = useTranslation();
@@ -164,6 +166,17 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
         </Helmet>
 
         <MemoizedPageHeader readOnly={!canEdit} />
+
+        {/* ENG-1440 (F1 fix, AC4/AC5/AC8) — the lifecycle banner sits
+            directly under the fixed header, above the editor content.
+            Only reserves header-clearing space when there is something to
+            show (superseded/archived) — the common draft/published path
+            keeps its existing layout untouched. */}
+        {(page.status === "superseded" || page.status === "archived") && (
+          <div style={{ paddingTop: "var(--page-header-height)" }}>
+            <MemoizedSupersededBanner page={page} readOnly={!canEdit} />
+          </div>
+        )}
 
         <MemoizedFullEditor
           key={page.id}

@@ -21,11 +21,16 @@ import {
   getAllSidebarPages,
   getDeletedPages,
   restorePage,
+  supersedePage,
+  unsupersedePage,
+  setPageStatus,
 } from "@/features/page/services/page-service";
 import {
   IMovePage,
   IPage,
   IPageInput,
+  IPageLifecycleMeta,
+  PageStatusValue,
   SidebarPagesParams,
 } from "@/features/page/types/page.types";
 import { notifications } from "@mantine/notifications";
@@ -171,6 +176,80 @@ export function useMovePageMutation() {
   });
 }
 
+/** Merge a lifecycle-meta patch (returned by the ENG-1434 engine surface)
+ * into whichever cache entries (id- and slugId-keyed) already hold the
+ * page — mirrors `updatePageData`'s dual-key merge above. */
+function mergePageLifecycleMeta(
+  pageId: string,
+  meta: IPageLifecycleMeta,
+): void {
+  const pageById = queryClient.getQueryData<IPage>(["pages", pageId]);
+  if (pageById) {
+    const merged = { ...pageById, ...meta };
+    queryClient.setQueryData(["pages", pageId], merged);
+    if (pageById.slugId) {
+      queryClient.setQueryData(["pages", pageById.slugId], merged);
+    }
+  }
+}
+
+export function useSupersedePageMutation() {
+  const { t } = useTranslation("orvex");
+  return useMutation<
+    IPageLifecycleMeta,
+    Error,
+    { pageId: string; supersedes?: string; supersededBy?: string }
+  >({
+    mutationFn: (data) => supersedePage(data),
+    onSuccess: (meta, variables) => {
+      mergePageLifecycleMeta(variables.pageId, meta);
+    },
+    onError: (error) => {
+      const message =
+        error["response"]?.data?.message || t("Failed to supersede page");
+      notifications.show({ message, color: "red" });
+    },
+  });
+}
+
+export function useUnsupersedePageMutation() {
+  const { t } = useTranslation("orvex");
+  return useMutation<
+    IPageLifecycleMeta,
+    Error,
+    { pageId: string; restoredStatus?: PageStatusValue }
+  >({
+    mutationFn: (data) => unsupersedePage(data),
+    onSuccess: (meta, variables) => {
+      mergePageLifecycleMeta(variables.pageId, meta);
+    },
+    onError: (error) => {
+      const message =
+        error["response"]?.data?.message || t("Failed to unsupersede page");
+      notifications.show({ message, color: "red" });
+    },
+  });
+}
+
+export function useSetPageStatusMutation() {
+  const { t } = useTranslation("orvex");
+  return useMutation<
+    IPageLifecycleMeta,
+    Error,
+    { pageId: string; status: PageStatusValue; archiveReason?: string }
+  >({
+    mutationFn: (data) => setPageStatus(data),
+    onSuccess: (meta, variables) => {
+      mergePageLifecycleMeta(variables.pageId, meta);
+    },
+    onError: (error) => {
+      const message =
+        error["response"]?.data?.message || t("Failed to update page status");
+      notifications.show({ message, color: "red" });
+    },
+  });
+}
+
 export function useRestorePageMutation() {
   const { t } = useTranslation();
   const [treeData, setTreeData] = useAtom(treeDataAtom);
@@ -263,9 +342,16 @@ export function useGetSidebarPagesQuery(
 
 export function useGetRootSidebarPagesQuery(data: SidebarPagesParams) {
   return useInfiniteQuery({
-    queryKey: ["root-sidebar-pages", data.spaceId],
+    // ENG-1440 (AC7 fix) — `includeSuperseded` is part of the cache key so
+    // toggling "show superseded" actually refetches with the new filter.
+    queryKey: ["root-sidebar-pages", data.spaceId, data.includeSuperseded],
     queryFn: async ({ pageParam }) => {
-      return getSidebarPages({ spaceId: data.spaceId, cursor: pageParam, limit: 100 });
+      return getSidebarPages({
+        spaceId: data.spaceId,
+        includeSuperseded: data.includeSuperseded,
+        cursor: pageParam,
+        limit: 100,
+      });
     },
     initialPageParam: undefined,
     getNextPageParam: (lastPage) =>
