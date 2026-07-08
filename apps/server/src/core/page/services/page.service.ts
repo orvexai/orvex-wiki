@@ -63,6 +63,7 @@ import {
   isIntegerVersion,
   toIntegerVersion,
 } from '../if-version.util';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
 
 @Injectable()
 export class PageService {
@@ -82,6 +83,7 @@ export class PageService {
     private readonly watcherService: WatcherService,
     private readonly transclusionService: TransclusionService,
     private readonly idempotencyStore: IdempotencyStore,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async findById(
@@ -122,6 +124,20 @@ export class PageService {
 
       parentPageId = parentPage.id;
     }
+
+    // ENG-1382 (AC1/AC2/AC6) — F-QUOTA write chokepoint: BEFORE any row is
+    // inserted, assert the workspace is under its plan's page cap. The cap
+    // VALUE is read from billing via EntitlementService — never hard-coded
+    // here (❌#10). Throws `QuotaExceededException` (402) at-cap; a no-op
+    // under cap.
+    const currentPageCount = await this.pageRepo.countByWorkspaceId(
+      workspaceId,
+    );
+    await this.entitlementService.assertWithinQuota(
+      workspaceId,
+      'pages',
+      currentPageCount,
+    );
 
     let content = undefined;
     let textContent = undefined;
