@@ -49,13 +49,14 @@ describe('CollaborationHandler.updatePageContent — AC4 markAiAuthored', () => 
   let handlers: ReturnType<CollaborationHandler['getHandlers']>;
   const documentName = 'eng1447-handler-spec-doc';
   const user = { id: 'user-1' } as any;
+  const markPendingAiAuthored = jest.fn();
 
   beforeAll(() => {
     hocuspocus = new Hocuspocus({
       unloadImmediately: false,
       extensions: [new InMemoryPersistence() as any],
     });
-    handler = new CollaborationHandler();
+    handler = new CollaborationHandler({ markPendingAiAuthored } as any);
     handlers = handler.getHandlers(hocuspocus);
   });
 
@@ -136,11 +137,18 @@ describe('CollaborationHandler.updatePageContent — AC4 markAiAuthored', () => 
     // not — this is the handler-level (not just util-level) proof of AC4.
     expect(marksOf(result, 0)).not.toContain('aiAuthored');
     expect(marksOf(result, 1)).toContain('aiAuthored');
+
+    // ENG-1603 (AC4, review1 F2) — the document is flagged for the
+    // debounced-store DB provenance stamp (PersistenceExtension).
+    expect(markPendingAiAuthored).toHaveBeenCalledWith(documentName);
   });
 
   it('markAiAuthored:false/undefined never adds the mark (default collab edits stay unmarked)', async () => {
     const otherDocumentName = 'eng1447-handler-spec-doc-unmarked';
-    const otherHandlers = new CollaborationHandler().getHandlers(hocuspocus);
+    const otherMarkPendingAiAuthored = jest.fn();
+    const otherHandlers = new CollaborationHandler({
+      markPendingAiAuthored: otherMarkPendingAiAuthored,
+    } as any).getHandlers(hocuspocus);
 
     const initialDoc = {
       type: 'doc',
@@ -179,5 +187,6 @@ describe('CollaborationHandler.updatePageContent — AC4 markAiAuthored', () => 
       'Edited by a human, not AI.',
     );
     expect(marksOf(json, 0)).not.toContain('aiAuthored');
+    expect(otherMarkPendingAiAuthored).not.toHaveBeenCalled();
   });
 });

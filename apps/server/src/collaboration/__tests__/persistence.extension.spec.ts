@@ -42,6 +42,9 @@ describe('PersistenceExtension.onStoreDocument', () => {
       syncPageTransclusions: jest.fn().mockResolvedValue(undefined),
       syncPageReferences: jest.fn().mockResolvedValue(undefined),
     };
+    const provenanceService: any = {
+      applyAiEdit: jest.fn().mockResolvedValue({ statusChanged: true }),
+    };
 
     const extension = new PersistenceExtension(
       pageRepo,
@@ -51,9 +54,10 @@ describe('PersistenceExtension.onStoreDocument', () => {
       notificationQueue,
       collabHistory,
       transclusionService,
+      provenanceService,
     );
 
-    return { extension, pageRepo, updatePage, findById };
+    return { extension, pageRepo, updatePage, findById, provenanceService };
   }
 
   /**
@@ -190,5 +194,171 @@ describe('PersistenceExtension.onStoreDocument', () => {
     expect(content.content.content[0].attrs.src).toBe(
       'attachments/scene-edited.excalidraw',
     );
+  });
+
+  /**
+   * ENG-1603 (AC4, review1 F2) — a collab `markAiAuthored` edit must stamp
+   * DB provenance in the SAME transaction as the content write (no lag
+   * window), same as the REST leg. `CollaborationHandler` flags the
+   * document via `markPendingAiAuthored` before the debounced store fires;
+   * this proves `onStoreDocument` consumes that flag and calls
+   * `OrvexPageProvenanceService.applyAiEdit` inside the content-write `trx`
+   * — never as a separate, later write.
+   */
+  describe('ENG-1603 F2 — collab AI-authored provenance stamp', () => {
+    it('calls applyAiEdit inside the same trx as the content write when the document was flagged', async () => {
+      const pageContent = persistedExcalidrawPageJson();
+      const ydoc = TiptapTransformer.toYdoc(pageContent, 'default', tiptapExtensions);
+
+      const editedJson = TiptapTransformer.fromYdoc(ydoc, 'default') as any;
+      editedJson.content[0].attrs.src = 'attachments/ai-edited.excalidraw';
+      const editedYdoc: any = TiptapTransformer.toYdoc(
+        editedJson,
+        'default',
+        tiptapExtensions,
+      );
+      editedYdoc.broadcastStateless = jest.fn();
+
+      const pageRow = {
+        id: pageId,
+        slugId: 'slug-1',
+        workspaceId: 'workspace-1',
+        spaceId: 'space-1',
+        creatorId: 'user-1',
+        contributorIds: [],
+        content: pageContent,
+        createdAt: new Date().toISOString(),
+      };
+
+      const { extension, updatePage, provenanceService } =
+        buildExtension(pageRow);
+
+      extension.markPendingAiAuthored(documentName);
+
+      const trxToken = {};
+      const dbWithTrxToken: any = {
+        transaction: () => ({
+          execute: (cb: (trx: any) => Promise<any>) => cb(trxToken),
+        }),
+      };
+      (extension as any).db = dbWithTrxToken;
+
+      const payload = {
+        documentName,
+        document: editedYdoc,
+        context: { user: { id: 'user-1' } },
+      } as unknown as onStoreDocumentPayload;
+
+      await extension.onStoreDocument(payload);
+
+      expect(updatePage).toHaveBeenCalledTimes(1);
+      expect(provenanceService.applyAiEdit).toHaveBeenCalledTimes(1);
+      const [stampedPageId, oldJson, newJson, actor, trx] =
+        provenanceService.applyAiEdit.mock.calls[0];
+      expect(stampedPageId).toBe(pageId);
+      expect(oldJson).toEqual(pageContent);
+      expect(newJson.content[0].attrs.src).toBe(
+        'attachments/ai-edited.excalidraw',
+      );
+      expect(actor).toEqual({
+        userId: null,
+        workspaceId: 'workspace-1',
+        spaceId: 'space-1',
+        isHuman: false,
+      });
+      // Same trx object the content write used — proves atomicity.
+      expect(trx).toBe(trxToken);
+    });
+
+    it('the flag is one-shot: a second store for the same document does not re-stamp', async () => {
+      const pageContent = persistedExcalidrawPageJson();
+      const ydoc = TiptapTransformer.toYdoc(pageContent, 'default', tiptapExtensions);
+      const editedJson = TiptapTransformer.fromYdoc(ydoc, 'default') as any;
+      editedJson.content[0].attrs.src = 'attachments/ai-edited.excalidraw';
+      const editedYdoc: any = TiptapTransformer.toYdoc(
+        editedJson,
+        'default',
+        tiptapExtensions,
+      );
+      editedYdoc.broadcastStateless = jest.fn();
+
+      const pageRow = {
+        id: pageId,
+        slugId: 'slug-1',
+        workspaceId: 'workspace-1',
+        spaceId: 'space-1',
+        creatorId: 'user-1',
+        contributorIds: [],
+        content: pageContent,
+        createdAt: new Date().toISOString(),
+      };
+
+      const { extension, provenanceService } = buildExtension(pageRow);
+      extension.markPendingAiAuthored(documentName);
+
+      const payload = {
+        documentName,
+        document: editedYdoc,
+        context: { user: { id: 'user-1' } },
+      } as unknown as onStoreDocumentPayload;
+
+      await extension.onStoreDocument(payload);
+      expect(provenanceService.applyAiEdit).toHaveBeenCalledTimes(1);
+
+      // Second, unrelated store for the same document (no fresh flag set).
+      pageRow.content = editedJson;
+      const secondEditedJson = { ...editedJson };
+      secondEditedJson.content = [
+        { ...editedJson.content[0], attrs: { ...editedJson.content[0].attrs, src: 'attachments/human-edited.excalidraw' } },
+      ];
+      const secondYdoc: any = TiptapTransformer.toYdoc(
+        secondEditedJson,
+        'default',
+        tiptapExtensions,
+      );
+      secondYdoc.broadcastStateless = jest.fn();
+
+      await extension.onStoreDocument({
+        documentName,
+        document: secondYdoc,
+        context: { user: { id: 'user-1' } },
+      } as unknown as onStoreDocumentPayload);
+
+      expect(provenanceService.applyAiEdit).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not stamp when the document was never flagged (ordinary human edit)', async () => {
+      const pageContent = persistedExcalidrawPageJson();
+      const ydoc = TiptapTransformer.toYdoc(pageContent, 'default', tiptapExtensions);
+      const editedJson = TiptapTransformer.fromYdoc(ydoc, 'default') as any;
+      editedJson.content[0].attrs.src = 'attachments/human-edited.excalidraw';
+      const editedYdoc: any = TiptapTransformer.toYdoc(
+        editedJson,
+        'default',
+        tiptapExtensions,
+      );
+      editedYdoc.broadcastStateless = jest.fn();
+
+      const pageRow = {
+        id: pageId,
+        slugId: 'slug-1',
+        workspaceId: 'workspace-1',
+        spaceId: 'space-1',
+        creatorId: 'user-1',
+        contributorIds: [],
+        content: pageContent,
+        createdAt: new Date().toISOString(),
+      };
+
+      const { extension, provenanceService } = buildExtension(pageRow);
+
+      await extension.onStoreDocument({
+        documentName,
+        document: editedYdoc,
+        context: { user: { id: 'user-1' } },
+      } as unknown as onStoreDocumentPayload);
+
+      expect(provenanceService.applyAiEdit).not.toHaveBeenCalled();
+    });
   });
 });

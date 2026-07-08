@@ -23,7 +23,12 @@ import { OrvexPageMetadataModule } from '../../orvex/page-metadata/orvex-page-me
   exports: [PageService, PageHistoryService],
   imports: [
     StorageModule,
-    CollaborationModule,
+    // ENG-1603 (F2 fix) — forwardRef: CollaborationModule now (transitively,
+    // via OrvexPageProvenanceModule) requires this file at module-load time
+    // before this class's exports binding is set. A direct (non-deferred)
+    // reference here would decorate PageModule with `undefined` in its
+    // imports array instead of the CollaborationModule class.
+    forwardRef(() => CollaborationModule),
     WatcherModule,
     TransclusionModule,
     LabelModule,
