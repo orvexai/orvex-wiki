@@ -5,6 +5,8 @@
 import { createHmac } from 'crypto';
 import { RatifyTokenService, decodePayload, encodePayload } from './ratify-token.service';
 import { ConfirmTokenService } from './confirm-token.service';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { RatifyTokenPayload } from './ratify-token.types';
 
 /**
  * ENG-1445 — DoD binary gate: `RatifyConfirmTokenHmacSpec`.
@@ -21,13 +23,13 @@ describe('RatifyConfirmTokenHmacSpec', () => {
   function makeRatifyService(secret: string): RatifyTokenService {
     return new RatifyTokenService({
       getAppSecret: () => secret,
-    } as any);
+    } as Pick<EnvironmentService, 'getAppSecret'> as EnvironmentService);
   }
 
   function makeConfirmService(secret: string): ConfirmTokenService {
     return new ConfirmTokenService({
       getAppSecret: () => secret,
-    } as any);
+    } as Pick<EnvironmentService, 'getAppSecret'> as EnvironmentService);
   }
 
   describe('(a) RatifyTokenService.issue()/verify() — HMAC mint + timing-safe verify', () => {
@@ -49,7 +51,7 @@ describe('RatifyConfirmTokenHmacSpec', () => {
         .digest('base64url');
       expect(sig).toBe(expectedSig);
 
-      const payload = decodePayload<any>(payloadB64);
+      const payload = decodePayload<RatifyTokenPayload>(payloadB64);
       expect(payload).toEqual({
         pageId: 'page-1',
         workspaceId: 'ws-1',

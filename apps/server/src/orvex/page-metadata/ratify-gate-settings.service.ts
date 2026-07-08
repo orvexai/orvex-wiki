@@ -3,7 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { Inject, Injectable, PreconditionFailedException } from '@nestjs/common';
-import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { WorkspaceRepo } from '../../database/repos/workspace/workspace.repo';
 import {
   AUDIT_SERVICE,
   IAuditService,

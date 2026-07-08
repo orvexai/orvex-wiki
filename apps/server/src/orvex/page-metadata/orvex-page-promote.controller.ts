@@ -16,8 +16,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { AuthMethod } from '../../common/decorators/auth-method.decorator';
-import { User, Workspace } from '@docmost/db/types/entity.types';
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { User, Workspace } from '../../database/types/entity.types';
+import { PageRepo } from '../../database/repos/page/page.repo';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
 import {
   SpaceCaslAction,
