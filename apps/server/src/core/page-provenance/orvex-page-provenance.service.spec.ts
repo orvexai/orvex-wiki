@@ -21,6 +21,7 @@ import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import type { DbInterface } from '@docmost/db/types/db.interface';
 import type { KyselyDB } from '@docmost/db/types/kysely.types';
 import { v4 as uuid } from 'uuid';
+import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 
 /**
  * ENG-1447 — `AiProvenanceStampSpec`, the named binary DoD gate.
@@ -92,7 +93,15 @@ describe('AiProvenanceStampSpec', () => {
     const eventEmitter = new EventEmitter2();
     const spaceMemberRepoStub = {} as SpaceMemberRepo; // unused: no space-member scoping exercised
 
-    pageRepo = new PageRepo(db, spaceMemberRepoStub, eventEmitter);
+    const outboxWriter = new OutboxWriter(db);
+    const wsServiceStub = { emitInvalidate: () => {} } as any;
+    pageRepo = new PageRepo(
+      db,
+      spaceMemberRepoStub,
+      eventEmitter,
+      outboxWriter,
+      wsServiceStub,
+    );
     auditService = new OrvexAuditService(db);
     service = new OrvexPageProvenanceService(db, pageRepo, auditService);
 

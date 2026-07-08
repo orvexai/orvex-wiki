@@ -27,6 +27,7 @@ import { IdempotencyStore } from '../../../integrations/redis/idempotency-store.
 import type { DbInterface } from '@docmost/db/types/db.interface';
 import type { KyselyDB } from '@docmost/db/types/kysely.types';
 import type { Page, User } from '@docmost/db/types/entity.types';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
 
 /**
  * ENG-1413 — the named DoD gate:
@@ -80,7 +81,15 @@ describe('IdempotencyStore + if-version CAS — integration', () => {
       movePageWatchersToSpace: async () => {},
     } as any;
 
-    const pageRepo = new PageRepo(db, spaceMemberRepoStub, eventEmitter);
+    const outboxWriter = new OutboxWriter(db);
+    const wsServiceStub = { emitInvalidate: () => {} } as any;
+    const pageRepo = new PageRepo(
+      db,
+      spaceMemberRepoStub,
+      eventEmitter,
+      outboxWriter,
+      wsServiceStub,
+    );
     const pagePermissionRepo = new PagePermissionRepo(
       db,
       groupRepoStub,

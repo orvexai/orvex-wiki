@@ -31,6 +31,7 @@ import {
   countMissingBlockIds,
 } from '../../../../collaboration/backfill-block-ids.util';
 import { canonicalJsonStringify } from '../../../../common/helpers/canonical-json';
+import { OutboxWriter } from '../../../../orvex/events/outbox/outbox-writer.service';
 
 /**
  * ENG-1397 — `page.service.block-id-chokepoint.spec.ts`, the named binary
@@ -134,7 +135,15 @@ describe('PageServiceBlockIdChokepointSpec', () => {
       movePageWatchersToSpace: async () => {},
     } as any;
 
-    const pageRepo = new PageRepo(db, spaceMemberRepoStub, eventEmitter);
+    const outboxWriter = new OutboxWriter(db);
+    const wsServiceStub = { emitInvalidate: () => {} } as any;
+    const pageRepo = new PageRepo(
+      db,
+      spaceMemberRepoStub,
+      eventEmitter,
+      outboxWriter,
+      wsServiceStub,
+    );
     const pagePermissionRepo = new PagePermissionRepo(
       db,
       groupRepoStub,
