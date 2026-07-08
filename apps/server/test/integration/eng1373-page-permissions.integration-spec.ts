@@ -18,6 +18,7 @@ import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo'
 import SpaceAbilityFactory from 'src/core/casl/abilities/space-ability.factory';
 import { OrvexPermissionsService } from 'src/core/permissions/orvex-permissions.service';
 import { PagePermissionController } from 'src/core/permissions/page-permission.controller';
+import { PagePermissionService } from 'src/core/permissions/page-permission.service';
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
 import { AuditEvent } from 'src/common/events/audit-events';
 import { SpaceRole, PagePermissionRole } from 'src/common/helpers/types/permission';
@@ -101,12 +102,14 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       spaceAbility,
     );
     const orvexAudit = new OrvexAuditService(db);
+    const pagePermissionService = new PagePermissionService(pagePermissionRepo);
     controller = new PagePermissionController(
       db,
       pageRepo,
       pagePermissionRepo,
       spaceAbility,
       orvexAudit,
+      pagePermissionService,
     );
   }, 120_000);
 

@@ -31,11 +31,14 @@ import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { OrvexAuditService } from '../audit/orvex-audit.service';
 import {
   AddPagePermissionDto,
+  ListPagePermissionsDto,
   RemovePagePermissionDto,
   RemoveRestrictionDto,
+  RestrictionInfoDto,
   RestrictPageDto,
   UpdatePagePermissionDto,
 } from './dto/page-permission.dto';
+import { PagePermissionService } from './page-permission.service';
 
 /**
  * ENG-1373 — permission-mutating endpoints for the per-page ACL primitive.
@@ -58,7 +61,40 @@ export class PagePermissionController {
     private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly spaceAbility: SpaceAbilityFactory,
     private readonly orvexAudit: OrvexAuditService,
+    private readonly pagePermissionService: PagePermissionService,
   ) {}
+
+  /**
+   * ENG-1596 (AC1, AC7, AC8) — list-permissions read. Thin handler: authz
+   * (the SAME `assertCanManage` IDOR choke point the mutations use, per the
+   * ticket's DoD checklist — fail-closed before any ACL row is read) ->
+   * parse DTO -> ONE service call -> return. No business logic here.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('list')
+  async list(
+    @Body() dto: ListPagePermissionsDto,
+    @AuthUser() user: User,
+  ) {
+    const page = await this.loadPageOrThrow(dto.pageId);
+    await this.assertCanManage(user, page);
+    return this.pagePermissionService.listPermissions(page.id, dto);
+  }
+
+  /**
+   * ENG-1596 (AC2-AC4, AC7, AC8) — restriction-info read. Same guard,
+   * same thin-handler shape as `list` above.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('restriction-info')
+  async restrictionInfo(
+    @Body() dto: RestrictionInfoDto,
+    @AuthUser() user: User,
+  ) {
+    const page = await this.loadPageOrThrow(dto.pageId);
+    await this.assertCanManage(user, page);
+    return this.pagePermissionService.getRestrictionInfo(page.id, user.id);
+  }
 
   @HttpCode(HttpStatus.OK)
   @Post('restrict')
