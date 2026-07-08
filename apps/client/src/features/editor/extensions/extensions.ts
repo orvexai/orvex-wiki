@@ -63,6 +63,9 @@ import {
   TableView,
   BaseEmbed as BaseEmbedNode,
   AiAuthored,
+  Changelog,
+  FreshnessRibbon,
+  Chart,
 } from "@docmost/editor-ext";
 import {
   randomElement,
@@ -91,6 +94,9 @@ import ExcalidrawView from "@/features/editor/components/excalidraw/excalidraw-v
 import EmbedView from "@/features/editor/components/embed/embed-view.tsx";
 import PdfView from "@/features/editor/components/pdf/pdf-view.tsx";
 import SubpagesView from "@/features/editor/components/subpages/subpages-view.tsx";
+import ChangelogView from "@/features/editor/components/orvex-visuals/changelog-view.tsx";
+import FreshnessRibbonView from "@/features/editor/components/orvex-visuals/freshness-ribbon-view.tsx";
+import ChartView from "@/features/editor/components/chart/chart-view.tsx";
 import TransclusionView from "@/features/editor/components/transclusion/transclusion-view.tsx";
 import TransclusionReferenceView from "@/features/editor/components/transclusion/transclusion-reference-view.tsx";
 import { BaseEmbedView } from "@/features/editor/components/base-embed/base-embed-view.tsx";
@@ -375,6 +381,15 @@ export const mainExtensions = [
   PageBreak,
   Subpages.configure({
     view: SubpagesView,
+  }),
+  Changelog.configure({
+    view: ChangelogView,
+  }),
+  FreshnessRibbon.configure({
+    view: FreshnessRibbonView,
+  }),
+  Chart.configure({
+    view: ChartView,
   }),
   Status.configure({
     view: StatusView,

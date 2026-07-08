@@ -39,3 +39,6 @@ export {
   type DocxImageResolver,
 } from "./lib/prosemirror-docx";
 export * from "./lib/base-embed";
+export * from "./lib/changelog";
+export * from "./lib/freshness-ribbon";
+export * from "./lib/chart";
