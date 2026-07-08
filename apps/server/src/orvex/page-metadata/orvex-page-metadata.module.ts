@@ -15,6 +15,7 @@ import { ForceSupersedeSettingsController } from './force-supersede-settings.con
 import { OrvexPageSupersedeController } from './orvex-page-supersede.controller';
 import { WsPageLifecycleBroadcaster } from './ws-page-lifecycle-broadcaster';
 import { PAGE_LIFECYCLE_BROADCASTER } from './supersede.types';
+import { PageMetaVerificationService } from './page-meta-verification.service';
 
 /**
  * ENG-1371 — the page-metadata domain module. `WorkspaceRepo`/`KyselyDB` are
@@ -51,6 +52,11 @@ import { PAGE_LIFECYCLE_BROADCASTER } from './supersede.types';
  * bound to `PAGE_LIFECYCLE_BROADCASTER`) for AC13's post-commit freshness
  * push. `WsService` is `@Global()`-provided (`WsModule`), so no explicit
  * import is needed.
+ *
+ * ENG-1379 — also declares/exports `PageMetaVerificationService`, the thin
+ * `verified_against`/`verified_at` stamp+read accessor for the future
+ * wiki-api (D-S8) drift-verification decision logic to call into (see that
+ * service's own docstring for the ticket's premise-correction note).
  */
 @Module({
   controllers: [
@@ -67,7 +73,11 @@ import { PAGE_LIFECYCLE_BROADCASTER } from './supersede.types';
     RatifyGateSettingsService,
     ForceSupersedeSettingsService,
     WsPageLifecycleBroadcaster,
-    { provide: PAGE_LIFECYCLE_BROADCASTER, useExisting: WsPageLifecycleBroadcaster },
+    {
+      provide: PAGE_LIFECYCLE_BROADCASTER,
+      useExisting: WsPageLifecycleBroadcaster,
+    },
+    PageMetaVerificationService,
   ],
   exports: [
     OrvexPageMetadataService,
@@ -76,6 +86,7 @@ import { PAGE_LIFECYCLE_BROADCASTER } from './supersede.types';
     ConfirmTokenService,
     RatifyGateSettingsService,
     ForceSupersedeSettingsService,
+    PageMetaVerificationService,
   ],
 })
 export class OrvexPageMetadataModule {}
