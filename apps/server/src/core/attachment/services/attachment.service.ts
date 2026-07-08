@@ -19,7 +19,7 @@ import { AttachmentType, validImageExtensions } from '../attachment.constants';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { Attachment, User, Workspace } from '@docmost/db/types/entity.types';
 import { InjectKysely } from 'nestjs-kysely';
-import { executeTx } from '@docmost/db/utils';
+import { executeTx, acquireWorkspaceQuotaLock } from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
@@ -33,6 +33,7 @@ import {
   EVT_ATTACHMENT_DELETED,
 } from '../../../orvex/events/constants/orvex-event-types';
 import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
+import { QuotaExceededException } from '../../../orvex/entitlement/quota.exception';
 
 @Injectable()
 export class AttachmentService {
@@ -111,18 +112,33 @@ export class AttachmentService {
       attachmentId = uuid7();
     }
 
-    // ENG-1382 (AC4/AC6) — F-QUOTA write chokepoint: assert the workspace's
-    // current aggregate storage is under its plan's cap BEFORE streaming
-    // any bytes to the storage driver. Cap VALUE from billing, never
-    // hard-coded (❌#10). A workspace already at cap is rejected here; no
-    // attachment row and no object are ever written.
-    const currentStorageBytes =
-      await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
-    await this.entitlementService.assertWithinQuota(
-      workspaceId,
-      'storage',
-      currentStorageBytes,
-    );
+    // ENG-1382 (AC4/AC6) — F-QUOTA write chokepoint, fast pre-check: reject a
+    // workspace already at its file-count or storage-aggregate cap BEFORE
+    // streaming any bytes to the storage driver, so an already-full
+    // workspace never pays the upload cost. Cap VALUE from billing, never
+    // hard-coded (❌#10). This is NOT the authoritative check — the real
+    // file size is unknown until the stream is fully consumed, so it cannot
+    // alone stop an under-cap upload whose actual size crosses the
+    // aggregate, nor a concurrent-upload race (ENG-1382 fix pass 1, F1/F3).
+    // The authoritative, race-safe recheck happens after streaming,
+    // immediately before the attachment row is written, below.
+    if (!isUpdate) {
+      const currentFileCount =
+        await this.attachmentRepo.countByWorkspaceId(workspaceId);
+      await this.entitlementService.assertWithinQuota(
+        workspaceId,
+        'files',
+        currentFileCount,
+      );
+
+      const currentStorageBytes =
+        await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
+      await this.entitlementService.assertWithinQuota(
+        workspaceId,
+        'storage',
+        currentStorageBytes,
+      );
+    }
 
     const filePath = `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${preparedFile.fileName}`;
 
@@ -146,15 +162,59 @@ export class AttachmentService {
           attachmentId,
         );
       } else {
-        attachment = await this.saveAttachment({
-          attachmentId,
-          preparedFile,
-          filePath,
-          type: AttachmentType.File,
-          userId,
-          spaceId,
-          workspaceId,
-          pageId,
+        // ENG-1382 fix pass 1 (F1/F3) — the authoritative chokepoint: the
+        // advisory lock is the FIRST statement in this transaction so a
+        // concurrent upload for the same workspace blocks until this one
+        // commits/rolls back and then re-reads the now-current count/
+        // aggregate (F1 — no cap-bypass race). `assertIncrementWithinQuota`
+        // checks `currentAggregate + thisFile.fileSize > cap` — AC4's
+        // literal "an upload would exceed it" — not merely
+        // "already at cap", closing the semantic gap where an under-cap
+        // workspace could upload an oversized file (F3). The per-file
+        // `wiki_max_file_bytes` cap is enforced the same way with a
+        // baseline of 0.
+        attachment = await executeTx(this.db, async (trx) => {
+          await acquireWorkspaceQuotaLock(trx, 'storage', workspaceId);
+
+          const currentFileCount = await this.attachmentRepo.countByWorkspaceId(
+            workspaceId,
+            trx,
+          );
+          await this.entitlementService.assertWithinQuota(
+            workspaceId,
+            'files',
+            currentFileCount,
+          );
+
+          const currentStorageBytes =
+            await this.attachmentRepo.sumFileSizeByWorkspaceId(
+              workspaceId,
+              trx,
+            );
+          await this.entitlementService.assertIncrementWithinQuota(
+            workspaceId,
+            'storage',
+            currentStorageBytes,
+            preparedFile.fileSize,
+          );
+          await this.entitlementService.assertIncrementWithinQuota(
+            workspaceId,
+            'file_bytes',
+            0,
+            preparedFile.fileSize,
+          );
+
+          return this.saveAttachment({
+            attachmentId,
+            preparedFile,
+            filePath,
+            type: AttachmentType.File,
+            userId,
+            spaceId,
+            workspaceId,
+            pageId,
+            trx,
+          });
         });
       }
 
@@ -175,6 +235,14 @@ export class AttachmentService {
         );
       }
     } catch (err) {
+      if (err instanceof QuotaExceededException) {
+        // The bytes were already streamed to storage (skipBuffer means the
+        // real size is only known after the fact) before this authoritative
+        // recheck rejected it — clean up the orphaned object so it never
+        // lands in a future aggregate/count read, then surface the real 402.
+        await this.storageService.delete(filePath).catch(() => undefined);
+        throw err;
+      }
       // delete uploaded file on error
       this.logger.error(err);
     }

@@ -124,7 +124,16 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     });
     const { error } = await migrator.migrateToLatest();
     if (error) throw error;
-    await rawDb.destroy();
+    // ENG-1382 fix pass 1 (F1) — deliberately NOT destroying `rawDb`:
+    // it shares the underlying `sqlClient` with `db` below (both wrap the
+    // same postgres-js client, just with/without CamelCasePlugin for the
+    // migration files' snake_case schema calls). `Kysely.destroy()` on the
+    // postgres-js dialect calls through to `sqlClient.end()`, which was
+    // silently serializing every later concurrent transaction on `db`
+    // (masked until this pass added real concurrency/race tests — the
+    // narrow no-op check above genuinely exercises the race precisely
+    // because this is fixed). `sqlClient.end()` in `afterAll` below is
+    // the real, single teardown.
 
     db = new Kysely<DB>({
       dialect: new PostgresJSDialect({ postgres: sqlClient }),
@@ -294,5 +303,73 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     expect((caught as QuotaExceededException).getResponse()).toMatchObject({
       limit: customCap,
     });
+  });
+
+  it('F1 (§5b) — two concurrent PageService.create() calls at cap-1 never exceed the page cap', async () => {
+    const { workspaceId, userId, spaceId } = await seedWorkspaceWithSpace();
+    stubPort.catalogByWorkspace.set(workspaceId, replayedCatalog(['ask_wiki']));
+    cache.evict({ principal_type: 'org', principal_id: workspaceId });
+
+    // Bring the workspace to cap - 1 (one slot free).
+    for (let i = 0; i < REPLAYED_PAGE_CAP - 1; i++) {
+      await pageService.create(userId, workspaceId, {
+        spaceId,
+        title: `race-preexisting-${i}`,
+      } as any);
+    }
+
+    const beforeCount = await pageRepo.countByWorkspaceId(workspaceId);
+    expect(beforeCount).toBe(REPLAYED_PAGE_CAP - 1);
+
+    // The exact T6 attack: N concurrent creates all reading `cap - 1`
+    // without the fix would all pass the check and all insert, landing well
+    // past cap. The advisory-lock fix (F1) serializes them so the count is
+    // re-read after each predecessor commits, and only one succeeds.
+    //
+    // Real network jitter alone does not reliably overlap two fast
+    // count-then-insert windows on a local testcontainers Postgres, so this
+    // widens the count-read window with a small real delay (spying on the
+    // REAL `countByWorkspaceId` — still hits the real DB, nothing faked)
+    // to force every racer's count-read to overlap. Without the lock
+    // (mutation check) this makes every racer read the stale `cap - 1` and
+    // all insert; with the lock, the delay is harmless — the lock blocks a
+    // racer from even calling `countByWorkspaceId` until its predecessor's
+    // transaction has committed.
+    const countSpy = jest.spyOn(pageRepo, 'countByWorkspaceId');
+    countSpy.mockImplementation(async (...args) => {
+      const result = await (
+        PageRepo.prototype.countByWorkspaceId as any
+      ).apply(pageRepo, args);
+      await new Promise((resolve) => setTimeout(resolve, 75));
+      return result;
+    });
+
+    try {
+      const CONCURRENCY = 8;
+      const results = await Promise.allSettled(
+        Array.from({ length: CONCURRENCY }, (_, i) =>
+          pageService.create(userId, workspaceId, {
+            spaceId,
+            title: `race-${i}`,
+          } as any),
+        ),
+      );
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter(
+        (r) => r.status === 'rejected',
+      ) as PromiseRejectedResult[];
+
+      expect(fulfilled.length).toBe(1);
+      expect(rejected.length).toBe(CONCURRENCY - 1);
+      for (const r of rejected) {
+        expect(r.reason).toBeInstanceOf(QuotaExceededException);
+      }
+
+      const finalCount = await pageRepo.countByWorkspaceId(workspaceId);
+      expect(finalCount).toBe(REPLAYED_PAGE_CAP); // never cap + 1
+    } finally {
+      countSpy.mockRestore();
+    }
   });
 });

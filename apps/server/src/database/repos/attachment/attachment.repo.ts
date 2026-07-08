@@ -36,8 +36,11 @@ export class AttachmentRepo {
    * attachment byte size (soft-deleted attachments have already freed
    * their storage — excluded, mirroring `PageRepo.countByWorkspaceId`).
    */
-  async sumFileSizeByWorkspaceId(workspaceId: string): Promise<number> {
-    const result = await this.db
+  async sumFileSizeByWorkspaceId(
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<number> {
+    const result = await dbOrTx(this.db, trx)
       .selectFrom('attachments')
       .select((eb) => eb.fn.sum('fileSize').as('total'))
       .where('workspaceId', '=', workspaceId)
@@ -45,6 +48,21 @@ export class AttachmentRepo {
       .executeTakeFirst();
 
     return Number(result?.total ?? 0);
+  }
+
+  /** ENG-1382 fix pass 1 (F3) — F-QUOTA `wiki_max_files` usage count. */
+  async countByWorkspaceId(
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<number> {
+    const result = await dbOrTx(this.db, trx)
+      .selectFrom('attachments')
+      .select((eb) => eb.fn.countAll().as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+
+    return Number(result?.count ?? 0);
   }
 
   async findById(

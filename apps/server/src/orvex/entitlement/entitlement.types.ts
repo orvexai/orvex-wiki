@@ -38,7 +38,12 @@ export type GatedFeature =
  * Mirrors the `Wiki*` fields of `gen.Caps` (billing owns the VALUES; this
  * leg only names the resource it is checking, per ❌#10 — never a number).
  */
-export type QuotaResource = 'pages' | 'storage' | 'members';
+export type QuotaResource =
+  | 'pages'
+  | 'storage'
+  | 'members'
+  | 'files'
+  | 'file_bytes';
 
 /** Field-for-field mirror of `orvex-studio-billing/gen.Caps` (json tags). */
 export interface EntitlementCaps {
@@ -94,5 +99,9 @@ export function capValueForResource(
       return caps.wiki_storage_bytes_aggregate;
     case 'members':
       return caps.wiki_max_members;
+    case 'files':
+      return caps.wiki_max_files;
+    case 'file_bytes':
+      return caps.wiki_max_file_bytes;
   }
 }
