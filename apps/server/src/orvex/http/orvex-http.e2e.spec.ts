@@ -115,6 +115,64 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     expect(res.json()).toEqual(sentinel('orvexSessionExchange'));
   });
 
+  it('ENG-1490 AC4 — orvexSessionExchange (the identity-spine session-mint path) is UNTOUCHED by OrvexNativeLoginGuard even when the request carries an enforced-SSO workspace', async () => {
+    // Build a second app on the same OrvexRootModule wiring, but with the
+    // `req.raw.workspace` shape OrvexNativeLoginGuard reads (mirroring
+    // `orvex-native-login.e2e.spec.ts`) attached to every request via a
+    // DomainMiddleware stand-in. This is the exact trigger condition
+    // (flag ON + enforceSso ON) that fires the guard on the native-auth
+    // routes; asserting the session-mint/exchange route's response is
+    // BYTE-IDENTICAL to its unconditioned behaviour above (still the 501
+    // sentinel, never a 403 from the native-login guard) is the honest
+    // positive proof available in this repo today that native-login
+    // disablement did not touch the identity-spine session-mint surface.
+    //
+    // NOTE: a literal "2xx" assertion on this route requires the
+    // session-mint HTTP wiring itself to land — `OrvexSessionController`
+    // is a deliberate, separately-ticketed 501 stub (see its file doc)
+    // pending that fold-in, so asserting 2xx here would fabricate success
+    // (CS §11). This regression assertion is the maximal honest AC4 proof
+    // until that wiring ticket lands.
+    const moduleRef = await Test.createTestingModule({
+      imports: [OrvexRootModule.register()],
+    }).compile();
+
+    const ssoApp = moduleRef.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
+    ssoApp.setGlobalPrefix('api');
+    ssoApp.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        stopAtFirstError: true,
+      }),
+    );
+    ssoApp.useGlobalInterceptors(
+      new TransformHttpResponseInterceptor(ssoApp.get(Reflector)),
+    );
+    ssoApp.use(
+      (req: { workspace?: unknown }, _res: unknown, next: () => void) => {
+        req.workspace = { id: 'ws-sso', enforceSso: true };
+        next();
+      },
+    );
+    await ssoApp.init();
+    await ssoApp.getHttpAdapter().getInstance().ready();
+
+    try {
+      const res = await ssoApp.inject({
+        method: 'POST',
+        url: '/api/orvex/session/exchange',
+        payload: { exchangeToken: 'aaa.bbb.ccc' },
+      });
+      expect(res.statusCode).toBe(501);
+      expect(res.json()).toEqual(sentinel('orvexSessionExchange'));
+    } finally {
+      await ssoApp.close();
+    }
+  });
+
   it('orvexSourceOffer -> 200 REAL wire-true envelope {data:{sha,sourceRepo},success,status}', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/orvex/source' });
     expect(res.statusCode).toBe(200);
