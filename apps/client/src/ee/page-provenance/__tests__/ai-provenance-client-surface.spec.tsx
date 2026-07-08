@@ -24,6 +24,13 @@ import { ProvenanceStatus } from "@/ee/page-provenance/types/page-provenance.typ
  * `Editor` instance, not a mock) — only the remote provenance query's HTTP
  * transport (`api.post`) is mocked, with a real `/pages/info` response
  * shape (the page row carrying `provenanceStatus`).
+ *
+ * Review F1: `api.post` resolves through `@/lib/api-client`'s response
+ * interceptor, which already unwraps the axios envelope down to
+ * `response.data`. The mock below must therefore resolve directly with the
+ * page row (no `{ data: ... }` wrapper) to be a faithful stand-in for the
+ * real transport — a pre-interceptor-shaped mock would pass the test while
+ * the real call throws.
  */
 describe("AiProvenanceClientSurfaceSpec", () => {
   afterEach(() => {
@@ -122,7 +129,8 @@ describe("AiProvenanceClientSurfaceSpec", () => {
 
   test("renders 'AI Produced' for an ai_produced page", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
-      data: { id: "page-1", provenanceStatus: "ai_produced" },
+      id: "page-1",
+      provenanceStatus: "ai_produced",
     } as any);
 
     renderBadge("page-1");
@@ -132,7 +140,8 @@ describe("AiProvenanceClientSurfaceSpec", () => {
 
   test("renders 'Verified' for a human_verified page", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
-      data: { id: "page-1", provenanceStatus: "human_verified" },
+      id: "page-1",
+      provenanceStatus: "human_verified",
     } as any);
 
     renderBadge("page-1");
@@ -142,7 +151,8 @@ describe("AiProvenanceClientSurfaceSpec", () => {
 
   test("renders no badge for a null provenance status", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
-      data: { id: "page-1", provenanceStatus: null },
+      id: "page-1",
+      provenanceStatus: null,
     } as any);
 
     renderBadge("page-1");
