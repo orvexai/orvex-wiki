@@ -281,4 +281,44 @@ describe("ENG-1375 DoD: TestPagePermissionTab_RestrictAndGrantFlow", () => {
     await screen.findByText("Restricted");
     await screen.findByPlaceholderText("Search for users and groups");
   });
+
+  // review1 F1: AC5/AC6 previously only exercised the restrict direction —
+  // `unrestrictPage`/`useUnrestrictPageMutation` and the reverse
+  // general-access transition (restricted -> open) had shipped code but no
+  // assertion. Drive the full round trip through the real hook + fake
+  // transport (never mocking the hooks/services under test) and assert both
+  // the wire call and the UI settling back to the unrestricted state.
+  test("AC5/AC6: unrestrict reverts general access to Open and hides member management", async () => {
+    renderTab();
+
+    // Restrict first (same real flow as the DoD test above).
+    clickOpen(await screen.findByRole("button", { name: /open/i }));
+    clickOpen(await screen.findByText("Restricted"));
+    await waitFor(() => {
+      expect(fakeEngine.isRestricted()).toBe(true);
+    });
+    await screen.findByText("Restricted");
+    await screen.findByPlaceholderText("Search for users and groups");
+
+    // --- unrestrict toggle: reverse general-access direction ---
+    clickOpen(screen.getByRole("button", { name: /restricted/i }));
+    clickOpen(await screen.findByText("Open"));
+
+    await waitFor(() => {
+      expect(fakeEngine.post).toHaveBeenCalledWith(
+        "/page-permissions/remove-restriction",
+        { pageId: PAGE_ID },
+      );
+    });
+    expect(fakeEngine.isRestricted()).toBe(false);
+
+    // The tab re-renders unrestricted: general-access box reads "Open" again
+    // and the member-grant affordance (only shown while restricted) is gone.
+    await screen.findByRole("button", { name: /^open/i });
+    await waitFor(() => {
+      expect(
+        screen.queryByPlaceholderText("Search for users and groups"),
+      ).toBeNull();
+    });
+  });
 });
