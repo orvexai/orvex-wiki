@@ -61,6 +61,7 @@ describe('AiProvenanceStampSpec', () => {
   let service: OrvexPageProvenanceService;
   let auditService: OrvexAuditService;
   let pageRepo: PageRepo;
+  let outboxWriter: OutboxWriter;
 
   let workspaceId: string;
   let spaceId: string;
@@ -93,7 +94,7 @@ describe('AiProvenanceStampSpec', () => {
     const eventEmitter = new EventEmitter2();
     const spaceMemberRepoStub = {} as SpaceMemberRepo; // unused: no space-member scoping exercised
 
-    const outboxWriter = new OutboxWriter(db);
+    outboxWriter = new OutboxWriter(db);
     const wsServiceStub = { emitInvalidate: () => {} } as any;
     pageRepo = new PageRepo(
       db,
@@ -103,7 +104,12 @@ describe('AiProvenanceStampSpec', () => {
       wsServiceStub,
     );
     auditService = new OrvexAuditService(db);
-    service = new OrvexPageProvenanceService(db, pageRepo, auditService);
+    service = new OrvexPageProvenanceService(
+      db,
+      pageRepo,
+      auditService,
+      outboxWriter,
+    );
 
     const ws = await db
       .insertInto('workspaces')
@@ -327,6 +333,50 @@ describe('AiProvenanceStampSpec', () => {
       .where('id', '=', page.id)
       .executeTakeFirstOrThrow();
     expect(row.provenanceStatus).toBe('ai_produced');
+  });
+
+  it('ENG-1383 F2 — a provenance status change writes exactly one page.status_changed outbox row, atomically', async () => {
+    const page = await insertPage();
+
+    await service.markAiCreated(page.id, {
+      userId: null,
+      workspaceId,
+      spaceId: page.spaceId,
+      isHuman: false,
+    });
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', 'page.status_changed')
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    const payload = rows[0].payload as {
+      fromStatus: string | null;
+      toStatus: string;
+    };
+    expect(payload.fromStatus).toBeNull();
+    expect(payload.toStatus).toBe('ai_produced');
+
+    // A no-op re-application (already ai_produced -> ai_produced via
+    // applyAiEdit's early return) must NOT churn a second outbox row.
+    const oldDoc = { type: 'doc', content: [] };
+    const newDoc = { type: 'doc', content: [] };
+    await service.applyAiEdit(
+      page.id,
+      oldDoc,
+      newDoc,
+      { userId: null, workspaceId, spaceId: page.spaceId, isHuman: false },
+    );
+    const rowsAfter = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', 'page.status_changed')
+      .where('aggregateId', '=', page.id)
+      .execute();
+    expect(rowsAfter).toHaveLength(1);
   });
 
   it('AC7 — provenance is inline on pages; a hard page delete leaves zero orphaned provenance rows', async () => {

@@ -13,6 +13,8 @@ import {
   markAiChangedBlocks,
   stripAiAuthoredMarks,
 } from './provenance-content.util';
+import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
+import { EVT_PAGE_STATUS_CHANGED } from '../../orvex/events/constants/orvex-event-types';
 
 /**
  * The set of provenance states a page can carry.
@@ -66,6 +68,7 @@ export class OrvexPageProvenanceService {
     @InjectKysely() private readonly db: KyselyDB,
     private readonly pageRepo: PageRepo,
     private readonly auditService: OrvexAuditService,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   /**
@@ -244,6 +247,14 @@ export class OrvexPageProvenanceService {
    * method stays DRY and consistent. Runs the row update AND the audit
    * write in the SAME transaction (AC1 — exactly one audit event per stamp,
    * atomic with the write — no lag window).
+   *
+   * ENG-1383 F2 fix — also writes the `page.status_changed` outbox row IN
+   * THE SAME TRANSACTION (AC7's one non-orphaned, non-satellite producer —
+   * "page status" here is provenance status). This is the real atomic
+   * primitive (AC1/AC2-style); it does NOT go through
+   * `OrvexEventBusService.onPageStatusChanged` (which stays a `enqueueDetached`,
+   * post-commit fallback for any future non-transactional emitter of
+   * `EventName.PAGE_STATUS_CHANGED` — nothing emits that today).
    */
   private async writeStatus(
     pageId: string,
@@ -282,6 +293,20 @@ export class OrvexPageProvenanceService {
         },
         metadata,
       });
+
+      if (before !== status) {
+        await this.outboxWriter.enqueue(tx, {
+          type: EVT_PAGE_STATUS_CHANGED,
+          aggregateId: pageId,
+          workspaceId,
+          payload: {
+            id: pageId,
+            spaceId: page.spaceId ?? null,
+            fromStatus: before,
+            toStatus: status,
+          },
+        });
+      }
     };
 
     if (trx) {
