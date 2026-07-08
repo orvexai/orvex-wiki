@@ -61,7 +61,12 @@ const PAGE_ID = "page-1";
 //     in the same transaction ("the restricting admin is granted writer
 //     immediately, so restricting a page never produces an orphaned
 //     no-writer restricted page" — controller comment).
-//   - `add-permission` returns `{ success: true }`.
+//   - `add-permission` returns `{ success: true }` and only accepts a
+//     singular `userId`/`groupId` (`assertSinglePrincipal`) — the fake
+//     rejects an `userIds`/`groupIds` array payload exactly as the real
+//     controller's DTO validation would, so this test cannot pass against a
+//     client that regresses back to batched-array grants (ENG-1375 fix
+//     pass 1).
 // `/pages/permission-info` and `/pages/permissions` (list/info reads) have
 // NO engine controller yet — that gap is tracked separately in ENG-1596
 // (blocked-by this ticket, per the PD-4d orchestrator ruling). The shapes
@@ -102,9 +107,27 @@ function installFakeEngine() {
       return Promise.resolve({ data: { success: true } });
     }
     if (url === "/page-permissions/add-permission") {
+      // Mirrors the shipped `AddPagePermissionDto` + `assertSinglePrincipal`
+      // (apps/server/.../page-permission.controller.ts): exactly one of
+      // `userId`/`groupId` singular, never arrays. A payload carrying
+      // `userIds`/`groupIds` here is what the real controller 400s on, so
+      // fail loud instead of quietly accepting it like the real DTO would
+      // reject.
+      if ((body as any).userIds || (body as any).groupIds) {
+        return Promise.reject(
+          new Error(
+            "add-permission payload must use singular userId/groupId, not arrays",
+          ),
+        );
+      }
+      if (!body.userId && !body.groupId) {
+        return Promise.reject(
+          new Error("Provide either userId or groupId"),
+        );
+      }
       permissions.push({
-        id: body.userIds[0],
-        type: "user" as const,
+        id: body.userId ?? body.groupId,
+        type: body.userId ? ("user" as const) : ("group" as const),
         name: "Ada Lovelace",
         email: "ada@example.com",
         avatarUrl: null,
@@ -223,7 +246,7 @@ describe("ENG-1375 DoD: TestPagePermissionTab_RestrictAndGrantFlow", () => {
         expect.objectContaining({
           pageId: PAGE_ID,
           role: PagePermissionRole.WRITER,
-          userIds: ["user-42"],
+          userId: "user-42",
         }),
       );
     });

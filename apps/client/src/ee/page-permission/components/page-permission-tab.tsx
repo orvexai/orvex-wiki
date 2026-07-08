@@ -62,6 +62,10 @@ export function PagePermissionTab({
   const handleAddMembers = async () => {
     if (memberIds.length === 0) return;
 
+    // ENG-1375 fix pass 1: the shipped `AddPagePermissionDto` accepts only a
+    // single `userId` OR `groupId` per request (`assertSinglePrincipal`) —
+    // fan out one `add-permission` call per selected principal rather than
+    // batching ids into arrays the controller would reject with a 400.
     const userIds = memberIds
       .filter((id) => id.startsWith("user-"))
       .map((id) => id.replace("user-", ""));
@@ -70,12 +74,20 @@ export function PagePermissionTab({
       .filter((id) => id.startsWith("group-"))
       .map((id) => id.replace("group-", ""));
 
-    await addPermissionMutation.mutateAsync({
-      pageId,
-      role: role as PagePermissionRole,
-      ...(userIds.length > 0 && { userIds }),
-      ...(groupIds.length > 0 && { groupIds }),
-    });
+    for (const userId of userIds) {
+      await addPermissionMutation.mutateAsync({
+        pageId,
+        role: role as PagePermissionRole,
+        userId,
+      });
+    }
+    for (const groupId of groupIds) {
+      await addPermissionMutation.mutateAsync({
+        pageId,
+        role: role as PagePermissionRole,
+        groupId,
+      });
+    }
 
     setMemberIds([]);
   };
