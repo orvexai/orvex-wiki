@@ -146,6 +146,7 @@ describe('TestPageHistoryRestoreEndpoint_HttpContractAndAuth (ENG-1369 fix1 F1)'
       {} as any, // watcherService
       {} as any, // transclusionService
       { record: async () => {} } as any, // idempotencyStore
+      {} as any, // entitlementService — restore path never enforces quota
     );
 
     const pageHistoryService = new PageHistoryService(
