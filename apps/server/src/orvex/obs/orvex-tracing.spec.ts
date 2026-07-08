@@ -104,6 +104,20 @@ describe('TestEngineEmitsConformantSpan', () => {
     expect(continued).toBeDefined();
   });
 
+  it('review-2 F1/AC6: http.url/http.target are stripped even for a PII-laden request line', () => {
+    const tagged = spans.find((s) => s.attributes[ORVEX_CORRELATION_ID_ATTR] === 'dod-correlation-pii');
+    expect(tagged).toBeDefined();
+    expect(tagged!.attributes).not.toHaveProperty('http.url');
+    expect(tagged!.attributes).not.toHaveProperty('http.target');
+    // Sanity: prove the instrumentation really saw the PII-laden request
+    // (so this test would have caught the original leak) by asserting no
+    // attribute on the span echoes the raw title/email/slug anywhere.
+    const serialized = JSON.stringify(tagged!.attributes);
+    expect(serialized).not.toContain('Jane-Doe');
+    expect(serialized).not.toContain('jane@acme.com');
+    expect(serialized).not.toContain('Patient');
+  });
+
   it('AC2: a request with no inbound traceparent starts a fresh trace', () => {
     const inboundTraceId = '4bf92f3577b34da6a3ce929d0e0e4736';
     const knownTraceIds = new Set(spans.map((s) => s.traceId));

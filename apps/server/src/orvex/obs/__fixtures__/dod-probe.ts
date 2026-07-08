@@ -144,6 +144,14 @@ async function main(): Promise<void> {
   });
   // (3) AC2 — no inbound traceparent => fresh trace.
   await get('/probe', {});
+  // (4) review-2 F1/AC6 — a real PII-laden request line (page-title-derived
+  // slug in the path + title/email in the query string) through the REAL
+  // HttpInstrumentation, tagged via x-correlation-id so the spec can find
+  // the exported span without relying on the (now-redacted) http.url.
+  await get(
+    '/api/pages/Q3-Board-Deck-Jane-Doe-salary-review?title=Patient%20diagnosis%20John%20Smith&email=jane@acme.com',
+    { 'x-correlation-id': 'dod-correlation-pii' },
+  );
 
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await handle?.shutdown();

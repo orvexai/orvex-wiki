@@ -22,6 +22,7 @@ import { FastifyInstrumentation } from '@opentelemetry/instrumentation-fastify';
 
 import { OrvexConfigService } from '../config/orvex-config.service';
 import { buildResourceAttributes } from './orvex-span-attributes.util';
+import { OrvexPiiRedactingSpanProcessor } from './orvex-span-redaction.processor';
 
 /** Handle returned by a successful `initOrvexTracing` — the only way to flush/stop the SDK. */
 export interface ShutdownHandle {
@@ -95,7 +96,14 @@ export function initOrvexTracing(
   const resource = resourceFromAttributes(buildResourceAttributes(env));
 
   const exporter: SpanExporter = options.exporter ?? new OTLPTraceExporter({ url: endpoint });
-  const spanProcessor: SpanProcessor = new BatchSpanProcessor(exporter);
+  // Review-2 F1 fix (AC6): wrap the real BatchSpanProcessor in the PII
+  // redaction seam so `http.url`/`http.target` (auto-set by stock
+  // HttpInstrumentation from the raw request line — page slug + query
+  // string included) are stripped from every span BEFORE they are ever
+  // batched/exported. See orvex-span-redaction.processor.ts docblock.
+  const spanProcessor: SpanProcessor = new OrvexPiiRedactingSpanProcessor(
+    new BatchSpanProcessor(exporter),
+  );
 
   const provider = new NodeTracerProvider({
     resource,
@@ -112,12 +120,14 @@ export function initOrvexTracing(
 
   // F4 (LOW, flagged for the tracing ADR / collector-side scrubbing — not
   // fixed here): `HttpInstrumentation` derives its server SPAN NAME from the
-  // request route/target, which is outside this leg's AC6 deny-list (that
-  // list covers the `orvex.tenant`/`correlation_id` ATTRIBUTE builder only,
-  // via `buildSpanAttributes`/`denyIfLikelyPii`). A non-opaque path segment
-  // could theoretically surface in a span name; span-name sanitisation is a
-  // separate, larger surface (would need a route-template allowlist, not a
-  // deny-list) and is out of scope for this leg.
+  // request method only (e.g. "GET") in this instrumentation version, so no
+  // path/route ever surfaces there today; if a future upgrade changes that
+  // derivation, span-name sanitisation would need a route-template allowlist
+  // (not a deny-list) and remains out of scope for this leg. The ATTRIBUTE
+  // leak from the same instrumentation (`http.url`/`http.target`, which DO
+  // carry the raw path + query string) is a separate vector and IS fixed —
+  // see the `OrvexPiiRedactingSpanProcessor` wrapping `spanProcessor` above
+  // (review-2 F1/AC6).
   registerInstrumentations({
     tracerProvider: provider,
     instrumentations: [
