@@ -89,18 +89,25 @@ describe('EntitlementService', () => {
   });
 
   it('AC5: hasFeature tracks the catalog exactly', async () => {
-    const mcpFeature = 'mcp' as unknown as GatedFeature;
-    const scimFeature = 'scim' as unknown as GatedFeature;
+    // ENG-1382 fix pass 2 (F1 detail): assert against REAL `GatedFeature`
+    // catalog values (billing `gen.AllFeatures()`), not the ticket's
+    // illustrative `mcp`/`scim` examples — those are
+    // `LicenseCheckService`/EE-license features, not billing
+    // entitlement-catalog features, and were never real members of this
+    // type. No `as unknown as GatedFeature` cast needed once the test
+    // exercises the type's actual members.
+    const grantedFeature: GatedFeature = 'composer';
+    const ungrantedFeature: GatedFeature = 'memory_coach';
     const port: BillingEntitlementPort = {
-      checkEntitlement: async () => fixture({ features: [mcpFeature] }),
+      checkEntitlement: async () => fixture({ features: [grantedFeature] }),
     };
     const service = new EntitlementService(port, new InMemoryEntitlementCache());
 
-    await expect(service.hasFeature(workspaceId, mcpFeature)).resolves.toBe(
-      true,
-    );
     await expect(
-      service.hasFeature(workspaceId, scimFeature),
+      service.hasFeature(workspaceId, grantedFeature),
+    ).resolves.toBe(true);
+    await expect(
+      service.hasFeature(workspaceId, ungrantedFeature),
     ).resolves.toBe(false);
   });
 
