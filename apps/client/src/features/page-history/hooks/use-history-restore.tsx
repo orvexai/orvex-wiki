@@ -20,8 +20,9 @@ import {
   SpaceCaslAction,
   SpaceCaslSubject,
 } from "@/features/space/permissions/permissions.type";
+import { useHistoryRestoreMutation } from "@/features/page-history/hooks/use-history-restore-mutation";
 
-export function useHistoryRestore() {
+export function useHistoryRestore(pageId: string) {
   const { t } = useTranslation();
 
   const activeHistoryId = useAtomValue(activeHistoryIdAtom);
@@ -35,12 +36,14 @@ export function useHistoryRestore() {
   const { data: space } = useSpaceQuery(spaceSlug);
   const spaceAbility = useSpaceAbility(space?.membership?.permissions);
 
+  const { pendingRestoreId, mutateAsync } = useHistoryRestoreMutation();
+
   const canRestore = spaceAbility.can(
     SpaceCaslAction.Manage,
     SpaceCaslSubject.Page,
   );
 
-  const handleRestore = useCallback(() => {
+  const handleRestore = useCallback(async () => {
     if (!activeHistoryData) return;
     if (
       !mainEditor ||
@@ -48,6 +51,23 @@ export function useHistoryRestore() {
       !mainEditorTitle ||
       mainEditorTitle.isDestroyed
     ) {
+      return;
+    }
+
+    try {
+      // ENG-1369 (AC6): the auditable server-side restore, THEN reflect it
+      // in the live editor. On failure, the editor is left untouched and
+      // pendingRestoreId is retained (see history-restore-logic.ts) so a
+      // retry is possible.
+      await mutateAsync({
+        pageId,
+        restoreFromHistoryId: activeHistoryData.id,
+      });
+    } catch (err) {
+      notifications.show({
+        message: t("Failed to restore version"),
+        color: "red",
+      });
       return;
     }
 
@@ -65,7 +85,15 @@ export function useHistoryRestore() {
 
     setHistoryModalOpen(false);
     notifications.show({ message: t("Successfully restored") });
-  }, [activeHistoryData, mainEditor, mainEditorTitle, setHistoryModalOpen, t]);
+  }, [
+    activeHistoryData,
+    mainEditor,
+    mainEditorTitle,
+    mutateAsync,
+    pageId,
+    setHistoryModalOpen,
+    t,
+  ]);
 
   const confirmRestore = useCallback(() => {
     modals.openConfirmModal({
@@ -82,5 +110,5 @@ export function useHistoryRestore() {
     });
   }, [t, handleRestore]);
 
-  return { canRestore, confirmRestore };
+  return { canRestore, confirmRestore, pendingRestoreId };
 }

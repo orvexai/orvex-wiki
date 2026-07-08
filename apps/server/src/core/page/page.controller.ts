@@ -23,6 +23,7 @@ import {
   PageHistoryIdDto,
   PageIdDto,
   PageInfoDto,
+  RestorePageFromHistoryDto,
 } from './dto/page.dto';
 import { PageHistoryService } from './services/page-history.service';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
@@ -677,24 +678,25 @@ export class PageController {
   @HttpCode(HttpStatus.OK)
   @Post('/history/restore')
   async restorePageFromHistory(
-    @Body() dto: PageHistoryIdDto,
+    @Body() dto: RestorePageFromHistoryDto,
     @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
   ) {
-    const history = await this.pageHistoryService.findById(dto.historyId);
-    if (!history) {
-      throw new NotFoundException('Page history not found');
-    }
-
-    // ENG-1372 (AC5): any valid history row for the page is accepted — not
-    // restricted to the latest/first.
-    const page = await this.pageRepo.findById(history.pageId);
+    const page = await this.pageRepo.findById(dto.pageId);
     if (!page) {
       throw new NotFoundException('Page not found');
     }
 
     await this.pageAccessService.validateCanEdit(page, user);
 
-    return this.pageHistoryService.restore(dto.historyId, user.id);
+    // ENG-1369 (AC1-AC5): collab-safe content write + transactional audit,
+    // guarded against a historyId belonging to a different page/workspace.
+    return this.pageHistoryService.restoreFromHistory(
+      dto.pageId,
+      dto.historyId,
+      user,
+      workspace.id,
+    );
   }
 
   @HttpCode(HttpStatus.OK)
