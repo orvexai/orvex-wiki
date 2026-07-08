@@ -19,6 +19,7 @@ import {
   OrvexPageMetadataDto,
   OrvexPageMetaFields,
   PageStatus,
+  validateSlugTitle,
 } from '@orvex/extensions';
 
 /**
@@ -118,7 +119,7 @@ export class OrvexPageMetadataService {
 
     const page = await db
       .selectFrom('pages')
-      .select(['id', 'workspaceId', 'deletedAt'])
+      .select(['id', 'workspaceId', 'deletedAt', 'title'])
       .where('id', '=', pageId)
       .executeTakeFirst();
 
@@ -130,6 +131,31 @@ export class OrvexPageMetadataService {
       throw new BadRequestException({
         error: 'INVALID_STATUS',
         validValues: Object.values(PageStatus),
+      });
+    }
+
+    // AC5/AC6 — enforce the ported banned-suffix / date-slug governance
+    // (CONTRACTS §0.6, §2.9) on the real create/update write path. Keys on
+    // the docType this write is resolving to: the incoming dto's docType
+    // when the caller is setting/changing it, otherwise the page's current
+    // docType (so a status-only or supersede write still re-checks the
+    // title against whatever doc_type it already carries).
+    const effectiveDocType =
+      dto.docType !== undefined
+        ? dto.docType
+        : (
+            await db
+              .selectFrom('orvexPageMeta')
+              .select(['docType'])
+              .where('pageId', '=', pageId)
+              .executeTakeFirst()
+          )?.docType ?? null;
+
+    const violation = validateSlugTitle(page.title, effectiveDocType);
+    if (violation) {
+      throw new BadRequestException({
+        error: violation.error,
+        message: violation.message,
       });
     }
 

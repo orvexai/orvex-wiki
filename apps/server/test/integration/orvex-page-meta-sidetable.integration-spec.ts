@@ -263,6 +263,63 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
     expect(planText).not.toMatch(/Seq Scan on orvex_page_meta/i);
   });
 
+  it('AC5/AC6 (F2 fix pass 2) — applyMetadata enforces validateSlugTitle on the real write path: rejects a banned versioning suffix', async () => {
+    const page = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: userId,
+      position: 'a6',
+      title: 'auth-design-v2',
+    });
+
+    await expect(
+      service.applyMetadata(page.id, { docType: 'architecture' }),
+    ).rejects.toMatchObject({
+      response: { error: 'BANNED_SLUG_SUFFIX' },
+    });
+
+    // Rejected — no meta row should have been written.
+    const meta = await testDb.db
+      .selectFrom('orvexPageMeta')
+      .selectAll()
+      .where('pageId', '=', page.id)
+      .executeTakeFirst();
+    expect(meta).toBeUndefined();
+  });
+
+  it('AC5/AC6 (F2 fix pass 2) — applyMetadata rejects a date segment for a non-dated doc_type', async () => {
+    const page = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: userId,
+      position: 'a7',
+      title: 'incident-report-2024-03',
+    });
+
+    await expect(
+      service.applyMetadata(page.id, { docType: 'architecture' }),
+    ).rejects.toMatchObject({
+      response: { error: 'DATE_SLUG_NOT_ALLOWED' },
+    });
+  });
+
+  it('AC5/AC6 (F2 fix pass 2) — applyMetadata allows a date segment for an allow-listed dated doc_type', async () => {
+    const page = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: userId,
+      position: 'a8',
+      title: 'q1-adr-2024-03',
+    });
+
+    // 'adr' is both dated-allow-listed (slug-title-validation) and present
+    // in the workspace's `allowedDocTypes` set (mutated by the AC7 test
+    // above) — avoids a false INVALID_DOC_TYPE failure unrelated to what
+    // this test asserts.
+    const written = await service.applyMetadata(page.id, { docType: 'adr' });
+    expect(written.docType).toBe('adr');
+  });
+
   it('AC8 — frontmatter novel key round-trips through orvex_page_meta.unknown_frontmatter', async () => {
     const page = await seedPage(testDb.db, {
       spaceId,

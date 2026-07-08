@@ -23,6 +23,20 @@ import { Kysely, sql } from 'kysely';
  * solely on `pages` for now — follow-up ENG-1603 (blocked-by this ticket)
  * migrates it into `orvex_page_meta` once its consumers repoint. This
  * ticket does not touch it.
+ *
+ * AC2 (backfill fidelity) — scope note (fix pass 2, review2 finding, not a
+ * blocker): this migration is a pure `ALTER TABLE ... ADD COLUMN` with
+ * static defaults, not an `INSERT ... SELECT` backfill, because these
+ * governance columns never previously existed anywhere in THIS repo's
+ * `pages` table to backfill FROM — there is no prior fork-column data on
+ * this fork's `dev` to preserve. AC2's literal "backfill existing rows"
+ * assertion is therefore vacuous here and reduces to AC3 (a meta-less row
+ * reads back `DEFAULT_PAGE_META`, exercised by the RoundTrip DoD test).
+ * There is deliberately NO test asserting "AC2 backfill" as such — do not
+ * treat AC3's default-read coverage as proof of a data-migrating backfill;
+ * if a real backfill is ever needed (e.g. porting from another
+ * environment's `pages` columns), it is separate follow-up work with its
+ * own INSERT...SELECT migration and its own snapshot-compare test.
  */
 export async function up(db: Kysely<any>): Promise<void> {
   await db.schema
