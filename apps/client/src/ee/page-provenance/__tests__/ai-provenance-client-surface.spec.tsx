@@ -25,12 +25,16 @@ import { ProvenanceStatus } from "@/ee/page-provenance/types/page-provenance.typ
  * transport (`api.post`) is mocked, with a real `/pages/info` response
  * shape (the page row carrying `provenanceStatus`).
  *
- * Review F1: `api.post` resolves through `@/lib/api-client`'s response
- * interceptor, which already unwraps the axios envelope down to
- * `response.data`. The mock below must therefore resolve directly with the
- * page row (no `{ data: ... }` wrapper) to be a faithful stand-in for the
- * real transport — a pre-interceptor-shaped mock would pass the test while
- * the real call throws.
+ * Review F1 (fix pass 3): `api.post` resolves through `@/lib/api-client`'s
+ * response interceptor, which unwraps the RAW axios envelope down to
+ * `response.data` — but the SERVER also wraps every non-`@SkipTransform`
+ * response body in `{ data, success, status }`
+ * (`TransformHttpResponseInterceptor`). So the value `api.post(...)`
+ * resolves with at runtime is `{ data: IPage, success, status }`, NOT the
+ * bare `IPage` — a second `.data` unwrap is required (mirrors the sibling
+ * `getPageById` in `page-service.ts`, which does exactly this). The mocks
+ * below resolve the REAL double-wrapped shape so this suite would fail
+ * against a client that reads the field off the wrong envelope.
  */
 describe("AiProvenanceClientSurfaceSpec", () => {
   afterEach(() => {
@@ -129,8 +133,9 @@ describe("AiProvenanceClientSurfaceSpec", () => {
 
   test("renders 'AI Produced' for an ai_produced page", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
-      id: "page-1",
-      provenanceStatus: "ai_produced",
+      data: { id: "page-1", provenanceStatus: "ai_produced" },
+      success: true,
+      status: 200,
     } as any);
 
     renderBadge("page-1");
@@ -140,8 +145,9 @@ describe("AiProvenanceClientSurfaceSpec", () => {
 
   test("renders 'Verified' for a human_verified page", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
-      id: "page-1",
-      provenanceStatus: "human_verified",
+      data: { id: "page-1", provenanceStatus: "human_verified" },
+      success: true,
+      status: 200,
     } as any);
 
     renderBadge("page-1");
@@ -151,8 +157,9 @@ describe("AiProvenanceClientSurfaceSpec", () => {
 
   test("renders no badge for a null provenance status", async () => {
     vi.spyOn(api, "post").mockResolvedValue({
-      id: "page-1",
-      provenanceStatus: null,
+      data: { id: "page-1", provenanceStatus: null },
+      success: true,
+      status: 200,
     } as any);
 
     renderBadge("page-1");
