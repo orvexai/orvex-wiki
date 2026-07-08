@@ -352,9 +352,6 @@ export interface OrvexPageMeta {
   lastReviewedAt: Timestamp | null;
   ownerId: string | null;
   pageId: string;
-  provenanceChangedAt: Timestamp | null;
-  provenanceChangedById: string | null;
-  provenanceStatus: string | null;
   redirectFrom: string | null;
   specConfirmed: Generated<boolean>;
   status: Generated<string>;

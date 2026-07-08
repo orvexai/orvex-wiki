@@ -8,9 +8,21 @@ import { Kysely, sql } from 'kysely';
  * onto the `orvex_page_meta` SIDE table that already exists on this repo's
  * `dev` (ENG-1471, `20260707T090000-pages-upsert-dedup.ts`) — `version` and
  * `content_hash` already live there per ruling 4, so this migration only
- * ADDS the remaining 15 governance columns. It never touches `pages`
- * (AC1/AC11 — `pages` must carry ZERO fork metadata columns; that invariant
- * holds by construction since this is a fresh port, not a column move).
+ * ADDS the remaining governance columns. It never touches `pages`
+ * (AC1/AC11 — `pages` must carry ZERO NEW fork metadata columns beyond the
+ * already-merged ENG-1447 provenance trio; that invariant holds by
+ * construction since this is a fresh port, not a column move).
+ *
+ * PD-4d carve-out (2026-07-08): the ENG-1447 provenance trio
+ * (`provenance_status`/`provenance_changed_at`/`provenance_changed_by_id`)
+ * is deliberately NOT added here even though it was part of the original
+ * fork's governance columns. ENG-1447 (merged) already put a trio of the
+ * same names directly on `pages` for an unrelated AI-authorship concept;
+ * adding another copy here would silently duplicate the names across two
+ * tables with two different semantics. Per the PO ruling the trio stays
+ * solely on `pages` for now — follow-up ENG-1603 (blocked-by this ticket)
+ * migrates it into `orvex_page_meta` once its consumers repoint. This
+ * ticket does not touch it.
  */
 export async function up(db: Kysely<any>): Promise<void> {
   await db.schema
@@ -31,9 +43,6 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('verified_against', 'varchar', (col) => col)
     .addColumn('verified_at', 'timestamptz', (col) => col)
     .addColumn('spec_confirmed', 'boolean', (col) => col.notNull().defaultTo(false))
-    .addColumn('provenance_status', 'varchar', (col) => col)
-    .addColumn('provenance_changed_at', 'timestamptz', (col) => col)
-    .addColumn('provenance_changed_by_id', 'uuid', (col) => col)
     .addColumn('archive_reason', 'varchar', (col) => col)
     .execute();
 
@@ -65,9 +74,6 @@ export async function down(db: Kysely<any>): Promise<void> {
   await db.schema
     .alterTable('orvex_page_meta')
     .dropColumn('archive_reason')
-    .dropColumn('provenance_changed_by_id')
-    .dropColumn('provenance_changed_at')
-    .dropColumn('provenance_status')
     .dropColumn('spec_confirmed')
     .dropColumn('verified_at')
     .dropColumn('verified_against')

@@ -23,8 +23,11 @@ import {
 
 /**
  * ENG-1371 — the fork's page-metadata domain service, ported to land its
- * governance/lifecycle/provenance fields DIRECTLY in the `orvex_page_meta`
- * SIDE table (ruling 4) rather than on `pages` (AC1/AC11).
+ * governance/lifecycle fields DIRECTLY in the `orvex_page_meta` SIDE table
+ * (ruling 4) rather than on `pages` (AC1/AC11). PD-4d carve-out: the
+ * ENG-1447 provenance trio stays on `pages` for now (follow-up ENG-1603
+ * moves it here once its consumers repoint) — this service does not read
+ * or write it.
  *
  * Scope note (CS §8 anti-ball-of-mud / ❌#6 no-big-upfront): this port
  * covers exactly what ACs 1-11 test — join-backed reads with defaults,
@@ -96,9 +99,6 @@ export class OrvexPageMetadataService {
       verifiedAgainst: meta.verifiedAgainst ?? null,
       verifiedAt: meta.verifiedAt ?? null,
       specConfirmed: meta.specConfirmed ?? false,
-      provenanceStatus: meta.provenanceStatus ?? null,
-      provenanceChangedAt: meta.provenanceChangedAt ?? null,
-      provenanceChangedById: meta.provenanceChangedById ?? null,
       archiveReason: meta.archiveReason ?? null,
       version: meta.version ?? 1,
       contentHash: meta.contentHash ?? null,

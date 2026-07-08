@@ -13,7 +13,14 @@ export enum PageStatus {
 
 export const PAGE_METADATA_SERVICE = Symbol('ORVEX_PAGE_METADATA_SERVICE');
 
-/** Recognised metadata fields the side table carries (AC1, ruling 4). */
+/**
+ * Recognised metadata fields the side table carries (AC1, ruling 4).
+ *
+ * PD-4d carve-out (2026-07-08): the ENG-1447 provenance trio
+ * (`provenanceStatus`/`provenanceChangedAt`/`provenanceChangedById`) is
+ * deliberately NOT included here — it stays on `pages` (ENG-1447, merged)
+ * for now and is migrated into `orvex_page_meta` by follow-up ENG-1603.
+ */
 export interface OrvexPageMetaFields {
   status: PageStatus;
   docType: string | null;
@@ -26,9 +33,6 @@ export interface OrvexPageMetaFields {
   verifiedAgainst: string | null;
   verifiedAt: Date | null;
   specConfirmed: boolean;
-  provenanceStatus: string | null;
-  provenanceChangedAt: Date | null;
-  provenanceChangedById: string | null;
   archiveReason: string | null;
   version: number;
   contentHash: string | null;
@@ -47,9 +51,6 @@ export const DEFAULT_PAGE_META: OrvexPageMetaFields = {
   verifiedAgainst: null,
   verifiedAt: null,
   specConfirmed: false,
-  provenanceStatus: null,
-  provenanceChangedAt: null,
-  provenanceChangedById: null,
   archiveReason: null,
   version: 1,
   contentHash: null,
