@@ -6,6 +6,8 @@ import {
   IMovePageToSpace,
   IPage,
   IPageInput,
+  IPageLifecycleMeta,
+  PageStatusValue,
   SidebarPagesParams,
 } from '@/features/page/types/page.types';
 import { QueryParams } from "@/lib/types";
@@ -51,6 +53,36 @@ export async function restorePage(pageId: string): Promise<IPage> {
 
 export async function movePage(data: IMovePage): Promise<void> {
   await api.post<void>("/pages/move", data);
+}
+
+/** ENG-1440 — thin client legs over the ENG-1434 engine surface
+ * (`OrvexPageSupersedeController`). The UI never fabricates lifecycle
+ * state; it surfaces exactly what these calls return, including the
+ * `403 CONFIRM_TOKEN_REQUIRED` shape on rejection (CS §11 honesty). */
+export async function supersedePage(data: {
+  pageId: string;
+  supersedes?: string;
+  supersededBy?: string;
+}): Promise<IPageLifecycleMeta> {
+  const req = await api.post<IPageLifecycleMeta>("/orvex/pages/supersede", data);
+  return req.data;
+}
+
+export async function unsupersedePage(data: {
+  pageId: string;
+  restoredStatus?: PageStatusValue;
+}): Promise<IPageLifecycleMeta> {
+  const req = await api.post<IPageLifecycleMeta>("/orvex/pages/unsupersede", data);
+  return req.data;
+}
+
+export async function setPageStatus(data: {
+  pageId: string;
+  status: PageStatusValue;
+  archiveReason?: string;
+}): Promise<IPageLifecycleMeta> {
+  const req = await api.post<IPageLifecycleMeta>("/orvex/pages/status", data);
+  return req.data;
 }
 
 export async function movePageToSpace(data: IMovePageToSpace): Promise<void> {
