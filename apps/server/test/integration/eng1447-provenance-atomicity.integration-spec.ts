@@ -34,6 +34,7 @@
  */
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PageService } from 'src/core/page/services/page.service';
 import { OrvexPageProvenanceService } from 'src/core/page-provenance/orvex-page-provenance.service';
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
@@ -59,7 +60,13 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
   beforeAll(async () => {
     testDb = await startTestDatabase();
     const eventEmitter = new EventEmitter2();
-    pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
+    pageRepo = new PageRepo(
+      testDb.db as any,
+      {} as any,
+      eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
+    );
 
     // create()/update() on this path never touch attachments, storage,
     // transclusion, or the async queues — inert stand-ins, per the
