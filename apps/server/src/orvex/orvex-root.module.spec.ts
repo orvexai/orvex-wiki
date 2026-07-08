@@ -53,6 +53,9 @@ describe('OrvexRootModule.register', () => {
       expect(mod.imports).toBeDefined();
       // OrvexConfigModule + OrvexHttpModule + OrvexEnforceSsoModule (ENG-1432)
       // + OrvexPageBlocksModule (ENG-1412) + the composed SessionMintModule.
+      // (OrvexPageMetadataModule/ENG-1371 is deliberately NOT mounted here —
+      // see the OrvexRootModule docstring; its real delivery path is
+      // PageModule.)
       expect(mod.imports?.length).toBe(5);
     });
 

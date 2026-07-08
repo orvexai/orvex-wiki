@@ -85,6 +85,19 @@ function composeSessionMint(config: OrvexConfigService): DynamicModule {
  * and imports the orvex tree ONLY when it is EXACTLY the string 'true'. For any
  * other value it returns a COMPLETELY EMPTY dynamic module — no controllers, no
  * providers, no routes — so the engine runs byte-for-byte as upstream Docmost.
+ *
+ * `OrvexPageMetadataModule` (ENG-1371) is deliberately NOT mounted here.
+ * `orvex-http.e2e.spec.ts` boots this `register()` tree in isolation via
+ * `@nestjs/testing`, WITHOUT the app's `DatabaseModule` (it e2e-tests only
+ * the 501-sentinel primitive surface); `OrvexPageMetadataService` needs
+ * `@InjectKysely()`, so mounting it here throws
+ * `Nest can't resolve dependencies ... KyselyModuleConnectionToken` in that
+ * harness (verified: reverted after regressing 13 e2e tests). Its real
+ * runtime delivery path is `PageModule` (`core/page/page.module.ts`), which
+ * imports it unconditionally — the same core-integration precedent as
+ * `OrvexPageProvenanceModule` (ENG-1447) — and binds
+ * `OrvexMarkdownInterceptor` on `PageController.create`/`.update`
+ * (review1 F1/F2).
  */
 @Module({})
 export class OrvexRootModule {
