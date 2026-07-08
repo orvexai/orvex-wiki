@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class SidebarPageDto {
   @IsOptional()
@@ -8,4 +8,9 @@ export class SidebarPageDto {
   @IsOptional()
   @IsString()
   pageId: string;
+
+  /** ENG-1434 AC11 — opt-in reveal of superseded pages (excluded by default). */
+  @IsOptional()
+  @IsBoolean()
+  includeSuperseded?: boolean;
 }

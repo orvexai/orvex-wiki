@@ -86,6 +86,21 @@ export class WsService {
     await this.broadcastToAuthorizedUsers(room, null, pageId, data);
   }
 
+  /**
+   * ENG-1434 AC13 — post-commit realtime freshness for page-lifecycle
+   * mutations (supersede/unsupersede/status). Broadcasts to every
+   * connected client in the page's space room; the caller
+   * (`OrvexPageMetadataService`) wraps this in a try/catch so a broadcast
+   * failure never fails the mutating request.
+   */
+  emitPageLifecycleEvent(
+    spaceId: string,
+    data: Record<string, unknown>,
+  ): void {
+    const room = getSpaceRoomName(spaceId);
+    this.server.to(room).emit('message', { operation: 'pageLifecycleChanged', ...data });
+  }
+
   async emitToUsers(userIds: string[], data: any): Promise<void> {
     if (userIds.length === 0) return;
     const rooms = userIds.map((id) => getUserRoomName(id));

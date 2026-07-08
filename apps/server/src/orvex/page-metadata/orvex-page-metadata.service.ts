@@ -5,6 +5,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,7 +14,7 @@ import {
 import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import { KyselyDB, KyselyTransaction } from '../../database/types/kysely.types';
-import { dbOrTx } from '../../database/utils';
+import { dbOrTx, executeTx } from '../../database/utils';
 import { WorkspaceRepo } from '../../database/repos/workspace/workspace.repo';
 import {
   InsertableOrvexPageMeta,
@@ -30,6 +31,19 @@ import {
 import { RatifyGateSettingsService } from './ratify-gate-settings.service';
 import { RatifyTokenService } from './ratify-token.service';
 import { RatifyGateContext } from './ratify-token.types';
+import { ConfirmTokenService } from './confirm-token.service';
+import { ForceSupersedeSettingsService } from './force-supersede-settings.service';
+import {
+  IPageLifecycleBroadcaster,
+  PAGE_LIFECYCLE_BROADCASTER,
+  SupersedeDirection,
+  SupersedeGateContext,
+} from './supersede.types';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
 /**
  * ENG-1371 — the fork's page-metadata domain service, ported to land its
@@ -66,6 +80,16 @@ export class OrvexPageMetadataService {
     // (`OrvexPageMetadataModule`) always provides both.
     @Optional() private readonly ratifyGateSettingsService?: RatifyGateSettingsService,
     @Optional() private readonly ratifyTokenService?: RatifyTokenService,
+    // ENG-1434 AC3-AC8 — same @Optional() DI-safety precedent as the ratify
+    // pair above: real app wiring (`OrvexPageMetadataModule`) always
+    // provides these; a harness that omits them degrades a supersede write
+    // to ungated (documented in `enforceSupersedeGate`'s own docstring).
+    @Optional() private readonly confirmTokenService?: ConfirmTokenService,
+    @Optional() private readonly forceSupersedeSettingsService?: ForceSupersedeSettingsService,
+    @Optional() @Inject(AUDIT_SERVICE) private readonly auditService?: IAuditService,
+    @Optional()
+    @Inject(PAGE_LIFECYCLE_BROADCASTER)
+    private readonly lifecycleBroadcaster?: IPageLifecycleBroadcaster,
   ) {}
 
   /**
@@ -195,6 +219,13 @@ export class OrvexPageMetadataService {
       if (!reason || reason.trim().length === 0) {
         throw new BadRequestException({ error: 'ARCHIVE_REASON_REQUIRED' });
       }
+    } else if (dto.status !== undefined && dto.archiveReason === undefined) {
+      // AC10 (ENG-1434) — leaving `archived` for any other status clears the
+      // stale reason; a caller cannot forget to and end up with an
+      // `archiveReason` that lies about a page's current status. Only a
+      // status-bearing write triggers the clear (a status-less patch, e.g.
+      // a pure docType update, must never silently wipe an unrelated field).
+      dto = { ...dto, archiveReason: null };
     }
 
     if (dto.docType !== undefined && dto.docType !== null) {
@@ -308,17 +339,300 @@ export class OrvexPageMetadataService {
     }
   }
 
-  /** Marks a page superseded-by another, atomically, in a transaction. */
+  /**
+   * ENG-1434 AC1/AC2/AC12 — the SOLE supersede mutation chokepoint in this
+   * repo. `direction` is XOR-guarded (AC1): exactly one of
+   * `supersedes`/`supersededBy` must be set. `pageId` is the request's own
+   * page; the OTHER page in the pair is resolved by slug. Non-human
+   * (`api_key`) callers are gated by `enforceSupersedeGate` (AC3-AC8)
+   * BEFORE any row is touched. The whole write — both pages' side-table
+   * rows + the lock on the superseded page — happens inside ONE Kysely TX
+   * (AC13 atomicity); the audit emission(s) happen inside the same TX
+   * (never fails the request per AC13, see `safeAudit`) and the realtime
+   * broadcast fires only AFTER the TX commits.
+   */
   async supersedeAtomic(
     pageId: string,
-    supersededBy: string,
+    direction: SupersedeDirection,
+    gate: SupersedeGateContext,
     trx?: KyselyTransaction,
   ): Promise<OrvexPageMetaFields> {
-    return this.applyMetadata(
+    const hasSupersedes =
+      direction.supersedes !== undefined &&
+      direction.supersedes !== null &&
+      direction.supersedes !== '';
+    const hasSupersededBy =
+      direction.supersededBy !== undefined &&
+      direction.supersededBy !== null &&
+      direction.supersededBy !== '';
+
+    if (hasSupersedes === hasSupersededBy) {
+      // AC1 — both set OR neither set.
+      throw new BadRequestException({ error: 'INVALID_SUPERSESSION' });
+    }
+
+    const db = dbOrTx(this.db, trx);
+    const requestPage = await db
+      .selectFrom('pages')
+      .select(['id', 'workspaceId', 'spaceId', 'slugId', 'deletedAt'])
+      .where('id', '=', pageId)
+      .executeTakeFirst();
+
+    if (!requestPage || requestPage.deletedAt) {
+      throw new NotFoundException({ error: 'PAGE_NOT_FOUND' });
+    }
+
+    // AC3-AC8 — resolves BEFORE any mutation; throws on refusal.
+    const attribution = await this.enforceSupersedeGate(
       pageId,
-      { status: PageStatus.SUPERSEDED, supersededBy },
+      requestPage.workspaceId,
+      gate,
+    );
+
+    const otherSlug = hasSupersededBy
+      ? direction.supersededBy!
+      : direction.supersedes!;
+
+    const fields = await executeTx(
+      this.db,
+      async (innerTrx) => {
+        const otherPage = await innerTrx
+          .selectFrom('pages')
+          .select(['id', 'slugId', 'deletedAt', 'workspaceId', 'spaceId'])
+          .where('slugId', '=', otherSlug)
+          .executeTakeFirst();
+
+        if (!otherPage || otherPage.deletedAt) {
+          throw new NotFoundException({ error: 'SUPERSESSION_TARGET_NOT_FOUND' });
+        }
+
+        // review1 F1 — `slugId` carries a GLOBAL unique constraint, so the
+        // above lookup can resolve into any workspace. The caller is only
+        // ever authorized against the REQUESTING page (controller); this
+        // is the unconditional, non-delegable guard against resolving a
+        // target outside the requester's own workspace. A same-workspace
+        // target is additionally authorized against its own space via
+        // `gate.authorizeTargetSpace` below, mirroring the controller's
+        // own space-CASL Manage check on the requesting page.
+        if (otherPage.workspaceId !== requestPage.workspaceId) {
+          throw new NotFoundException({ error: 'SUPERSESSION_TARGET_NOT_FOUND' });
+        }
+
+        if (gate.authorizeTargetSpace) {
+          await gate.authorizeTargetSpace(otherPage.spaceId);
+        }
+
+        const supersededPageId = hasSupersededBy ? requestPage.id : otherPage.id;
+        const supersededSlug = hasSupersededBy ? requestPage.slugId : otherPage.slugId;
+        const canonicalPageId = hasSupersededBy ? otherPage.id : requestPage.id;
+        const canonicalSlug = hasSupersededBy ? otherSlug : requestPage.slugId;
+
+        const canonicalMeta = await innerTrx
+          .selectFrom('orvexPageMeta')
+          .select(['supersedes'])
+          .where('pageId', '=', canonicalPageId)
+          .executeTakeFirst();
+
+        const existing: string[] = Array.isArray(canonicalMeta?.supersedes)
+          ? (canonicalMeta!.supersedes as unknown as string[])
+          : [];
+        const nextSupersedes = existing.includes(supersededSlug)
+          ? existing
+          : [...existing, supersededSlug];
+
+        const supersedesJson = sql<
+          import('../../database/types/db').Json
+        >`${JSON.stringify(nextSupersedes)}::text::jsonb`;
+        await innerTrx
+          .insertInto('orvexPageMeta')
+          .values({
+            pageId: canonicalPageId,
+            workspaceId: requestPage.workspaceId,
+            supersedes: supersedesJson,
+          })
+          .onConflict((oc) =>
+            oc.column('pageId').doUpdateSet({
+              supersedes: supersedesJson,
+              updatedAt: sql`now()`,
+            }),
+          )
+          .execute();
+
+        await innerTrx
+          .insertInto('orvexPageMeta')
+          .values({
+            pageId: supersededPageId,
+            workspaceId: requestPage.workspaceId,
+            status: PageStatus.SUPERSEDED,
+            supersededBy: canonicalSlug,
+          })
+          .onConflict((oc) =>
+            oc.column('pageId').doUpdateSet({
+              status: PageStatus.SUPERSEDED,
+              supersededBy: canonicalSlug,
+              updatedAt: sql`now()`,
+            }),
+          )
+          .execute();
+
+        // AC2 — the superseded page is locked (no further edits).
+        await innerTrx
+          .updateTable('pages')
+          .set({ isLocked: true, updatedAt: sql`now()` })
+          .where('id', '=', supersededPageId)
+          .execute();
+
+        await this.safeAudit(
+          {
+            event: AuditEvent.PAGE_SUPERSEDED,
+            resourceType: AuditResource.PAGE,
+            resourceId: supersededPageId,
+            metadata: { supersededBy: canonicalSlug, canonicalPageId },
+          },
+          {
+            workspaceId: requestPage.workspaceId,
+            actorId: attribution.actorId,
+            actorType: attribution.actorType,
+            clientId: attribution.clientId,
+          },
+        );
+
+        if (attribution.usedForcedSupersede) {
+          // AC7 — the extra break-glass audit row, distinct from the
+          // regular PAGE_SUPERSEDED row above (never a substitute for it).
+          await this.safeAudit(
+            {
+              event: AuditEvent.SUPERSEDE_FORCED_BYPASS,
+              resourceType: AuditResource.PAGE,
+              resourceId: pageId,
+              metadata: { reason: gate.forceReason },
+            },
+            {
+              workspaceId: requestPage.workspaceId,
+              actorId: attribution.actorId,
+              actorType: attribution.actorType,
+              clientId: attribution.clientId,
+            },
+          );
+        }
+
+        return this.getMetadata(pageId, innerTrx);
+      },
       trx,
     );
+
+    // AC13 — broadcast strictly AFTER commit; a broadcast failure is
+    // logged, never thrown (never fails an already-committed request).
+    this.safeBroadcast({
+      workspaceId: requestPage.workspaceId,
+      spaceId: requestPage.spaceId,
+      pageId,
+      status: fields.status,
+    });
+
+    return fields;
+  }
+
+  /**
+   * ENG-1434 AC3-AC8 — the actual enforcement for a supersede write. A
+   * human caller (`gate.authMethod !== 'api_key'`) is never gated (AC2). A
+   * non-human caller MUST present a `CONFIRM_TOKEN` that verifies for THIS
+   * page+workspace+action (AC4); a verified token ALWAYS wins over
+   * `forceSupersede` (AC8) and is never silently downgraded to a forced
+   * bypass. Only when no valid token is presented does `forceSupersede`
+   * get evaluated — fail-closed by default (AC5) and reason-gated (AC6).
+   * Absent no token AND no force, the caller is refused outright (AC3).
+   *
+   * Degrades to ungated (mirrors `enforceRatifyGate`'s own precedent) when
+   * the governance providers are not wired into the harness — real app
+   * wiring always provides them.
+   */
+  private async enforceSupersedeGate(
+    pageId: string,
+    workspaceId: string,
+    gate: SupersedeGateContext,
+  ): Promise<{
+    actorType: 'user' | 'api_key';
+    actorId: string;
+    usedForcedSupersede: boolean;
+    clientId?: string;
+  }> {
+    if (gate.authMethod !== 'api_key') {
+      return { actorType: 'user', actorId: gate.actorId, usedForcedSupersede: false };
+    }
+
+    if (gate.confirmToken && this.confirmTokenService) {
+      const result = this.confirmTokenService.verify(gate.confirmToken, {
+        expectWorkspaceId: workspaceId,
+        expectAction: 'supersede',
+        expectScopeId: pageId,
+      });
+      if (result.ok) {
+        // AC8 — a verified token always wins; attribution follows the
+        // token's own confirming human, never downgraded to forced.
+        // review2 F1 — `clientId` still records the calling api_key's own
+        // identity alongside the confirming-human `actorId`.
+        return {
+          actorType: 'api_key',
+          actorId: result.payload.confirmingUserId,
+          usedForcedSupersede: false,
+          clientId: gate.clientId,
+        };
+      }
+    }
+
+    if (gate.forceSupersede) {
+      if (!this.forceSupersedeSettingsService) {
+        return {
+          actorType: 'api_key',
+          actorId: gate.actorId,
+          usedForcedSupersede: false,
+          clientId: gate.clientId,
+        };
+      }
+      // AC5/AC6 — throws ForbiddenException/BadRequestException on refusal.
+      await this.forceSupersedeSettingsService.assertForceSupersedeAllowed({
+        workspaceId,
+        forceReason: gate.forceReason,
+      });
+      return {
+        actorType: 'api_key',
+        actorId: gate.actorId,
+        usedForcedSupersede: true,
+        clientId: gate.clientId,
+      };
+    }
+
+    // AC3 — no token, no force: refused outright, no mutation.
+    throw new ForbiddenException({ error: 'CONFIRM_TOKEN_REQUIRED' });
+  }
+
+  /** AC13 — an audit-emit failure is logged, never thrown. */
+  private async safeAudit(
+    payload: Parameters<IAuditService['logWithContext']>[0],
+    context: Parameters<IAuditService['logWithContext']>[1],
+  ): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.logWithContext(payload, context);
+    } catch (err) {
+      this.logger.error('Audit emit failed for page-lifecycle change', err as Error);
+    }
+  }
+
+  /** AC13 — a broadcast failure is logged, never thrown. */
+  private safeBroadcast(event: {
+    workspaceId: string;
+    spaceId: string;
+    pageId: string;
+    status: string;
+  }): void {
+    if (!this.lifecycleBroadcaster) return;
+    try {
+      void this.lifecycleBroadcaster.broadcastLifecycleChange(event);
+    } catch (err) {
+      this.logger.error('Realtime broadcast failed for page-lifecycle change', err as Error);
+    }
   }
 
   /** Reverses a supersede — clears `supersededBy`, restores a live status. */
@@ -332,6 +646,11 @@ export class OrvexPageMetadataService {
       .updateTable('orvexPageMeta')
       .set({ status: restoredStatus, supersededBy: null, updatedAt: sql`now()` })
       .where('pageId', '=', pageId)
+      .execute();
+    await db
+      .updateTable('pages')
+      .set({ isLocked: false, updatedAt: sql`now()` })
+      .where('id', '=', pageId)
       .execute();
     return this.getMetadata(pageId, trx);
   }

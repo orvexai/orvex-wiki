@@ -117,6 +117,12 @@ export const AuditEvent = {
   // Ratify gate (ENG-1445)
   RATIFY_GATE_SETTING_UPDATED: 'ratify_gate.setting_updated',
   RATIFY_GATE_FORCE_SELF_RATIFY: 'ratify_gate.force_self_ratify',
+
+  // Supersede lifecycle + forced-supersede break-glass (ENG-1434)
+  PAGE_SUPERSEDED: 'page.superseded',
+  PAGE_UNSUPERSEDED: 'page.unsuperseded',
+  SUPERSEDE_FORCED_BYPASS: 'page.supersede_forced_bypass',
+  FORCE_SUPERSEDE_SETTING_UPDATED: 'force_supersede.setting_updated',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];

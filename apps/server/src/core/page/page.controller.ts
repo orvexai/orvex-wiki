@@ -666,10 +666,15 @@ export class PageController {
         recentPageDto.spaceId,
         user.id,
         pagination,
+        recentPageDto.includeSuperseded,
       );
     }
 
-    return this.pageService.getRecentPages(user.id, pagination);
+    return this.pageService.getRecentPages(
+      user.id,
+      pagination,
+      recentPageDto.includeSuperseded,
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -822,6 +827,7 @@ export class PageController {
       dto.pageId,
       user.id,
       spaceCanEdit,
+      dto.includeSuperseded,
     );
   }
 

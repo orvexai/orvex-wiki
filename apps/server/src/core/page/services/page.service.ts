@@ -619,6 +619,7 @@ export class PageService {
     pageId?: string,
     userId?: string,
     spaceCanEdit?: boolean,
+    includeSuperseded?: boolean,
   ): Promise<CursorPaginationResult<Partial<Page> & { hasChildren: boolean }>> {
     let query = this.db
       .selectFrom('pages')
@@ -637,6 +638,9 @@ export class PageService {
       .select((eb) => this.pageRepo.withHasChildren(eb))
       .where('deletedAt', 'is', null)
       .where('spaceId', '=', spaceId);
+    // ENG-1434 AC11 — a superseded page is excluded from the sidebar tree
+    // by default (opt-in reveal).
+    query = this.pageRepo.excludeSupersededUnless(query, includeSuperseded);
 
     if (pageId) {
       query = query.where('parentPageId', '=', pageId);
@@ -1436,10 +1440,12 @@ export class PageService {
     spaceId: string,
     userId: string,
     pagination: PaginationOptions,
+    includeSuperseded?: boolean,
   ): Promise<CursorPaginationResult<Page>> {
     const result = await this.pageRepo.getRecentPagesInSpace(
       spaceId,
       pagination,
+      includeSuperseded,
     );
 
     if (result.items.length > 0) {
@@ -1460,8 +1466,13 @@ export class PageService {
   async getRecentPages(
     userId: string,
     pagination: PaginationOptions,
+    includeSuperseded?: boolean,
   ): Promise<CursorPaginationResult<Page>> {
-    const result = await this.pageRepo.getRecentPages(userId, pagination);
+    const result = await this.pageRepo.getRecentPages(
+      userId,
+      pagination,
+      includeSuperseded,
+    );
 
     if (result.items.length > 0) {
       const pageIds = result.items.map((p) => p.id);

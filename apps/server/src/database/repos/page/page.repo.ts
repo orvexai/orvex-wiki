@@ -16,6 +16,7 @@ import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
+import { PageStatus } from '@orvex/extensions';
 
 @Injectable()
 export class PageRepo {
@@ -458,13 +459,18 @@ export class PageRepo {
     });
   }
 
-  async getRecentPagesInSpace(spaceId: string, pagination: PaginationOptions) {
-    const query = this.db
+  async getRecentPagesInSpace(
+    spaceId: string,
+    pagination: PaginationOptions,
+    includeSuperseded?: boolean,
+  ) {
+    let query = this.db
       .selectFrom('pages')
       .select(this.baseFields)
       .select((eb) => this.withSpace(eb))
       .where('spaceId', '=', spaceId)
       .where('deletedAt', 'is', null);
+    query = this.excludeSupersededUnless(query, includeSuperseded);
 
     return executeWithCursorPagination(query, {
       perPage: pagination.limit,
@@ -481,13 +487,18 @@ export class PageRepo {
     });
   }
 
-  async getRecentPages(userId: string, pagination: PaginationOptions) {
-    const query = this.db
+  async getRecentPages(
+    userId: string,
+    pagination: PaginationOptions,
+    includeSuperseded?: boolean,
+  ) {
+    let query = this.db
       .selectFrom('pages')
       .select(this.baseFields)
       .select((eb) => this.withSpace(eb))
       .where('spaceId', 'in', this.spaceMemberRepo.getUserSpaceIdsQuery(userId))
       .where('deletedAt', 'is', null);
+    query = this.excludeSupersededUnless(query, includeSuperseded);
 
     return executeWithCursorPagination(query, {
       perPage: pagination.limit,
@@ -572,6 +583,31 @@ export class PageRepo {
         id: cursor.id,
       }),
     });
+  }
+
+  /**
+   * ENG-1434 AC11 — discovery-hiding: a superseded page (side-table
+   * `orvex_page_meta.status = 'superseded'`, ruling 4) is excluded from
+   * discovery-surface reads (recent/sidebar/suggestions) by default; the
+   * caller opts in explicitly to reveal it. A page with no meta row is
+   * never superseded and always passes.
+   */
+  excludeSupersededUnless<T extends { where: (...args: any[]) => any }>(
+    query: T,
+    includeSuperseded: boolean | undefined,
+  ): T {
+    if (includeSuperseded) return query;
+    return query.where((eb: any) =>
+      eb.not(
+        eb.exists(
+          eb
+            .selectFrom('orvexPageMeta')
+            .select(sql`1`.as('one'))
+            .whereRef('orvexPageMeta.pageId', '=', 'pages.id')
+            .where('orvexPageMeta.status', '=', PageStatus.SUPERSEDED),
+        ),
+      ),
+    );
   }
 
   withSpace(eb: ExpressionBuilder<DB, 'pages'>) {
