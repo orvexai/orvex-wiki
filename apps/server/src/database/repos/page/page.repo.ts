@@ -18,7 +18,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventName } from '../../../common/events/event.contants';
 import { PageStatus } from '@orvex/extensions';
 import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
-import { EVT_PAGE_CREATED } from '../../../orvex/events/constants/orvex-event-types';
+import {
+  EVT_PAGE_CREATED,
+  EVT_PAGE_CONTENT_UPDATED,
+} from '../../../orvex/events/constants/orvex-event-types';
 import { WsService } from '../../../ws/ws.service';
 
 @Injectable()
@@ -292,13 +295,25 @@ export class PageRepo {
     return this.updatePages(updatablePage, [pageId], trx, eventExtra);
   }
 
-  async updatePages(
+  /**
+   * ENG-1383 F1 fix — `content` is the ONLY field on `pages` that a real
+   * production write path (`PersistenceExtension.onStoreDocument`, which
+   * BOTH the collab live-edit path and the REST `updatePageContent` path
+   * converge on) ever sets here. When present, the `page.content_updated`
+   * outbox row is written in the SAME transaction as the content write
+   * (AC1/AC2-style atomicity — never a detached/post-commit emit for this
+   * event). This is the actual AC5/AC8 delivery path.
+   */
+  private hasContentChange(data: UpdatablePage): boolean {
+    return 'content' in data && data.content !== undefined;
+  }
+
+  private async runUpdatePages(
+    activeDb: KyselyDB | KyselyTransaction,
     updatePageData: UpdatablePage,
     pageIds: string[],
-    trx?: KyselyTransaction,
-    eventExtra?: Record<string, unknown>,
   ) {
-    const result = await dbOrTx(this.db, trx)
+    const rows = await activeDb
       .updateTable('pages')
       .set({ ...updatePageData, updatedAt: new Date() })
       .where(
@@ -306,7 +321,42 @@ export class PageRepo {
         'in',
         pageIds,
       )
-      .executeTakeFirst();
+      .returning(['id', 'slugId', 'workspaceId'])
+      .execute();
+
+    if (this.hasContentChange(updatePageData) && updatePageData.workspaceId) {
+      // Only reachable via the two branches below that guarantee `activeDb`
+      // is a REAL transaction (the caller's own `trx`, or one this method
+      // opens itself) — never the plain non-transactional `this.db`.
+      const trx = activeDb as KyselyTransaction;
+      for (const row of rows) {
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_PAGE_CONTENT_UPDATED,
+          aggregateId: row.id,
+          workspaceId: row.workspaceId,
+          payload: { pageId: row.id, workspaceId: row.workspaceId },
+        });
+      }
+    }
+
+    return rows;
+  }
+
+  async updatePages(
+    updatePageData: UpdatablePage,
+    pageIds: string[],
+    trx?: KyselyTransaction,
+    eventExtra?: Record<string, unknown>,
+  ) {
+    const contentChange = this.hasContentChange(updatePageData);
+
+    const rows = trx
+      ? await this.runUpdatePages(trx, updatePageData, pageIds)
+      : contentChange
+        ? await executeTx(this.db, (innerTrx) =>
+            this.runUpdatePages(innerTrx, updatePageData, pageIds),
+          )
+        : await this.runUpdatePages(this.db, updatePageData, pageIds);
 
     this.eventEmitter.emit(EventName.PAGE_UPDATED, {
       pageIds: pageIds,
@@ -314,7 +364,14 @@ export class PageRepo {
       ...eventExtra,
     });
 
-    return result;
+    // ENG-1383 F3 fix — extend the realtime-invalidate sweep (previously
+    // create-only) to every page mutation that goes through this shared
+    // write path (content, title, status, move, etc.).
+    for (const row of rows) {
+      this.wsService.emitInvalidate(row.workspaceId, ['pages', row.slugId]);
+    }
+
+    return rows.length <= 1 ? rows[0] : rows;
   }
 
   /**

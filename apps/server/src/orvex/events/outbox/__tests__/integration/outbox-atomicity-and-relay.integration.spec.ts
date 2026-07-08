@@ -22,7 +22,10 @@ import {
   InMemoryKafkaPublisher,
 } from '../in-memory-kafka-publisher';
 import { OrvexEventBusService } from '../../../services/orvex-event-bus.service';
-import { EVT_PAGE_CREATED } from '../../../constants/orvex-event-types';
+import {
+  EVT_PAGE_CREATED,
+  EVT_PAGE_CONTENT_UPDATED,
+} from '../../../constants/orvex-event-types';
 import type { DbInterface } from '../../../../../database/types/db.interface';
 import type {
   KyselyDB,
@@ -34,6 +37,9 @@ import type {
   InsertableSpace,
   InsertableWorkspace,
 } from '../../../../../database/types/entity.types';
+import { PageRepo } from '../../../../../database/repos/page/page.repo';
+import { SpaceMemberRepo } from '../../../../../database/repos/space/space-member.repo';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const STUB_TOPIC_RESOLVER: OutboxTopicResolver = {
   getKafkaOutboxTopic: () => 'orvex.studio-spine.events',
@@ -64,6 +70,8 @@ describe('OutboxAtomicityAndRelaySpec', () => {
   let sqlClient: ReturnType<typeof postgres>;
   let db: KyselyDB;
   let outboxWriter: OutboxWriter;
+  let pageRepo: PageRepo;
+  let invalidateCalls: Array<{ workspaceId: string; entity: string[] }>;
   let workspaceId: string;
   let spaceId: string;
 
@@ -92,6 +100,20 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     });
 
     outboxWriter = new OutboxWriter(db);
+
+    invalidateCalls = [];
+    const wsServiceStub = {
+      emitInvalidate: (ws: string, entity: string[]) =>
+        invalidateCalls.push({ workspaceId: ws, entity }),
+    } as any;
+    const spaceMemberRepoStub = {} as SpaceMemberRepo; // unused: no space-member scoping exercised
+    pageRepo = new PageRepo(
+      db,
+      spaceMemberRepoStub,
+      new EventEmitter2(),
+      outboxWriter,
+      wsServiceStub,
+    );
   });
 
   afterAll(async () => {
@@ -101,6 +123,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
   });
 
   beforeEach(async () => {
+    invalidateCalls = [];
     const workspaceValues: InsertableWorkspace = {
       name: 'Outbox Spec WS',
       hostname: `outbox-${Date.now()}-${Math.random()}`,
@@ -345,5 +368,84 @@ describe('OutboxAtomicityAndRelaySpec', () => {
       .deleteFrom('orvexEventOutbox')
       .where('aggregateId', '=', pageId)
       .execute();
+  });
+
+  it('ENG-1383 F1 — an ACTUAL content write (PageRepo.updatePages) produces exactly one page.content_updated outbox row, atomically, with NO embed pipeline involved', async () => {
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'F1 content page' }),
+    );
+    await db
+      .deleteFrom('orvexEventOutbox')
+      .where('aggregateId', '=', page.id)
+      .execute(); // drop the page.created row from setup; isolate this assertion
+
+    await pageRepo.updatePage(
+      { content: { type: 'doc', content: [] } as any, workspaceId },
+      page.id,
+    );
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].relayedAt).toBeNull();
+  });
+
+  it('ENG-1383 F1 — a rolled-back content write leaves NO page.content_updated outbox row (same-tx atomicity)', async () => {
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'F1 rollback page' }),
+    );
+    await db
+      .deleteFrom('orvexEventOutbox')
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    await expect(
+      executeTx(db, async (trx) => {
+        await pageRepo.updatePage(
+          { content: { type: 'doc', content: [] } as any, workspaceId },
+          page.id,
+          trx,
+        );
+        throw new Error('forced rollback after content write');
+      }),
+    ).rejects.toThrow('forced rollback after content write');
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+    expect(rows).toHaveLength(0);
+
+    const contentRow = await db
+      .selectFrom('pages')
+      .select(['content'])
+      .where('id', '=', page.id)
+      .executeTakeFirstOrThrow();
+    expect(contentRow.content).toBeNull();
+  });
+
+  it('ENG-1383 F3 — a page mutation (content update) also fires the realtime-invalidate sweep, not just create', async () => {
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'F3 invalidate page' }),
+    );
+    invalidateCalls = [];
+
+    await pageRepo.updatePage(
+      { content: { type: 'doc', content: [] } as any, workspaceId },
+      page.id,
+    );
+
+    expect(
+      invalidateCalls.some(
+        (c) => c.workspaceId === workspaceId && c.entity[0] === 'pages',
+      ),
+    ).toBe(true);
   });
 });

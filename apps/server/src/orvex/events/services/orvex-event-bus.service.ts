@@ -33,13 +33,17 @@ import {
  * thing that would ever reintroduce it). Routes lifecycle domain events
  * through `OutboxWriter` so each produces its outbox row (AC7).
  *
- * `page.created` and `page.content_updated` on the PRIMARY REST create/write
- * path are enqueued in-transaction directly by `PageService` (AC1/AC2 need
- * the SAME transaction as the mutation, which a post-commit `@OnEvent`
- * listener structurally cannot provide — see `OutboxWriter.enqueue` vs
- * `enqueueDetached`). This bus service covers the broader lifecycle family
- * (AC7) plus `page.content_updated`'s changedBlockIds enrichment for
- * secondary emission paths (e.g. collab re-emit) via `enqueueDetached`.
+ * `page.created` and `page.content_updated` are enqueued in-transaction
+ * directly by `PageRepo` (AC1/AC2 need the SAME transaction as the
+ * mutation, which a post-commit `@OnEvent` listener structurally cannot
+ * provide — see `OutboxWriter.enqueue` vs `enqueueDetached`). This bus
+ * service covers the broader lifecycle family (AC7); today the ONLY
+ * lifecycle producer actually wired to fire at runtime is
+ * `page.status_changed` (via `OrvexPageProvenanceService.writeStatus`,
+ * itself in-transaction — see that service, NOT this bus, for the atomic
+ * write). The workspace/space/comment/attachment `@OnEvent` handlers below
+ * remain ORPHANED (no emitter in this repo fires those `EventName`s yet) —
+ * tracked as a follow-up, not silently claimed as delivered.
  */
 @Injectable()
 export class OrvexEventBusService {
@@ -80,10 +84,16 @@ export class OrvexEventBusService {
   }
 
   /**
-   * AC8 — fired independently of the BullMQ→EmbeddingProcessor embed
-   * re-emit, so deleting the embed pipeline does not drop content events.
-   * The embed re-emit is one possible SOURCE of this event (collab path);
-   * `PageService.updatePageContent` (REST path) also emits it directly.
+   * ENG-1383 F1 fix — this listener is NO LONGER the primary AC5/AC8
+   * delivery path. `PageRepo.updatePages` now writes the
+   * `page.content_updated` outbox row directly, IN-TRANSACTION, whenever a
+   * write includes `content` (see `PageRepo.runUpdatePages`) — that single
+   * site is what BOTH the REST `updatePageContent` path and the collab
+   * live-edit path converge on (`PersistenceExtension.onStoreDocument`).
+   * That in-tx write is atomic (AC1/AC2-style); this `@OnEvent` handler
+   * stays only as a secondary/detached path for any FUTURE emitter of the
+   * plain `EventName.PAGE_CONTENT_UPDATED` EventEmitter2 event — nothing in
+   * this repo emits that today, so this handler does not currently fire.
    */
   @OnEvent(EventName.PAGE_CONTENT_UPDATED)
   async onPageContentUpdated(event: {
