@@ -1,7 +1,7 @@
 .env
 .env.dev
 .env.prod
-data
+/data
 # compiled output
 dist
 node_modules/
