@@ -264,6 +264,35 @@ jobs:
         run: bash scripts/engine-license-guard.sh .
 
   # ---------------------------------------------------------------------------
+  # AGPL §13 license-header gate (ENG-1491 — AC3). Static gate: every engine
+  # `.ts` file under apps/server/src/orvex/ (non-spec) must carry the AGPL
+  # license header (SPDX-License-Identifier: AGPL-3.0-only marker). Reads
+  # source only, never runs product code.
+  # ---------------------------------------------------------------------------
+  license-header-check:
+    name: License Header Check (AGPL §13)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: license-header-check.sh
+        run: bash scripts/ci/license-header-check.sh .
+
+  # ---------------------------------------------------------------------------
+  # Engine-only import guard (ENG-1491 — AC4, Q22 slim-AGPL rule). Static gate:
+  # no file under apps/server/src/orvex/ may import a closed-satellite family
+  # package or a non-AGPL-compatible module. Reads source only, never runs
+  # product code. Distinct from engine-license-guard.sh (ENG-1381, P10 —
+  # upstream-EE-specific); this gate covers the family-satellite direction.
+  # ---------------------------------------------------------------------------
+  engine-only-import-guard:
+    name: Engine-Only Import Guard (Q22)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: engine-only-import-guard.sh
+        run: bash scripts/ci/engine-only-import-guard.sh .
+
+  # ---------------------------------------------------------------------------
   # CS §13 build/CI substrate conformance (ENG-1386 — CI-config layer gate).
   # Static config scan: no hosted runners without a documented public-repo
   # exception, no image build/push in Actions, Tekton build+rollout present,
@@ -393,6 +422,8 @@ jobs:
       - k8s-validate
       - deploy-render-gate
       - engine-license-guard
+      - license-header-check
+      - engine-only-import-guard
       - ci-substrate-conformance
       - security
       - sbom-generation

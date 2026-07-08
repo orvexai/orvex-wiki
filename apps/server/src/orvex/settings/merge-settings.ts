@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
+// See the LICENSE file at the repository root for the full license text.
+
 /**
  * mergeWorkspaceSettings — a pure deep-merge helper for `workspaces.settings`
  * (jsonb), ported for reuse at the `workspaces.settings` write path. NOT YET

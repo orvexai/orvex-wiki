@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
+// See the LICENSE file at the repository root for the full license text.
+
 /**
  * orvex-throttler-names — the single canonical registry of workspace-scoped
  * throttler names, ported for the standalone `orvex-wiki` engine. ENG-1436.
