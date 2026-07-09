@@ -24,11 +24,20 @@ TRACKING_SYSTEM=""
 # complete=true. Stripping the inline comment here kills that class of failure at the source.
 yaml_scalar() {
   local key="$1" file="$2"
+  # `|| true`: grep exits 1 when the key has NO matching line (absent, or commented-out —
+  # e.g. `# linear_project: ...`), which is a legitimate "key not set" outcome, not an
+  # error. Under `set -euo pipefail` an unguarded pipeline here would abort the WHOLE
+  # script the instant any OPTIONAL scalar key is missing — every subcommand calls
+  # resolve_config first, so this must never propagate as a fatal pipeline failure. The
+  # comment-stripping / quote-stripping behavior (the f3c90fd fix target) is unaffected —
+  # a matched line still runs through the full sed chain; only the "no match" case is
+  # now non-fatal, yielding an empty string exactly as the pre-f3c90fd `|| true` extractions did.
   grep -E "^${key}:" "$file" 2>/dev/null | head -n1 \
     | sed -E "s/^${key}:[[:space:]]*//" \
     | sed -E 's/[[:space:]]+#.*$//; s/^#.*$//' \
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
-    | sed -E "s/^(['\"])(.*)\\1\$/\\2/"
+    | sed -E "s/^(['\"])(.*)\\1\$/\\2/" \
+    || true
 }
 
 # ---------- config resolution ----------
