@@ -657,22 +657,38 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     expect(rows[0].correlationId).toBeNull();
   });
 
-  it('AC2/AC4 — the relay restores the persisted context, emits a PRODUCER span as its child, and stamps a FRESH producer traceparent + correlation_id onto the published message', async () => {
+  // Shared proof body for the producer-side leg of the DoD: an outbox row
+  // persists the caller's trace context, and the relay's published message
+  // continues that SAME trace_id (one connected trace across the async
+  // boundary). Extracted so the named DoD gate test below reuses this exact
+  // assertion chain instead of duplicating it — see ENG-1600 remediation.
+  //
+  // Scope note: this proves the PRODUCER side only (outbox row -> published
+  // message trace_id continuity + PRODUCER span). It intentionally does NOT
+  // assert a CloudEvent envelope (specversion/datacontenttype/extensions) or
+  // a consumer starting its span as a link — that leg is cross-repo scope
+  // (CloudEvent shaping lives in orvex-studio-contracts; the consumer-link
+  // exemplar lives in the Go satellites' pkg/obs) tracked under ENG-1365 and
+  // is explicitly out of bounds for this repo.
+  async function assertOutboxTraceContextReachesPublishedMessage(
+    correlationId: string,
+    spanName: string,
+  ): Promise<void> {
     const tracer = provider.getTracer('test');
-    const requestSpan = tracer.startSpan('inbound-request-2');
+    const requestSpan = tracer.startSpan(spanName);
     const requestCtx = trace.setSpan(context.active(), requestSpan);
 
     let pageId!: string;
     await context.with(requestCtx, async () => {
       const withCorrelation = context
         .active()
-        .setValue(ORVEX_CORRELATION_CONTEXT_KEY, 'corr-eng1600-ac2');
+        .setValue(ORVEX_CORRELATION_CONTEXT_KEY, correlationId);
       await context.with(withCorrelation, async () => {
         await executeTx(db, async (trx) => {
           const page = await trx
             .insertInto('pages')
             .values({
-              title: 'ENG-1600 AC2 page',
+              title: 'ENG-1600 trace-context page',
               slugId: generateSlugId(),
               spaceId,
               workspaceId,
@@ -691,6 +707,20 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     });
     requestSpan.end();
 
+    // The outbox row itself carries the trace context, persisted in-txn.
+    const outboxRows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('aggregateId', '=', pageId)
+      .execute();
+    expect(outboxRows).toHaveLength(1);
+    expect(outboxRows[0].traceparent).toMatch(
+      /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/,
+    );
+    const [, outboxTraceId] = outboxRows[0].traceparent!.split('-');
+    expect(outboxTraceId).toBe(requestSpan.spanContext().traceId);
+    expect(outboxRows[0].correlationId).toBe(correlationId);
+
     const publisher = new InMemoryKafkaPublisher();
     const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER);
     const result = await relay.run();
@@ -708,7 +738,7 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
       correlation_id: string;
     };
 
-    // AC1's persisted trace_id continues into the published message (one
+    // The persisted trace_id continues into the published message (one
     // connected trace across the async boundary — the Definition of Done).
     const [, publishedTraceId] = body.traceparent.split('-');
     expect(publishedTraceId).toBe(requestSpan.spanContext().traceId);
@@ -717,7 +747,7 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     // HTTP span.
     const [, , publishedSpanId] = body.traceparent.split('-');
     expect(publishedSpanId).not.toBe(requestSpan.spanContext().spanId);
-    expect(body.correlation_id).toBe('corr-eng1600-ac2');
+    expect(body.correlation_id).toBe(correlationId);
 
     // AC2 — the relay actually emitted a PRODUCER span as a CHILD of the
     // restored request trace.
@@ -735,10 +765,31 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     );
 
     // AC5 — no PII on the producer span; only opaque ids.
-    expect(producerSpan!.attributes['correlation_id']).toBe('corr-eng1600-ac2');
+    expect(producerSpan!.attributes['correlation_id']).toBe(correlationId);
     expect(producerSpan!.attributes['orvex.tenant']).toBe(workspaceId);
     expect(Object.keys(producerSpan!.attributes)).toEqual(
       expect.arrayContaining(['correlation_id', 'orvex.tenant']),
+    );
+  }
+
+  it('AC2/AC4 — the relay restores the persisted context, emits a PRODUCER span as its child, and stamps a FRESH producer traceparent + correlation_id onto the published message', async () => {
+    await assertOutboxTraceContextReachesPublishedMessage(
+      'corr-eng1600-ac2',
+      'inbound-request-2',
+    );
+  });
+
+  // Named DoD gate — binds the ticket's Definition of Done binary gate
+  // (`TestOutboxCarriesTraceContext`) to the PRODUCER-SIDE proof above: the
+  // outbox row carries the caller's trace context, and the relay's
+  // published message continues that trace_id. This does NOT assert a
+  // CloudEvent envelope or a consumer span-link — that leg is cross-repo
+  // scope (ENG-1365 / orvex-studio-contracts + Go satellites' pkg/obs) and
+  // is out of bounds for orvex-wiki.
+  it('TestOutboxCarriesTraceContext — the outbox row carries trace context and the relay-published message continues the same trace_id (producer-side DoD gate; CloudEvent/consumer-link leg is cross-repo scope, see ENG-1365)', async () => {
+    await assertOutboxTraceContextReachesPublishedMessage(
+      'corr-eng1600-gate',
+      'inbound-request-gate',
     );
   });
 });
