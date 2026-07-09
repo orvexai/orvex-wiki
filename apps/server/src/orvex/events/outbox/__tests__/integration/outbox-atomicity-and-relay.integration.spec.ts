@@ -43,6 +43,15 @@ import { PageRepo } from '../../../../../database/repos/page/page.repo';
 import type { WsService } from '../../../../../ws/ws.service';
 import { SpaceMemberRepo } from '../../../../../database/repos/space/space-member.repo';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { context, SpanKind, trace } from '@opentelemetry/api';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
+import { AsyncHooksContextManager } from '@opentelemetry/context-async-hooks';
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
+import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
+import { ORVEX_CORRELATION_CONTEXT_KEY } from '../../../../obs/orvex-correlation.hook';
 
 const STUB_TOPIC_RESOLVER: OutboxTopicResolver = {
   getKafkaOutboxTopic: () => 'orvex.studio-spine.events',
@@ -477,5 +486,259 @@ describe('OutboxAtomicityAndRelaySpec', () => {
         (c) => c.workspaceId === workspaceId && c.entity[0] === 'pages',
       ),
     ).toBe(true);
+  });
+});
+
+describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', () => {
+  jest.setTimeout(120_000);
+
+  let pgContainer: StartedPostgreSqlContainer;
+  let sqlClient: ReturnType<typeof postgres>;
+  let db: KyselyDB;
+  let outboxWriter: OutboxWriter;
+  let workspaceId: string;
+  let spaceId: string;
+  let exporter: InMemorySpanExporter;
+  let provider: NodeTracerProvider;
+  let contextManager: AsyncHooksContextManager;
+
+  beforeAll(async () => {
+    pgContainer = await new PostgreSqlContainer('postgres:16-alpine').start();
+    sqlClient = postgres(pgContainer.getConnectionUri());
+
+    const rawDb = new Kysely<DbInterface>({
+      dialect: new PostgresJSDialect({ postgres: sqlClient }),
+    });
+    const migrationFolder = path.join(
+      __dirname,
+      '../../../../../database/migrations',
+    );
+    const migrator = new Migrator({
+      db: rawDb,
+      provider: new FileMigrationProvider({ fs, path, migrationFolder }),
+    });
+    const { error } = await migrator.migrateToLatest();
+    if (error) throw error;
+    await rawDb.destroy();
+
+    db = new Kysely<DbInterface>({
+      dialect: new PostgresJSDialect({ postgres: sqlClient }),
+      plugins: [new CamelCasePlugin()],
+    });
+
+    outboxWriter = new OutboxWriter(db);
+
+    exporter = new InMemorySpanExporter();
+    provider = new NodeTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    contextManager = new AsyncHooksContextManager();
+    contextManager.enable();
+    provider.register({
+      propagator: new W3CTraceContextPropagator(),
+      contextManager,
+    });
+  });
+
+  afterAll(async () => {
+    contextManager.disable();
+    await provider.shutdown();
+    await db?.destroy();
+    await sqlClient?.end();
+    await pgContainer?.stop();
+  });
+
+  beforeEach(async () => {
+    exporter.reset();
+    const ws = await db
+      .insertInto('workspaces')
+      .values({ name: 'ENG-1600 WS', hostname: `eng1600-${Date.now()}-${Math.random()}` })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    workspaceId = ws.id;
+
+    const space = await db
+      .insertInto('spaces')
+      .values({
+        name: 'ENG-1600 Space',
+        slug: `eng1600-space-${Date.now()}-${Math.random()}`,
+        workspaceId,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    spaceId = space.id;
+  });
+
+  afterEach(async () => {
+    await db.deleteFrom('orvexEventOutbox').where('workspaceId', '=', workspaceId).execute();
+    await db.deleteFrom('pages').where('workspaceId', '=', workspaceId).execute();
+    await db.deleteFrom('spaces').where('id', '=', spaceId).execute();
+    await db.deleteFrom('workspaces').where('id', '=', workspaceId).execute();
+  });
+
+  it('AC1 — a mutation inside an active trace persists traceparent/tracestate/correlation_id on the outbox row, in the SAME txn', async () => {
+    const tracer = provider.getTracer('test');
+    const requestSpan = tracer.startSpan('inbound-request');
+    const requestCtx = trace.setSpan(context.active(), requestSpan);
+
+    let pageId!: string;
+    await context.with(requestCtx, async () => {
+      const withCorrelation = context
+        .active()
+        .setValue(ORVEX_CORRELATION_CONTEXT_KEY, 'corr-eng1600-ac1');
+      await context.with(withCorrelation, async () => {
+        await executeTx(db, async (trx) => {
+          const page = await trx
+            .insertInto('pages')
+            .values({
+              title: 'ENG-1600 AC1 page',
+              slugId: generateSlugId(),
+              spaceId,
+              workspaceId,
+            })
+            .returning(['id'])
+            .executeTakeFirstOrThrow();
+          pageId = page.id;
+          await outboxWriter.enqueue(trx, {
+            type: EVT_PAGE_CREATED,
+            aggregateId: page.id,
+            workspaceId,
+            payload: { id: page.id, workspaceId },
+          });
+        });
+      });
+    });
+    requestSpan.end();
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('aggregateId', '=', pageId)
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/);
+    expect(rows[0].correlationId).toBe('corr-eng1600-ac1');
+    const [, traceId, spanId] = rows[0].traceparent!.split('-');
+    expect(traceId).toBe(requestSpan.spanContext().traceId);
+    expect(spanId).toBe(requestSpan.spanContext().spanId);
+  });
+
+  it('AC5 vanilla-safe — a mutation with NO active trace persists null trace columns (never fabricates a trace)', async () => {
+    let pageId!: string;
+    await executeTx(db, async (trx) => {
+      const page = await trx
+        .insertInto('pages')
+        .values({
+          title: 'ENG-1600 AC5 page',
+          slugId: generateSlugId(),
+          spaceId,
+          workspaceId,
+        })
+        .returning(['id'])
+        .executeTakeFirstOrThrow();
+      pageId = page.id;
+      await outboxWriter.enqueue(trx, {
+        type: EVT_PAGE_CREATED,
+        aggregateId: page.id,
+        workspaceId,
+        payload: { id: page.id, workspaceId },
+      });
+    });
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('aggregateId', '=', pageId)
+      .execute();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].traceparent).toBeNull();
+    expect(rows[0].tracestate).toBeNull();
+    expect(rows[0].correlationId).toBeNull();
+  });
+
+  it('AC2/AC4 — the relay restores the persisted context, emits a PRODUCER span as its child, and stamps a FRESH producer traceparent + correlation_id onto the published message', async () => {
+    const tracer = provider.getTracer('test');
+    const requestSpan = tracer.startSpan('inbound-request-2');
+    const requestCtx = trace.setSpan(context.active(), requestSpan);
+
+    let pageId!: string;
+    await context.with(requestCtx, async () => {
+      const withCorrelation = context
+        .active()
+        .setValue(ORVEX_CORRELATION_CONTEXT_KEY, 'corr-eng1600-ac2');
+      await context.with(withCorrelation, async () => {
+        await executeTx(db, async (trx) => {
+          const page = await trx
+            .insertInto('pages')
+            .values({
+              title: 'ENG-1600 AC2 page',
+              slugId: generateSlugId(),
+              spaceId,
+              workspaceId,
+            })
+            .returning(['id'])
+            .executeTakeFirstOrThrow();
+          pageId = page.id;
+          await outboxWriter.enqueue(trx, {
+            type: EVT_PAGE_CREATED,
+            aggregateId: page.id,
+            workspaceId,
+            payload: { id: page.id, workspaceId },
+          });
+        });
+      });
+    });
+    requestSpan.end();
+
+    const publisher = new InMemoryKafkaPublisher();
+    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER);
+    const result = await relay.run();
+    expect(result.failed).toBe(0);
+    expect(result.published).toBeGreaterThanOrEqual(1);
+
+    const distinct = publisher.getDistinctMessages('orvex.studio-spine.events');
+    const message = distinct.find(
+      (m) => (JSON.parse(m.value) as { aggregateId: string }).aggregateId === pageId,
+    );
+    expect(message).toBeDefined();
+    const body = JSON.parse(message!.value) as {
+      traceparent: string;
+      tracestate: string | null;
+      correlation_id: string;
+    };
+
+    // AC1's persisted trace_id continues into the published message (one
+    // connected trace across the async boundary — the Definition of Done).
+    const [, publishedTraceId] = body.traceparent.split('-');
+    expect(publishedTraceId).toBe(requestSpan.spanContext().traceId);
+    // AC4: the SPAN id is the relay's own PRODUCER span, not the original
+    // request span — a consumer links to the producer, not the far-away
+    // HTTP span.
+    const [, , publishedSpanId] = body.traceparent.split('-');
+    expect(publishedSpanId).not.toBe(requestSpan.spanContext().spanId);
+    expect(body.correlation_id).toBe('corr-eng1600-ac2');
+
+    // AC2 — the relay actually emitted a PRODUCER span as a CHILD of the
+    // restored request trace.
+    const finished = exporter.getFinishedSpans();
+    const producerSpan = finished.find(
+      (s) => s.name === 'orvex.outbox.relay.publish',
+    );
+    expect(producerSpan).toBeDefined();
+    expect(producerSpan!.kind).toBe(SpanKind.PRODUCER);
+    expect(producerSpan!.spanContext().traceId).toBe(
+      requestSpan.spanContext().traceId,
+    );
+    expect(producerSpan!.parentSpanContext?.spanId).toBe(
+      requestSpan.spanContext().spanId,
+    );
+
+    // AC5 — no PII on the producer span; only opaque ids.
+    expect(producerSpan!.attributes['correlation_id']).toBe('corr-eng1600-ac2');
+    expect(producerSpan!.attributes['orvex.tenant']).toBe(workspaceId);
+    expect(Object.keys(producerSpan!.attributes)).toEqual(
+      expect.arrayContaining(['correlation_id', 'orvex.tenant']),
+    );
   });
 });

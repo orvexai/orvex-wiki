@@ -5,12 +5,19 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { KyselyDB } from '../../../database/types/kysely.types';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
 import {
   KAFKA_PUBLISHER_PORT,
   KafkaPublisherPort,
 } from './kafka-publisher.port';
+import { getOrvexTracer } from '../../obs/orvex-tracing.bootstrap';
+import { buildSpanAttributes } from '../../obs/orvex-span-attributes.util';
+import {
+  injectOutboxTraceContext,
+  restoreOutboxTraceContext,
+} from './orvex-outbox-trace-context.util';
 
 /**
  * Narrow seam the relay actually needs from `EnvironmentService` (dependency
@@ -85,6 +92,34 @@ export class OutboxRelayService {
     let failed = 0;
 
     for (const row of rows) {
+      // ENG-1600 AC2 — restore the ORIGINAL request's trace context
+      // (persisted on the row at write time, AC1) so this relay's producer
+      // span is a child of that trace, not an unrelated new root — closing
+      // the api->worker gap (the row waited in Postgres, drained by a
+      // different process than the one that wrote it).
+      const restoredCtx = restoreOutboxTraceContext({
+        traceparent: row.traceparent,
+        tracestate: row.tracestate,
+      });
+      const tracer = getOrvexTracer();
+      const producerSpan = tracer.startSpan(
+        'orvex.outbox.relay.publish',
+        {
+          kind: SpanKind.PRODUCER,
+          attributes: buildSpanAttributes({
+            workspaceId: row.workspaceId,
+            correlationId: row.correlationId,
+          }),
+        },
+        restoredCtx,
+      );
+      // AC4 — the traceparent/tracestate exposed to the outgoing CloudEvent
+      // is THIS producer span's own context (not the original request's),
+      // so a consumer links to the producer specifically.
+      const producerTraceContext = injectOutboxTraceContext(
+        trace.setSpan(restoredCtx, producerSpan),
+      );
+
       try {
         await this.publisher.publish({
           topic,
@@ -94,6 +129,17 @@ export class OutboxRelayService {
             aggregateId: row.aggregateId,
             workspaceId: row.workspaceId,
             payload: row.payload,
+            // ENG-1600 AC2/AC3 — the CloudEvents Distributed-Tracing
+            // extension attributes (names verbatim per the spec) plus the
+            // FR-C18 correlation id, carried on the message envelope the
+            // relay emits. Full CloudEvent envelope shaping (specversion/
+            // source/id and the `wiki.*` catalog declaration, ENG-1365) is
+            // the separate cross-repo `orvex-studio-contracts` leg (T4) —
+            // out of this repo's scope; this only adds the tracing
+            // extension fields to what the relay already publishes.
+            traceparent: producerTraceContext.traceparent,
+            tracestate: producerTraceContext.tracestate,
+            correlation_id: row.correlationId,
           }),
         });
 
@@ -109,9 +155,15 @@ export class OutboxRelayService {
         published++;
       } catch (err) {
         failed++;
+        producerSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: err instanceof Error ? err.message : String(err),
+        });
         this.logger.warn(
           `Outbox relay failed to publish row ${row.id} (${row.type}): ${err}`,
         );
+      } finally {
+        producerSpan.end();
       }
     }
 
