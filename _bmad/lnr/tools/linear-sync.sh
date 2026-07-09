@@ -12,6 +12,25 @@ set -euo pipefail
 LINEAR_NOT_CONFIGURED=0
 TRACKING_SYSTEM=""
 
+# yaml_scalar <key> <file>: read a top-level YAML scalar value, stripping an inline `# comment`
+# (YAML begins a comment at whitespace-then-`#`), surrounding quotes, and edge whitespace.
+# WHY THIS EXISTS: the previous extractions (`grep|sed` for name-valued keys, `awk '{print $2}'`
+# for single-token keys) did NOT strip inline comments, so a config line such as
+#   linear_initiative: <uuid>   # "Orvex Studio" — scope note
+# captured the WHOLE "<uuid>   # ... note" string as the value. That polluted value then failed
+# the 36-char UUID test in cmd_sync_initiative (so the initiative filter keyed on `name`, not
+# `id`) and matched NO initiative — the sync fetched ZERO in-scope open issues while the
+# team-wide closed fetch still returned every Done/Canceled issue, and the run reported
+# complete=true. Stripping the inline comment here kills that class of failure at the source.
+yaml_scalar() {
+  local key="$1" file="$2"
+  grep -E "^${key}:" "$file" 2>/dev/null | head -n1 \
+    | sed -E "s/^${key}:[[:space:]]*//" \
+    | sed -E 's/[[:space:]]+#.*$//; s/^#.*$//' \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
+    | sed -E "s/^(['\"])(.*)\\1\$/\\2/"
+}
+
 # ---------- config resolution ----------
 resolve_config() {
   # Walk up from cwd to find _bmad root
@@ -36,13 +55,16 @@ resolve_config() {
     exit 1
   fi
 
-  TEAM_KEY=$(grep '^team_key:' "$config_file" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
-  LINEAR_TENANT=$(grep '^linear_tenant:' "$config_file" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
-  LINEAR_PROJECT=$(grep '^linear_project:' "$config_file" | sed 's/^linear_project:[[:space:]]*//' | tr -d '"' | tr -d "'" || true)
-  LINEAR_INITIATIVE=$(grep '^linear_initiative:' "$config_file" | sed 's/^linear_initiative:[[:space:]]*//' | tr -d '"' | tr -d "'" || true)
-  PROJECT_NAME=$(grep '^project_name:' "$config_file" 2>/dev/null | sed 's/^project_name:[[:space:]]*//' | tr -d '"' | tr -d "'" || true)
+  # All values go through yaml_scalar so inline `# comments` are stripped (see its header for
+  # the failure this prevents). A commented-out line (`# linear_project: ...`) does not match
+  # the `^key:` anchor, so it is correctly ignored.
+  TEAM_KEY=$(yaml_scalar 'team_key' "$config_file")
+  LINEAR_TENANT=$(yaml_scalar 'linear_tenant' "$config_file")
+  LINEAR_PROJECT=$(yaml_scalar 'linear_project' "$config_file")
+  LINEAR_INITIATIVE=$(yaml_scalar 'linear_initiative' "$config_file")
+  PROJECT_NAME=$(yaml_scalar 'project_name' "$config_file")
 
-  TRACKING_SYSTEM=$(grep '^tracking_system:' "$config_file" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
+  TRACKING_SYSTEM=$(yaml_scalar 'tracking_system' "$config_file")
 
   # Scope key: linear_initiative is REQUIRED for Linear mode. linear_project is a legacy
   # key that MAY still be set (an explicit single-project scope alongside the initiative,
@@ -926,6 +948,68 @@ GQL_CLOSED='query ClosedIssues($first: Int!, $after: String, $filter: IssueFilte
   }
 }'
 
+# ---------- initiative scope oracle (honesty invariants) ----------
+# resolve_initiative_scope: ONE authoritative GraphQL call (never per-project) that resolves the
+# configured initiative to (a) its display name, (b) its FULL member-project NAME set, and (c) an
+# INDEPENDENT open-work signal (does the initiative currently have any non-terminal issue?). This
+# is the oracle the honesty invariants in cmd_sync_initiative check the written cache against, so a
+# mis-scoped or open-frontier-losing sync can NEVER be reported complete=true.
+#
+# Independence is deliberate: member projects come from the `initiative` OBJECT, the open-work
+# signal comes from an `issues(filter: project.initiatives…)` probe, and the actual active fetch is
+# scoped by `project.name.in <members>`. Three mechanisms that must AGREE — a Done-only cache born
+# from one silently-empty scope mechanism is caught by the other two.
+#
+# Requires $ikey (id|name) + globals TEAM_KEY / LINEAR_INITIATIVE / gql_post. Sets globals:
+#   INIT_RESOLVED_NAME  resolved initiative display name ("" if the scope value resolves to NO
+#                       initiative — e.g. a polluted/renamed/deleted scope key)
+#   MEMBER_PROJECTS     newline-delimited member project names ("" if none)
+#   MEMBER_TRUNCATED    1 if the projects connection overflowed the fetch cap (M is partial)
+#   OPEN_WORK_EXISTS    1 if the initiative has >=1 open issue upstream, else 0
+# Returns non-zero only on transport / GraphQL error (caller treats that as fatal — scope
+# unverifiable, so the existing cache must not be overwritten).
+resolve_initiative_scope() {
+  INIT_RESOLVED_NAME=""; MEMBER_PROJECTS=""; MEMBER_TRUNCATED=0; OPEN_WORK_EXISTS=0
+  local q vars resp probe_filter base
+  probe_filter=$(jq -cn --arg team "$TEAM_KEY" --arg k "$ikey" --arg v "$LINEAR_INITIATIVE" \
+    '{team:{key:{eq:$team}}, state:{type:{nin:["completed","canceled"]}}, project:{initiatives:{some:{($k):{eq:$v}}}}}')
+  if [[ "$ikey" == "id" ]]; then
+    q='query($v: String!, $af: IssueFilter) {
+      node: initiative(id: $v) { name projects(first: 250) { nodes { name } pageInfo { hasNextPage } } }
+      openProbe: issues(first: 1, filter: $af) { nodes { identifier } }
+    }'
+    base='.data.node'
+  else
+    q='query($v: String!, $af: IssueFilter) {
+      inits: initiatives(filter: { name: { eq: $v } }, first: 2) { nodes { name projects(first: 250) { nodes { name } pageInfo { hasNextPage } } } }
+      openProbe: issues(first: 1, filter: $af) { nodes { identifier } }
+    }'
+    base='.data.inits.nodes[0]'
+  fi
+  vars=$(jq -cn --arg v "$LINEAR_INITIATIVE" --argjson af "$probe_filter" '{v:$v, af:$af}')
+  resp=$(mktemp)
+  if ! gql_post "$q" "$vars" > "$resp" 2>/dev/null; then
+    echo "ERROR: initiative-scope resolution: GraphQL transport failure." >&2
+    rm -f "$resp"; return 1
+  fi
+  local gqlerr
+  gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "PARSE_ERROR")
+  if [[ -n "$gqlerr" ]]; then
+    echo "ERROR: initiative-scope resolution: Linear GraphQL error: $gqlerr" >&2
+    [[ -n "$LAST_RATELIMIT_HEADERS" ]] && { echo "  rate-limit budget at failure:" >&2; printf '%s\n' "$LAST_RATELIMIT_HEADERS" | sed 's/^/    /' >&2; }
+    rm -f "$resp"; return 1
+  fi
+  INIT_RESOLVED_NAME=$(jq -r "($base.name) // empty" "$resp" 2>/dev/null || true)
+  MEMBER_PROJECTS=$(jq -r "[$base.projects.nodes[]?.name] | .[]" "$resp" 2>/dev/null || true)
+  if [[ "$(jq -r "($base.projects.pageInfo.hasNextPage) // false" "$resp" 2>/dev/null || echo false)" == "true" ]]; then
+    MEMBER_TRUNCATED=1
+  fi
+  local op; op=$(jq -r '(.data.openProbe.nodes | length) // 0' "$resp" 2>/dev/null || echo 0)
+  if [[ "$op" -gt 0 ]]; then OPEN_WORK_EXISTS=1; fi
+  rm -f "$resp"
+  return 0
+}
+
 cmd_sync_initiative() {
   if [[ "${LINEAR_NOT_CONFIGURED:-0}" == "1" ]]; then
     echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_initiative, team_key in config" >&2
@@ -936,12 +1020,12 @@ cmd_sync_initiative() {
   ensure_gitignore
   mkdir -p "$CACHE_DIR"
 
-  # --projects-file <path>: OPTIONAL newline-delimited allowlist of project NAMES to keep,
-  # for an operator who wants to pin an explicit project set by hand. NOT required — the
-  # scope source is the configured linear_initiative (resolve_config already guarantees it
-  # is set — see the hard-cut migration error there), pushed server-side into Query A's
-  # filter below, so the active fetch never even transfers out-of-scope issues without
-  # this flag.
+  # --projects-file <path>: OPTIONAL newline-delimited allowlist of project NAMES, for an
+  # operator who wants to pin an explicit project set by hand. NOT required — the scope source
+  # is the configured linear_initiative (resolve_config guarantees it is set — see the hard-cut
+  # migration error there), resolved to its member-project set by resolve_initiative_scope and
+  # applied as project.name.in on the active fetch below. When given, the flag NARROWS that set
+  # (intersection with the initiative members); it can never widen scope past the initiative.
   local projects_file=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -957,9 +1041,47 @@ cmd_sync_initiative() {
 
   resolve_linear_token || exit 1
 
-  # resolve_config guarantees LINEAR_INITIATIVE is set whenever LINEAR_NOT_CONFIGURED != 1
-  # (a legacy-only linear_project config is refused there — hard cut, no fallback here).
-  local scope_desc="initiative \"$LINEAR_INITIATIVE\""
+  # Scope value shape: a 36-char UUID → resolve/filter by initiative id; else by display name.
+  local ikey="name"
+  [[ "$LINEAR_INITIATIVE" =~ ^[0-9a-fA-F-]{36}$ ]] && ikey="id"
+
+  # Authoritative scope oracle (ONE call, never per-project): resolve the configured initiative
+  # to its member-project NAME set + an independent open-work signal. INVARIANT A (fatal, before
+  # any write): a scope value that resolves to NO initiative or ZERO member projects — the
+  # signature of a stale/renamed key or a value polluted by an inline comment — must NEVER be
+  # allowed to overwrite a good cache with a mis-scoped one.
+  if ! resolve_initiative_scope; then
+    echo "ERROR: could not resolve initiative scope '$LINEAR_INITIATIVE' — existing initiative.json left untouched." >&2
+    exit 1
+  fi
+  if [[ -z "$MEMBER_PROJECTS" ]]; then
+    echo "ERROR: initiative scope '$LINEAR_INITIATIVE' resolved to ZERO member projects." >&2
+    echo "  Likely a wrong linear_initiative value (renamed/deleted initiative, or a value" >&2
+    echo "  polluted by an inline '# comment'). Refusing to write a mis-scoped cache —" >&2
+    echo "  existing initiative.json left untouched." >&2
+    exit 1
+  fi
+  if [[ "$MEMBER_TRUNCATED" == "1" ]]; then
+    echo "ERROR: initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}' has more member projects than the 250 resolution cap — the member set is partial; refusing to write a partial-scope cache." >&2
+    exit 1
+  fi
+
+  # Effective active scope = the initiative's authoritatively-resolved member projects, or their
+  # intersection with an explicit --projects-file operator override. `project.name.in` is the
+  # PROVEN scope filter (it produced the trusted backup cache) and makes the scope EXPLICIT and
+  # auditable rather than an opaque server-side filter that can silently match nothing.
+  local scope_names="$MEMBER_PROJECTS"
+  if [[ -n "$projects_file" ]]; then
+    scope_names=$(comm -12 <(printf '%s\n' "$MEMBER_PROJECTS" | sort -u) <(grep -v '^[[:space:]]*$' "$projects_file" | sort -u))
+    if [[ -z "$scope_names" ]]; then
+      echo "ERROR: --projects-file '$projects_file' has no overlap with initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}' member projects — nothing in scope." >&2
+      exit 1
+    fi
+  fi
+  local member_count
+  member_count=$(printf '%s\n' "$scope_names" | grep -c .)
+
+  local scope_desc="initiative \"${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}\" ($member_count member project(s))"
   echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped to $scope_desc) + closed (team-wide, slim) + blocked-by graph${projects_file:+ (explicit project override: $projects_file)}..."
 
   local active_tmp done_tmp all_tmp synced_at complete
@@ -967,27 +1089,14 @@ cmd_sync_initiative() {
   synced_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   complete=true
 
-  # Build server-side filters. Active = team + non-terminal state (+ scope). Closed = team +
-  # terminal state, TEAM-WIDE (no project/initiative filter — cross-scope blockers still
-  # resolve, and the fetch is slim enough that team-wide is cheap; see GQL_CLOSED comment).
-  local filter_active vars_active
-  filter_active=$(jq -cn --arg team "$TEAM_KEY" \
-    '{team:{key:{eq:$team}}, state:{type:{nin:["completed","canceled"]}}}')
-  # Scope source = configured initiative (REQUIRED — resolve_config refuses to reach here
-  # without it). Push it into the server-side filter so the active fetch never transfers
-  # out-of-scope issues and NO per-project call is made. UUID → filter by initiative id;
-  # otherwise by name.
-  local ikey="name"
-  [[ "$LINEAR_INITIATIVE" =~ ^[0-9a-fA-F-]{36}$ ]] && ikey="id"
-  filter_active=$(echo "$filter_active" | jq -c --arg k "$ikey" --arg v "$LINEAR_INITIATIVE" \
-    '. + {project:{initiatives:{some:{($k):{eq:$v}}}}}')
-  # Optional explicit override: an operator may still pin a project allowlist by hand,
-  # narrowing whatever the initiative/project filter above already selected.
-  if [[ -n "$projects_file" ]]; then
-    local plist
-    plist=$(jq -R -s 'split("\n") | map(select(length>0))' "$projects_file")
-    filter_active=$(echo "$filter_active" | jq -c --argjson p "$plist" '. + {project:{name:{in:$p}}}')
-  fi
+  # Build server-side filters. Active = team + non-terminal state + project.name.in <members>.
+  # Closed = team + terminal state, TEAM-WIDE (no project/initiative filter — cross-scope
+  # blockers still resolve, and the fetch is slim enough that team-wide is cheap; see the
+  # GQL_CLOSED comment).
+  local filter_active vars_active plist
+  plist=$(printf '%s\n' "$scope_names" | jq -R -s 'split("\n") | map(select(length>0))')
+  filter_active=$(jq -cn --arg team "$TEAM_KEY" --argjson p "$plist" \
+    '{team:{key:{eq:$team}}, state:{type:{nin:["completed","canceled"]}}, project:{name:{in:$p}}}')
   vars_active=$(jq -cn --argjson f "$filter_active" '{filter:$f}')
 
   local filter_closed vars_closed
@@ -1025,6 +1134,38 @@ cmd_sync_initiative() {
     echo "WARN: closed (Done/Canceled) fetch incomplete (rate-limited?) — marking cache complete=false." >&2
     complete=false   # keep whatever $done_tmp accumulated; do not clobber
   fi
+
+  # 2b) HONESTY INVARIANTS (run BEFORE projection so `complete` written into the JSON is
+  #     truthful). These make a mis-scoped / open-frontier-losing result that still claims
+  #     complete=true structurally impossible — the exact failure mode of the broken sync
+  #     (Done-only cache, complete=true, exit 0). The team-wide CLOSED set is intentionally
+  #     out-of-scope (blocker-resolution scaffolding), so these checks operate on the ACTIVE
+  #     (open) set — the in-scope frontier the engine actually consumes.
+  local open_count member_json open_out_of_scope
+  open_count=$(jq 'length' "$active_tmp")
+  member_json=$(printf '%s\n' "$MEMBER_PROJECTS" | jq -R -s 'split("\n") | map(select(length>0))')
+  # (B) Scope purity — every OPEN issue must sit in a resolved member project. The active fetch
+  #     is scoped by project.name.in <members> so this holds by construction; re-verify as a
+  #     belt-and-suspenders catch for a server-side over-return (issues leaking in from outside
+  #     the initiative).
+  open_out_of_scope=$(jq --argjson m "$member_json" \
+    '[ .[] | (.project.name // "«no-project»") as $p | select(($m | index($p)) == null) | $p ] | unique' "$active_tmp")
+  if [[ "$(echo "$open_out_of_scope" | jq 'length')" -gt 0 ]]; then
+    echo "HONESTY-FAIL: open issues reference project(s) outside initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}': $(echo "$open_out_of_scope" | jq -c .) — marking cache complete=false." >&2
+    complete=false
+  fi
+  # (C) Open-frontier-lost guard — an INDEPENDENT open-work probe (the project.initiatives
+  #     server filter in resolve_initiative_scope, a DIFFERENT scope mechanism than this fetch's
+  #     project.name.in) said the initiative has open work, yet the active fetch returned ZERO
+  #     open issues. The two scope mechanisms disagree ⇒ the open frontier was lost (precisely
+  #     the Done-only-but-complete=true failure). Never trust it. (Suppressed under an explicit
+  #     --projects-file override, whose narrowing may legitimately exclude all currently-open
+  #     work.)
+  if [[ -z "$projects_file" && "$OPEN_WORK_EXISTS" == "1" && "$open_count" -eq 0 ]]; then
+    echo "HONESTY-FAIL: initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}' has open work upstream but the active fetch returned 0 open issues — the open frontier was lost; marking cache complete=false." >&2
+    complete=false
+  fi
+
   # 3) Merge + dedupe by identifier (states are disjoint; active listed first so its
   #    full-field node wins on any defensive collision).
   if ! jq -s '(.[0] + .[1]) | unique_by(.identifier)' "$active_tmp" "$done_tmp" > "$all_tmp"; then

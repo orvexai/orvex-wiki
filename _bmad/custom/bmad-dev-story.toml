@@ -5,8 +5,8 @@
 [workflow]
 tracking_system = "linear"
 tracking_adapter = "lnr-tracking-adapter"
-status_file = "linear://{linear_project}/work-status"
-default_output_file = "linear://{linear_project}/issues/{issue_key}"
+status_file = "linear://{linear_scope}/work-status"
+default_output_file = "linear://{linear_scope}/issues/{issue_key}"
 persistent_facts = [
   "skill:lnr-session-policy",
   "skill:lnr-tracking-adapter",

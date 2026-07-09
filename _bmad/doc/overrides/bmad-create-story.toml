@@ -31,8 +31,8 @@
 #   [workflow]
 #   tracking_system    = "linear"          # from bmad-linear
 #   tracking_adapter   = "lnr-tracking-adapter"
-#   status_file        = "linear://{linear_project}/sprint-status"
-#   default_output_file = "linear://{linear_project}/stories/{story_key}"
+#   status_file        = "linear://{linear_scope}/sprint-status"
+#   default_output_file = "linear://{linear_scope}/stories/{story_key}"
 #   persistent_facts = [
 #     "skill:lnr-session-policy",          # ── Linear's (keep verbatim) ──
 #     "skill:lnr-tracking-adapter",
