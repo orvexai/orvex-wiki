@@ -29,7 +29,8 @@
       "@docmost/base-formula/client": [
         "../../packages/base-formula/dist/index.client.d.ts"
       ],
-      "@orvex/extensions": ["../../packages/@orvex/extensions/dist/index.d.ts"]
+      "@orvex/extensions": ["../../packages/@orvex/extensions/dist/index.d.ts"],
+      "@orvex/dfm": ["../../packages/@orvex/dfm/dist/index.d.ts"]
     }
   }
 }
