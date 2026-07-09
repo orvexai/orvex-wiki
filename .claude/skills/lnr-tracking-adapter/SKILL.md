@@ -29,7 +29,7 @@ Key files:
 | `milestone-map.md` | Milestone → issues overview |
 | `.last-sync` | ISO-8601 timestamp of last full sync |
 
-Status-file virtual path (for `status_file` references): `linear://{linear_project}/work-status`.
+Status-file virtual path (for `status_file` references): `linear://{linear_scope}/work-status`, where `{linear_scope}` resolves to the required `linear_initiative` config key. This is a display namespace, not a live scope query. A config with only the legacy `linear_project` key (no `linear_initiative`) is refused at run time — see the config block below.
 
 ---
 
@@ -140,12 +140,12 @@ Return issues from the local cache. **Never call `linearis issues list` directly
 
 4. Filter by `status` and/or `project` in the parsed YAML. Apply `limit` to truncate results.
 
-The `work-status.yaml` schema written by `linear-sync.sh`:
+The `work-status.yaml` schema written by `linear-sync.sh sync` (the legacy single-project scope — see note below):
 
 ```yaml
 synced_at: "<ISO-8601>"
 team_key: ENG
-linear_project: Linear CLI
+linear_project: <project_display_name>   # example placeholder — NOT a real project name
 project: <project_display_name>
 
 milestones:
@@ -168,7 +168,7 @@ issues:
     cycle: none
 ```
 
-Top-level keys: `synced_at`, `team_key`, `linear_project`, `project`. The `milestones` and `issues` blocks are maps — not lists. A `milestones` entry is keyed by the **project-milestone UUID** and carries `name` + `target_date` (sourced from `linearis milestones list`). An `issues` entry is keyed by Linear identifier and carries `title`, `status`, `kind`, `milestone` (its `projectMilestone` UUID, or `none`), and `cycle` (number, or `none`). **Every issue in the project is cached** — stories, epics, AND tracking/meta issues — distinguished by `kind`; board / sprint views should filter `kind: story` (or degrade cleanly). (Cycle is a per-issue field, not a separate top-level block; a sub-issue `parent` is not currently emitted.)
+Top-level keys: `synced_at`, `team_key`, `linear_project`, `project`. (`work-status.yaml` is produced only by the legacy single-project `sync` command, which requires `linear_project`; it does not carry `linear_initiative` or a `scope` key. `sync-initiative` writes the separate `initiative.json` cache file instead — see the sync-initiative subcommand.) The `milestones` and `issues` blocks are maps — not lists. A `milestones` entry is keyed by the **project-milestone UUID** and carries `name` + `target_date` (sourced from `linearis milestones list`). An `issues` entry is keyed by Linear identifier and carries `title`, `status`, `kind`, `milestone` (its `projectMilestone` UUID, or `none`), and `cycle` (number, or `none`). **Every issue in the project is cached** — stories, epics, AND tracking/meta issues — distinguished by `kind`; board / sprint views should filter `kind: story` (or degrade cleanly). (Cycle is a per-issue field, not a separate top-level block; a sub-issue `parent` is not currently emitted.)
 
 ---
 

@@ -5,8 +5,10 @@
 
 tracking_system: linear
 linear_tenant: orvexai
-linear_project: Orvex Wiki
+linear_initiative: ddeb5b07-d9a9-4053-91e2-cf70e59d3ae4   # "Orvex Studio" — REQUIRED scope of record
 team_key: ENG
+# linear_project: Orvex Wiki   # legacy key; NOT a substitute for linear_initiative (hard cut) —
+                                # drop it unless something still needs the single-project `sync` command
 
 # Core Configuration Values
 user_name: Daniel

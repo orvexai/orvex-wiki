@@ -39,11 +39,35 @@ resolve_config() {
   TEAM_KEY=$(grep '^team_key:' "$config_file" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
   LINEAR_TENANT=$(grep '^linear_tenant:' "$config_file" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
   LINEAR_PROJECT=$(grep '^linear_project:' "$config_file" | sed 's/^linear_project:[[:space:]]*//' | tr -d '"' | tr -d "'" || true)
+  LINEAR_INITIATIVE=$(grep '^linear_initiative:' "$config_file" | sed 's/^linear_initiative:[[:space:]]*//' | tr -d '"' | tr -d "'" || true)
   PROJECT_NAME=$(grep '^project_name:' "$config_file" 2>/dev/null | sed 's/^project_name:[[:space:]]*//' | tr -d '"' | tr -d "'" || true)
 
   TRACKING_SYSTEM=$(grep '^tracking_system:' "$config_file" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
 
-  if [[ -z "$TEAM_KEY" || -z "$LINEAR_TENANT" || -z "$LINEAR_PROJECT" ]]; then
+  # Scope key: linear_initiative is REQUIRED for Linear mode. linear_project is a legacy
+  # key that MAY still be set (an explicit single-project scope alongside the initiative,
+  # e.g. for the legacy `sync` command), but it can no longer stand in for linear_initiative.
+  # A config carrying linear_project WITHOUT linear_initiative is a hard migration error —
+  # PO decision 2026-07-09 (hard cut): no silent project-scoped fallback. Scoped to Linear
+  # mode only — a file-system-tracked repo with a stray/uncommented legacy linear_project
+  # key is not blocked; the gate only fires when tracking_system actually selects Linear.
+  if [[ "$TRACKING_SYSTEM" == "linear" && -z "$LINEAR_INITIATIVE" && -n "$LINEAR_PROJECT" ]]; then
+    echo "ERROR: config-level Linear scope binding is out of date." >&2
+    echo "  '$config_file' sets the legacy key 'linear_project' but not 'linear_initiative'." >&2
+    echo "  linear_project alone is no longer a valid scope binding — it will NOT silently" >&2
+    echo "  fall back to project scope." >&2
+    echo "" >&2
+    echo "  Fix — add one line to $config_file:" >&2
+    echo "    linear_initiative: <initiative-name-or-UUID>" >&2
+    echo "" >&2
+    echo "  See bmad-linear/README.md 'Linear tracking' config block for the full key set." >&2
+    echo "  (Per-command explicit overrides, e.g. --project on a single command or" >&2
+    echo "  --projects-file on sync-initiative, are unaffected — only this config-level" >&2
+    echo "  binding is retired.)" >&2
+    exit 1
+  fi
+
+  if [[ -z "$TEAM_KEY" || -z "$LINEAR_TENANT" || -z "$LINEAR_INITIATIVE" ]]; then
     LINEAR_NOT_CONFIGURED=1
     return 0
   fi
@@ -223,7 +247,11 @@ fetch_all_issues() {
 # ---------- sync ----------
 cmd_sync() {
   if [[ "${LINEAR_NOT_CONFIGURED:-0}" == "1" ]]; then
-    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_project, team_key in config" >&2
+    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_initiative, team_key in config" >&2
+    exit 1
+  fi
+  if [[ -z "${LINEAR_PROJECT:-}" ]]; then
+    echo "ERROR: 'sync' is the legacy single-project refresh and needs linear_project. You have linear_initiative set — use: linear-sync.sh sync-initiative" >&2
     exit 1
   fi
   check_deps
@@ -342,7 +370,7 @@ _process_issues() {
 # ---------- issue (single-issue refresh; `story` kept as an alias) ----------
 cmd_issue() {
   if [[ "${LINEAR_NOT_CONFIGURED:-0}" == "1" ]]; then
-    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_project, team_key in config" >&2
+    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_initiative, team_key in config" >&2
     exit 1
   fi
   check_deps
@@ -353,8 +381,8 @@ cmd_issue() {
   echo "Refreshing $issue_id..."
   local json err_file; err_file=$(mktemp)
   # stdout (JSON) captured to $json; stderr to $err_file so a warning can't corrupt the JSON.
-  # --with-comments: the refresh-on-write cache model (PO directive 2026-07-09) makes this
-  # file the ONLY read surface for the ticket — agents need the discussion thread too.
+  # --with-comments: the refresh-on-write cache model makes this file the ONLY read surface
+  # for the ticket — agents need the discussion thread too.
   if ! json=$(linearis issues read "$issue_id" --with-comments 2>"$err_file") \
      || jq -e 'if type=="object" and has("error") then true else false end' <<<"$json" >/dev/null 2>&1; then
     echo "ERROR: linearis issues read $issue_id failed:" >&2
@@ -426,7 +454,7 @@ _write_issue_file() {
 # ---------- update ----------
 cmd_update() {
   if [[ "${LINEAR_NOT_CONFIGURED:-0}" == "1" ]]; then
-    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_project, team_key in config" >&2
+    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_initiative, team_key in config" >&2
     exit 1
   fi
   check_deps
@@ -482,21 +510,22 @@ cmd_check() {
 }
 
 # ---------- initiative sync (whole-team, ALL states + blocked-by graph) ----------
-# The delivery engine needs the WHOLE initiative (all projects — one team), INCLUDING
-# Done (which `issues list` excludes by default), plus each candidate's blocked-by
-# edges. The linearis list payload already carries state, labels, project, milestone,
-# updatedAt, AND populated relations/inverseRelations — so the entire frontier is a
-# handful of paginated list calls with ZERO per-issue reads (the old frontier did a
-# per-project live sweep + a per-candidate live relation read every tick, which drained
-# the shared 2500/hr quota). Output: .cache/linear/initiative.json — a slim, jq-friendly
-# projection keyed by identifier. Deliberately does NOT touch work-status.yaml /
-# milestone-map.md / issues/*.yaml (those stay owned by the single-project `sync`).
+# The delivery engine needs the WHOLE initiative (all projects under it — one team),
+# INCLUDING Done (which `issues list` excludes by default), plus each candidate's
+# blocked-by edges. The linearis list payload already carries state, labels, project,
+# milestone, updatedAt, AND populated relations/inverseRelations — so the entire
+# frontier is a handful of paginated list calls with ZERO per-issue reads (a naive
+# frontier that did a per-project live sweep + a per-candidate live relation read
+# every tick would drain the shared hourly quota). Output: .cache/linear/initiative.json
+# — a slim, jq-friendly projection keyed by identifier. Deliberately does NOT touch
+# work-status.yaml / milestone-map.md / issues/*.yaml (those stay owned by the
+# single-project `sync`).
 
 # DEPRECATED / UNUSED: fetch_paginated + fetch_done_scoped were the linearis-`issues list`
 # fetch path for cmd_sync_initiative. They are SUPERSEDED by the direct-GraphQL path below
 # (gql_paginate + GQL_ACTIVE/GQL_CLOSED) because the linearis list fragment carries FOUR
 # unbounded nested connections whose per-page complexity Linear meters as ~hundreds of
-# request-equivalents, exhausting the 2500/hr budget. Kept here (not called by any command)
+# request-equivalents, exhausting the hourly budget. Kept here (not called by any command)
 # only to minimise churn; safe to delete in a follow-up.
 # fetch_paginated <out> [extra linearis args...]: team-scoped (no --project) paginated
 # `issues list` into a combined bare node-array at <out>. Aborts (return 1) WITHOUT
@@ -543,13 +572,13 @@ fetch_paginated() {
 }
 
 # fetch_done_scoped <out> <projects_file>: SERVER-SIDE scoped Done fetch. Instead of one
-# team-wide `--status Done` pass (which pays for team ENG's ENTIRE Done history — Houston's
-# thousands of heavy issues — and reliably exhausts Linear's hourly complexity budget
-# mid-pagination), this runs one project-scoped `--project <name> --status Done` paginated
-# fetch per allowlisted project and concatenates the results. The initiative's 15 projects
-# hold only ~tens of Done issues total, so the query complexity drops ~10x and the fetch
-# fits the budget. Returns 1 (partial) if ANY project's Done fetch fails, leaving whatever
-# was fetched so far in <out> (the caller marks complete=false); returns 0 only when every
+# team-wide `--status Done` pass (which pays for the team's ENTIRE Done history and
+# reliably exhausts Linear's hourly complexity budget mid-pagination), this runs one
+# project-scoped `--project <name> --status Done` paginated fetch per allowlisted project
+# and concatenates the results. The initiative's projects typically hold only a bounded
+# set of Done issues total, so the query complexity drops substantially and the fetch fits
+# the budget. Returns 1 (partial) if ANY project's Done fetch fails, leaving whatever was
+# fetched so far in <out> (the caller marks complete=false); returns 0 only when every
 # project's Done pages fully drained. Stops on the first failure to avoid re-draining quota.
 fetch_done_scoped() {
   local out="$1" projects_file="$2"
@@ -580,24 +609,26 @@ fetch_done_scoped() {
 # relations.nodes, inverseRelations.nodes — with no `first:` cap. Linear's rate limiter
 # is COMPLEXITY-metered: a `first:100` page × ~4 nested connections (default ~50 each)
 # scores ~tens-of-thousands of complexity and debits ~hundreds of "request-equivalents"
-# from the 2500/hr bucket. Empirically the old team-wide Done pass died after ~5 such fat
-# requests (⇒ ~500 req-equiv each). PLUS each filtered `issues list` invocation silently
+# from the hourly bucket. Empirically a naive team-wide Done pass can die after only a
+# handful of such fat requests. PLUS each filtered `issues list` invocation silently
 # runs a BatchResolveForSearch request first (dist/common/resolve-filters.js:61).
 #
 # FIX: talk to https://api.linear.app/graphql directly with the SAME token linearis uses,
 # with (A) an ACTIVE query whose nested connections are BOUNDED `first:50`, and (B) a SLIM
 # CLOSED query with ZERO nested connections — collapsing per-page complexity to ~O(1)
-# request-equivalents. Server-side team + state (+ optional project) filters replace the
-# BatchResolve round-trip. Output contract (initiative.json + per-issue YAML) is unchanged.
+# request-equivalents. Server-side team + state (+ optional project/initiative) filters
+# replace the BatchResolve round-trip. Output contract (initiative.json + per-issue YAML)
+# is unchanged.
 # ============================================================================
 LINEAR_GQL_ENDPOINT="https://api.linear.app/graphql"
 
 # resolve_linear_token: mirror linearis' token precedence for the token that is OPERATIVE
 # in this environment. dist/common/auth.js resolves: --api-token flag > $LINEAR_API_TOKEN >
 # encrypted stored (~/.config/linearis/token) > legacy plaintext (~/.linear_api_token).
-# The encrypted stored token cannot be read from bash; this box's linearis already falls
-# back to the legacy plaintext file (it prints the "~/.linear_api_token is deprecated"
-# warning on every call), so that file IS the live token. Precedence here: env, then legacy.
+# The encrypted stored token cannot be read from bash; if linearis on a given box already
+# falls back to the legacy plaintext file (it prints the "~/.linear_api_token is
+# deprecated" warning on every call), that file IS the live token. Precedence here: env,
+# then legacy.
 resolve_linear_token() {
   if [[ -n "${LINEAR_API_TOKEN:-}" ]]; then
     LINEAR_TOKEN="$LINEAR_API_TOKEN"; return 0
@@ -722,14 +753,14 @@ gql_paginate() {
 # Query A — ACTIVE issues (state type NOT completed/canceled). Nested connections are
 # BOUNDED first:50 and each carries its OWN `pageInfo { hasNextPage }` so first-page
 # truncation is DETECTABLE (never silent). The caps are SMALL on purpose: a big bulk cap
-# (we briefly ran first:250) multiplies per-page complexity ~3.7x and rate-limited on
-# PAGE 1 of a thin quota window. Because resolve_overflow/drain_connection below re-fetch
-# ANY connection reporting hasNextPage=true to exhaustion per issue, small caps + drains
-# for the rare outlier is strictly cheaper than a large bulk cap paid on every page:
-#   * relations / inverseRelations at first:50 — the current real maximum blockedBy in the
-#     initiative is 45 (ENG-1572), so drains fire for almost nothing; the tail is carried
-#     correctly by drain_connection when it does.
-#   * labels stays first:50 (issues carry a handful; max observed 3) — still guarded.
+# multiplies per-page complexity substantially and can rate-limit on PAGE 1 of a thin quota
+# window. Because resolve_overflow/drain_connection below re-fetch ANY connection reporting
+# hasNextPage=true to exhaustion per issue, small caps + drains for the rare outlier is
+# strictly cheaper than a large bulk cap paid on every page:
+#   * relations / inverseRelations at first:50 — observed blockedBy fan-out is small in
+#     practice, so drains fire for almost nothing; the tail is carried correctly by
+#     drain_connection when it does.
+#   * labels stays first:50 (issues typically carry only a handful) — still guarded.
 #
 # Per-issue complexity of THIS fragment under Linear's node-count model (connection first:N
 # contributes N leaf nodes; a node with a 1:1 sub-object costs itself + the sub-object):
@@ -741,7 +772,7 @@ gql_paginate() {
 #     per issue ≈ 260  → budget with margin at ~300.
 # The top-level issues(first: P) multiplies that by P, so page complexity ≈ P × 300.
 # gql_paginate is called with P=25 (see cmd_sync_initiative) ⇒ worst case 25 × 300 = 7,500,
-# under the 9,000 working ceiling and ~25% below Linear's 10,000 hard cap.
+# a safe margin under Linear's per-request complexity hard cap.
 GQL_ACTIVE='query ActiveIssues($first: Int!, $after: String, $filter: IssueFilter) {
   issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt, includeArchived: false) {
     nodes {
@@ -897,7 +928,7 @@ GQL_CLOSED='query ClosedIssues($first: Int!, $after: String, $filter: IssueFilte
 
 cmd_sync_initiative() {
   if [[ "${LINEAR_NOT_CONFIGURED:-0}" == "1" ]]; then
-    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_project, team_key in config" >&2
+    echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_initiative, team_key in config" >&2
     exit 1
   fi
   check_deps
@@ -905,12 +936,12 @@ cmd_sync_initiative() {
   ensure_gitignore
   mkdir -p "$CACHE_DIR"
 
-  # --projects-file <path>: newline-delimited allowlist of project NAMES to keep
-  # (team ENG is a SUPERSET of the initiative — 24 projects — so the delivery engine
-  # passes its PROJECT_REPO keys to scope to the 14 satellites + Delivery Gates and
-  # drop Houston / Claude-Code-MCP / OPS-POC / archived noise). Absent ⇒ whole team.
-  # NOTE: the allowlist is now applied SERVER-SIDE in Query A's filter (project.name.in),
-  # so the active fetch never even transfers out-of-scope issues.
+  # --projects-file <path>: OPTIONAL newline-delimited allowlist of project NAMES to keep,
+  # for an operator who wants to pin an explicit project set by hand. NOT required — the
+  # scope source is the configured linear_initiative (resolve_config already guarantees it
+  # is set — see the hard-cut migration error there), pushed server-side into Query A's
+  # filter below, so the active fetch never even transfers out-of-scope issues without
+  # this flag.
   local projects_file=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -926,18 +957,32 @@ cmd_sync_initiative() {
 
   resolve_linear_token || exit 1
 
-  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped) + closed (team-wide, slim) + blocked-by graph${projects_file:+ (scoped to $projects_file)}..."
+  # resolve_config guarantees LINEAR_INITIATIVE is set whenever LINEAR_NOT_CONFIGURED != 1
+  # (a legacy-only linear_project config is refused there — hard cut, no fallback here).
+  local scope_desc="initiative \"$LINEAR_INITIATIVE\""
+  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped to $scope_desc) + closed (team-wide, slim) + blocked-by graph${projects_file:+ (explicit project override: $projects_file)}..."
 
   local active_tmp done_tmp all_tmp synced_at complete
   active_tmp=$(mktemp); done_tmp=$(mktemp); all_tmp=$(mktemp)
   synced_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   complete=true
 
-  # Build server-side filters. Active = team + non-terminal state (+ optional project
-  # allowlist). Closed = team + terminal state, TEAM-WIDE (no project filter).
+  # Build server-side filters. Active = team + non-terminal state (+ scope). Closed = team +
+  # terminal state, TEAM-WIDE (no project/initiative filter — cross-scope blockers still
+  # resolve, and the fetch is slim enough that team-wide is cheap; see GQL_CLOSED comment).
   local filter_active vars_active
   filter_active=$(jq -cn --arg team "$TEAM_KEY" \
     '{team:{key:{eq:$team}}, state:{type:{nin:["completed","canceled"]}}}')
+  # Scope source = configured initiative (REQUIRED — resolve_config refuses to reach here
+  # without it). Push it into the server-side filter so the active fetch never transfers
+  # out-of-scope issues and NO per-project call is made. UUID → filter by initiative id;
+  # otherwise by name.
+  local ikey="name"
+  [[ "$LINEAR_INITIATIVE" =~ ^[0-9a-fA-F-]{36}$ ]] && ikey="id"
+  filter_active=$(echo "$filter_active" | jq -c --arg k "$ikey" --arg v "$LINEAR_INITIATIVE" \
+    '. + {project:{initiatives:{some:{($k):{eq:$v}}}}}')
+  # Optional explicit override: an operator may still pin a project allowlist by hand,
+  # narrowing whatever the initiative/project filter above already selected.
   if [[ -n "$projects_file" ]]; then
     local plist
     plist=$(jq -R -s 'split("\n") | map(select(length>0))' "$projects_file")
@@ -954,8 +999,8 @@ cmd_sync_initiative() {
   #    frontier, so leave the existing cache untouched rather than half-write.
   #    Page size 25: GQL_ACTIVE costs ≈300 complexity/issue (labels 50 + relations 50×2 +
   #    inverseRelations 50×2 + scalars, see the fragment comment), so 25 × 300 = 7,500 —
-  #    under the 9,000 working ceiling, ~25% below Linear's 10,000 hard cap. Overflow past
-  #    the first:50 nested caps is drained per-issue by resolve_overflow, so 25 is safe.
+  #    a safe margin under Linear's per-request complexity hard cap. Overflow past the
+  #    first:50 nested caps is drained per-issue by resolve_overflow, so 25 is safe.
   if ! gql_paginate "$active_tmp" "$GQL_ACTIVE" "$vars_active" 25; then
     rm -f "$active_tmp" "$done_tmp" "$all_tmp"
     echo "Initiative sync aborted (active fetch failed, likely rate-limited) — existing initiative.json left untouched." >&2
@@ -975,7 +1020,7 @@ cmd_sync_initiative() {
   #    trusting an under-resolved blocker graph.
   #    Page size 250 stays large: GQL_CLOSED has ZERO nested connections — per issue ≈ 10
   #    complexity (id/identifier/updatedAt + state{name,type} + project{name}), so
-  #    250 × 10 = 2,500, comfortably under the 9,000 working ceiling. Verified safe.
+  #    250 × 10 = 2,500 — well within Linear's per-request complexity hard cap. Verified safe.
   if ! gql_paginate "$done_tmp" "$GQL_CLOSED" "$vars_closed" 250; then
     echo "WARN: closed (Done/Canceled) fetch incomplete (rate-limited?) — marking cache complete=false." >&2
     complete=false   # keep whatever $done_tmp accumulated; do not clobber
@@ -1107,7 +1152,7 @@ cmd_quota() {
 }
 
 # ---------- main ----------
-# Source guard: when this file is `source`d (the offline fixture harness sources it to
+# Source guard: when this file is `source`d (e.g. an offline fixture harness sourcing it to
 # unit-test resolve_overflow / drain_connection against mocked gql_post) the CLI dispatch
 # below is SKIPPED. Behaviour when executed directly is unchanged.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -1125,8 +1170,11 @@ case "${1:-}" in
     echo ""
     echo "Commands:"
     echo "  sync                         Full refresh — fetches ALL project issues (paginated) via linearis"
-    echo "  sync-initiative              Whole-TEAM refresh (all projects, all states incl. Done) + blocked-by"
-    echo "                               graph → .cache/linear/initiative.json (for the delivery engine frontier)"
+    echo "  sync-initiative              Initiative-scoped refresh (all projects under linear_initiative, all"
+    echo "                               states incl. Done) + blocked-by graph → .cache/linear/initiative.json"
+    echo "                               (for the delivery engine frontier). Requires linear_initiative in"
+    echo "                               config — a config with only the legacy linear_project key is refused"
+    echo "                               with a migration error (see resolve_config)."
     echo "  issue <ID>                   Refresh a single issue's cache file + work-status entry (alias: story)"
     echo "  update <ID> --status <S>     Write status to Linear via linearis, then refresh cache"
     echo "  check                        Verify cache freshness (exit 0 always; notes if stale/absent)"
@@ -1135,7 +1183,7 @@ case "${1:-}" in
     echo ""
     echo "Requires: linearis (npm i -g linearis), jq, linearis auth login completed."
     echo "Cache location: <project_root>/.cache/linear/ (gitignored)"
-    echo "Note: linearis matches --project by NAME (or UUID), not slug — set linear_project to the display name."
+    echo "Note: scope of record is linear_initiative (name or UUID); linearis matches --project by name or UUID, never slug."
     exit 1
     ;;
 esac

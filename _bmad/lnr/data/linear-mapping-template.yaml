@@ -7,9 +7,11 @@
 # explicit projectMilestone and (optionally) parentId. The repo-local cache is populated by
 # linear-sync.sh sync into .cache/linear/work-status.yaml.
 
-# --- project identity ---
-linear_project: <linear-project>   # matches config.yaml: linear_project
-team_key: <team-key>               # e.g. ENG, DNI
+# --- scope identity ---
+linear_initiative: <linear-initiative>   # matches config.yaml: linear_initiative (REQUIRED scope)
+# linear_project: <linear-project>       # legacy single-project scope (sync command only); NOT a
+                                          # substitute for linear_initiative — see config.yaml
+team_key: <team-key>                      # e.g. ENG, DNI  (example team keys)
 default_branch: dev
 
 # --- milestone name → Linear project-milestone identifier ---

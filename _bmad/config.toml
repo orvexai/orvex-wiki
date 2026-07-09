@@ -48,8 +48,9 @@ design_experience = "intermediate"
 [modules.lnr]
 tracking_system = "linear"
 linear_tenant = "orvexai"
-linear_project = "Orvex Studio — Delivery Gates"
+linear_initiative = "ddeb5b07-d9a9-4053-91e2-cf70e59d3ae4"   # "Orvex Studio" — REQUIRED
 team_key = "ENG"
+# linear_project = "Orvex Studio — Delivery Gates"   # legacy key; drop unless still needed for `sync`
 
 [modules.doc]
 docmost_url = "https://docs.eu-central-1.myidp.cloud"
