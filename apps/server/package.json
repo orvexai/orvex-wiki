@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@orvex/extensions": "workspace:*",
+    "@orvex/dfm": "workspace:*",
     "@ai-sdk/google": "3.0.52",
     "@ai-sdk/openai": "3.0.47",
     "@ai-sdk/openai-compatible": "2.0.37",
@@ -221,7 +222,8 @@
       "^src/(.*)$": "<rootDir>/$1",
       "^@docmost/base-formula/server$": "<rootDir>/../../../packages/base-formula/src/index.server.ts",
       "^@docmost/base-formula/client$": "<rootDir>/../../../packages/base-formula/src/index.client.ts",
-      "^@orvex/extensions$": "<rootDir>/../../../packages/@orvex/extensions/src/index.ts"
+      "^@orvex/extensions$": "<rootDir>/../../../packages/@orvex/extensions/src/index.ts",
+      "^@orvex/dfm$": "<rootDir>/../../../packages/@orvex/dfm/src/index.ts"
     }
   }
 }
