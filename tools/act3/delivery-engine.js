@@ -9,10 +9,10 @@ export const meta = {
 }
 
 // ---- Constants -------------------------------------------------------------
-const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/423adaa2-fe9d-4bc9-bbb4-1e34a7e6ef98/scratchpad'
+const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/2752e4f1-cd7b-404c-a58c-9f57b2e5b645/scratchpad'
 const RDIR = SESSION_SCRATCH + '/act3'
-const DECISIONS = SESSION_SCRATCH + '/act2a/po-decisions-2026-07-07.md'
 const HUB = '/home/daniel/repos/orvex-wiki'
+const DECISIONS = HUB + '/tools/act3/po-decisions-2026-07-07.md'
 const WORKTREES = '/tmp/worktrees'
 const MAX_SYNCS = (args && args.maxTicks) || 120         // cap on frontier re-syncs (was maxTicks; a sync is ~5 API calls + one sonnet agent — far cheaper than an old tick)
 const TARGET_INFLIGHT = 16   // per-workflow agent cap is min(16, cores-2); refill to this the moment a slot frees (rolling — no tick barrier)
