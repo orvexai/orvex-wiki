@@ -24,6 +24,32 @@ import { OrvexConfigService } from '../config/orvex-config.service';
 import { buildResourceAttributes } from './orvex-span-attributes.util';
 import { OrvexPiiRedactingSpanProcessor } from './orvex-span-redaction.processor';
 
+/**
+ * resolveOtlpTracesUrl — review-1 F1 fix (FR-CT1). `OTEL_EXPORTER_OTLP_ENDPOINT`
+ * is documented (both upstream and by `OrvexConfigService.otelExporterOtlpEndpoint`)
+ * as the OTLP collector's BASE URL, with no signal-specific resource path.
+ * `OTLPTraceExporter` only derives the `/v1/traces` suffix itself when it
+ * resolves the endpoint from `process.env` internally; passing an explicit
+ * `url` (required here — env is not naturally in scope at this pre-DI boot
+ * tier, and `OrvexConfigService` is the single documented read path, F2)
+ * bypasses that auto-resolution entirely, so the base URL is used verbatim
+ * and the collector 404s the root path — spans never reach Tempo.
+ *
+ * Idempotent (a base already ending in `/v1/traces` is returned unchanged)
+ * and preserves any existing base path (e.g. an `/otlp` prefix) rather than
+ * overwriting it, mirroring the upstream SDK's own
+ * `appendResourcePathToUrl` env-resolution behaviour.
+ */
+export function resolveOtlpTracesUrl(baseEndpoint: string): string {
+  const withoutTrailingSlash = baseEndpoint.endsWith('/')
+    ? baseEndpoint.slice(0, -1)
+    : baseEndpoint;
+  if (withoutTrailingSlash.endsWith('/v1/traces')) {
+    return withoutTrailingSlash;
+  }
+  return `${withoutTrailingSlash}/v1/traces`;
+}
+
 /** Handle returned by a successful `initOrvexTracing` — the only way to flush/stop the SDK. */
 export interface ShutdownHandle {
   shutdown(): Promise<void>;
@@ -95,7 +121,11 @@ export function initOrvexTracing(
 
   const resource = resourceFromAttributes(buildResourceAttributes(env));
 
-  const exporter: SpanExporter = options.exporter ?? new OTLPTraceExporter({ url: endpoint });
+  // Review-1 F1 fix (FR-CT1): resolve the traces-specific resource path
+  // ourselves — see `resolveOtlpTracesUrl` docblock for why the exporter
+  // can't be trusted to do this from an explicit `url`.
+  const exporter: SpanExporter =
+    options.exporter ?? new OTLPTraceExporter({ url: resolveOtlpTracesUrl(endpoint) });
   // Review-2 F1 fix (AC6): wrap the real BatchSpanProcessor in the PII
   // redaction seam so `http.url`/`http.target` (auto-set by stock
   // HttpInstrumentation from the raw request line — page slug + query
