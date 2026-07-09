@@ -23,7 +23,7 @@ slug `gkkUDzn277`, §3.18/§6A) and the PO decision log of 2026-07-07.
    read-modify-write) → explicit → Done → eager cleanup (merge-checked `-d`, never `-D`).
 5. Milestone gate reaching Done ⇒ `log()` + push notification (if the harness exposes it).
 
-Caps: bounce ≤3/issue, 2 dry ticks ⇒ checkpoint, `maxTicks` (default 40) ⇒ checkpoint. The run returns
+Caps: bounce ≤3/issue, 2 consecutive empty frontiers ⇒ checkpoint, `maxTicks` (= max frontier re-syncs, default 120) ⇒ checkpoint. v9: rolling saturation (no tick barrier — every freed slot refills immediately, TARGET_INFLIGHT=16/engine) and two-engine partition via `args.partitionProjects`/`partitionName` (disjoint project sets = the Q7 claim arbiter; 2×16 = the ratified 32-agent ceiling). The run returns
 `{complete, delivered, escalated, residue}`; the orchestrator relaunches with
 `Workflow({scriptPath: 'tools/act3/delivery-engine.js'})` to continue (state is re-derived live — nothing
 is stored in the engine).
