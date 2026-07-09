@@ -32,6 +32,7 @@ import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PageHistoryService } from 'src/core/page/services/page-history.service';
 import { PageService } from 'src/core/page/services/page.service';
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { jsonToText, stampBlockIds } from 'src/collaboration/collaboration.util';
 import {
   seedPage,
@@ -83,7 +84,13 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
   beforeAll(async () => {
     testDb = await startTestDatabase();
     const eventEmitter = new EventEmitter2();
-    pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
+    pageRepo = new PageRepo(
+      testDb.db as any,
+      {} as any,
+      eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
+    );
     pageHistoryRepo = new PageHistoryRepo(testDb.db as any);
     orvexAudit = new OrvexAuditService(testDb.db as any);
 
@@ -465,6 +472,8 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
       testDb.db as any,
       {} as any,
       eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
     );
     const isolatedService = new PageHistoryService(
       new PageHistoryRepo(testDb.db as any),

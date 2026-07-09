@@ -41,3 +41,13 @@ export enum EventName {
   BASE_FORMULA_RECOMPUTE_STARTED = 'base.formula.recompute.started',
   BASE_FORMULA_RECOMPUTE_COMPLETED = 'base.formula.recompute.completed',
 }
+
+// ENG-1383 fix-pass-1 (F1): the workspace/space/comment/attachment
+// `orvex-events` lifecycle-family EventName members (and the dedicated
+// PAGE_STATUS_CHANGED / PAGE_CONTENT_BLOCKS_CHANGED members) that were
+// ported in for the now-removed `OrvexEventBusService` were deleted here —
+// nothing in this repo ever emitted them, and PD-4d descoped that family to
+// ENG-1609. The one real lifecycle-status producer, `page.status_changed`,
+// is written directly by `OrvexPageProvenanceService.writeStatus` via the
+// dedicated `EVT_PAGE_STATUS_CHANGED` outbox-type constant — it never went
+// through `EventEmitter2`/`EventName` at all.

@@ -14,6 +14,7 @@ import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import SpaceAbilityFactory from 'src/core/casl/abilities/space-ability.factory';
 import { OrvexPermissionsService } from 'src/core/permissions/orvex-permissions.service';
@@ -93,7 +94,14 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       spaceRepo,
       fakeCache(),
     );
-    pageRepo = new PageRepo(db, spaceMemberRepo, new EventEmitter2());
+    const wsServiceStub = { emitInvalidate: () => {} } as any;
+    pageRepo = new PageRepo(
+      db,
+      spaceMemberRepo,
+      new EventEmitter2(),
+      new OutboxWriter(db),
+      wsServiceStub,
+    );
     pagePermissionRepo = new PagePermissionRepo(db, groupRepo, fakeCache());
     const spaceAbility = new SpaceAbilityFactory(spaceMemberRepo);
     permissionsService = new OrvexPermissionsService(

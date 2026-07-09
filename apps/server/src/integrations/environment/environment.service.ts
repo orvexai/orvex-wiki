@@ -79,6 +79,26 @@ export class EnvironmentService {
     return this.configService.get<string>('GOTENBERG_URL');
   }
 
+  /**
+   * ENG-1383 — Kafka studio-spine broker list for the outbox relay
+   * (`KafkaPublisherPort`). Comma-separated `host:port` list. Ruling 3 —
+   * broker creds/endpoints come from env, never inline in a domain fn.
+   */
+  getKafkaBrokers(): string[] {
+    return this.configService
+      .get<string>('KAFKA_BROKERS', 'localhost:9092')
+      .split(',')
+      .map((b) => b.trim())
+      .filter(Boolean);
+  }
+
+  getKafkaOutboxTopic(): string {
+    return this.configService.get<string>(
+      'KAFKA_OUTBOX_TOPIC',
+      'orvex.studio-spine.events',
+    );
+  }
+
   getStorageDriver(): string {
     return this.configService.get<string>('STORAGE_DRIVER', 'local');
   }
