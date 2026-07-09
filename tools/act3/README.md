@@ -5,9 +5,15 @@ Orvex Studio backlog to Done — per the Delivery Orchestrator prompt (wiki: spa
 slug `gkkUDzn277`, §3.18/§6A) and the PO decision log of 2026-07-07.
 
 ## What one tick does
-1. **Frontier** (sonnet, live linearis): Todo/Backlog issues across the initiative + Delivery Gates project
-   whose every `blocked-by` is Done/Canceled — excluding `stripe-hold` / `keycloak-parked` labels and
-   already-escalated issues. Wave order, most-blocking first.
+1. **Frontier** (sonnet, bulk cache — NOT a live sweep): runs `linear-sync.sh sync-initiative
+   --projects-file <PROJECT_REPO keys>` ONCE (~5 paginated calls: whole-team fetch, all states incl.
+   Done, + the blocked-by graph inline from the list) → `.cache/linear/initiative.json`, then computes
+   readiness LOCALLY: Todo/Backlog issues (scoped to the 14 satellites + Delivery Gates, NOT the whole
+   448-issue ENG team) whose every cached `blockedBy` edge is Done/Canceled/Duplicate — excluding
+   `stripe-hold` / `keycloak-parked` / `deferred-future` labels and already-escalated issues. Wave order,
+   most-blocking first. Honesty gate: `readComplete=false` if the sync exited non-zero / `.complete` is
+   false / Done==0 (never acts on a partial, rate-limited cache). This replaced a per-tick live
+   14-project sweep + per-candidate relation read that drained the shared 2500/hr quota (commit 28076e19).
 2. **Build** (sonnet, per issue, parallel): claim (→ In Progress), own git worktree under `/tmp/worktrees`,
    TDD to the ticket's ACs, repo CI gates (gofmt -l separate for Go), green commits only, PR via `gh`.
    Gate issues (label `gate`) run their verification checklist instead (opus).
