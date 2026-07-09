@@ -610,18 +610,63 @@ resolve_linear_token() {
   return 1
 }
 
+# LAST_RATELIMIT_HEADERS: the raw "name: value" rate-limit/complexity header lines captured
+# from the MOST RECENT gql_post response. Callers append it to error messages so every
+# failure carries the real budget numbers. Reset to empty by each gql_post.
+LAST_RATELIMIT_HEADERS=""
+
+# sync_log_path: where the per-call rate-limit budget line is appended. Lives beside the
+# cache when configured; falls back to a temp file otherwise (e.g. the `quota` probe before
+# a cache exists). Never fatal.
+sync_log_path() {
+  if [[ -n "${CACHE_DIR:-}" ]]; then
+    printf '%s' "$CACHE_DIR/sync.log"
+  else
+    printf '%s' "${TMPDIR:-/tmp}/linear-sync.log"
+  fi
+}
+
+# log_ratelimit_headers <raw-header-lines>: append ONE timestamped line carrying the raw
+# Linear rate-limit / complexity headers (name+value) to the sync log, so every call's
+# remaining budget is durably recorded. Best-effort — never fails the sync.
+log_ratelimit_headers() {
+  local headers="$1"
+  [[ -n "$headers" ]] || return 0
+  local logf ts
+  logf=$(sync_log_path)
+  mkdir -p "$(dirname "$logf")" 2>/dev/null || true
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  printf '%s ratelimit %s\n' "$ts" "$(printf '%s' "$headers" | tr '\n' ' ' | sed 's/  */ /g')" \
+    >> "$logf" 2>/dev/null || true
+}
+
 # gql_post <query> <variables_json>: POST to Linear's GraphQL endpoint; raw response JSON
 # to stdout. @linear/sdk sends the personal API key as a raw Authorization header (no
 # "Bearer " prefix) — we mirror that. Returns non-zero only on curl/transport failure;
 # GraphQL-level errors (rate limit, bad filter) surface as {errors:[...]} in the body.
+# INSTRUMENTED: response headers are dumped via `curl -D` and every Linear rate-limit /
+# complexity header (whatever x-ratelimit-* / x-complexity / retry-after the API returns)
+# is captured to LAST_RATELIMIT_HEADERS and appended to the sync log — so the real request
+# AND complexity budget (remaining/limit/reset) is recorded on EVERY call, and any future
+# 429 carries the numbers that explain it.
 gql_post() {
-  local query="$1" vars="$2" body
+  local query="$1" vars="$2" body hdr rc
   body=$(jq -cn --arg q "$query" --argjson v "$vars" '{query:$q, variables:$v}') || return 1
+  hdr=$(mktemp)
   curl -sS -X POST "$LINEAR_GQL_ENDPOINT" \
     -H "Authorization: $LINEAR_TOKEN" \
     -H "Content-Type: application/json" \
+    -D "$hdr" \
     --max-time 45 \
     --data-binary "$body"
+  rc=$?
+  # Grep the rate-limit / complexity headers case-insensitively (HTTP/2 lowercases them;
+  # HTTP/1.1 may not) and strip CRs. We log whatever Linear actually returns rather than
+  # hardcoding names, so a rename or an added complexity header still lands in the log.
+  LAST_RATELIMIT_HEADERS=$(grep -iE '^(x-ratelimit-|x-complexity|retry-after)' "$hdr" 2>/dev/null | tr -d '\r')
+  rm -f "$hdr"
+  log_ratelimit_headers "$LAST_RATELIMIT_HEADERS"
+  return $rc
 }
 
 # gql_paginate <out> <query> <base_vars_json> <page_size>: drain issues(...) pagination via
@@ -651,6 +696,7 @@ gql_paginate() {
     gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "PARSE_ERROR")
     if [[ -n "$gqlerr" ]]; then
       echo "ERROR: Linear GraphQL error on page $page: $gqlerr" >&2
+      [[ -n "$LAST_RATELIMIT_HEADERS" ]] && { echo "  rate-limit budget at failure:" >&2; printf '%s\n' "$LAST_RATELIMIT_HEADERS" | sed 's/^/    /' >&2; }
       rm -f "$resp"; return 1
     fi
     if ! jq -e '.data.issues | has("nodes")' "$resp" >/dev/null 2>&1; then
@@ -672,15 +718,28 @@ gql_paginate() {
 }
 
 # Query A — ACTIVE issues (state type NOT completed/canceled). Nested connections are
-# BOUNDED and each carries its OWN `pageInfo { hasNextPage }` so first-page truncation is
-# DETECTABLE (never silent). Caps are sized to the edge cost:
-#   * relations / inverseRelations nodes are id/identifier-only (id + type + one identifier),
-#     so first:250 is cheap — a gate aggregating a milestone's blockers (ENG-1572 already at
-#     45) fits comfortably, and anything beyond 250 is caught by hasNextPage and drained by
-#     the follow-up pagination in resolve_overflow (see below).
+# BOUNDED first:50 and each carries its OWN `pageInfo { hasNextPage }` so first-page
+# truncation is DETECTABLE (never silent). The caps are SMALL on purpose: a big bulk cap
+# (we briefly ran first:250) multiplies per-page complexity ~3.7x and rate-limited on
+# PAGE 1 of a thin quota window. Because resolve_overflow/drain_connection below re-fetch
+# ANY connection reporting hasNextPage=true to exhaustion per issue, small caps + drains
+# for the rare outlier is strictly cheaper than a large bulk cap paid on every page:
+#   * relations / inverseRelations at first:50 — the current real maximum blockedBy in the
+#     initiative is 45 (ENG-1572), so drains fire for almost nothing; the tail is carried
+#     correctly by drain_connection when it does.
 #   * labels stays first:50 (issues carry a handful; max observed 3) — still guarded.
-# Any connection reporting hasNextPage=true is re-fetched to exhaustion per issue before
-# projection, so gate blockedBy edges can never silently truncate at the page cap.
+#
+# Per-issue complexity of THIS fragment under Linear's node-count model (connection first:N
+# contributes N leaf nodes; a node with a 1:1 sub-object costs itself + the sub-object):
+#     labels(50)            = 50
+#     relations(50)         = 50 nodes + 50 relatedIssue = 100
+#     inverseRelations(50)  = 50 nodes + 50 issue        = 100
+#     scalars + 5 small 1:1 objects (state/project/projectMilestone/cycle/assignee) ≈ 10
+#     ---------------------------------------------------------------
+#     per issue ≈ 260  → budget with margin at ~300.
+# The top-level issues(first: P) multiplies that by P, so page complexity ≈ P × 300.
+# gql_paginate is called with P=25 (see cmd_sync_initiative) ⇒ worst case 25 × 300 = 7,500,
+# under the 9,000 working ceiling and ~25% below Linear's 10,000 hard cap.
 GQL_ACTIVE='query ActiveIssues($first: Int!, $after: String, $filter: IssueFilter) {
   issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt, includeArchived: false) {
     nodes {
@@ -695,8 +754,8 @@ GQL_ACTIVE='query ActiveIssues($first: Int!, $after: String, $filter: IssueFilte
       cycle { number }
       assignee { name }
       labels(first: 50) { nodes { name } pageInfo { hasNextPage } }
-      relations(first: 250) { nodes { type relatedIssue { identifier } } pageInfo { hasNextPage } }
-      inverseRelations(first: 250) { nodes { type issue { identifier } } pageInfo { hasNextPage } }
+      relations(first: 50) { nodes { type relatedIssue { identifier } } pageInfo { hasNextPage } }
+      inverseRelations(first: 50) { nodes { type issue { identifier } } pageInfo { hasNextPage } }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -758,6 +817,7 @@ drain_connection() {
     gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "PARSE_ERROR")
     if [[ -n "$gqlerr" ]]; then
       echo "ERROR: drain_connection $conn: Linear GraphQL error on page $page: $gqlerr" >&2
+      [[ -n "$LAST_RATELIMIT_HEADERS" ]] && { echo "  rate-limit budget at failure:" >&2; printf '%s\n' "$LAST_RATELIMIT_HEADERS" | sed 's/^/    /' >&2; }
       rm -f "$resp"; return 1
     fi
     if ! jq -e --arg c "$conn" '.data.issue[$c] | has("nodes")' "$resp" >/dev/null 2>&1; then
@@ -890,7 +950,11 @@ cmd_sync_initiative() {
 
   # 1) ACTIVE issues (in-scope). Fatal on failure — without the open set there is no usable
   #    frontier, so leave the existing cache untouched rather than half-write.
-  if ! gql_paginate "$active_tmp" "$GQL_ACTIVE" "$vars_active" 100; then
+  #    Page size 25: GQL_ACTIVE costs ≈300 complexity/issue (labels 50 + relations 50×2 +
+  #    inverseRelations 50×2 + scalars, see the fragment comment), so 25 × 300 = 7,500 —
+  #    under the 9,000 working ceiling, ~25% below Linear's 10,000 hard cap. Overflow past
+  #    the first:50 nested caps is drained per-issue by resolve_overflow, so 25 is safe.
+  if ! gql_paginate "$active_tmp" "$GQL_ACTIVE" "$vars_active" 25; then
     rm -f "$active_tmp" "$done_tmp" "$all_tmp"
     echo "Initiative sync aborted (active fetch failed, likely rate-limited) — existing initiative.json left untouched." >&2
     exit 1
@@ -907,6 +971,9 @@ cmd_sync_initiative() {
   # 2) CLOSED issues (team-wide, slim). NON-fatal: on failure keep the partial set and mark
   #    complete=false so the engine frontier sets readComplete=false and retries instead of
   #    trusting an under-resolved blocker graph.
+  #    Page size 250 stays large: GQL_CLOSED has ZERO nested connections — per issue ≈ 10
+  #    complexity (id/identifier/updatedAt + state{name,type} + project{name}), so
+  #    250 × 10 = 2,500, comfortably under the 9,000 working ceiling. Verified safe.
   if ! gql_paginate "$done_tmp" "$GQL_CLOSED" "$vars_closed" 250; then
     echo "WARN: closed (Done/Canceled) fetch incomplete (rate-limited?) — marking cache complete=false." >&2
     complete=false   # keep whatever $done_tmp accumulated; do not clobber
@@ -993,6 +1060,46 @@ cmd_sync_initiative() {
   [[ "$complete" == "true" ]] || exit 3   # non-zero (partial) so callers can detect
 }
 
+# ---------- quota (rate-limit probe) ----------
+# cmd_quota: make ONE minimal GraphQL request (query { viewer { id } }) purely to read the
+# current rate-limit budget, and print the Linear rate-limit headers as JSON to stdout. This
+# is the cheapest possible call (no connections) so it never meaningfully spends the budget
+# it reports. Output shape:
+#   { "requestsRemaining": "...", "requestsLimit": "...", "requestsReset": "...",
+#     "raw": { "<header>": "<value>", ... }, "error": <null|string> }
+# `raw` carries EVERY x-ratelimit-* / x-complexity / retry-after header verbatim (lowercased
+# keys) so complexity budget headers surface even though the top-level convenience fields key
+# off the request-bucket names. On a 429 the headers are still captured and `error` is set.
+cmd_quota() {
+  command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found in PATH — required for the quota probe." >&2; exit 1; }
+  command -v jq   >/dev/null 2>&1 || { echo "ERROR: jq not found in PATH." >&2; exit 1; }
+  resolve_linear_token || exit 1
+
+  local resp gqlerr
+  # `|| true`: on a curl transport failure gql_post returns non-zero — we still want to emit
+  # whatever headers/JSON we have rather than have `set -e` abort the probe silently.
+  resp=$(gql_post 'query { viewer { id } }' '{}') || true
+  gqlerr=$(printf '%s' "$resp" | jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' 2>/dev/null || echo "")
+
+  # Parse the captured "name: value" header lines into a lowercased-key JSON object, then
+  # lift the request-bucket convenience fields off it.
+  printf '%s\n' "$LAST_RATELIMIT_HEADERS" | jq -R -s --arg err "$gqlerr" '
+    (split("\n") | map(select(length>0))
+      | map(capture("^(?<k>[^:]+):[[:space:]]*(?<v>.*)$"))
+      | map({(.k | ascii_downcase): .v}) | add // {}) as $raw
+    | {
+        requestsRemaining: ($raw["x-ratelimit-requests-remaining"] // null),
+        requestsLimit:     ($raw["x-ratelimit-requests-limit"] // null),
+        requestsReset:     ($raw["x-ratelimit-requests-reset"] // null),
+        raw: $raw,
+        error: (if $err == "" then null else $err end)
+      }
+  '
+  # Surface a non-zero exit on a rate-limit / GraphQL error so scripted callers can detect it,
+  # but the JSON (with headers) is already on stdout for the human/parent.
+  [[ -z "$gqlerr" ]]
+}
+
 # ---------- main ----------
 # Source guard: when this file is `source`d (the offline fixture harness sources it to
 # unit-test resolve_overflow / drain_connection against mocked gql_post) the CLI dispatch
@@ -1006,8 +1113,9 @@ case "${1:-}" in
   issue|story)      cmd_issue "${2:?Usage: linear-sync.sh issue <ID>}" ;;
   update)           shift; cmd_update "$@" ;;
   check)            cmd_check ;;
+  quota)            cmd_quota ;;
   *)
-    echo "Usage: linear-sync.sh {sync|sync-initiative|issue <ID>|update <ID> --status <STATE>|check}"
+    echo "Usage: linear-sync.sh {sync|sync-initiative|issue <ID>|update <ID> --status <STATE>|check|quota}"
     echo ""
     echo "Commands:"
     echo "  sync                         Full refresh — fetches ALL project issues (paginated) via linearis"
@@ -1016,6 +1124,8 @@ case "${1:-}" in
     echo "  issue <ID>                   Refresh a single issue's cache file + work-status entry (alias: story)"
     echo "  update <ID> --status <S>     Write status to Linear via linearis, then refresh cache"
     echo "  check                        Verify cache freshness (exit 0 always; notes if stale/absent)"
+    echo "  quota                        Probe Linear's rate-limit budget via ONE minimal query"
+    echo "                               (viewer{id}); prints the x-ratelimit-* headers as JSON to stdout"
     echo ""
     echo "Requires: linearis (npm i -g linearis), jq, linearis auth login completed."
     echo "Cache location: <project_root>/.cache/linear/ (gitignored)"
