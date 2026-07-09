@@ -49,6 +49,7 @@ import { OrvexPageProvenanceService } from 'src/core/page-provenance/orvex-page-
 import { PageHistoryService } from 'src/core/page/services/page-history.service';
 import { PageAccessService } from 'src/core/page/page-access/page-access.service';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
@@ -100,7 +101,13 @@ describe('TestPageHistoryRestoreEndpoint_HttpContractAndAuth (ENG-1369 fix1 F1)'
     const groupRepo = new GroupRepo(db);
     const spaceRepo = new SpaceRepo(db, new EventEmitter2());
     const spaceMemberRepo = new SpaceMemberRepo(db, groupRepo, spaceRepo, fakeCache());
-    const pageRepo = new PageRepo(db, spaceMemberRepo, eventEmitter);
+    const pageRepo = new PageRepo(
+      db,
+      spaceMemberRepo,
+      eventEmitter,
+      new OutboxWriter(db),
+      { emitInvalidate: () => {} } as any,
+    );
     const pagePermissionRepo = new PagePermissionRepo(db, groupRepo, fakeCache());
     const spaceAbility = new SpaceAbilityFactory(spaceMemberRepo);
     const pageAccessService = new PageAccessService(

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
+// See the LICENSE file at the repository root for the full license text.
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import {
@@ -38,6 +41,7 @@ import type {
   InsertableWorkspace,
 } from '../../../../../database/types/entity.types';
 import { PageRepo } from '../../../../../database/repos/page/page.repo';
+import type { WsService } from '../../../../../ws/ws.service';
 import { SpaceMemberRepo } from '../../../../../database/repos/space/space-member.repo';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
@@ -105,7 +109,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     const wsServiceStub = {
       emitInvalidate: (ws: string, entity: string[]) =>
         invalidateCalls.push({ workspaceId: ws, entity }),
-    } as any;
+    } as unknown as WsService;
     const spaceMemberRepoStub = {} as SpaceMemberRepo; // unused: no space-member scoping exercised
     pageRepo = new PageRepo(
       db,
@@ -385,7 +389,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     // `&& updatePageData.workspaceId` guard was false here and silently
     // dropped the row — this test would have failed against that code.
     await pageRepo.updatePage(
-      { content: { type: 'doc', content: [] } as any },
+      { content: { type: 'doc', content: [] } },
       page.id,
     );
 
@@ -398,7 +402,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].relayedAt).toBeNull();
-    expect((rows[0].payload as any).workspaceId).toBe(workspaceId);
+    expect((rows[0].payload as Record<string, unknown>).workspaceId).toBe(workspaceId);
   });
 
   it('ENG-1383 AC5 — the real content-write path threads changedBlockIds into the page.content_updated outbox payload (no dead-handler shortcut)', async () => {
@@ -414,7 +418,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     // `contentOutboxExtra` param PersistenceExtension threads through once
     // it has computed a genuine diff via `computeChangedBlockIds`.
     await pageRepo.updatePage(
-      { content: { type: 'doc', content: [] } as any },
+      { content: { type: 'doc', content: [] } },
       page.id,
       undefined,
       undefined,
@@ -445,7 +449,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     await expect(
       executeTx(db, async (trx) => {
         await pageRepo.updatePage(
-          { content: { type: 'doc', content: [] } as any },
+          { content: { type: 'doc', content: [] } },
           page.id,
           trx,
         );
@@ -476,7 +480,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     invalidateCalls = [];
 
     await pageRepo.updatePage(
-      { content: { type: 'doc', content: [] } as any },
+      { content: { type: 'doc', content: [] } },
       page.id,
     );
 

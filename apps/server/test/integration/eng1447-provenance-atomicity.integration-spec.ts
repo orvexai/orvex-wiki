@@ -60,11 +60,12 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
   beforeAll(async () => {
     testDb = await startTestDatabase();
     const eventEmitter = new EventEmitter2();
+    const outboxWriter = new OutboxWriter(testDb.db as any);
     pageRepo = new PageRepo(
       testDb.db as any,
       {} as any,
       eventEmitter,
-      new OutboxWriter(testDb.db as any),
+      outboxWriter,
       { emitInvalidate: () => {} } as any,
     );
 
@@ -92,6 +93,7 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
       testDb.db as any,
       pageRepo,
       new OrvexAuditService(testDb.db as any),
+      outboxWriter,
     );
 
     const workspace = await seedWorkspace(testDb.db);

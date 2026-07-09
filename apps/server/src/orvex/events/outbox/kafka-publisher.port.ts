@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
+// See the LICENSE file at the repository root for the full license text.
 /**
  * ENG-1383 4d — the justified network seam: `Service ↔ Kafka (studio-spine)`.
  * The port is deliberately minimal (one method) — the relay is the only

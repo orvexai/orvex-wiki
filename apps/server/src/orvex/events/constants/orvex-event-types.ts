@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
+// See the LICENSE file at the repository root for the full license text.
 /**
  * Ported (narrow slice) from orvexai/docmost@050187676624f2395c55b36ec60e365f87fd4a9f
  * `apps/server/src/orvex/events/constants/orvex-event-types.ts`.
