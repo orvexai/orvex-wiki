@@ -46,8 +46,10 @@ export class SpaceMemberRepo {
     updatableSpaceMember: UpdatableSpaceMember,
     spaceMemberId: string,
     spaceId: string,
+    trx?: KyselyTransaction,
   ): Promise<void> {
-    await this.db
+    const db = dbOrTx(this.db, trx);
+    await db
       .updateTable('spaceMembers')
       .set(updatableSpaceMember)
       .where('id', '=', spaceMemberId)

@@ -29,6 +29,12 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_SPACE_CREATED,
+  EVT_SPACE_UPDATED,
+  EVT_SPACE_DELETED,
+} from '../../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
 export class SpaceService {
@@ -41,6 +47,7 @@ export class SpaceService {
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   async createSpace(
@@ -70,6 +77,14 @@ export class SpaceService {
           workspaceId,
           trx,
         );
+
+        // ENG-1609 AC3 — space.created, atomic in the same tx.
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_SPACE_CREATED,
+          aggregateId: space.id,
+          workspaceId,
+          payload: { id: space.id, workspaceId, slug: space.slug },
+        });
       },
       trx,
     );
@@ -228,6 +243,14 @@ export class SpaceService {
         workspaceId,
         trx,
       );
+
+      // ENG-1609 AC3 — space.updated, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_SPACE_UPDATED,
+        aggregateId: updateSpaceDto.spaceId,
+        workspaceId,
+        payload: { id: updateSpaceDto.spaceId, workspaceId },
+      });
     });
 
     const columnChanges = diffAuditTrackedFields(
@@ -278,7 +301,17 @@ export class SpaceService {
       throw new NotFoundException('Space not found');
     }
 
-    await this.spaceRepo.deleteSpace(spaceId, workspaceId);
+    await executeTx(this.db, async (trx) => {
+      await this.spaceRepo.deleteSpace(spaceId, workspaceId, trx);
+
+      // ENG-1609 AC3 — space.deleted, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_SPACE_DELETED,
+        aggregateId: spaceId,
+        workspaceId,
+        payload: { id: spaceId, workspaceId },
+      });
+    });
     await this.attachmentQueue.add(QueueJob.DELETE_SPACE_ATTACHMENTS, space);
 
     this.auditService.log({
