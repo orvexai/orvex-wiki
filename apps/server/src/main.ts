@@ -14,8 +14,19 @@ import fastifyIp from 'fastify-ip';
 import { InternalLogFilter } from './common/logger/internal-log-filter';
 import { EnvironmentService } from './integrations/environment/environment.service';
 import { resolveFrameHeader } from './common/helpers';
+import { initOrvexTracing } from './orvex/obs/orvex-tracing.bootstrap';
 
 async function bootstrap() {
+  // ENG-1599: the OTel SDK MUST patch (http/fastify/ioredis instrumentation)
+  // BEFORE the instrumented modules' real usage begins — flag+endpoint gated
+  // (VANILLA BYTE-PARITY DOCTRINE, AC5); a no-op when either is unset/off, so
+  // this line changes nothing about the vanilla boot path. The returned
+  // ShutdownHandle is intentionally not held here: graceful flush (§4i) is
+  // wired through OrvexTracingModule#onApplicationShutdown, which
+  // `app.enableShutdownHooks()` below already invokes on SIGTERM/SIGINT via
+  // the handle-free `shutdownOrvexTracing()` seam (see orvex-tracing.bootstrap.ts).
+  initOrvexTracing(process.env);
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({

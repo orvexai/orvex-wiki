@@ -61,4 +61,18 @@ export class OrvexConfigService {
   get sourceRepo(): string | null {
     return this.read('ORVEX_SOURCE_REPO');
   }
+
+  /**
+   * OTEL_EXPORTER_OTLP_ENDPOINT — the OTLP collector base URL (A-PORTABLE
+   * configured-URL env surface). First consumer: `initOrvexTracing`
+   * (ENG-1599 `orvex-tracing.bootstrap.ts`), which constructs this service
+   * directly from the pre-DI env bag (the SDK must init before Nest DI
+   * exists, same pattern as `OrvexRootModule.register()`'s
+   * `new OrvexConfigService()`). A configured URL, never a credential;
+   * blank/unset -> `null`, never a fabricated default endpoint (CS
+   * §3.4/§10, ❌#8).
+   */
+  get otelExporterOtlpEndpoint(): string | null {
+    return this.read('OTEL_EXPORTER_OTLP_ENDPOINT');
+  }
 }

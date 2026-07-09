@@ -73,3 +73,12 @@ data:
   ORVEX_MCP_URL: "http://orvex-studio-mcp.orvex-studio-mcp.svc.cluster.local"
   ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
   ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"
+
+  # ENG-1599 — OTel trace export (A-OBSERVE "OTel to LGTM (console)"). A
+  # configured URL, never a credential (A-PORTABLE); read ONLY by
+  # `initOrvexTracing`, itself gated on ORVEX_MODULES_ENABLED==='true' (off
+  # above, so this key is inert here — VANILLA BYTE-PARITY DOCTRINE). Base =
+  # the prod cluster-local OTLP/HTTP collector; components/staging → dev;
+  # components/crew → the crew's own collector, same crew → crew seam as the
+  # ORVEX_*_URL block above.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.orvex-studio-console.svc.cluster.local:4318"

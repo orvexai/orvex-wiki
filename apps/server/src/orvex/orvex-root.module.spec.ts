@@ -52,11 +52,11 @@ describe('OrvexRootModule.register', () => {
       expect(mod.module).toBe(OrvexRootModule);
       expect(mod.imports).toBeDefined();
       // OrvexConfigModule + OrvexHttpModule + OrvexEnforceSsoModule (ENG-1432)
-      // + OrvexPageBlocksModule (ENG-1412) + the composed SessionMintModule.
-      // (OrvexPageMetadataModule/ENG-1371 is deliberately NOT mounted here —
-      // see the OrvexRootModule docstring; its real delivery path is
-      // PageModule.)
-      expect(mod.imports?.length).toBe(5);
+      // + OrvexPageBlocksModule (ENG-1412) + OrvexTracingModule (ENG-1599)
+      // + the composed SessionMintModule. (OrvexPageMetadataModule/ENG-1371
+      // is deliberately NOT mounted here — see the OrvexRootModule
+      // docstring; its real delivery path is PageModule.)
+      expect(mod.imports?.length).toBe(6);
     });
 
     it('composes the REAL remote-JWKS verifier when ORVEX_IDENTITY_URL is set', () => {
@@ -68,7 +68,7 @@ describe('OrvexRootModule.register', () => {
       // so this must not throw at register() time.
       expect(() => OrvexRootModule.register()).not.toThrow();
       const mod = OrvexRootModule.register();
-      expect(mod.imports?.length).toBe(5);
+      expect(mod.imports?.length).toBe(6);
     });
   });
 });

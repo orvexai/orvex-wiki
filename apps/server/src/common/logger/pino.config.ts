@@ -1,6 +1,8 @@
 import { Params } from 'nestjs-pino';
 import { stdTimeFunctions } from 'pino';
+import { trace } from '@opentelemetry/api';
 import { redactSensitiveUrl } from '../helpers/utils';
+import { getActiveCorrelationId } from '../../orvex/obs/orvex-correlation.hook';
 
 const CONTEXTS_TO_IGNORE = [
   'InstanceLoader',
@@ -9,6 +11,35 @@ const CONTEXTS_TO_IGNORE = [
   'LegacyRouteConverter',
   'WebSocketsController',
 ];
+
+/**
+ * ENG-1599 AC3 (log<->trace join) + AC5 (byte-parity): stamps `trace_id`/
+ * `span_id`/`correlation_id` on every pino line while a span is active.
+ * `trace.getActiveSpan()` is the OTel API's own no-op-safe call — it resolves
+ * to `undefined` whenever no SDK is initialized (`ORVEX_MODULES_ENABLED`
+ * off, or the OTel endpoint unset) or no span is active in the current
+ * context, in which case this returns `{}` and stamps NONE of these keys —
+ * vanilla-safe by construction, not by a flag check here.
+ */
+export function buildOrvexTraceMixin(): Record<string, string> {
+  const span = trace.getActiveSpan();
+  if (!span) {
+    return {};
+  }
+
+  const spanContext = span.spanContext();
+  const fields: Record<string, string> = {
+    trace_id: spanContext.traceId,
+    span_id: spanContext.spanId,
+  };
+
+  const correlationId = getActiveCorrelationId();
+  if (correlationId) {
+    fields.correlation_id = correlationId;
+  }
+
+  return fields;
+}
 
 export function createPinoConfig(): Params {
   const isProduction = process.env.NODE_ENV?.toLowerCase() === 'production';
@@ -21,6 +52,7 @@ export function createPinoConfig(): Params {
     pinoHttp: {
       level,
       timestamp: stdTimeFunctions.isoTime,
+      mixin: buildOrvexTraceMixin,
       transport: !isProduction
         ? {
             target: 'pino-pretty',
