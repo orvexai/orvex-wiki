@@ -12,7 +12,7 @@ const HUB = '/home/daniel/repos/orvex-wiki'
 const WORKTREES = '/tmp/worktrees'
 const MAX_TICKS = (args && args.maxTicks) || 40
 const FIRST_BATCH = 16
-const STEADY_BATCH = 28  // > the ~16 concurrency cap on purpose: keeps all 16 slots CONTINUOUSLY saturated — as one build/review/merge chain finishes, the next dequeues immediately instead of the tick draining to its slow (per-repo-serialized-merge) tail before refilling
+const STEADY_BATCH = 18  // quota-sane: batch-28 blew the 2500/hr Linear quota (many claims rate-limited = wasted slots); 18 gives saturation headroom over the ~16 cap without exhausting the shared API budget
 const BOUNCE_CAP = 3
 const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if the ready frontier is narrower than this, fill the spare slots with useful non-claiming pre-work.
 const GATE_MS = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','M14']
