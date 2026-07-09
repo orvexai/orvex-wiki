@@ -663,7 +663,9 @@ gql_post() {
   # Grep the rate-limit / complexity headers case-insensitively (HTTP/2 lowercases them;
   # HTTP/1.1 may not) and strip CRs. We log whatever Linear actually returns rather than
   # hardcoding names, so a rename or an added complexity header still lands in the log.
-  LAST_RATELIMIT_HEADERS=$(grep -iE '^(x-ratelimit-|x-complexity|retry-after)' "$hdr" 2>/dev/null | tr -d '\r')
+  # `|| true`: grep exits 1 when NO rate-limit header is present (e.g. an edge/CDN 429); that
+  # must not abort the caller under set -e/pipefail — an empty capture is a valid outcome.
+  LAST_RATELIMIT_HEADERS=$(grep -iE '^(x-ratelimit-|x-complexity|retry-after)' "$hdr" 2>/dev/null | tr -d '\r' || true)
   rm -f "$hdr"
   log_ratelimit_headers "$LAST_RATELIMIT_HEADERS"
   return $rc
@@ -1076,10 +1078,13 @@ cmd_quota() {
   resolve_linear_token || exit 1
 
   local resp gqlerr
-  # `|| true`: on a curl transport failure gql_post returns non-zero — we still want to emit
-  # whatever headers/JSON we have rather than have `set -e` abort the probe silently.
-  resp=$(gql_post 'query { viewer { id } }' '{}') || true
-  gqlerr=$(printf '%s' "$resp" | jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' 2>/dev/null || echo "")
+  resp=$(mktemp)
+  # Run gql_post with a REDIRECT (not command substitution) so it executes in THIS shell —
+  # command substitution would run it in a subshell and LAST_RATELIMIT_HEADERS (set inside
+  # gql_post) would never propagate back here, leaving `raw` empty. `|| true`: a curl
+  # transport failure still leaves us the headers/body we have.
+  gql_post 'query { viewer { id } }' '{}' > "$resp" 2>/dev/null || true
+  gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "")
 
   # Parse the captured "name: value" header lines into a lowercased-key JSON object, then
   # lift the request-bucket convenience fields off it.
@@ -1095,6 +1100,7 @@ cmd_quota() {
         error: (if $err == "" then null else $err end)
       }
   '
+  rm -f "$resp"
   # Surface a non-zero exit on a rate-limit / GraphQL error so scripted callers can detect it,
   # but the JSON (with headers) is already on stdout for the human/parent.
   [[ -z "$gqlerr" ]]
