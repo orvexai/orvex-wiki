@@ -671,8 +671,16 @@ gql_paginate() {
   return 0
 }
 
-# Query A — ACTIVE issues (state type NOT completed/canceled). Nested connections BOUNDED
-# first:50 to cap complexity. Carries the full body + blocked-by graph the frontier needs.
+# Query A — ACTIVE issues (state type NOT completed/canceled). Nested connections are
+# BOUNDED and each carries its OWN `pageInfo { hasNextPage }` so first-page truncation is
+# DETECTABLE (never silent). Caps are sized to the edge cost:
+#   * relations / inverseRelations nodes are id/identifier-only (id + type + one identifier),
+#     so first:250 is cheap — a gate aggregating a milestone's blockers (ENG-1572 already at
+#     45) fits comfortably, and anything beyond 250 is caught by hasNextPage and drained by
+#     the follow-up pagination in resolve_overflow (see below).
+#   * labels stays first:50 (issues carry a handful; max observed 3) — still guarded.
+# Any connection reporting hasNextPage=true is re-fetched to exhaustion per issue before
+# projection, so gate blockedBy edges can never silently truncate at the page cap.
 GQL_ACTIVE='query ActiveIssues($first: Int!, $after: String, $filter: IssueFilter) {
   issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt, includeArchived: false) {
     nodes {
@@ -686,13 +694,127 @@ GQL_ACTIVE='query ActiveIssues($first: Int!, $after: String, $filter: IssueFilte
       projectMilestone { id name }
       cycle { number }
       assignee { name }
-      labels(first: 50) { nodes { name } }
-      relations(first: 50) { nodes { type relatedIssue { identifier } } }
-      inverseRelations(first: 50) { nodes { type issue { identifier } } }
+      labels(first: 50) { nodes { name } pageInfo { hasNextPage } }
+      relations(first: 250) { nodes { type relatedIssue { identifier } } pageInfo { hasNextPage } }
+      inverseRelations(first: 250) { nodes { type issue { identifier } } pageInfo { hasNextPage } }
     }
     pageInfo { hasNextPage endCursor }
   }
 }'
+
+# Follow-up single-issue connection queries — used by drain_connection to paginate ONE
+# nested connection of ONE issue to exhaustion when the list query flagged hasNextPage=true.
+# Node shapes match GQL_ACTIVE exactly (so the drained set slots straight into projection);
+# these carry endCursor because THEY are the paginating query.
+GQL_LABELS_PAGE='query IssueLabels($id: String!, $first: Int!, $after: String) {
+  issue(id: $id) {
+    labels(first: $first, after: $after) { nodes { name } pageInfo { hasNextPage endCursor } }
+  }
+}'
+GQL_RELATIONS_PAGE='query IssueRelations($id: String!, $first: Int!, $after: String) {
+  issue(id: $id) {
+    relations(first: $first, after: $after) { nodes { type relatedIssue { identifier } } pageInfo { hasNextPage endCursor } }
+  }
+}'
+GQL_INVREL_PAGE='query IssueInverseRelations($id: String!, $first: Int!, $after: String) {
+  issue(id: $id) {
+    inverseRelations(first: $first, after: $after) { nodes { type issue { identifier } } pageInfo { hasNextPage endCursor } }
+  }
+}'
+
+# drain_connection <issue_uuid> <connection>: paginate ONE nested connection of ONE issue
+# to exhaustion via its follow-up query, printing the FULL node array (JSON) to stdout.
+# Re-fetches the connection from the start (after=null) and returns the complete set — the
+# caller REPLACES the (truncated) first-page nodes with this, avoiding any cursor-alignment
+# assumption between the list query and the single-issue query. Returns 1 on any transport /
+# GraphQL / shape error or if pagination fails to terminate; the caller then marks the cache
+# complete=false so nested incompleteness is covered by the honesty bit.
+drain_connection() {
+  local id="$1" conn="$2"
+  local query
+  case "$conn" in
+    labels)           query="$GQL_LABELS_PAGE" ;;
+    relations)        query="$GQL_RELATIONS_PAGE" ;;
+    inverseRelations) query="$GQL_INVREL_PAGE" ;;
+    *) echo "ERROR: drain_connection: unknown connection '$conn'" >&2; return 1 ;;
+  esac
+  local after="" page=0 max_pages=200 acc resp
+  acc='[]'
+  resp=$(mktemp)
+  while :; do
+    page=$((page + 1))
+    if [[ $page -gt $max_pages ]]; then
+      echo "ERROR: drain_connection $conn: exceeded $max_pages pages (cursor not advancing?)" >&2
+      rm -f "$resp"; return 1
+    fi
+    local vars
+    vars=$(jq -cn --arg id "$id" --argjson first 250 --arg after "$after" \
+      '{id:$id, first:$first, after: (if $after=="" then null else $after end)}') || { rm -f "$resp"; return 1; }
+    if ! gql_post "$query" "$vars" > "$resp" 2>/dev/null; then
+      echo "ERROR: drain_connection $conn: GraphQL transport failure on page $page" >&2
+      rm -f "$resp"; return 1
+    fi
+    local gqlerr
+    gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "PARSE_ERROR")
+    if [[ -n "$gqlerr" ]]; then
+      echo "ERROR: drain_connection $conn: Linear GraphQL error on page $page: $gqlerr" >&2
+      rm -f "$resp"; return 1
+    fi
+    if ! jq -e --arg c "$conn" '.data.issue[$c] | has("nodes")' "$resp" >/dev/null 2>&1; then
+      echo "ERROR: drain_connection $conn: unexpected response shape on page $page" >&2
+      rm -f "$resp"; return 1
+    fi
+    local nodes
+    nodes=$(jq -c --arg c "$conn" '.data.issue[$c].nodes' "$resp")
+    acc=$(jq -cn --argjson a "$acc" --argjson n "$nodes" '$a + $n') || { rm -f "$resp"; return 1; }
+    local has_next end_cursor
+    has_next=$(jq -r --arg c "$conn" '.data.issue[$c].pageInfo.hasNextPage // false' "$resp")
+    end_cursor=$(jq -r --arg c "$conn" '.data.issue[$c].pageInfo.endCursor // empty' "$resp")
+    [[ "$has_next" == "true" && -n "$end_cursor" ]] || break
+    after="$end_cursor"
+  done
+  rm -f "$resp"
+  printf '%s' "$acc"
+  return 0
+}
+
+# resolve_overflow <issues_file>: <issues_file> is a bare array of ACTIVE nodes fetched by
+# GQL_ACTIVE. For every issue whose bounded nested connection reported hasNextPage=true,
+# drain that connection to exhaustion (drain_connection) and REPLACE the issue's connection
+# nodes with the full set — IN PLACE — so projection sees complete edge sets. Returns 0 if
+# no overflow occurred OR every needed follow-up fully drained; returns 1 if ANY follow-up
+# failed (the caller then marks complete=false so nested truncation is never silently
+# accepted). This makes silent blockedBy truncation structurally impossible.
+resolve_overflow() {
+  local file="$1"
+  local rc=0
+  local overflow
+  overflow=$(jq -c '
+    [ .[] | . as $i
+      | (["labels","relations","inverseRelations"][]) as $c
+      | select(($i[$c].pageInfo.hasNextPage // false) == true)
+      | {id: $i.id, identifier: $i.identifier, conn: $c} ]
+  ' "$file") || return 1
+  local n; n=$(echo "$overflow" | jq 'length')
+  [[ "$n" -eq 0 ]] && return 0
+  echo "Overflow: $n nested connection(s) exceeded the first-page cap — draining via follow-up queries." >&2
+  local idx
+  for ((idx = 0; idx < n; idx++)); do
+    local id ident conn full
+    id=$(echo "$overflow" | jq -r ".[$idx].id")
+    ident=$(echo "$overflow" | jq -r ".[$idx].identifier")
+    conn=$(echo "$overflow" | jq -r ".[$idx].conn")
+    if ! full=$(drain_connection "$id" "$conn"); then
+      echo "WARN: follow-up pagination failed for $ident.$conn — marking cache complete=false." >&2
+      rc=1
+      continue
+    fi
+    jq --arg ident "$ident" --arg conn "$conn" --argjson full "$full" '
+      map(if .identifier == $ident then .[$conn] = {nodes: $full} else . end)
+    ' "$file" > "$file.next" && mv "$file.next" "$file"
+  done
+  return $rc
+}
 
 # Query B — CLOSED issues (Done + Canceled + Duplicate, i.e. state type completed|canceled).
 # SLIM: id/identifier/state/project/updatedAt ONLY — NO description, NO nested connections.
@@ -772,6 +894,15 @@ cmd_sync_initiative() {
     rm -f "$active_tmp" "$done_tmp" "$all_tmp"
     echo "Initiative sync aborted (active fetch failed, likely rate-limited) — existing initiative.json left untouched." >&2
     exit 1
+  fi
+  # 1b) Overflow guard: any ACTIVE issue whose bounded nested connection (labels/relations/
+  #     inverseRelations) reported hasNextPage=true is drained to exhaustion via a follow-up
+  #     single-issue query and its edge set replaced IN FULL before projection — so a gate's
+  #     blockedBy edges can never silently truncate at the page cap. A follow-up FAILURE is
+  #     treated exactly like an incomplete closed fetch: keep the partial, mark complete=false
+  #     (nested completeness is part of the honesty bit, not just page-level completeness).
+  if ! resolve_overflow "$active_tmp"; then
+    complete=false
   fi
   # 2) CLOSED issues (team-wide, slim). NON-fatal: on failure keep the partial set and mark
   #    complete=false so the engine frontier sets readComplete=false and retries instead of
@@ -863,6 +994,10 @@ cmd_sync_initiative() {
 }
 
 # ---------- main ----------
+# Source guard: when this file is `source`d (the offline fixture harness sources it to
+# unit-test resolve_overflow / drain_connection against mocked gql_post) the CLI dispatch
+# below is SKIPPED. Behaviour when executed directly is unchanged.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 resolve_config
 
 case "${1:-}" in
@@ -888,3 +1023,4 @@ case "${1:-}" in
     exit 1
     ;;
 esac
+fi
