@@ -353,7 +353,9 @@ cmd_issue() {
   echo "Refreshing $issue_id..."
   local json err_file; err_file=$(mktemp)
   # stdout (JSON) captured to $json; stderr to $err_file so a warning can't corrupt the JSON.
-  if ! json=$(linearis issues read "$issue_id" 2>"$err_file") \
+  # --with-comments: the refresh-on-write cache model (PO directive 2026-07-09) makes this
+  # file the ONLY read surface for the ticket — agents need the discussion thread too.
+  if ! json=$(linearis issues read "$issue_id" --with-comments 2>"$err_file") \
      || jq -e 'if type=="object" and has("error") then true else false end' <<<"$json" >/dev/null 2>&1; then
     echo "ERROR: linearis issues read $issue_id failed:" >&2
     head -c 300 <<<"$json" >&2; echo >&2
@@ -399,6 +401,23 @@ _write_issue_file() {
       { print }
     ' "$CACHE_DIR/work-status.yaml" > "$CACHE_DIR/work-status.yaml.tmp"
     mv "$CACHE_DIR/work-status.yaml.tmp" "$CACHE_DIR/work-status.yaml"
+  fi
+
+  # Refresh-on-write cache model: also update initiative.json (the delivery engines'
+  # state/graph cache) so LOCAL frontier recomputes see this ticket's new state with
+  # zero API calls — including ACROSS partitioned engines (A's Done unblocks B's
+  # successors). flock serializes concurrent refreshes from two engines; the state
+  # AND the blockedBy/blocks edges are updated from the same live read.
+  local init="$CACHE_DIR/initiative.json"
+  if [[ -f "$init" ]]; then
+    (
+      flock -x 9
+      jq --arg id "$issue_id" --arg st "$status" \
+         --argjson bb "$(echo "$json" | jq '[.inverseRelations.nodes[]? | select(.type=="blocks") | .issue.identifier] | unique')" \
+         --argjson bl "$(echo "$json" | jq '[.relations.nodes[]? | select(.type=="blocks") | .relatedIssue.identifier] | unique')" \
+         'if .issues[$id] then (.issues[$id].state = $st | .issues[$id].blockedBy = $bb | .issues[$id].blocks = $bl) else . end' \
+         "$init" > "$init.tmp.$$" && mv "$init.tmp.$$" "$init"
+    ) 9>"$init.lock"
   fi
 
   echo "Refreshed $issue_id (status: $status)"
@@ -620,12 +639,38 @@ cmd_sync_initiative() {
   fi
   mv "$init_tmp" "$CACHE_DIR/initiative.json"
   echo "$synced_at" > "$CACHE_DIR/.last-initiative-sync"
+
+  # Per-issue body files (cache-first read model): the bulk list payload carries the FULL
+  # description, so every scoped issue gets its issues/<id>.yaml written here with zero
+  # extra API calls. Comments are NOT in the list payload — they appear on the first
+  # refresh-on-write (`linear-sync.sh issue <id>`, --with-comments), which every engine
+  # write triggers. Agents read tickets ONLY from these files.
+  mkdir -p "$CACHE_DIR/issues"
+  local body_count=0
+  while IFS= read -r issue; do
+    local iid
+    iid=$(echo "$issue" | jq -r '.identifier')
+    echo "$issue" | jq -r '
+      def kind: '"$KIND_EXPR"';
+      "identifier: " + .identifier,
+      "title: " + (.title | @json),
+      "status: " + .state.name,
+      "kind: " + kind,
+      "milestone: " + (.projectMilestone.id // "none"),
+      "cycle: " + ((.cycle.number // empty | tostring) // "none"),
+      (if (.description // "") == "" then "description: \"\""
+       else "description: |\n" + (.description | split("\n") | map("  " + .) | join("\n"))
+       end)
+    ' > "$CACHE_DIR/issues/$iid.yaml"
+    body_count=$((body_count + 1))
+  done < <(jq -c '.[]' "$all_tmp")
+
   rm -f "$open_tmp" "$done_tmp" "$all_tmp"
 
   local total done_n
   total=$(jq -r '.counts.total' "$CACHE_DIR/initiative.json")
   done_n=$(jq -r '.counts.byState.Done // 0' "$CACHE_DIR/initiative.json")
-  echo "Initiative synced: $total issues ($done_n Done, complete=$complete) → $CACHE_DIR/initiative.json"
+  echo "Initiative synced: $total issues ($done_n Done, complete=$complete, $body_count body files) → $CACHE_DIR/initiative.json"
   jq -r '.counts.byState | to_entries[] | "  " + .key + ": " + (.value|tostring)' "$CACHE_DIR/initiative.json"
   [[ "$complete" == "true" ]] || exit 3   # non-zero (partial) so callers can detect
 }
