@@ -26,7 +26,6 @@ Key files:
 |------|----------|
 | `work-status.yaml` | Index of milestones + issues, map-keyed by Linear identifier, with current statuses (each issue carries its own `cycle` + `kind` — there is no top-level cycles block) |
 | `issues/<ID>.yaml` | Full issue detail including description + comments |
-| `milestone-map.md` | Milestone → issues overview |
 | `.last-sync` | ISO-8601 timestamp of last full sync |
 
 Status-file virtual path (for `status_file` references): `linear://{linear_scope}/work-status`, where `{linear_scope}` resolves to the required `linear_initiative` config key. This is a display namespace, not a live scope query. A config with only the legacy `linear_project` key (no `linear_initiative`) is refused at run time — see the config block below.

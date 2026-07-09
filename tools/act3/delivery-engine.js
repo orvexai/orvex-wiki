@@ -52,9 +52,7 @@ const PROJECT_REPO = {
 // linear-sync.sh is now config-driven (_bmad/lnr/config.yaml: linear_initiative =
 // "Orvex Studio"): `sync-initiative` resolves its own member-project scope from that
 // config with ZERO args needed — PROJECT_REPO above is exactly that initiative's
-// member set, so no engine-side allowlist file is required any more. --projects-file
-// still exists on the script as an explicit operator OVERRIDE (narrows, never widens,
-// the config-resolved scope) but the engine no longer needs it for normal operation.
+// member set. Scope is fully config-driven; there is no project-allowlist flag.
 
 // ---- Shared doctrine blocks ------------------------------------------------
 const LNR = [

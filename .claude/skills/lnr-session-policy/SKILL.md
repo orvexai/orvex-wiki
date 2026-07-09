@@ -29,7 +29,6 @@ Key cache files:
 |------|----------|
 | `work-status.yaml` | Index: milestones → issues with current statuses, plus current/next cycles (maps keyed by Linear identifier) |
 | `issues/<ID>.yaml` | Full issue detail including description and comments |
-| `milestone-map.md` | Project-milestone → issues mapping overview |
 | `.last-sync` | ISO-8601 timestamp of last full sync |
 
 ## Cache Freshness Gate

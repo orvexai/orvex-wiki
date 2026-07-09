@@ -92,9 +92,8 @@ resolve_config() {
     echo "    linear_initiative: <initiative-name-or-UUID>" >&2
     echo "" >&2
     echo "  See bmad-linear/README.md 'Linear tracking' config block for the full key set." >&2
-    echo "  (Per-command explicit overrides, e.g. --project on a single command or" >&2
-    echo "  --projects-file on sync-initiative, are unaffected — only this config-level" >&2
-    echo "  binding is retired.)" >&2
+    echo "  (Per-command explicit overrides, e.g. --project on a single command, are" >&2
+    echo "  unaffected — only this config-level binding is retired.)" >&2
     exit 1
   fi
 
@@ -133,95 +132,6 @@ project_hint() {
   echo "    Set linear_project to the project's display NAME (e.g. \"Linear CLI\")" >&2
   echo "    in _bmad/lnr/config.yaml AND its installer source _bmad/config.toml." >&2
   echo "    (The BMAD installer may have written the slug '$LINEAR_PROJECT', which linearis rejects.)" >&2
-}
-
-# ---------- milestone-map ----------
-# gen_milestone_map: regenerates milestone-map.md from the cached work-status.yaml
-# and per-issue YAML files. Reads milestone id+title from work-status.yaml's
-# milestone map (where each entry has key/title/status lines under the id).
-gen_milestone_map() {
-  local map_file="$CACHE_DIR/milestone-map.md"
-  local generated_at
-  generated_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-  {
-    echo "# ${PROJECT_NAME:-$LINEAR_PROJECT} Milestone Map"
-    echo ""
-    echo "**Project:** ${PROJECT_NAME:-$LINEAR_PROJECT}"
-    echo "**Team:** $TEAM_KEY"
-    echo "**Generated:** $generated_at"
-    echo ""
-    echo "## Milestone → Issue Mapping"
-
-    local milestone_ids=()
-    local milestone_titles=()
-
-    # Parse milestones keyed by UUID ("  <uuid>:"), reading the "    name:" sub-field.
-    while IFS='|' read -r mid mtitle; do
-      milestone_ids+=("$mid")
-      milestone_titles+=("$mtitle")
-    done < <(awk '
-      /^milestones:/ { in_milestones=1; next }
-      /^issues:/ { in_milestones=0; next }
-      /^[a-z]/ && !/^[[:space:]]/ { in_milestones=0 }
-      in_milestones && /^  [0-9a-f-]+:[[:space:]]*$/ {
-        id=$1; sub(/:$/, "", id)
-        current_id=id
-        next
-      }
-      in_milestones && current_id != "" && /^    name:/ {
-        title_line=$0
-        sub(/^    name:[[:space:]]*/, "", title_line)
-        sub(/^"/, "", title_line)
-        sub(/"$/, "", title_line)
-        print current_id "|" title_line
-        current_id=""
-      }
-    ' "$CACHE_DIR/work-status.yaml")
-
-    local total_issues=0
-    for i in "${!milestone_ids[@]}"; do
-      local mid="${milestone_ids[$i]}"
-      local mtitle="${milestone_titles[$i]}"
-      echo ""
-      echo "### ${mid}: ${mtitle}"
-      echo "| Issue | Title | Status | File |"
-      echo "|-------|-------|--------|------|"
-
-      for issue_file in "$CACHE_DIR/issues"/*.yaml; do
-        [[ -f "$issue_file" ]] || continue
-        local i_milestone
-        i_milestone=$(grep '^milestone:' "$issue_file" | awk '{print $2}')
-        if [[ "$i_milestone" == "$mid" ]]; then
-          local i_id i_title i_status
-          i_id=$(grep '^identifier:' "$issue_file" | awk '{print $2}')
-          i_title=$(grep '^title:' "$issue_file" | sed 's/^title:[[:space:]]*//' | sed 's/^"//;s/"$//')
-          i_status=$(grep '^status:' "$issue_file" | awk '{print $2}')
-          echo "| $i_id | $i_title | $i_status | \`issues/$i_id.yaml\` |"
-          total_issues=$((total_issues + 1))
-        fi
-      done
-    done
-
-    echo ""
-    echo "## Summary"
-    echo ""
-    echo "| Milestone | Issues |"
-    echo "|-----------|--------|"
-    for i in "${!milestone_ids[@]}"; do
-      local mid="${milestone_ids[$i]}"
-      local mtitle="${milestone_titles[$i]}"
-      local mcount=0
-      for issue_file in "$CACHE_DIR/issues"/*.yaml; do
-        [[ -f "$issue_file" ]] || continue
-        local i_milestone
-        i_milestone=$(grep '^milestone:' "$issue_file" | awk '{print $2}')
-        [[ "$i_milestone" == "$mid" ]] && mcount=$((mcount + 1))
-      done
-      echo "| ${mid}: ${mtitle} | $mcount |"
-    done
-    echo "| **Total (milestone-mapped)** | **$total_issues** |"
-  } > "$map_file"
 }
 
 # kind_expr: jq snippet classifying an issue by title → story | epic | other.
@@ -390,11 +300,8 @@ _process_issues() {
   local milestone_count
   milestone_count=$(jq 'length' "$ms_tmpfile")
 
-  gen_milestone_map
-
   echo "Synced $milestone_count milestones, $issue_count issues to $CACHE_DIR/"
   echo "  work-status.yaml updated"
-  echo "  milestone-map.md updated"
   echo "  $issue_count issue files written to issues/"
 }
 
@@ -454,12 +361,27 @@ _write_issue_file() {
   ' > "$CACHE_DIR/issues/$issue_id.yaml"
 
   if [[ -f "$CACHE_DIR/work-status.yaml" ]]; then
-    awk -v id="$issue_id" -v new_status="$status" '
-      $0 ~ "^  " id ":" { found=1; print; next }
-      found && /^    status:/ { print "    status: " new_status; found=0; next }
-      { print }
-    ' "$CACHE_DIR/work-status.yaml" > "$CACHE_DIR/work-status.yaml.tmp"
-    mv "$CACHE_DIR/work-status.yaml.tmp" "$CACHE_DIR/work-status.yaml"
+    # ENG-1254: concurrent `issue <id>` refreshes race on this read-modify-write.
+    # Fix has two parts: (1) a per-invocation unique tmp file via mktemp, so a
+    # racing `mv` never finds the file already renamed away by another process
+    # ("mv: cannot stat ..."); and (2) an flock around the whole read-modify-write
+    # so concurrent refreshes serialize instead of clobbering each other's status
+    # edits (lost-update) — a unique tmp alone stops the crash but NOT the race
+    # where two processes both read the pre-edit file and the second's write wins
+    # with stale data for every OTHER issue's status.
+    local ws_tmp ws_lock
+    ws_tmp=$(mktemp "$CACHE_DIR/work-status.yaml.XXXXXX")
+    ws_lock="$CACHE_DIR/.work-status.lock"
+    (
+      trap 'rm -f "$ws_tmp"' EXIT
+      flock 200
+      awk -v id="$issue_id" -v new_status="$status" '
+        $0 ~ "^  " id ":" { found=1; print; next }
+        found && /^    status:/ { print "    status: " new_status; found=0; next }
+        { print }
+      ' "$CACHE_DIR/work-status.yaml" > "$ws_tmp"
+      mv "$ws_tmp" "$CACHE_DIR/work-status.yaml"
+    ) 200>"$ws_lock"
   fi
 
   # Refresh-on-write cache model: also update initiative.json (the delivery engines'
@@ -549,85 +471,7 @@ cmd_check() {
 # frontier that did a per-project live sweep + a per-candidate live relation read
 # every tick would drain the shared hourly quota). Output: .cache/linear/initiative.json
 # — a slim, jq-friendly projection keyed by identifier. Deliberately does NOT touch
-# work-status.yaml / milestone-map.md / issues/*.yaml (those stay owned by the
-# single-project `sync`).
-
-# DEPRECATED / UNUSED: fetch_paginated + fetch_done_scoped were the linearis-`issues list`
-# fetch path for cmd_sync_initiative. They are SUPERSEDED by the direct-GraphQL path below
-# (gql_paginate + GQL_ACTIVE/GQL_CLOSED) because the linearis list fragment carries FOUR
-# unbounded nested connections whose per-page complexity Linear meters as ~hundreds of
-# request-equivalents, exhausting the hourly budget. Kept here (not called by any command)
-# only to minimise churn; safe to delete in a follow-up.
-# fetch_paginated <out> [extra linearis args...]: team-scoped (no --project) paginated
-# `issues list` into a combined bare node-array at <out>. Aborts (return 1) WITHOUT
-# writing on any error/odd shape, so a partial fetch never yields a half cache.
-fetch_paginated() {
-  local out="$1"; shift
-  local extra=("$@")
-  local after="" page=0 max_pages=50
-  local page_json page_err; page_json=$(mktemp); page_err=$(mktemp)
-  printf '[]' > "$out"
-  while :; do
-    page=$((page + 1))
-    if [[ $page -gt $max_pages ]]; then
-      echo "ERROR: pagination exceeded $max_pages pages (cursor not advancing?) — aborting" >&2
-      rm -f "$page_json" "$page_err"; return 1
-    fi
-    if [[ -z "$after" ]]; then
-      linearis issues list --team "$TEAM_KEY" --limit 100 "${extra[@]}" > "$page_json" 2>"$page_err" || true
-    else
-      linearis issues list --team "$TEAM_KEY" --limit 100 "${extra[@]}" --after "$after" > "$page_json" 2>"$page_err" || true
-    fi
-    local err
-    err=$(jq -r 'if type=="object" and has("error") then .error else empty end' "$page_json" 2>/dev/null || echo "PARSE_ERROR")
-    if [[ -n "$err" ]]; then
-      echo "ERROR: linearis issues list ${extra[*]} failed: $err" >&2
-      rm -f "$page_json" "$page_err"; return 1
-    fi
-    if ! jq -e 'has("nodes")' "$page_json" >/dev/null 2>&1; then
-      echo "ERROR: unexpected linearis response shape (no .nodes):" >&2
-      head -c 300 "$page_json" >&2; echo >&2
-      [[ -s "$page_err" ]] && { echo "  linearis stderr:" >&2; head -c 300 "$page_err" >&2; echo >&2; }
-      rm -f "$page_json" "$page_err"; return 1
-    fi
-    jq -s '.[0] + (.[1].nodes // [])' "$out" "$page_json" > "$out.next" && mv "$out.next" "$out"
-    local has_next end_cursor
-    has_next=$(jq -r '.pageInfo.hasNextPage // false' "$page_json")
-    end_cursor=$(jq -r '.pageInfo.endCursor // empty' "$page_json")
-    [[ "$has_next" == "true" && -n "$end_cursor" ]] || break
-    after="$end_cursor"
-    sleep 0.3   # be gentle on the shared quota between pages
-  done
-  rm -f "$page_json" "$page_err"
-  return 0
-}
-
-# fetch_done_scoped <out> <projects_file>: SERVER-SIDE scoped Done fetch. Instead of one
-# team-wide `--status Done` pass (which pays for the team's ENTIRE Done history and
-# reliably exhausts Linear's hourly complexity budget mid-pagination), this runs one
-# project-scoped `--project <name> --status Done` paginated fetch per allowlisted project
-# and concatenates the results. The initiative's projects typically hold only a bounded
-# set of Done issues total, so the query complexity drops substantially and the fetch fits
-# the budget. Returns 1 (partial) if ANY project's Done fetch fails, leaving whatever was
-# fetched so far in <out> (the caller marks complete=false); returns 0 only when every
-# project's Done pages fully drained. Stops on the first failure to avoid re-draining quota.
-fetch_done_scoped() {
-  local out="$1" projects_file="$2"
-  local proj_tmp; proj_tmp=$(mktemp)
-  printf '[]' > "$out"
-  local rc=0
-  while IFS= read -r pname || [[ -n "$pname" ]]; do
-    [[ -n "$pname" ]] || continue
-    if ! fetch_paginated "$proj_tmp" --project "$pname" --status Done; then
-      echo "WARN: Done fetch failed for project '$pname' (rate-limited?) — stopping scoped Done fetch." >&2
-      rc=1
-      break
-    fi
-    jq -s '.[0] + .[1]' "$out" "$proj_tmp" > "$out.next" && mv "$out.next" "$out"
-  done < "$projects_file"
-  rm -f "$proj_tmp"
-  return $rc
-}
+# work-status.yaml / issues/*.yaml (those stay owned by the single-project `sync`).
 
 # ============================================================================
 # Direct-GraphQL initiative fetch (replaces the linearis `issues list` path for
@@ -1029,22 +873,8 @@ cmd_sync_initiative() {
   ensure_gitignore
   mkdir -p "$CACHE_DIR"
 
-  # --projects-file <path>: OPTIONAL newline-delimited allowlist of project NAMES, for an
-  # operator who wants to pin an explicit project set by hand. NOT required — the scope source
-  # is the configured linear_initiative (resolve_config guarantees it is set — see the hard-cut
-  # migration error there), resolved to its member-project set by resolve_initiative_scope and
-  # applied as project.name.in on the active fetch below. When given, the flag NARROWS that set
-  # (intersection with the initiative members); it can never widen scope past the initiative.
-  local projects_file=""
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --projects-file) projects_file="$2"; shift 2 ;;
-      *) echo "ERROR: Unknown option: $1" >&2; exit 1 ;;
-    esac
-  done
-
-  if [[ -n "$projects_file" && ! -f "$projects_file" ]]; then
-    echo "ERROR: --projects-file '$projects_file' not found." >&2
+  if [[ $# -gt 0 ]]; then
+    echo "ERROR: Unknown option: $1" >&2
     exit 1
   fi
 
@@ -1075,23 +905,16 @@ cmd_sync_initiative() {
     exit 1
   fi
 
-  # Effective active scope = the initiative's authoritatively-resolved member projects, or their
-  # intersection with an explicit --projects-file operator override. `project.name.in` is the
-  # PROVEN scope filter (it produced the trusted backup cache) and makes the scope EXPLICIT and
-  # auditable rather than an opaque server-side filter that can silently match nothing.
+  # Effective active scope = the initiative's authoritatively-resolved member projects.
+  # `project.name.in` is the PROVEN scope filter (it produced the trusted backup cache) and
+  # makes the scope EXPLICIT and auditable rather than an opaque server-side filter that can
+  # silently match nothing. Scope is fully config-driven — there is no operator override flag.
   local scope_names="$MEMBER_PROJECTS"
-  if [[ -n "$projects_file" ]]; then
-    scope_names=$(comm -12 <(printf '%s\n' "$MEMBER_PROJECTS" | sort -u) <(grep -v '^[[:space:]]*$' "$projects_file" | sort -u))
-    if [[ -z "$scope_names" ]]; then
-      echo "ERROR: --projects-file '$projects_file' has no overlap with initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}' member projects — nothing in scope." >&2
-      exit 1
-    fi
-  fi
   local member_count
   member_count=$(printf '%s\n' "$scope_names" | grep -c .)
 
   local scope_desc="initiative \"${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}\" ($member_count member project(s))"
-  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped to $scope_desc) + closed (team-wide, slim) + blocked-by graph${projects_file:+ (explicit project override: $projects_file)}..."
+  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped to $scope_desc) + closed (team-wide, slim) + blocked-by graph..."
 
   local active_tmp done_tmp all_tmp synced_at complete
   active_tmp=$(mktemp); done_tmp=$(mktemp); all_tmp=$(mktemp)
@@ -1167,10 +990,8 @@ cmd_sync_initiative() {
   #     server filter in resolve_initiative_scope, a DIFFERENT scope mechanism than this fetch's
   #     project.name.in) said the initiative has open work, yet the active fetch returned ZERO
   #     open issues. The two scope mechanisms disagree ⇒ the open frontier was lost (precisely
-  #     the Done-only-but-complete=true failure). Never trust it. (Suppressed under an explicit
-  #     --projects-file override, whose narrowing may legitimately exclude all currently-open
-  #     work.)
-  if [[ -z "$projects_file" && "$OPEN_WORK_EXISTS" == "1" && "$open_count" -eq 0 ]]; then
+  #     the Done-only-but-complete=true failure). Never trust it.
+  if [[ "$OPEN_WORK_EXISTS" == "1" && "$open_count" -eq 0 ]]; then
     echo "HONESTY-FAIL: initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}' has open work upstream but the active fetch returned 0 open issues — the open frontier was lost; marking cache complete=false." >&2
     complete=false
   fi

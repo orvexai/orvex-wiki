@@ -5,8 +5,8 @@ Orvex Studio backlog to Done — per the Delivery Orchestrator prompt (wiki: spa
 slug `gkkUDzn277`, §3.18/§6A) and the PO decision log of 2026-07-07.
 
 ## What one tick does
-1. **Frontier** (sonnet, bulk cache — NOT a live sweep): runs `linear-sync.sh sync-initiative
-   --projects-file <PROJECT_REPO keys>` ONCE (~5 paginated calls: whole-team fetch, all states incl.
+1. **Frontier** (sonnet, bulk cache — NOT a live sweep): runs `linear-sync.sh sync-initiative`
+   ONCE (~5 paginated calls: whole-team fetch, all states incl.
    Done, + the blocked-by graph inline from the list) → `.cache/linear/initiative.json`, then computes
    readiness LOCALLY: Todo/Backlog issues (scoped to the 14 satellites + Delivery Gates, NOT the whole
    448-issue ENG team) whose every cached `blockedBy` edge is Done/Canceled/Duplicate — excluding
@@ -29,7 +29,7 @@ Caps: bounce ≤3/issue, 2 consecutive empty frontiers ⇒ checkpoint, `maxTicks
 is stored in the engine).
 
 ## Recovery after a crash/seat loss (§3.20c)
-1. `_bmad/lnr/tools/linear-sync.sh sync` FIRST — never assess from a stale cache.
+1. `_bmad/lnr/tools/linear-sync.sh sync-initiative` FIRST — never assess from a stale cache.
 2. Salvage any unmerged branches (`refs/archive/inflight/*`, `git fsck`), prune worktrees merge-checked.
 3. Relaunch the engine (same command). Escalations live as Linear comments; Done state lives in Linear.
 
