@@ -387,16 +387,20 @@ _write_issue_file() {
   # Refresh-on-write cache model: also update initiative.json (the delivery engines'
   # state/graph cache) so LOCAL frontier recomputes see this ticket's new state with
   # zero API calls — including ACROSS partitioned engines (A's Done unblocks B's
-  # successors). flock serializes concurrent refreshes from two engines; the state
-  # AND the blockedBy/blocks edges are updated from the same live read.
+  # successors). flock serializes concurrent refreshes from two engines; the state,
+  # LABELS, AND the blockedBy/blocks edges are updated from the same live read. Labels
+  # matter because the frontier applies HOLDS by label (e.g. a `hold:*` gate) — omitting
+  # them here meant a live hold-label write silently failed to take effect on the engine
+  # frontier until the next bulk sync-initiative (PO bug report 2026-07-09, gap 2).
   local init="$CACHE_DIR/initiative.json"
   if [[ -f "$init" ]]; then
     (
       flock -x 9
       jq --arg id "$issue_id" --arg st "$status" \
+         --argjson lb "$(echo "$json" | jq '[.labels.nodes[]?.name] | unique')" \
          --argjson bb "$(echo "$json" | jq '[.inverseRelations.nodes[]? | select(.type=="blocks") | .issue.identifier] | unique')" \
          --argjson bl "$(echo "$json" | jq '[.relations.nodes[]? | select(.type=="blocks") | .relatedIssue.identifier] | unique')" \
-         'if .issues[$id] then (.issues[$id].state = $st | .issues[$id].blockedBy = $bb | .issues[$id].blocks = $bl) else . end' \
+         'if .issues[$id] then (.issues[$id].state = $st | .issues[$id].labels = $lb | .issues[$id].blockedBy = $bb | .issues[$id].blocks = $bl) else . end' \
          "$init" > "$init.tmp.$$" && mv "$init.tmp.$$" "$init"
     ) 9>"$init.lock"
   fi
@@ -462,7 +466,7 @@ cmd_check() {
   exit 0
 }
 
-# ---------- initiative sync (whole-team, ALL states + blocked-by graph) ----------
+# ---------- initiative sync (initiative-scoped, ALL states + blocked-by graph) ----------
 # The delivery engine needs the WHOLE initiative (all projects under it — one team),
 # INCLUDING Done (which `issues list` excludes by default), plus each candidate's
 # blocked-by edges. The linearis list payload already carries state, labels, project,
@@ -494,6 +498,18 @@ cmd_check() {
 # request-equivalents. Server-side team + state (+ optional project/initiative) filters
 # replace the BatchResolve round-trip. Output contract (initiative.json + per-issue YAML)
 # is unchanged.
+#
+# SCOPE (PO bug report 2026-07-09): BOTH legs are scoped by the initiative's member
+# projects. An earlier single-workspace design fetched the CLOSED leg TEAM-WIDE, which
+# leaked every Done/Canceled issue of every project in the team into an initiative-bound
+# consumer's cache (1095 issues across 23 projects for a ~1-200 initiative) while the
+# honesty invariants — which only policed the active leg — still reported complete=true.
+# The closed leg is now project.name.in <members>, identical to the active leg. Because
+# scoping the closed leg drops out-of-initiative Done blockers, a BLOCKEDBY CLOSURE pass
+# (close_blockedby) re-resolves exactly the blockedBy targets that fall outside the
+# initiative as minimal, external-tagged nodes — so a frontier can still resolve every
+# blockedBy edge's state from the cache. No team-wide mode is retained; there is no flag
+# to re-enable the leak.
 # ============================================================================
 LINEAR_GQL_ENDPOINT="https://api.linear.app/graphql"
 
@@ -786,8 +802,10 @@ resolve_overflow() {
 
 # Query B — CLOSED issues (Done + Canceled + Duplicate, i.e. state type completed|canceled).
 # SLIM: id/identifier/state/project/updatedAt ONLY — NO description, NO nested connections.
-# Fetched TEAM-WIDE (no project filter) so blocked-by edges pointing at out-of-scope closed
-# issues still resolve. Per-page complexity is ~O(page_size) — negligible against the budget.
+# Scoped by the SAME initiative member-project filter as the active leg (project.name.in
+# <members>) — see the section header for why team-wide was a leak. Per-page complexity is
+# ~O(page_size) — negligible against the budget. Blocked-by edges pointing at closed issues
+# OUTSIDE the initiative are re-resolved by the blockedBy-closure pass below, not by this leg.
 GQL_CLOSED='query ClosedIssues($first: Int!, $after: String, $filter: IssueFilter) {
   issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt, includeArchived: false) {
     nodes {
@@ -800,6 +818,100 @@ GQL_CLOSED='query ClosedIssues($first: Int!, $after: String, $filter: IssueFilte
     pageInfo { hasNextPage endCursor }
   }
 }'
+
+# Query C — resolve a batch of issues by (team, number) to minimal nodes. Used by
+# close_blockedby (the BLOCKEDBY CLOSURE pass) to fetch state/project for blockedBy targets
+# that fall OUTSIDE the initiative scope, so a frontier can ALWAYS resolve every blockedBy
+# edge's state from the cache. Batched (number:{in:[...]}) and team-grouped so the whole
+# closure is a handful of bounded requests. includeArchived:true so an archived blocker still
+# resolves. Node shape is a strict SUBSET of GQL_CLOSED (no nested connections); projection
+# tolerates the absent labels/relations via `?`. Validated live 2026-07-09 (number:{in} +
+# project{name} shapes both accepted by the API).
+GQL_ISSUES_BY_NUMBER='query IssuesByNumber($team: String!, $numbers: [Float!], $first: Int!, $after: String) {
+  issues(first: $first, after: $after, filter: {team: {key: {eq: $team}}, number: {in: $numbers}}, includeArchived: true) {
+    nodes {
+      id
+      identifier
+      updatedAt
+      state { name type }
+      project { name }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}'
+
+# close_blockedby <all_file> <out_file>: BLOCKEDBY CLOSURE. <all_file> is the merged
+# in-initiative node set (active + scoped-closed). Collect every blockedBy target identifier
+# (inverseRelations "blocks" edges) NOT already present in <all_file>, and fetch state/project
+# for exactly those identifiers in bounded, team-batched queries. Write the resolved minimal
+# nodes — each tagged `_external:true` — to <out_file> (a bare array; `[]` if none). A frontier
+# consumer can then resolve EVERY blockedBy edge's state from the cache even when the blocker
+# lives in another initiative/project. Returns 0 on full resolution; 1 if any batch failed OR
+# any requested identifier could not be resolved (caller marks complete=false — an unresolved
+# blocker edge is a real gap in the honesty bit, not a silent truncation).
+close_blockedby() {
+  local all_file="$1" out_file="$2"
+  printf '[]' > "$out_file"
+
+  # blockedBy targets referenced anywhere in the cache, minus those already present.
+  local present_json missing m
+  present_json=$(jq -c '[.[].identifier]' "$all_file") || return 1
+  missing=$(jq -c --argjson present "$present_json" '
+    ([ .[].inverseRelations.nodes[]? | select(.type=="blocks") | .issue.identifier ] | unique)
+    - $present
+  ' "$all_file") || return 1
+  m=$(echo "$missing" | jq 'length')
+  [[ "$m" -eq 0 ]] && return 0
+  echo "BlockedBy closure: $m blocker(s) fall outside the initiative — resolving state/project via team-batched queries." >&2
+
+  local rc=0 acc='[]'
+  # Group by team prefix (identifier = <TEAM>-<number>); a cross-team blocker is resolved by
+  # its own team's filter. Numbers ≤200/batch keep first:250 a single page (number is unique
+  # per team, so a batch of N numbers returns ≤N nodes).
+  local teams team
+  teams=$(echo "$missing" | jq -r '[ .[] | sub("-[0-9]+$"; "") ] | unique | .[]')
+  while IFS= read -r team; do
+    [[ -n "$team" ]] || continue
+    local numbers total_nums chunk_start
+    numbers=$(echo "$missing" | jq -c --arg t "$team" '[ .[] | select(startswith($t + "-")) | (sub("^.*-"; "") | tonumber) ]')
+    total_nums=$(echo "$numbers" | jq 'length')
+    for ((chunk_start = 0; chunk_start < total_nums; chunk_start += 200)); do
+      local chunk vars resp gqlerr nodes
+      chunk=$(echo "$numbers" | jq -c --argjson s "$chunk_start" '.[$s:($s + 200)]')
+      vars=$(jq -cn --arg team "$team" --argjson numbers "$chunk" '{team:$team, numbers:$numbers, first:250, after:null}')
+      resp=$(mktemp)
+      if ! gql_post "$GQL_ISSUES_BY_NUMBER" "$vars" > "$resp" 2>/dev/null; then
+        echo "WARN: blockedBy closure: transport failure resolving $team batch — marking complete=false." >&2
+        rm -f "$resp"; rc=1; continue
+      fi
+      gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "PARSE_ERROR")
+      if [[ -n "$gqlerr" ]]; then
+        echo "WARN: blockedBy closure: GraphQL error resolving $team batch: $gqlerr — marking complete=false." >&2
+        [[ -n "$LAST_RATELIMIT_HEADERS" ]] && { echo "  rate-limit budget at failure:" >&2; printf '%s\n' "$LAST_RATELIMIT_HEADERS" | sed 's/^/    /' >&2; }
+        rm -f "$resp"; rc=1; continue
+      fi
+      if ! jq -e '.data.issues | has("nodes")' "$resp" >/dev/null 2>&1; then
+        echo "WARN: blockedBy closure: unexpected response shape resolving $team batch — marking complete=false." >&2
+        rm -f "$resp"; rc=1; continue
+      fi
+      nodes=$(jq -c '[ .data.issues.nodes[] | {id, identifier, updatedAt, state, project, _external: true} ]' "$resp")
+      acc=$(jq -cn --argjson a "$acc" --argjson n "$nodes" '$a + $n') || { rm -f "$resp"; rc=1; continue; }
+      rm -f "$resp"
+    done
+  done <<< "$teams"
+
+  # Every requested identifier must resolve; an unresolved blocker is a real gap, not silence.
+  local resolved unresolved u
+  resolved=$(echo "$acc" | jq -c '[.[].identifier] | unique')
+  unresolved=$(jq -cn --argjson miss "$missing" --argjson got "$resolved" '$miss - $got')
+  u=$(echo "$unresolved" | jq 'length')
+  if [[ "$u" -gt 0 ]]; then
+    echo "WARN: blockedBy closure: $u blocker(s) unresolved: $(echo "$unresolved" | jq -c .) — marking complete=false." >&2
+    rc=1
+  fi
+  printf '%s' "$acc" > "$out_file"
+  return $rc
+}
 
 # ---------- initiative scope oracle (honesty invariants) ----------
 # resolve_initiative_scope: ONE authoritative GraphQL call (never per-project) that resolves the
@@ -914,17 +1026,19 @@ cmd_sync_initiative() {
   member_count=$(printf '%s\n' "$scope_names" | grep -c .)
 
   local scope_desc="initiative \"${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}\" ($member_count member project(s))"
-  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped to $scope_desc) + closed (team-wide, slim) + blocked-by graph..."
+  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active + closed both scoped to $scope_desc, slim closed leg, + blockedBy closure..."
 
-  local active_tmp done_tmp all_tmp synced_at complete
-  active_tmp=$(mktemp); done_tmp=$(mktemp); all_tmp=$(mktemp)
+  local active_tmp done_tmp all_tmp ext_tmp combined_tmp synced_at complete
+  active_tmp=$(mktemp); done_tmp=$(mktemp); all_tmp=$(mktemp); ext_tmp=$(mktemp); combined_tmp=$(mktemp)
   synced_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   complete=true
 
-  # Build server-side filters. Active = team + non-terminal state + project.name.in <members>.
-  # Closed = team + terminal state, TEAM-WIDE (no project/initiative filter — cross-scope
-  # blockers still resolve, and the fetch is slim enough that team-wide is cheap; see the
-  # GQL_CLOSED comment).
+  # Build server-side filters. BOTH legs are scoped by the initiative's member projects
+  # (project.name.in <members>) — the closed leg is NO LONGER team-wide (PO bug report
+  # 2026-07-09: team-wide closed leaked every Done/Canceled issue of every project in the
+  # team into an initiative-bound cache). Active = non-terminal state; Closed = terminal
+  # state. Out-of-initiative blockers are re-resolved by the blockedBy-closure pass, not by
+  # widening this leg.
   local filter_active vars_active plist
   plist=$(printf '%s\n' "$scope_names" | jq -R -s 'split("\n") | map(select(length>0))')
   filter_active=$(jq -cn --arg team "$TEAM_KEY" --argjson p "$plist" \
@@ -932,8 +1046,8 @@ cmd_sync_initiative() {
   vars_active=$(jq -cn --argjson f "$filter_active" '{filter:$f}')
 
   local filter_closed vars_closed
-  filter_closed=$(jq -cn --arg team "$TEAM_KEY" \
-    '{team:{key:{eq:$team}}, state:{type:{in:["completed","canceled"]}}}')
+  filter_closed=$(jq -cn --arg team "$TEAM_KEY" --argjson p "$plist" \
+    '{team:{key:{eq:$team}}, state:{type:{in:["completed","canceled"]}}, project:{name:{in:$p}}}')
   vars_closed=$(jq -cn --argjson f "$filter_closed" '{filter:$f}')
 
   # 1) ACTIVE issues (in-scope). Fatal on failure — without the open set there is no usable
@@ -956,7 +1070,7 @@ cmd_sync_initiative() {
   if ! resolve_overflow "$active_tmp"; then
     complete=false
   fi
-  # 2) CLOSED issues (team-wide, slim). NON-fatal: on failure keep the partial set and mark
+  # 2) CLOSED issues (in-scope, slim). NON-fatal: on failure keep the partial set and mark
   #    complete=false so the engine frontier sets readComplete=false and retries instead of
   #    trusting an under-resolved blocker graph.
   #    Page size 250 stays large: GQL_CLOSED has ZERO nested connections — per issue ≈ 10
@@ -967,23 +1081,44 @@ cmd_sync_initiative() {
     complete=false   # keep whatever $done_tmp accumulated; do not clobber
   fi
 
-  # 2b) HONESTY INVARIANTS (run BEFORE projection so `complete` written into the JSON is
-  #     truthful). These make a mis-scoped / open-frontier-losing result that still claims
-  #     complete=true structurally impossible — the exact failure mode of the broken sync
-  #     (Done-only cache, complete=true, exit 0). The team-wide CLOSED set is intentionally
-  #     out-of-scope (blocker-resolution scaffolding), so these checks operate on the ACTIVE
-  #     (open) set — the in-scope frontier the engine actually consumes.
-  local open_count member_json open_out_of_scope
+  # 3) Merge + dedupe by identifier (states are disjoint; active listed first so its
+  #    full-field node wins on any defensive collision). This is the in-initiative cache;
+  #    the honesty invariants police the WHOLE of it (both legs are now scoped), and the
+  #    blockedBy-closure pass then appends external-tagged blocker nodes on top.
+  if ! jq -s '(.[0] + .[1]) | unique_by(.identifier)' "$active_tmp" "$done_tmp" > "$all_tmp"; then
+    rm -f "$active_tmp" "$done_tmp" "$all_tmp" "$ext_tmp" "$combined_tmp"
+    echo "ERROR: failed to merge issue sets — initiative.json left untouched." >&2
+    exit 1
+  fi
+
+  # 3b) BLOCKEDBY CLOSURE — resolve every blockedBy target that falls OUTSIDE the initiative
+  #     (now that the closed leg no longer drags the whole team's Done issues in) as minimal,
+  #     external-tagged nodes, so a frontier can ALWAYS resolve each blockedBy edge's state
+  #     from the cache. A closure failure/gap is treated like an incomplete closed fetch:
+  #     keep what resolved, mark complete=false (never silently drop a blocker edge).
+  if ! close_blockedby "$all_tmp" "$ext_tmp"; then
+    complete=false
+  fi
+
+  # 4) HONESTY INVARIANTS (run BEFORE projection so `complete` written into the JSON is
+  #    truthful). These make a mis-scoped / open-frontier-losing result that still claims
+  #    complete=true structurally impossible — the exact failure mode of the broken sync
+  #    (Done-only cache, complete=true, exit 0). Both legs are now initiative-scoped, so the
+  #    scope-purity check polics the WHOLE in-initiative cache ($all_tmp = active + closed).
+  #    The external blocker nodes ($ext_tmp) are explicitly out-of-initiative scaffolding and
+  #    are EXCLUDED here by construction (they are a separate set, appended only at projection).
+  local open_count member_json out_of_scope
   open_count=$(jq 'length' "$active_tmp")
   member_json=$(printf '%s\n' "$MEMBER_PROJECTS" | jq -R -s 'split("\n") | map(select(length>0))')
-  # (B) Scope purity — every OPEN issue must sit in a resolved member project. The active fetch
-  #     is scoped by project.name.in <members> so this holds by construction; re-verify as a
-  #     belt-and-suspenders catch for a server-side over-return (issues leaking in from outside
-  #     the initiative).
-  open_out_of_scope=$(jq --argjson m "$member_json" \
-    '[ .[] | (.project.name // "«no-project»") as $p | select(($m | index($p)) == null) | $p ] | unique' "$active_tmp")
-  if [[ "$(echo "$open_out_of_scope" | jq 'length')" -gt 0 ]]; then
-    echo "HONESTY-FAIL: open issues reference project(s) outside initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}': $(echo "$open_out_of_scope" | jq -c .) — marking cache complete=false." >&2
+  # (B) Scope purity — every cached in-initiative issue (open OR closed) must sit in a resolved
+  #     member project. Both fetches are scoped by project.name.in <members> so this holds by
+  #     construction; re-verify as a belt-and-suspenders catch for a server-side over-return
+  #     (issues leaking in from outside the initiative). External blocker nodes are NOT in
+  #     $all_tmp, so they are correctly exempt from this check.
+  out_of_scope=$(jq --argjson m "$member_json" \
+    '[ .[] | (.project.name // "«no-project»") as $p | select(($m | index($p)) == null) | $p ] | unique' "$all_tmp")
+  if [[ "$(echo "$out_of_scope" | jq 'length')" -gt 0 ]]; then
+    echo "HONESTY-FAIL: cached issues reference project(s) outside initiative '${INIT_RESOLVED_NAME:-$LINEAR_INITIATIVE}': $(echo "$out_of_scope" | jq -c .) — marking cache complete=false." >&2
     complete=false
   fi
   # (C) Open-frontier-lost guard — an INDEPENDENT open-work probe (the project.initiatives
@@ -996,18 +1131,22 @@ cmd_sync_initiative() {
     complete=false
   fi
 
-  # 3) Merge + dedupe by identifier (states are disjoint; active listed first so its
-  #    full-field node wins on any defensive collision).
-  if ! jq -s '(.[0] + .[1]) | unique_by(.identifier)' "$active_tmp" "$done_tmp" > "$all_tmp"; then
-    rm -f "$active_tmp" "$done_tmp" "$all_tmp"
-    echo "ERROR: failed to merge issue sets — initiative.json left untouched." >&2
+  # 5) Combine the in-initiative cache with the external blocker nodes for projection. External
+  #    nodes carry `_external:true`, which projection lifts to `external:true` in each issue
+  #    value; in-initiative nodes lack the flag and project to `external:false`.
+  if ! jq -s '(.[0] + .[1]) | unique_by(.identifier)' "$all_tmp" "$ext_tmp" > "$combined_tmp"; then
+    rm -f "$active_tmp" "$done_tmp" "$all_tmp" "$ext_tmp" "$combined_tmp"
+    echo "ERROR: failed to combine external blocker nodes — initiative.json left untouched." >&2
     exit 1
   fi
 
-  # 4) Project a slim, jq-friendly cache keyed by identifier. blockedBy = the inverse
+  # 6) Project a slim, jq-friendly cache keyed by identifier. blockedBy = the inverse
   #    "blocks" edges (issues that block THIS one); blocks = outgoing (for most-blocking
   #    ordering). Labels/project/milestone/updatedAt let the frontier apply holds and
-  #    ordering entirely from cache. `complete` is the honesty bit.
+  #    ordering entirely from cache. `complete` is the honesty bit. `external:true` marks a
+  #    minimal blocker node resolved by the closure pass — it lives OUTSIDE the initiative
+  #    and exists solely so blockedBy edges resolve (it carries no labels/blockedBy of its
+  #    own and is never itself a frontier candidate). `counts.external` reports how many.
   local init_tmp="$CACHE_DIR/initiative.json.tmp"
   if ! jq --arg ts "$synced_at" --arg team "$TEAM_KEY" --argjson complete "$complete" '
     . as $all |
@@ -1017,6 +1156,7 @@ cmd_sync_initiative() {
       complete: $complete,
       counts: {
         total: ($all | length),
+        external: ($all | map(select(._external == true)) | length),
         byState: ($all | map(.state.name) | group_by(.) | map({key: .[0], value: length}) | from_entries)
       },
       issues: ($all | map({
@@ -1028,12 +1168,13 @@ cmd_sync_initiative() {
           labels: [.labels.nodes[]?.name],
           updatedAt: .updatedAt,
           blockedBy: ([.inverseRelations.nodes[]? | select(.type=="blocks") | .issue.identifier] | unique),
-          blocks: ([.relations.nodes[]? | select(.type=="blocks") | .relatedIssue.identifier] | unique)
+          blocks: ([.relations.nodes[]? | select(.type=="blocks") | .relatedIssue.identifier] | unique),
+          external: (._external // false)
         }
       }) | from_entries)
     }
-  ' "$all_tmp" > "$init_tmp"; then
-    rm -f "$active_tmp" "$done_tmp" "$all_tmp" "$init_tmp"
+  ' "$combined_tmp" > "$init_tmp"; then
+    rm -f "$active_tmp" "$done_tmp" "$all_tmp" "$ext_tmp" "$combined_tmp" "$init_tmp"
     echo "ERROR: projection failed — initiative.json left untouched." >&2
     exit 1
   fi
@@ -1043,9 +1184,10 @@ cmd_sync_initiative() {
   # Per-issue body files (cache-first read model): the ACTIVE (Query A) payload carries the
   # FULL description, so every in-scope active issue gets its issues/<id>.yaml written here
   # with zero extra API calls. Bodies are written ONLY for in-scope active issues — the
-  # team-wide CLOSED (Query B) set is slim (no description) and exists solely as blocker-
-  # resolution targets in initiative.json, so it gets NO body files (a closed ticket that is
-  # ever re-opened/read regenerates its body on the next refresh-on-write). Comments are not
+  # in-scope CLOSED (Query B) set and the external blocker nodes (Query C) are slim (no
+  # description) and exist solely as blocker-resolution targets in initiative.json, so they
+  # get NO body files (a closed ticket that is ever re-opened/read regenerates its body on the
+  # next refresh-on-write). Comments are not
   # in the list payload — they appear on the first `linear-sync.sh issue <id>` (--with-comments)
   # write. Agents read tickets ONLY from these files.
   mkdir -p "$CACHE_DIR/issues"
@@ -1068,12 +1210,13 @@ cmd_sync_initiative() {
     body_count=$((body_count + 1))
   done < <(jq -c '.[]' "$active_tmp")
 
-  rm -f "$active_tmp" "$done_tmp" "$all_tmp"
+  rm -f "$active_tmp" "$done_tmp" "$all_tmp" "$ext_tmp" "$combined_tmp"
 
-  local total done_n
+  local total done_n ext_n
   total=$(jq -r '.counts.total' "$CACHE_DIR/initiative.json")
   done_n=$(jq -r '.counts.byState.Done // 0' "$CACHE_DIR/initiative.json")
-  echo "Initiative synced: $total issues ($done_n Done, complete=$complete, $body_count body files) → $CACHE_DIR/initiative.json"
+  ext_n=$(jq -r '.counts.external // 0' "$CACHE_DIR/initiative.json")
+  echo "Initiative synced: $total issues ($done_n Done, $ext_n external blocker(s), complete=$complete, $body_count body files) → $CACHE_DIR/initiative.json"
   jq -r '.counts.byState | to_entries[] | "  " + .key + ": " + (.value|tostring)' "$CACHE_DIR/initiative.json"
   [[ "$complete" == "true" ]] || exit 3   # non-zero (partial) so callers can detect
 }
