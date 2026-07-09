@@ -9,6 +9,7 @@
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PageService } from 'src/core/page/services/page.service';
 import { EventName } from 'src/common/events/event.contants';
 import {
@@ -32,7 +33,13 @@ describe('PageService.movePage (ENG-1372)', () => {
   beforeAll(async () => {
     testDb = await startTestDatabase();
     eventEmitter = new EventEmitter2();
-    pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
+    pageRepo = new PageRepo(
+      testDb.db as any,
+      {} as any,
+      eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
+    );
 
     // movePage only exercises pageRepo/db/eventEmitter — the remaining
     // constructor deps are never invoked by the move path, so inert

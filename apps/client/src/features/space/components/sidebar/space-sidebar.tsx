@@ -59,6 +59,7 @@ import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { Feature } from "@/ee/features";
 import { ErrorBoundary } from "react-error-boundary";
+import { ShowSupersededToggle } from "@/features/page/components/show-superseded-toggle.tsx";
 
 export function SpaceSidebar() {
   const { t } = useTranslation();
@@ -214,6 +215,12 @@ export function SpaceSidebar() {
               )}
             </Group>
           </Group>
+
+          {/* ENG-1440 (AC6, AC7, F1 fix) — the per-space "show superseded"
+              toggle drives SpaceTree's sidebar query below. */}
+          <div className={classes.pagesHeader} style={{ paddingBlock: 4 }}>
+            <ShowSupersededToggle />
+          </div>
 
           <div className={classes.pages}>
             <SpaceTree

@@ -164,8 +164,12 @@ export class AttachmentRepo {
       .execute();
   }
 
-  async deleteAttachmentById(attachmentId: string): Promise<void> {
-    await this.db
+  async deleteAttachmentById(
+    attachmentId: string,
+    trx?: KyselyTransaction,
+  ): Promise<void> {
+    const db = dbOrTx(this.db, trx);
+    await db
       .deleteFrom('attachments')
       .where('id', '=', attachmentId)
       .executeTakeFirst();

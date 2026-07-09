@@ -19,6 +19,15 @@ import { QueueJob, QueueName } from '../../integrations/queue/constants';
 import { extractUserMentionIdsFromJson } from '../../common/helpers/prosemirror/utils';
 import { ICommentNotificationJob } from '../../integrations/queue/constants/queue.interface';
 import { WsService } from '../../ws/ws.service';
+import { InjectKysely } from 'nestjs-kysely';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
+import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_COMMENT_CREATED,
+  EVT_COMMENT_UPDATED,
+  EVT_COMMENT_DELETED,
+} from '../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
 export class CommentService {
@@ -33,6 +42,8 @@ export class CommentService {
     private generalQueue: Queue,
     @InjectQueue(QueueName.NOTIFICATION_QUEUE)
     private notificationQueue: Queue,
+    @InjectKysely() private readonly db: KyselyDB,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   async findById(commentId: string) {
@@ -67,15 +78,30 @@ export class CommentService {
       }
     }
 
-    const inserted = await this.commentRepo.insertComment({
-      pageId: page.id,
-      content: commentContent,
-      selection: createCommentDto?.selection?.substring(0, 250) ?? null,
-      type: createCommentDto.type ?? 'page',
-      parentCommentId: createCommentDto?.parentCommentId,
-      creatorId: user.id,
-      workspaceId: workspaceId,
-      spaceId: page.spaceId,
+    const inserted = await executeTx(this.db, async (trx) => {
+      const row = await this.commentRepo.insertComment(
+        {
+          pageId: page.id,
+          content: commentContent,
+          selection: createCommentDto?.selection?.substring(0, 250) ?? null,
+          type: createCommentDto.type ?? 'page',
+          parentCommentId: createCommentDto?.parentCommentId,
+          creatorId: user.id,
+          workspaceId: workspaceId,
+          spaceId: page.spaceId,
+        },
+        trx,
+      );
+
+      // ENG-1609 AC4 — comment.created, atomic in the same tx as the insert.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_COMMENT_CREATED,
+        aggregateId: row.id,
+        workspaceId,
+        payload: { id: row.id, pageId: page.id, workspaceId },
+      });
+
+      return row;
     });
 
     if (createCommentDto.yjsSelection) {
@@ -173,14 +199,25 @@ export class CommentService {
 
     const editedAt = new Date();
 
-    await this.commentRepo.updateComment(
-      {
-        content: commentContent,
-        editedAt: editedAt,
-        updatedAt: editedAt,
-      },
-      comment.id,
-    );
+    await executeTx(this.db, async (trx) => {
+      await this.commentRepo.updateComment(
+        {
+          content: commentContent,
+          editedAt: editedAt,
+          updatedAt: editedAt,
+        },
+        comment.id,
+        trx,
+      );
+
+      // ENG-1609 AC4 — comment.updated, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_COMMENT_UPDATED,
+        aggregateId: comment.id,
+        workspaceId: comment.workspaceId,
+        payload: { id: comment.id, pageId: comment.pageId },
+      });
+    });
 
     await this.queueCommentNotification(
       commentContent,
@@ -204,6 +241,24 @@ export class CommentService {
     });
 
     return comment;
+  }
+
+  /**
+   * ENG-1609 AC4 — comment.deleted, atomic with the delete itself. Callers
+   * (the comment controller) do the ownership/permission check up front and
+   * pass in the already-loaded comment to delete.
+   */
+  async delete(comment: Comment): Promise<void> {
+    await executeTx(this.db, async (trx) => {
+      await this.commentRepo.deleteComment(comment.id, trx);
+
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_COMMENT_DELETED,
+        aggregateId: comment.id,
+        workspaceId: comment.workspaceId,
+        payload: { id: comment.id, pageId: comment.pageId },
+      });
+    });
   }
 
   private async queueCommentNotification(

@@ -14,6 +14,7 @@ import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import SpaceAbilityFactory from 'src/core/casl/abilities/space-ability.factory';
 import { OrvexPermissionsService } from 'src/core/permissions/orvex-permissions.service';
@@ -70,6 +71,7 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
   let controller: PagePermissionController;
   let pagePermissionRepo: PagePermissionRepo;
   let pageRepo: PageRepo;
+  let orvexAudit: OrvexAuditService;
 
   beforeAll(async () => {
     testDb = await startTestDatabase();
@@ -93,7 +95,14 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       spaceRepo,
       fakeCache(),
     );
-    pageRepo = new PageRepo(db, spaceMemberRepo, new EventEmitter2());
+    const wsServiceStub = { emitInvalidate: () => {} } as any;
+    pageRepo = new PageRepo(
+      db,
+      spaceMemberRepo,
+      new EventEmitter2(),
+      new OutboxWriter(db),
+      wsServiceStub,
+    );
     pagePermissionRepo = new PagePermissionRepo(db, groupRepo, fakeCache());
     const spaceAbility = new SpaceAbilityFactory(spaceMemberRepo);
     permissionsService = new OrvexPermissionsService(
@@ -101,7 +110,7 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       pagePermissionRepo,
       spaceAbility,
     );
-    const orvexAudit = new OrvexAuditService(db);
+    orvexAudit = new OrvexAuditService(db);
     const pagePermissionService = new PagePermissionService(pagePermissionRepo);
     controller = new PagePermissionController(
       db,
@@ -369,6 +378,50 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       userId: member.id,
     });
     expect(filtered).toContain(page.id);
+  });
+
+  it('ENG-1396 fix-1 (review finding 1) — every ACL mutation marks its audit write critical:true (fail-hard, joins the caller tx per the ENG-1380 contract)', async () => {
+    const user = await memberWithRole(SpaceRole.READER);
+    const page = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: admin.id,
+      position: 'a9-critical',
+      title: 'eng1396-critical-audit',
+    });
+
+    const logAndCommitSpy = jest.spyOn(orvexAudit, 'logAndCommit');
+
+    await controller.restrict({ pageId: page.id }, admin as any, {
+      id: workspaceId,
+    } as any);
+    await controller.addPermission(
+      { pageId: page.id, userId: user.id, role: PagePermissionRole.READER },
+      admin as any,
+      { id: workspaceId } as any,
+    );
+    await controller.updatePermission(
+      { pageId: page.id, userId: user.id, role: PagePermissionRole.WRITER },
+      admin as any,
+      { id: workspaceId } as any,
+    );
+    await controller.removePermission(
+      { pageId: page.id, userId: user.id },
+      admin as any,
+      { id: workspaceId } as any,
+    );
+    await controller.removeRestriction({ pageId: page.id }, admin as any, {
+      id: workspaceId,
+    } as any);
+
+    const calls = logAndCommitSpy.mock.calls.filter(
+      ([, data]) => data.resourceId === page.id,
+    );
+    expect(calls).toHaveLength(5);
+    for (const [, data] of calls) {
+      expect(data.critical).toBe(true);
+    }
+    logAndCommitSpy.mockRestore();
   });
 
   it('AC7 — last-writer guard rejects removing or demoting the sole remaining writer', async () => {

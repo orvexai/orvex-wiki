@@ -14,6 +14,8 @@ import {
   markAiChangedBlocks,
   stripAiAuthoredMarks,
 } from './provenance-content.util';
+import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
+import { EVT_PAGE_STATUS_CHANGED } from '../../orvex/events/constants/orvex-event-types';
 
 /**
  * The set of provenance states a page can carry.
@@ -67,6 +69,7 @@ export class OrvexPageProvenanceService {
     @InjectKysely() private readonly db: KyselyDB,
     private readonly pageRepo: PageRepo,
     private readonly auditService: OrvexAuditService,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   /**
@@ -271,6 +274,14 @@ export class OrvexPageProvenanceService {
    * the audit write in the SAME transaction (AC1/AC4 — exactly one audit
    * event per stamp, atomic with the write — no lag window). ENG-1603:
    * the trio is upserted into `orvex_page_meta` (not `pages`).
+   *
+   * ENG-1383 F2 fix — also writes the `page.status_changed` outbox row IN
+   * THE SAME TRANSACTION (AC7's one non-orphaned, non-satellite producer —
+   * "page status" here is provenance status). This is the real atomic
+   * primitive (AC1/AC2-style), the ONLY producer of this event — there is
+   * no `@OnEvent`-based bus in the loop (ENG-1383 fix-pass-1 F1 removed
+   * that dead scaffolding; the workspace/space/comment/attachment
+   * lifecycle family it wired stays descoped to ENG-1609 per PD-4d).
    */
   private async writeStatus(
     pageId: string,
@@ -317,7 +328,25 @@ export class OrvexPageProvenanceService {
           after: { provenanceStatus: status },
         },
         metadata,
+        // ENG-1396 fix-1: this IS the atomic primitive (see the doc comment
+        // above) — fail-hard, join the caller tx (ENG-1380 contract). See
+        // review finding 1.
+        critical: true,
       });
+
+      if (before !== status) {
+        await this.outboxWriter.enqueue(tx, {
+          type: EVT_PAGE_STATUS_CHANGED,
+          aggregateId: pageId,
+          workspaceId,
+          payload: {
+            id: pageId,
+            spaceId: page.spaceId ?? null,
+            fromStatus: before,
+            toStatus: status,
+          },
+        });
+      }
     };
 
     if (trx) {

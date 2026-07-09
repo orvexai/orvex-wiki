@@ -24,6 +24,12 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_SPACE_MEMBER_ADDED,
+  EVT_SPACE_MEMBER_REMOVED,
+  EVT_SPACE_MEMBER_ROLE_CHANGED,
+} from '../../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
 export class SpaceMemberService {
@@ -35,6 +41,7 @@ export class SpaceMemberService {
     private favoriteRepo: FavoriteRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   async addUserToSpace(
@@ -47,11 +54,25 @@ export class SpaceMemberService {
     //if (existingSpaceUser) {
     //           throw new BadRequestException('User already added to this space');
     //         }
-    await this.spaceMemberRepo.insertSpaceMember(
-      {
-        userId: userId,
-        spaceId: spaceId,
-        role: role,
+    await executeTx(
+      this.db,
+      async (innerTrx) => {
+        await this.spaceMemberRepo.insertSpaceMember(
+          {
+            userId: userId,
+            spaceId: spaceId,
+            role: role,
+          },
+          innerTrx,
+        );
+
+        // ENG-1609 AC3 — space.member_added, atomic in the same tx.
+        await this.outboxWriter.enqueue(innerTrx, {
+          type: EVT_SPACE_MEMBER_ADDED,
+          aggregateId: spaceId,
+          workspaceId,
+          payload: { spaceId, workspaceId, userId },
+        });
       },
       trx,
     );
@@ -64,11 +85,25 @@ export class SpaceMemberService {
     workspaceId: string,
     trx?: KyselyTransaction,
   ): Promise<void> {
-    await this.spaceMemberRepo.insertSpaceMember(
-      {
-        groupId: groupId,
-        spaceId: spaceId,
-        role: role,
+    await executeTx(
+      this.db,
+      async (innerTrx) => {
+        await this.spaceMemberRepo.insertSpaceMember(
+          {
+            groupId: groupId,
+            spaceId: spaceId,
+            role: role,
+          },
+          innerTrx,
+        );
+
+        // ENG-1609 AC3 — space.member_added (group), atomic in the same tx.
+        await this.outboxWriter.enqueue(innerTrx, {
+          type: EVT_SPACE_MEMBER_ADDED,
+          aggregateId: spaceId,
+          workspaceId,
+          payload: { spaceId, workspaceId, groupId },
+        });
       },
       trx,
     );
@@ -171,7 +206,29 @@ export class SpaceMemberService {
     const membersToAdd = [...usersToAdd, ...groupsToAdd];
 
     if (membersToAdd.length > 0) {
-      await this.spaceMemberRepo.insertSpaceMember(membersToAdd);
+      await executeTx(this.db, async (trx) => {
+        await this.spaceMemberRepo.insertSpaceMember(membersToAdd, trx);
+
+        // ENG-1609 AC3 — space.member_added per real inserted member,
+        // atomic in the same tx as the batch insert (AC8 — one row per
+        // actual mutated member, no synthetic events).
+        for (const user of validUsers) {
+          await this.outboxWriter.enqueue(trx, {
+            type: EVT_SPACE_MEMBER_ADDED,
+            aggregateId: dto.spaceId,
+            workspaceId,
+            payload: { spaceId: dto.spaceId, workspaceId, userId: user.id },
+          });
+        }
+        for (const group of validGroups) {
+          await this.outboxWriter.enqueue(trx, {
+            type: EVT_SPACE_MEMBER_ADDED,
+            aggregateId: dto.spaceId,
+            workspaceId,
+            payload: { spaceId: dto.spaceId, workspaceId, groupId: group.id },
+          });
+        }
+      });
 
       // Audit log for each member added
       for (const user of validUsers) {
@@ -280,6 +337,19 @@ export class SpaceMemberService {
         dto.spaceId,
         { trx },
       );
+
+      // ENG-1609 AC3 — space.member_removed, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_SPACE_MEMBER_REMOVED,
+        aggregateId: dto.spaceId,
+        workspaceId,
+        payload: {
+          spaceId: dto.spaceId,
+          workspaceId,
+          userId: spaceMember.userId,
+          groupId: spaceMember.groupId,
+        },
+      });
     });
 
     this.auditService.log({
@@ -343,11 +413,29 @@ export class SpaceMemberService {
       await this.validateLastAdmin(dto.spaceId);
     }
 
-    await this.spaceMemberRepo.updateSpaceMember(
-      { role: dto.role },
-      spaceMember.id,
-      dto.spaceId,
-    );
+    await executeTx(this.db, async (trx) => {
+      await this.spaceMemberRepo.updateSpaceMember(
+        { role: dto.role },
+        spaceMember.id,
+        dto.spaceId,
+        trx,
+      );
+
+      // ENG-1609 AC3 — space.member_role_changed, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_SPACE_MEMBER_ROLE_CHANGED,
+        aggregateId: dto.spaceId,
+        workspaceId,
+        payload: {
+          spaceId: dto.spaceId,
+          workspaceId,
+          userId: spaceMember.userId,
+          groupId: spaceMember.groupId,
+          before: spaceMember.role,
+          after: dto.role,
+        },
+      });
+    });
 
     this.auditService.log({
       event: AuditEvent.SPACE_MEMBER_ROLE_CHANGED,

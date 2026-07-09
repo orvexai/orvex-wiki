@@ -71,6 +71,7 @@ export interface Audit {
   actorId: string | null;
   actorType: Generated<string>;
   changes: Json | null;
+  clientId: string | null;
   createdAt: Generated<Timestamp>;
   event: string;
   id: Generated<string>;
@@ -338,6 +339,16 @@ export interface Pages {
   updatedAt: Generated<Timestamp>;
   workspaceId: string;
   ydoc: Buffer | null;
+}
+
+export interface OrvexEventOutbox {
+  aggregateId: string;
+  createdAt: Generated<Timestamp>;
+  id: Generated<string>;
+  payload: Json;
+  relayedAt: Timestamp | null;
+  type: string;
+  workspaceId: string;
 }
 
 export interface OrvexPageMeta {
@@ -687,6 +698,7 @@ export interface DB {
   groupUsers: GroupUsers;
   labels: Labels;
   notifications: Notifications;
+  orvexEventOutbox: OrvexEventOutbox;
   pageAccess: PageAccess;
   pageTransclusionReferences: PageTransclusionReferences;
   pageTransclusions: PageTransclusions;

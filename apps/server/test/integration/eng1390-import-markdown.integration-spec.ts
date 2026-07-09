@@ -36,6 +36,7 @@ import * as os from 'os';
 import { promises as fsp } from 'fs';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { ImportService } from 'src/integrations/import/services/import.service';
 import { FileImportTaskService } from 'src/integrations/import/services/file-import-task.service';
 import { StorageService } from 'src/integrations/storage/storage.service';
@@ -85,7 +86,13 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
   beforeAll(async () => {
     testDb = await startTestDatabase();
     const eventEmitter = new EventEmitter2();
-    pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
+    pageRepo = new PageRepo(
+      testDb.db as any,
+      {} as any,
+      eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
+    );
 
     // processMarkdown/importPage(.md) only exercise pageRepo/db — the
     // remaining constructor deps (storage, file-task queue, moduleRef) are

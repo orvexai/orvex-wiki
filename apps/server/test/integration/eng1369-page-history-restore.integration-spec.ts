@@ -32,6 +32,7 @@ import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PageHistoryService } from 'src/core/page/services/page-history.service';
 import { PageService } from 'src/core/page/services/page.service';
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
+import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { jsonToText, stampBlockIds } from 'src/collaboration/collaboration.util';
 import {
   seedPage,
@@ -83,7 +84,13 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
   beforeAll(async () => {
     testDb = await startTestDatabase();
     const eventEmitter = new EventEmitter2();
-    pageRepo = new PageRepo(testDb.db as any, {} as any, eventEmitter);
+    pageRepo = new PageRepo(
+      testDb.db as any,
+      {} as any,
+      eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
+    );
     pageHistoryRepo = new PageHistoryRepo(testDb.db as any);
     orvexAudit = new OrvexAuditService(testDb.db as any);
 
@@ -192,6 +199,12 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     });
     const history = await insertHistory(testDb.db, page, historicalContent);
 
+    // ENG-1396 fix-1 (review finding 1): the metadata-bump + audit write
+    // MUST join the caller tx (fail-hard, ENG-1380 contract) — assert the
+    // real (non-mocked) `logAndCommit` is invoked with `critical: true`,
+    // not left on the shared sink's non-critical/deferred default.
+    const logAndCommitSpy = jest.spyOn(orvexAudit, 'logAndCommit');
+
     const restored = await service.restoreFromHistory(
       page.id,
       history.id,
@@ -232,6 +245,12 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     expect(new Date(metadata.restoredFromTimestamp).getTime()).toBe(
       new Date(history.createdAt as any).getTime(),
     );
+
+    expect(logAndCommitSpy).toHaveBeenCalledTimes(1);
+    expect(logAndCommitSpy.mock.calls[0][1]).toMatchObject({
+      critical: true,
+    });
+    logAndCommitSpy.mockRestore();
   });
 
   it('AC3 (atomicity) — a fault-injected audit failure rolls back the page-mutation row', async () => {
@@ -465,6 +484,8 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
       testDb.db as any,
       {} as any,
       eventEmitter,
+      new OutboxWriter(testDb.db as any),
+      { emitInvalidate: () => {} } as any,
     );
     const isolatedService = new PageHistoryService(
       new PageHistoryRepo(testDb.db as any),
