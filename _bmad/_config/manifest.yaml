@@ -1,0 +1,55 @@
+installation:
+  version: 6.10.0
+  installDate: 2026-07-08T17:01:34.309Z
+  lastUpdated: 2026-07-08T17:01:34.309Z
+modules:
+  - name: core
+    version: 6.10.0
+    installDate: 2026-07-08T17:01:33.878Z
+    lastUpdated: 2026-07-08T17:01:34.303Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: bmm
+    version: 6.10.0
+    installDate: 2026-07-08T17:01:33.952Z
+    lastUpdated: 2026-07-08T17:01:34.303Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: tea
+    version: v1.19.0
+    installDate: 2026-07-08T17:01:34.139Z
+    lastUpdated: 2026-07-08T17:01:34.304Z
+    source: external
+    npmPackage: bmad-method-test-architecture-enterprise
+    repoUrl: https://github.com/bmad-code-org/bmad-method-test-architecture-enterprise
+    channel: stable
+    sha: 8734d51f24071ddbcb3617390b5fcddb4128ef77
+  - name: wds
+    version: v0.4.3
+    installDate: 2026-07-08T17:01:34.244Z
+    lastUpdated: 2026-07-08T17:01:34.305Z
+    source: external
+    npmPackage: bmad-wds
+    repoUrl: https://github.com/bmad-code-org/bmad-method-wds-expansion
+    channel: stable
+    sha: cc16f09fcfab26d35635af1491f36a38a8431c8d
+  - name: lnr
+    version: main
+    installDate: 2026-07-08T17:01:34.251Z
+    lastUpdated: 2026-07-08T17:01:34.307Z
+    source: custom
+    npmPackage: null
+    repoUrl: git@github.com:orvexai/bmad-modules
+    channel: next
+  - name: doc
+    version: main
+    installDate: 2026-07-08T17:01:34.263Z
+    lastUpdated: 2026-07-08T17:01:34.309Z
+    source: custom
+    npmPackage: null
+    repoUrl: git@github.com:orvexai/bmad-modules
+    channel: next
+ides:
+  - claude-code
