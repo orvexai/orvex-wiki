@@ -492,6 +492,12 @@ cmd_check() {
 # projection keyed by identifier. Deliberately does NOT touch work-status.yaml /
 # milestone-map.md / issues/*.yaml (those stay owned by the single-project `sync`).
 
+# DEPRECATED / UNUSED: fetch_paginated + fetch_done_scoped were the linearis-`issues list`
+# fetch path for cmd_sync_initiative. They are SUPERSEDED by the direct-GraphQL path below
+# (gql_paginate + GQL_ACTIVE/GQL_CLOSED) because the linearis list fragment carries FOUR
+# unbounded nested connections whose per-page complexity Linear meters as ~hundreds of
+# request-equivalents, exhausting the 2500/hr budget. Kept here (not called by any command)
+# only to minimise churn; safe to delete in a follow-up.
 # fetch_paginated <out> [extra linearis args...]: team-scoped (no --project) paginated
 # `issues list` into a combined bare node-array at <out>. Aborts (return 1) WITHOUT
 # writing on any error/odd shape, so a partial fetch never yields a half cache.
@@ -536,12 +542,182 @@ fetch_paginated() {
   return 0
 }
 
+# fetch_done_scoped <out> <projects_file>: SERVER-SIDE scoped Done fetch. Instead of one
+# team-wide `--status Done` pass (which pays for team ENG's ENTIRE Done history — Houston's
+# thousands of heavy issues — and reliably exhausts Linear's hourly complexity budget
+# mid-pagination), this runs one project-scoped `--project <name> --status Done` paginated
+# fetch per allowlisted project and concatenates the results. The initiative's 15 projects
+# hold only ~tens of Done issues total, so the query complexity drops ~10x and the fetch
+# fits the budget. Returns 1 (partial) if ANY project's Done fetch fails, leaving whatever
+# was fetched so far in <out> (the caller marks complete=false); returns 0 only when every
+# project's Done pages fully drained. Stops on the first failure to avoid re-draining quota.
+fetch_done_scoped() {
+  local out="$1" projects_file="$2"
+  local proj_tmp; proj_tmp=$(mktemp)
+  printf '[]' > "$out"
+  local rc=0
+  while IFS= read -r pname || [[ -n "$pname" ]]; do
+    [[ -n "$pname" ]] || continue
+    if ! fetch_paginated "$proj_tmp" --project "$pname" --status Done; then
+      echo "WARN: Done fetch failed for project '$pname' (rate-limited?) — stopping scoped Done fetch." >&2
+      rc=1
+      break
+    fi
+    jq -s '.[0] + .[1]' "$out" "$proj_tmp" > "$out.next" && mv "$out.next" "$out"
+  done < "$projects_file"
+  rm -f "$proj_tmp"
+  return $rc
+}
+
+# ============================================================================
+# Direct-GraphQL initiative fetch (replaces the linearis `issues list` path for
+# cmd_sync_initiative ONLY — every other command still uses linearis).
+#
+# WHY: `linearis issues list` issues ONE HTTP request per page (dist/services/
+# issue-service.js listIssues → GraphQLClient.request → @linear/sdk rawRequest — NO
+# per-issue fan-out), BUT the fixed `CompleteIssueFields` fragment (dist/gql/gql.js)
+# requests FOUR UNBOUNDED nested connections — labels.nodes, children.nodes,
+# relations.nodes, inverseRelations.nodes — with no `first:` cap. Linear's rate limiter
+# is COMPLEXITY-metered: a `first:100` page × ~4 nested connections (default ~50 each)
+# scores ~tens-of-thousands of complexity and debits ~hundreds of "request-equivalents"
+# from the 2500/hr bucket. Empirically the old team-wide Done pass died after ~5 such fat
+# requests (⇒ ~500 req-equiv each). PLUS each filtered `issues list` invocation silently
+# runs a BatchResolveForSearch request first (dist/common/resolve-filters.js:61).
+#
+# FIX: talk to https://api.linear.app/graphql directly with the SAME token linearis uses,
+# with (A) an ACTIVE query whose nested connections are BOUNDED `first:50`, and (B) a SLIM
+# CLOSED query with ZERO nested connections — collapsing per-page complexity to ~O(1)
+# request-equivalents. Server-side team + state (+ optional project) filters replace the
+# BatchResolve round-trip. Output contract (initiative.json + per-issue YAML) is unchanged.
+# ============================================================================
+LINEAR_GQL_ENDPOINT="https://api.linear.app/graphql"
+
+# resolve_linear_token: mirror linearis' token precedence for the token that is OPERATIVE
+# in this environment. dist/common/auth.js resolves: --api-token flag > $LINEAR_API_TOKEN >
+# encrypted stored (~/.config/linearis/token) > legacy plaintext (~/.linear_api_token).
+# The encrypted stored token cannot be read from bash; this box's linearis already falls
+# back to the legacy plaintext file (it prints the "~/.linear_api_token is deprecated"
+# warning on every call), so that file IS the live token. Precedence here: env, then legacy.
+resolve_linear_token() {
+  if [[ -n "${LINEAR_API_TOKEN:-}" ]]; then
+    LINEAR_TOKEN="$LINEAR_API_TOKEN"; return 0
+  fi
+  if [[ -f "$HOME/.linear_api_token" ]]; then
+    LINEAR_TOKEN="$(tr -d '[:space:]' < "$HOME/.linear_api_token")"
+    [[ -n "$LINEAR_TOKEN" ]] && return 0
+  fi
+  echo "ERROR: no Linear API token — set \$LINEAR_API_TOKEN or create ~/.linear_api_token" >&2
+  return 1
+}
+
+# gql_post <query> <variables_json>: POST to Linear's GraphQL endpoint; raw response JSON
+# to stdout. @linear/sdk sends the personal API key as a raw Authorization header (no
+# "Bearer " prefix) — we mirror that. Returns non-zero only on curl/transport failure;
+# GraphQL-level errors (rate limit, bad filter) surface as {errors:[...]} in the body.
+gql_post() {
+  local query="$1" vars="$2" body
+  body=$(jq -cn --arg q "$query" --argjson v "$vars" '{query:$q, variables:$v}') || return 1
+  curl -sS -X POST "$LINEAR_GQL_ENDPOINT" \
+    -H "Authorization: $LINEAR_TOKEN" \
+    -H "Content-Type: application/json" \
+    --max-time 45 \
+    --data-binary "$body"
+}
+
+# gql_paginate <out> <query> <base_vars_json> <page_size>: drain issues(...) pagination via
+# pageInfo.endCursor into a combined bare node-array at <out>. `first`/`after` are injected
+# per page (the caller's base vars carry only `filter`). Returns 1 on any transport / GraphQL
+# error / odd shape, LEAVING whatever nodes were accumulated in <out> (so a non-fatal Done
+# caller can keep the partial). Never writes the caller's cache — only <out>.
+gql_paginate() {
+  local out="$1" query="$2" base_vars="$3" page_size="$4"
+  local after="" page=0 max_pages=200
+  local resp; resp=$(mktemp)
+  printf '[]' > "$out"
+  while :; do
+    page=$((page + 1))
+    if [[ $page -gt $max_pages ]]; then
+      echo "ERROR: pagination exceeded $max_pages pages (cursor not advancing?) — aborting" >&2
+      rm -f "$resp"; return 1
+    fi
+    local vars
+    vars=$(echo "$base_vars" | jq -c --argjson first "$page_size" --arg after "$after" \
+      '. + {first:$first, after: (if $after=="" then null else $after end)}') || { rm -f "$resp"; return 1; }
+    if ! gql_post "$query" "$vars" > "$resp" 2>/dev/null; then
+      echo "ERROR: GraphQL transport failure (curl) on page $page" >&2
+      rm -f "$resp"; return 1
+    fi
+    local gqlerr
+    gqlerr=$(jq -r 'if (.errors|type)=="array" then (.errors[0].message // "unknown") else empty end' "$resp" 2>/dev/null || echo "PARSE_ERROR")
+    if [[ -n "$gqlerr" ]]; then
+      echo "ERROR: Linear GraphQL error on page $page: $gqlerr" >&2
+      rm -f "$resp"; return 1
+    fi
+    if ! jq -e '.data.issues | has("nodes")' "$resp" >/dev/null 2>&1; then
+      echo "ERROR: unexpected GraphQL response shape (no .data.issues.nodes) on page $page:" >&2
+      head -c 300 "$resp" >&2; echo >&2
+      rm -f "$resp"; return 1
+    fi
+    jq '.data.issues.nodes' "$resp" > "$resp.nodes"
+    jq -s '.[0] + .[1]' "$out" "$resp.nodes" > "$out.next" && mv "$out.next" "$out"
+    rm -f "$resp.nodes"
+    local has_next end_cursor
+    has_next=$(jq -r '.data.issues.pageInfo.hasNextPage // false' "$resp")
+    end_cursor=$(jq -r '.data.issues.pageInfo.endCursor // empty' "$resp")
+    [[ "$has_next" == "true" && -n "$end_cursor" ]] || break
+    after="$end_cursor"
+  done
+  rm -f "$resp"
+  return 0
+}
+
+# Query A — ACTIVE issues (state type NOT completed/canceled). Nested connections BOUNDED
+# first:50 to cap complexity. Carries the full body + blocked-by graph the frontier needs.
+GQL_ACTIVE='query ActiveIssues($first: Int!, $after: String, $filter: IssueFilter) {
+  issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt, includeArchived: false) {
+    nodes {
+      id
+      identifier
+      title
+      description
+      updatedAt
+      state { name type }
+      project { name }
+      projectMilestone { id name }
+      cycle { number }
+      assignee { name }
+      labels(first: 50) { nodes { name } }
+      relations(first: 50) { nodes { type relatedIssue { identifier } } }
+      inverseRelations(first: 50) { nodes { type issue { identifier } } }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}'
+
+# Query B — CLOSED issues (Done + Canceled + Duplicate, i.e. state type completed|canceled).
+# SLIM: id/identifier/state/project/updatedAt ONLY — NO description, NO nested connections.
+# Fetched TEAM-WIDE (no project filter) so blocked-by edges pointing at out-of-scope closed
+# issues still resolve. Per-page complexity is ~O(page_size) — negligible against the budget.
+GQL_CLOSED='query ClosedIssues($first: Int!, $after: String, $filter: IssueFilter) {
+  issues(first: $first, after: $after, filter: $filter, orderBy: updatedAt, includeArchived: false) {
+    nodes {
+      id
+      identifier
+      updatedAt
+      state { name type }
+      project { name }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}'
+
 cmd_sync_initiative() {
   if [[ "${LINEAR_NOT_CONFIGURED:-0}" == "1" ]]; then
     echo "ERROR: Linear not configured — set tracking_system: linear, linear_tenant, linear_project, team_key in config" >&2
     exit 1
   fi
   check_deps
+  command -v curl >/dev/null 2>&1 || { echo "ERROR: curl not found in PATH — required for the direct-GraphQL initiative sync." >&2; exit 1; }
   ensure_gitignore
   mkdir -p "$CACHE_DIR"
 
@@ -549,6 +725,8 @@ cmd_sync_initiative() {
   # (team ENG is a SUPERSET of the initiative — 24 projects — so the delivery engine
   # passes its PROJECT_REPO keys to scope to the 14 satellites + Delivery Gates and
   # drop Houston / Claude-Code-MCP / OPS-POC / archived noise). Absent ⇒ whole team.
+  # NOTE: the allowlist is now applied SERVER-SIDE in Query A's filter (project.name.in),
+  # so the active fetch never even transfers out-of-scope issues.
   local projects_file=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -557,51 +735,57 @@ cmd_sync_initiative() {
     esac
   done
 
-  echo "Initiative sync: team $TEAM_KEY — ALL states (incl. Done), + blocked-by graph${projects_file:+ (scoped to $projects_file)}..."
+  if [[ -n "$projects_file" && ! -f "$projects_file" ]]; then
+    echo "ERROR: --projects-file '$projects_file' not found." >&2
+    exit 1
+  fi
 
-  local open_tmp done_tmp all_tmp synced_at complete
-  open_tmp=$(mktemp); done_tmp=$(mktemp); all_tmp=$(mktemp)
+  resolve_linear_token || exit 1
+
+  echo "Initiative sync (direct GraphQL): team $TEAM_KEY — active (scoped) + closed (team-wide, slim) + blocked-by graph${projects_file:+ (scoped to $projects_file)}..."
+
+  local active_tmp done_tmp all_tmp synced_at complete
+  active_tmp=$(mktemp); done_tmp=$(mktemp); all_tmp=$(mktemp)
   synced_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   complete=true
 
-  # 1) All non-completed issues. A failure here is fatal — without the open set there is
-  #    no usable frontier, so leave the existing cache untouched rather than half-write.
-  if ! fetch_paginated "$open_tmp"; then
-    rm -f "$open_tmp" "$done_tmp" "$all_tmp"
-    echo "Initiative sync aborted (open-issue fetch failed, likely rate-limited) — existing initiative.json left untouched." >&2
+  # Build server-side filters. Active = team + non-terminal state (+ optional project
+  # allowlist). Closed = team + terminal state, TEAM-WIDE (no project filter).
+  local filter_active vars_active
+  filter_active=$(jq -cn --arg team "$TEAM_KEY" \
+    '{team:{key:{eq:$team}}, state:{type:{nin:["completed","canceled"]}}}')
+  if [[ -n "$projects_file" ]]; then
+    local plist
+    plist=$(jq -R -s 'split("\n") | map(select(length>0))' "$projects_file")
+    filter_active=$(echo "$filter_active" | jq -c --argjson p "$plist" '. + {project:{name:{in:$p}}}')
+  fi
+  vars_active=$(jq -cn --argjson f "$filter_active" '{filter:$f}')
+
+  local filter_closed vars_closed
+  filter_closed=$(jq -cn --arg team "$TEAM_KEY" \
+    '{team:{key:{eq:$team}}, state:{type:{in:["completed","canceled"]}}}')
+  vars_closed=$(jq -cn --argjson f "$filter_closed" '{filter:$f}')
+
+  # 1) ACTIVE issues (in-scope). Fatal on failure — without the open set there is no usable
+  #    frontier, so leave the existing cache untouched rather than half-write.
+  if ! gql_paginate "$active_tmp" "$GQL_ACTIVE" "$vars_active" 100; then
+    rm -f "$active_tmp" "$done_tmp" "$all_tmp"
+    echo "Initiative sync aborted (active fetch failed, likely rate-limited) — existing initiative.json left untouched." >&2
     exit 1
   fi
-  # 2) Done issues (the completed workflow-state is excluded from the default list). A
-  #    failure here is NON-fatal but marks the cache incomplete so the engine frontier
-  #    sets readComplete=false and waits/retries instead of trusting a 0-Done backlog.
-  if ! fetch_paginated "$done_tmp" --status Done; then
-    echo "WARN: Done fetch failed (rate-limited?) — marking cache complete=false." >&2
-    printf '[]' > "$done_tmp"
-    complete=false
+  # 2) CLOSED issues (team-wide, slim). NON-fatal: on failure keep the partial set and mark
+  #    complete=false so the engine frontier sets readComplete=false and retries instead of
+  #    trusting an under-resolved blocker graph.
+  if ! gql_paginate "$done_tmp" "$GQL_CLOSED" "$vars_closed" 250; then
+    echo "WARN: closed (Done/Canceled) fetch incomplete (rate-limited?) — marking cache complete=false." >&2
+    complete=false   # keep whatever $done_tmp accumulated; do not clobber
   fi
-  # 3) Merge + dedupe by identifier (states are disjoint, but be defensive).
-  if ! jq -s '(.[0] + .[1]) | unique_by(.identifier)' "$open_tmp" "$done_tmp" > "$all_tmp"; then
-    rm -f "$open_tmp" "$done_tmp" "$all_tmp"
+  # 3) Merge + dedupe by identifier (states are disjoint; active listed first so its
+  #    full-field node wins on any defensive collision).
+  if ! jq -s '(.[0] + .[1]) | unique_by(.identifier)' "$active_tmp" "$done_tmp" > "$all_tmp"; then
+    rm -f "$active_tmp" "$done_tmp" "$all_tmp"
     echo "ERROR: failed to merge issue sets — initiative.json left untouched." >&2
     exit 1
-  fi
-  # 3b) Scope to the initiative's projects if an allowlist was given.
-  if [[ -n "$projects_file" ]]; then
-    if [[ ! -f "$projects_file" ]]; then
-      rm -f "$open_tmp" "$done_tmp" "$all_tmp"
-      echo "ERROR: --projects-file '$projects_file' not found." >&2
-      exit 1
-    fi
-    local scoped_tmp; scoped_tmp=$(mktemp)
-    if ! jq --rawfile allow "$projects_file" '
-      ($allow | split("\n") | map(select(length>0))) as $keep
-      | map(select((.project.name // "") as $p | $keep | index($p)))
-    ' "$all_tmp" > "$scoped_tmp"; then
-      rm -f "$open_tmp" "$done_tmp" "$all_tmp" "$scoped_tmp"
-      echo "ERROR: project scoping failed — initiative.json left untouched." >&2
-      exit 1
-    fi
-    mv "$scoped_tmp" "$all_tmp"
   fi
 
   # 4) Project a slim, jq-friendly cache keyed by identifier. blockedBy = the inverse
@@ -633,18 +817,21 @@ cmd_sync_initiative() {
       }) | from_entries)
     }
   ' "$all_tmp" > "$init_tmp"; then
-    rm -f "$open_tmp" "$done_tmp" "$all_tmp" "$init_tmp"
+    rm -f "$active_tmp" "$done_tmp" "$all_tmp" "$init_tmp"
     echo "ERROR: projection failed — initiative.json left untouched." >&2
     exit 1
   fi
   mv "$init_tmp" "$CACHE_DIR/initiative.json"
   echo "$synced_at" > "$CACHE_DIR/.last-initiative-sync"
 
-  # Per-issue body files (cache-first read model): the bulk list payload carries the FULL
-  # description, so every scoped issue gets its issues/<id>.yaml written here with zero
-  # extra API calls. Comments are NOT in the list payload — they appear on the first
-  # refresh-on-write (`linear-sync.sh issue <id>`, --with-comments), which every engine
-  # write triggers. Agents read tickets ONLY from these files.
+  # Per-issue body files (cache-first read model): the ACTIVE (Query A) payload carries the
+  # FULL description, so every in-scope active issue gets its issues/<id>.yaml written here
+  # with zero extra API calls. Bodies are written ONLY for in-scope active issues — the
+  # team-wide CLOSED (Query B) set is slim (no description) and exists solely as blocker-
+  # resolution targets in initiative.json, so it gets NO body files (a closed ticket that is
+  # ever re-opened/read regenerates its body on the next refresh-on-write). Comments are not
+  # in the list payload — they appear on the first `linear-sync.sh issue <id>` (--with-comments)
+  # write. Agents read tickets ONLY from these files.
   mkdir -p "$CACHE_DIR/issues"
   local body_count=0
   while IFS= read -r issue; do
@@ -663,9 +850,9 @@ cmd_sync_initiative() {
        end)
     ' > "$CACHE_DIR/issues/$iid.yaml"
     body_count=$((body_count + 1))
-  done < <(jq -c '.[]' "$all_tmp")
+  done < <(jq -c '.[]' "$active_tmp")
 
-  rm -f "$open_tmp" "$done_tmp" "$all_tmp"
+  rm -f "$active_tmp" "$done_tmp" "$all_tmp"
 
   local total done_n
   total=$(jq -r '.counts.total' "$CACHE_DIR/initiative.json")
