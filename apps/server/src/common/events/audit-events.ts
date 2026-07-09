@@ -179,9 +179,12 @@ export interface AuditLogPayload {
   metadata?: Record<string, any>;
   // ENG-1396 (AC1/AC2): selects the durability mode of `logAndCommit` — a
   // critical event joins the caller's transaction (fails/rolls back
-  // together); a non-critical event (the default, falsy) is written in an
-  // isolated sibling transaction so a caller-tx rollback never takes the
-  // audit row with it (H-30).
+  // together); a non-critical event (the default, falsy) is deferred via
+  // `setImmediate` to run after the caller's transaction settles, so a
+  // caller-tx rollback never takes the audit row with it (H-30). This is
+  // not a sibling DB transaction — it's a same-connection deferral chosen
+  // to avoid a documented kysely deadlock when opening a second
+  // transaction concurrently on the same connection.
   critical?: boolean;
 }
 
