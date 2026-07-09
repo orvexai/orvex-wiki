@@ -160,6 +160,10 @@ export class PageHistoryService {
             // row's own createdAt, never a fresh Date.now() call.
             restoredFromTimestamp: history.createdAt,
           },
+          // ENG-1396 fix-1: page-mutation + audit commit/rollback TOGETHER
+          // (see the AC3 comment above; ENG-1380 contract) — fail-hard,
+          // join the caller tx. See review finding 1.
+          critical: true,
         });
       });
     } catch (auditTxError) {

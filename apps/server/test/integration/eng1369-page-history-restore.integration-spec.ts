@@ -199,6 +199,12 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     });
     const history = await insertHistory(testDb.db, page, historicalContent);
 
+    // ENG-1396 fix-1 (review finding 1): the metadata-bump + audit write
+    // MUST join the caller tx (fail-hard, ENG-1380 contract) — assert the
+    // real (non-mocked) `logAndCommit` is invoked with `critical: true`,
+    // not left on the shared sink's non-critical/deferred default.
+    const logAndCommitSpy = jest.spyOn(orvexAudit, 'logAndCommit');
+
     const restored = await service.restoreFromHistory(
       page.id,
       history.id,
@@ -239,6 +245,12 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     expect(new Date(metadata.restoredFromTimestamp).getTime()).toBe(
       new Date(history.createdAt as any).getTime(),
     );
+
+    expect(logAndCommitSpy).toHaveBeenCalledTimes(1);
+    expect(logAndCommitSpy.mock.calls[0][1]).toMatchObject({
+      critical: true,
+    });
+    logAndCommitSpy.mockRestore();
   });
 
   it('AC3 (atomicity) — a fault-injected audit failure rolls back the page-mutation row', async () => {

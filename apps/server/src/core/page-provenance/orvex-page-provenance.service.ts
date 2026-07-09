@@ -328,6 +328,10 @@ export class OrvexPageProvenanceService {
           after: { provenanceStatus: status },
         },
         metadata,
+        // ENG-1396 fix-1: this IS the atomic primitive (see the doc comment
+        // above) — fail-hard, join the caller tx (ENG-1380 contract). See
+        // review finding 1.
+        critical: true,
       });
 
       if (before !== status) {
