@@ -35,9 +35,19 @@ const PROJECT_REPO = {
   'Orvex Studio — Delivery Gates': 'CROSS_REPO',
 }
 
+// The initiative is a SUBSET of team ENG (which has 24 projects / ~448 issues —
+// Houston, Claude-Code-MCP, linear-sync, OPS-POC (On Hold), archived spaces, etc.).
+// These are the ONLY in-scope projects; the frontier/reclaim pass this allowlist to
+// `linear-sync.sh sync-initiative --projects-file` so the cache is scoped correctly.
+const SCOPE_PROJECTS = Object.keys(PROJECT_REPO)
+const SCOPE_FILE = RDIR + '/scope-projects.txt'
+// A verbatim bash command that (re)writes the allowlist file, one project name per
+// line — safe against the spaces + em-dash in the project names.
+const WRITE_SCOPE_CMD = "mkdir -p '" + RDIR + "' && cat > '" + SCOPE_FILE + "' <<'ORVEX_SCOPE_EOF'\n" + SCOPE_PROJECTS.join('\n') + "\nORVEX_SCOPE_EOF"
+
 // ---- Shared doctrine blocks ------------------------------------------------
 const LNR = [
-  'Linear via linearis, LIVE reads and writes (list --limit <=50, paginate; blocked-by relations only exist live). Verify every write by live re-read.',
+  'Linear via linearis. The FRONTIER reads the bulk cache (.cache/linear/initiative.json via linear-sync.sh sync-initiative — state, labels, project, milestone, AND blocked-by relations all come back inline in the bulk list, so NO per-issue reads). Build/review/gate steps still read+write LIVE for freshness at claim/merge; verify every write by live re-read.',
   'QUOTA DISCIPLINE: the workspace allows 2500 requests/hour SHARED across all agents — be frugal: batch reads, avoid redundant re-reads, sleep 2-5s between bursts. On rate_limited: your WRITE payload goes to a file under ' + RDIR + ' with the exact command, report it as escalate (transient-quota), never spin retrying.',
   'issues update --description is a FULL-BODY REPLACE: read full body -> edit -> write whole body back via temp file -> re-read intact. Never blind-write, never blanket-tick.',
   'Never auto-close, never advance status except as your task explicitly says.',
@@ -144,8 +154,8 @@ function makeTopups(tick, slack) {
 phase('Startup reclaim')
 await agent([
   'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '. Launch nonce: ' + ((args && args.nonce) || 'none') + ' (ignore; it only prevents stale cache replay).',
-  '1. _bmad/lnr/tools/linear-sync.sh sync.',
-  '2. LIVE list every In-Progress issue across the Orvex Studio initiative + Delivery Gates project; for each check gh for an open PR in its repo.',
+  '1. Write the in-scope project allowlist by running this EXACT command:\n' + WRITE_SCOPE_CMD + '\n   then run: _bmad/lnr/tools/linear-sync.sh sync-initiative --projects-file ' + SCOPE_FILE + ' (ONE bulk fetch; no per-issue reads).',
+  '2. Read ' + HUB + '/.cache/linear/initiative.json and list every issue with state "In Progress" (jq: .issues to_entries | select(.value.state=="In Progress")). For each, check gh for an open PR in its repo (repo map: ' + JSON.stringify(PROJECT_REPO) + ').',
   '3. Reset EVERY stranded In-Progress issue to Todo via linearis so the frontier re-picks it (In Progress issues are invisible to the frontier — leaving them strands the work).',
   '4. For issues that HAVE an open PR with substantive work: BEFORE resetting, post a comment "Prior work exists: PR <url> (<branch>). FINISH it — rebase onto the integration branch and complete the remaining ACs on top; do NOT rebuild from scratch." Archive dangling branch refs for no-PR issues; remove stale worktrees.',
   'Return ok + a one-line reset count (with-PR vs no-PR). ' + RETDISC,
@@ -168,15 +178,18 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
   let frontier = null
   for (let attempt = 1; attempt <= 3; attempt++) {
     frontier = await agent([
-      'FRONTIER COMPUTATION (read-only + one cache sync). Work from ' + HUB + '. Attempt ' + attempt + ' of 3.',
-      '1. Run _bmad/lnr/tools/linear-sync.sh sync (best effort; live reads are authoritative).',
-      '2. LIVE via linearis: list every issue of the Orvex Studio initiative satellites AND the "Orvex Studio — Delivery Gates" project that is in state Todo or Backlog. EXCLUDE: labels stripe-hold, keycloak-parked, deferred-future (PO holds); ENG-1594 (the orchestrator status tracker — NEVER a work item); any issue whose body says it is a stub needing context-fill before dev; and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
-      '3. For each candidate read its blocked-by relations LIVE: ready = every blocker is Done/Canceled/Duplicate (no open blockers). A gate issue (label gate) is ready ONLY when every blocker is Done/Canceled.',
-      '4. Order ready by: wave ascending (Wave 0 first), then how many other issues each one blocks (descending). Return at most 32 (keeps a full queue behind the ~16 concurrency cap). IMMEDIATELY before returning, re-verify each returned candidate is STILL Todo/Backlog right now — never return an issue that is already Done or In Progress (stale-list re-dispatches waste the whole slot).',
-      '5. Also return: doneTotal (initiative-wide Done count), todoTotal (remaining Todo/Backlog incl. held), blockedResidue (candidates excluded ONLY by holds/escalations).',
-      '6. HONESTY BIT (load-bearing — a prior run declared the whole backlog delivered off a rate-limited read that returned zeros): readComplete=true ONLY if every listing + relation read genuinely succeeded. If you hit rate limits or any query failed so the state might be incomplete, set readComplete=false, do NOT fabricate zeros, space your requests (small sleeps between calls are fine), and note what failed. A doneTotal of 0 is IMPOSSIBLE in this workspace — returning it means your reads failed.',
-      RETDISC, LNR,
-      'Write the full candidate table to ' + RDIR + '/tick' + tick + '-frontier.md.',
+      'FRONTIER COMPUTATION (ONE bulk cache sync, then LOCAL readiness — do NOT do per-project or per-issue live linearis reads; that per-tick sweep is exactly what drained the shared 2500/hr quota). Work from ' + HUB + '. Attempt ' + attempt + ' of 3.',
+      '1. Write the in-scope project allowlist by running this EXACT command:\n' + WRITE_SCOPE_CMD,
+      '2. Run: _bmad/lnr/tools/linear-sync.sh sync-initiative --projects-file ' + SCOPE_FILE + '\n   This does ONE bulk paginated fetch of the WHOLE initiative — all states INCLUDING Done — plus the blocked-by graph, in ~5 API calls, and writes ' + HUB + '/.cache/linear/initiative.json (scoped to the allowlist). Capture its exit code.',
+      '3. Read ' + HUB + '/.cache/linear/initiative.json (local file — jq, no API). Its shape: {complete:bool, counts:{total,byState:{<state>:n}}, issues:{"ENG-N":{state,project,milestone,labels:[],updatedAt,blockedBy:[ids],blocks:[ids]}}}.',
+      '4. HONESTY GATE (load-bearing — a prior run declared the backlog delivered off a rate-limited read of zeros): if the sync exited non-zero, OR .complete is false, OR (.counts.byState.Done // 0) == 0 → the Done half was rate-limited; set readComplete=false and RETURN immediately (do NOT fabricate, do NOT compute a frontier off a partial cache). Otherwise readComplete=true.',
+      '5. Candidates (jq over .issues): state == "Todo" or "Backlog", EXCLUDING any issue whose labels intersect {stripe-hold, keycloak-parked, deferred-future}, the id ENG-1594, and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
+      '6. READY (from the cached graph — the blockedBy edges ARE the real Linear "blocks" relations; ignore prose "blocked-by" in bodies): a candidate is ready iff EVERY id in its blockedBy has, in .issues, a state of Done/Canceled/Duplicate (a blocker id absent from the scoped cache counts as NOT satisfied → not ready). Gate issues (label contains "gate", or project "Orvex Studio — Delivery Gates") use the same rule.',
+      '7. Order ready by: wave ascending (label Wave A/B/C, else the M-number label), then by |blocks| descending (how many others it blocks). Return at most 32. project + milestone come straight from the cache.',
+      '8. Counts: doneTotal = .counts.byState.Done; todoTotal = count of ALL Todo+Backlog in scope (incl. held); blockedResidue = count of Todo/Backlog candidates that are NOT ready (held/escalated/has an open blocker) = todoTotal minus the ready-eligible count.',
+      '9. No live per-issue reads are needed or allowed here. The ONLY Linear calls this step makes are the handful inside sync-initiative. If sync-initiative itself reports rate-limiting, treat as readComplete=false per step 4.',
+      RETDISC,
+      'Write the full candidate table (eng, project, milestone, wave, |blocks|, blockedBy states) to ' + RDIR + '/tick' + tick + '-frontier.md.',
     ].join('\n'), { model: 'sonnet', effort: 'medium', label: 't' + tick + ':frontier:a' + attempt, phase: 'Tick ' + tick, schema: FRONTIER_SCHEMA })
     if (frontier && frontier.readComplete && (frontier.doneTotal || 0) > 0) break
     log('Tick ' + tick + ': frontier read incomplete/degenerate (attempt ' + attempt + ') — retrying')
