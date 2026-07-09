@@ -162,7 +162,10 @@ export const AuditResource = {
 export type AuditResourceType =
   (typeof AuditResource)[keyof typeof AuditResource];
 
-export type ActorType = 'user' | 'system' | 'api_key';
+// ENG-1396 (AC6): `external_agent` classifies an API-key-authenticated
+// caller (distinct from `api_key`, which is unused by any call site and
+// kept only for back-compat of the exported union).
+export type ActorType = 'user' | 'system' | 'api_key' | 'external_agent';
 
 export interface AuditLogPayload {
   event: AuditEventType;
@@ -174,6 +177,12 @@ export interface AuditLogPayload {
     after?: Record<string, any>;
   };
   metadata?: Record<string, any>;
+  // ENG-1396 (AC1/AC2): selects the durability mode of `logAndCommit` — a
+  // critical event joins the caller's transaction (fails/rolls back
+  // together); a non-critical event (the default, falsy) is written in an
+  // isolated sibling transaction so a caller-tx rollback never takes the
+  // audit row with it (H-30).
+  critical?: boolean;
 }
 
 export interface AuditLogData extends AuditLogPayload {
@@ -182,4 +191,7 @@ export interface AuditLogData extends AuditLogPayload {
   actorType: ActorType;
   ipAddress?: string;
   userAgent?: string;
+  // ENG-1396 (AC7): the API-key UUID for an `external_agent` actor. Never
+  // set for `user`/`system` rows.
+  clientId?: string;
 }

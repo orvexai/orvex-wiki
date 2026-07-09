@@ -71,6 +71,7 @@ export interface Audit {
   actorId: string | null;
   actorType: Generated<string>;
   changes: Json | null;
+  clientId: string | null;
   createdAt: Generated<Timestamp>;
   event: string;
   id: Generated<string>;
