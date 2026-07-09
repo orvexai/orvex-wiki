@@ -200,6 +200,28 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     expect(rows[0].relayedAt).toBeNull();
   });
 
+  it('AC1 (real wiring) — PageRepo.insertPage (the actual production create path used by page.service.ts / import.service.ts) commits its page.created outbox row atomically (exactly one row); a regression in insertPage\'s own emit must fail THIS test', async () => {
+    const page = await pageRepo.insertPage({
+      title: 'AC1 real-path page',
+      slugId: generateSlugId(),
+      spaceId,
+      workspaceId,
+    });
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CREATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].relayedAt).toBeNull();
+    expect(
+      (rows[0].payload as Record<string, unknown>).workspaceId,
+    ).toBe(workspaceId);
+  });
+
   it('AC2 — a rolled-back mutation transaction leaves NO outbox row', async () => {
     let pageId: string | undefined;
 
