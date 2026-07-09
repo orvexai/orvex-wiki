@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { promises as fs } from 'fs';
 import * as jwt from 'jsonwebtoken';
 import { Global, Module } from '@nestjs/common';
@@ -48,7 +49,7 @@ import { PagePermissionRepo } from '../../database/repos/page/page-permission.re
 import { OutboxWriter } from '../events/outbox/outbox-writer.service';
 import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { ApiKeyService } from '../../core/api-key/api-key.service';
+import { ApiKeyModule } from '../../core/api-key/api-key.module';
 import { SpaceRole } from '../../common/helpers/types/permission';
 import { WsService } from '../../ws/ws.service';
 import type { DB, Json } from '../../database/types/db';
@@ -91,6 +92,54 @@ describe('OrvexLlmsController (ENG-1492) — integration', () => {
       { sub, email: 'eng1492@example.com', workspaceId: wsId, type: 'access' },
       TEST_APP_SECRET,
     );
+  }
+
+  /**
+   * F1 fix (review 1) — mints a REAL, DB-backed scoped API-key bearer: an
+   * `apiKeys` row (with `scopes`/`readOnly`, ENG-1454) plus a matching
+   * `type: 'api_key'` JWT whose sha256 equals the row's `keyHash` — the
+   * exact shape `TokenService.generateApiToken` / `ApiKeyRepo.insert`
+   * produce. This is the ONLY route through which `JwtStrategy` ever
+   * stamps a `TokenScopeGrant` (`stampTokenScope`, `scope-intersection.ts`)
+   * onto the request user, so it is the only way a test can prove the
+   * LISTING path (`listAccessiblePages`) is floored by token scope and not
+   * merely by space membership.
+   */
+  async function mintScopedApiKeyToken(opts: {
+    creatorId: string;
+    wsId: string;
+    scopes: string[] | null;
+    readOnly: boolean;
+  }): Promise<string> {
+    const row = await seedDb
+      .insertInto('apiKeys')
+      .values({
+        name: 'eng-1492 F1 scoped test key',
+        creatorId: opts.creatorId,
+        workspaceId: opts.wsId,
+        scopes: opts.scopes as unknown as Json,
+        readOnly: opts.readOnly,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+
+    const rawToken = jwt.sign(
+      {
+        sub: opts.creatorId,
+        apiKeyId: row.id,
+        workspaceId: opts.wsId,
+        type: 'api_key',
+      },
+      TEST_APP_SECRET,
+    );
+    const keyHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    await seedDb
+      .updateTable('apiKeys')
+      .set({ keyHash })
+      .where('id', '=', row.id)
+      .execute();
+
+    return rawToken;
   }
 
   const DEFAULT_PAGE_DOC: Json = {
@@ -174,7 +223,6 @@ describe('OrvexLlmsController (ENG-1492) — integration', () => {
           provide: SessionActivityService,
           useValue: { trackActivity: () => {} },
         },
-        { provide: ApiKeyService, useValue: {} },
       ],
       exports: [
         UserRepo,
@@ -191,8 +239,15 @@ describe('OrvexLlmsController (ENG-1492) — integration', () => {
         EnvironmentService,
         UserSessionRepo,
         SessionActivityService,
-        ApiKeyService,
       ],
+      // F1 fix (review 1) — the REAL `ApiKeyModule` (ApiKeyService +
+      // ApiKeyRepo + its TokenModule/OrvexAuditModule deps), not a stub.
+      // `JwtStrategy.validateApiKey` is the ONLY path that stamps a
+      // `TokenScopeGrant` (ENG-1454) onto the resolved user; a stubbed
+      // `ApiKeyService` made that path structurally unreachable from this
+      // suite, so no test could ever exercise the token-scope-aware layer
+      // `OrvexLlmsService` documents itself as composing.
+      imports: [ApiKeyModule],
     })
     class TestSupportModule {}
 
@@ -339,6 +394,121 @@ describe('OrvexLlmsController (ENG-1492) — integration', () => {
       });
       expect(badAuth.statusCode).toBe(401);
     });
+
+    it('F1 — a TOKEN-SCOPED bearer whose grant excludes a space the caller IS a member of leaks zero bytes on the LISTING path (llms.txt/llms-full.txt/page.md), proving scope != membership', async () => {
+      // The caller (userId) is made a full WRITER member of Space F1 below —
+      // membership alone would make this page visible. Only the token's
+      // own `scopes` allowlist (ENG-1454 TokenScopeGrant), stamped by the
+      // REAL `JwtStrategy.validateApiKey` -> `ApiKeyService.validate` path,
+      // must be what excludes it. This is the mutation the review (F1)
+      // pointed at: neutering `SpaceAbilityFactory`'s `intersectWithTokenScope`
+      // call would still pass every other AC2 assertion (they're satisfied
+      // by membership), but MUST fail this one.
+      const spaceF1 = await seedDb
+        .insertInto('spaces')
+        .values({
+          name: 'Space F1 (member, scope-excluded)',
+          slug: `eng-1492-space-f1-${Date.now()}`,
+          workspaceId,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await seedDb
+        .insertInto('spaceMembers')
+        .values({ userId, spaceId: spaceF1.id, role: SpaceRole.WRITER })
+        .execute();
+
+      const memberButScopedOut = await createPage({
+        title: 'F1 member-but-scoped-out — must never leak',
+        spaceId: spaceF1.id,
+      });
+      const inScope = await createPage({
+        title: 'F1 in-scope page',
+        spaceId: spaceIdA,
+      });
+
+      // spaceIdA only — spaceF1 is deliberately excluded from the grant.
+      const scopedToken = await mintScopedApiKeyToken({
+        creatorId: userId,
+        wsId: workspaceId,
+        scopes: [spaceIdA],
+        readOnly: false,
+      });
+
+      const sitemap = await app.inject({
+        method: 'GET',
+        url: '/api/orvex/llms.txt',
+        headers: { authorization: `Bearer ${scopedToken}` },
+      });
+      expect(sitemap.statusCode).toBe(200);
+      // Positive control: the token still sees what its scope DOES cover —
+      // rules out "everything 403s" masking the real assertion below.
+      expect(sitemap.body).toContain(inScope.id);
+      expect(sitemap.body).not.toContain(memberButScopedOut.id);
+      expect(
+        (sitemap.body.match(new RegExp(memberButScopedOut.title!, 'g')) ?? [])
+          .length,
+      ).toBe(0);
+
+      const full = await app.inject({
+        method: 'GET',
+        url: '/api/orvex/llms-full.txt',
+        headers: { authorization: `Bearer ${scopedToken}` },
+      });
+      expect(full.body).not.toContain(memberButScopedOut.title);
+
+      const pageMd = await app.inject({
+        method: 'GET',
+        url: `/api/orvex/pages/${memberButScopedOut.id}/page.md`,
+        headers: { authorization: `Bearer ${scopedToken}` },
+      });
+      expect([403, 404]).toContain(pageMd.statusCode);
+    });
+  });
+
+  describe('AC1 — llms.txt sitemap cap', () => {
+    it('F2 — caps the sitemap at 500 entries even when more pages are accessible', async () => {
+      // A dedicated space so the count is exact and order-independent —
+      // does not ride on how many pages earlier tests in this file left
+      // behind in spaceIdA.
+      const spaceCap = await seedDb
+        .insertInto('spaces')
+        .values({
+          name: 'Space F2 (sitemap cap)',
+          slug: `eng-1492-space-f2-${Date.now()}`,
+          workspaceId,
+        })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+      await seedDb
+        .insertInto('spaceMembers')
+        .values({ userId, spaceId: spaceCap.id, role: SpaceRole.WRITER })
+        .execute();
+
+      const rows = Array.from({ length: 501 }, (_v, i) => ({
+        title: `F2 cap page ${i}`,
+        spaceId: spaceCap.id,
+        workspaceId,
+        slugId: `eng-1492-f2cap-${i}-${Date.now()}`,
+        creatorId: userId,
+        lastUpdatedById: userId,
+        content: DEFAULT_PAGE_DOC,
+      }));
+      await seedDb.insertInto('pages').values(rows).execute();
+
+      const token = mintAccessToken(userId, workspaceId);
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/orvex/llms.txt',
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const entryCount = (res.body.match(/^- \[/gm) ?? []).length;
+      // Exactly 500, not merely <=500 — proves the cap actually bit (501
+      // were accessible) rather than the assertion being vacuously true.
+      expect(entryCount).toBe(500);
+    });
   });
 
   describe('AC3 — llms-full.txt hydration cap', () => {
@@ -415,10 +585,20 @@ describe('OrvexLlmsController (ENG-1492) — integration', () => {
 
   describe('AC6 — vanilla byte-parity', () => {
     it('404s every discovery route when ORVEX_MODULES_ENABLED is not exactly "true"', async () => {
+      // F3 — a real page id so the third route's 404 is proven to come
+      // from the flag guard, not from the (also-404) unknown-id branch.
+      const page = await createPage({
+        title: 'AC6 route-loop page',
+        spaceId: spaceIdA,
+      });
       delete process.env.ORVEX_MODULES_ENABLED;
       const token = mintAccessToken(userId, workspaceId);
 
-      const routes = ['/api/orvex/llms.txt', '/api/orvex/llms-full.txt'];
+      const routes = [
+        '/api/orvex/llms.txt',
+        '/api/orvex/llms-full.txt',
+        `/api/orvex/pages/${page.id}/page.md`,
+      ];
       for (const url of routes) {
         const res = await app.inject({
           method: 'GET',
