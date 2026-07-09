@@ -91,8 +91,12 @@ export class CommentRepo {
     ).as('resolvedBy');
   }
 
-  async deleteComment(commentId: string): Promise<void> {
-    await this.db.deleteFrom('comments').where('id', '=', commentId).execute();
+  async deleteComment(
+    commentId: string,
+    trx?: KyselyTransaction,
+  ): Promise<void> {
+    const db = dbOrTx(this.db, trx);
+    await db.deleteFrom('comments').where('id', '=', commentId).execute();
   }
 
   async hasChildren(commentId: string): Promise<boolean> {

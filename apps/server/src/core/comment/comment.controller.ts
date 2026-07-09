@@ -158,7 +158,7 @@ export class CommentController {
     const isOwner = comment.creatorId === user.id;
 
     if (isOwner) {
-      await this.commentRepo.deleteComment(comment.id);
+      await this.commentService.delete(comment);
     } else {
       const ability = await this.spaceAbility.createForUser(
         user,
@@ -171,7 +171,7 @@ export class CommentController {
           'You can only delete your own comments',
         );
       }
-      await this.commentRepo.deleteComment(comment.id);
+      await this.commentService.delete(comment);
     }
 
     this.wsService.emitCommentEvent(comment.spaceId, comment.pageId, {
