@@ -9,7 +9,7 @@ export const meta = {
 }
 
 // ---- Constants -------------------------------------------------------------
-const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/2752e4f1-cd7b-404c-a58c-9f57b2e5b645/scratchpad'
+const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
 const RDIR = SESSION_SCRATCH + '/act3'
 const HUB = '/home/daniel/repos/orvex-wiki'
 const DECISIONS = HUB + '/tools/act3/po-decisions-2026-07-07.md'
@@ -49,13 +49,12 @@ const PROJECT_REPO = {
 
 // The initiative is a SUBSET of team ENG (which has 24 projects / ~448 issues —
 // Houston, Claude-Code-MCP, linear-sync, OPS-POC (On Hold), archived spaces, etc.).
-// These are the ONLY in-scope projects; the frontier/reclaim pass this allowlist to
-// `linear-sync.sh sync-initiative --projects-file` so the cache is scoped correctly.
-const SCOPE_PROJECTS = Object.keys(PROJECT_REPO)
-const SCOPE_FILE = RDIR + '/scope-projects.txt'
-// A verbatim bash command that (re)writes the allowlist file, one project name per
-// line — safe against the spaces + em-dash in the project names.
-const WRITE_SCOPE_CMD = "mkdir -p '" + RDIR + "' && cat > '" + SCOPE_FILE + "' <<'ORVEX_SCOPE_EOF'\n" + SCOPE_PROJECTS.join('\n') + "\nORVEX_SCOPE_EOF"
+// linear-sync.sh is now config-driven (_bmad/lnr/config.yaml: linear_initiative =
+// "Orvex Studio"): `sync-initiative` resolves its own member-project scope from that
+// config with ZERO args needed — PROJECT_REPO above is exactly that initiative's
+// member set, so no engine-side allowlist file is required any more. --projects-file
+// still exists on the script as an explicit operator OVERRIDE (narrows, never widens,
+// the config-resolved scope) but the engine no longer needs it for normal operation.
 
 // ---- Shared doctrine blocks ------------------------------------------------
 const LNR = [
@@ -162,7 +161,7 @@ function makeTopup(m, i) {
 phase('Startup reclaim')
 await agent([
   'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '. Launch nonce: ' + ((args && args.nonce) || 'none') + ' (ignore; it only prevents stale cache replay).',
-  '1. If ' + HUB + '/.cache/linear/.last-initiative-sync is < 10 minutes old AND initiative.json has .complete==true, SKIP the bulk sync (the launcher already synced — cache-first). Otherwise write the allowlist with this EXACT command:\n' + WRITE_SCOPE_CMD + '\n   then run: _bmad/lnr/tools/linear-sync.sh sync-initiative --projects-file ' + SCOPE_FILE + ' (ONE bulk fetch; no per-issue reads).',
+  '1. If ' + HUB + '/.cache/linear/.last-initiative-sync is < 10 minutes old AND initiative.json has .complete==true, SKIP the bulk sync (the launcher already synced — cache-first). Otherwise run: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh sync-initiative (ONE bulk fetch; config-driven scope from _bmad/lnr/config.yaml linear_initiative — no allowlist arg needed; no per-issue reads).',
   '2. Read ' + HUB + '/.cache/linear/initiative.json and list every issue with state "In Progress" OR "In Review"' + (PARTITION ? ' whose project is one of ' + JSON.stringify(PARTITION) + ' (a sibling engine reclaims the rest)' : '') + ' (jq over .issues). For each, check gh for an open PR in its repo (repo map: ' + JSON.stringify(PROJECT_REPO) + ').',
   '3. Reset EVERY such stranded issue to Todo via linearis so the frontier re-picks it (In Progress AND In Review issues are invisible to the Todo/Backlog frontier — leaving them strands the work; a prior run leaked done-but-unmerged work exactly this way). After EACH reset (and after any comment you post), refresh that ticket: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N> — the frontier reads only the cache, so an unrefreshed reset stays invisible.',
   '4. For issues that HAVE an open PR with substantive work: BEFORE resetting, post a comment "Prior work exists: PR <url> (<branch>)' + '" plus, if a review verdict/report is already on the issue, "review PASS on record — just merge + gate" — the instruction is FINISH it (rebase onto the integration branch, complete remaining ACs on top); do NOT rebuild from scratch. Archive dangling branch refs for no-PR issues; remove stale worktrees.',
@@ -191,7 +190,7 @@ async function syncFrontier(n) {
     const frontier = await agent([
       'FRONTIER COMPUTATION — LOCAL-ONLY by default (cache-first model: every engine write refreshes its own ticket in the cache, so the cache IS current; the frontier normally makes ZERO API calls). Work from ' + HUB + '. Attempt ' + attempt + ' of 3.',
       '1. Check the cache: ' + HUB + '/.cache/linear/initiative.json must exist with .complete==true, and ' + HUB + '/.cache/linear/.last-initiative-sync must be < 45 minutes old (external-drift bound: humans/integrations occasionally touch Linear outside the engines).',
-      '2. ONLY IF that check fails: write the allowlist with this EXACT command:\n' + WRITE_SCOPE_CMD + '\n   then run: _bmad/lnr/tools/linear-sync.sh sync-initiative --projects-file ' + SCOPE_FILE + ' (ONE bulk fetch, ~5 API calls — the ONLY sanctioned bulk path). Otherwise make NO API call whatsoever.',
+      '2. ONLY IF that check fails: run: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh sync-initiative (ONE bulk fetch, ~5 API calls, config-driven scope — the ONLY sanctioned bulk path). Otherwise make NO API call whatsoever.',
       '3. Read ' + HUB + '/.cache/linear/initiative.json (local file — jq, no API). Its shape: {complete:bool, counts:{total,byState:{<state>:n}}, issues:{"ENG-N":{state,project,milestone,labels:[],updatedAt,blockedBy:[ids],blocks:[ids]}}}. NOTE: per-issue .state values are refresh-on-write current; the top-level counts are as-of the last BULK sync, so compute doneTotal/todoTotal by COUNTING .issues states yourself, never from .counts.',
       '4. HONESTY GATE (load-bearing — a prior run declared the backlog delivered off a rate-limited read of zeros): if you had to bulk-sync and it exited non-zero, OR .complete is false, OR your counted Done total == 0 → set readComplete=false and RETURN immediately (do NOT fabricate, do NOT compute a frontier off a partial cache). Otherwise readComplete=true.',
       '5. Candidates (jq over .issues): state == "Todo" or "Backlog", EXCLUDING any issue whose labels intersect {stripe-hold, keycloak-parked, deferred-future}, the id ENG-1594, and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.' + (PARTITION ? ' PARTITION: this engine owns ONLY these projects (a sibling engine owns the rest — returning an issue outside them would DOUBLE-CLAIM): project MUST be one of ' + JSON.stringify(PARTITION) + '.' : ''),
