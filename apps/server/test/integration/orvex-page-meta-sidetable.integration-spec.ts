@@ -133,6 +133,13 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
       position: 'a1',
       title: 'eng-1371-write-read-roundtrip',
     });
+    const canonicalPage = await seedPage(testDb.db, {
+      spaceId,
+      workspaceId,
+      creatorId: userId,
+      position: 'a1b',
+      title: 'eng-1371-write-read-roundtrip-canonical',
+    });
 
     await service.applyMetadata(page.id, {
       status: PageStatus.CANONICAL,
@@ -141,9 +148,13 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
       contentHash: 'sha256:deadbeef',
     });
 
-    const written = await service.supersedeAtomic(page.id, 'some-other-slug');
+    const written = await service.supersedeAtomic(
+      page.id,
+      { supersededBy: canonicalPage.slugId },
+      { authMethod: undefined, actorId: userId },
+    );
     expect(written.status).toBe(PageStatus.SUPERSEDED);
-    expect(written.supersededBy).toBe('some-other-slug');
+    expect(written.supersededBy).toBe(canonicalPage.slugId);
 
     // Re-apply the canonical fields the supersede call didn't touch, then
     // read back through the join and assert byte-identical values.
@@ -157,7 +168,7 @@ describe('TestPageMetaSideTable_RoundTrip (ENG-1371)', () => {
     expect(readBack.docType).toBe('architecture');
     expect(readBack.version).toBe(3);
     expect(readBack.contentHash).toBe('sha256:deadbeef');
-    expect(readBack.supersededBy).toBe('some-other-slug');
+    expect(readBack.supersededBy).toBe(canonicalPage.slugId);
 
     // AC4 — `pages` was never touched for these fields.
     const rawPage = await testDb.db
