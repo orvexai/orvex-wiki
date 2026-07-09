@@ -6,7 +6,6 @@ import { EnvironmentModule } from '../../integrations/environment/environment.mo
 import { OutboxRelayService } from './outbox/outbox-relay.service';
 import { KafkaPublisherAdapter } from './outbox/kafka-publisher.adapter';
 import { KAFKA_PUBLISHER_PORT } from './outbox/kafka-publisher.port';
-import { OrvexEventBusService } from './services/orvex-event-bus.service';
 
 /**
  * ENG-1383 — the outbox deep module. `OutboxWriter` itself is registered
@@ -16,12 +15,19 @@ import { OrvexEventBusService } from './services/orvex-event-bus.service';
  * here; tests override this provider with an in-memory/embedded broker
  * substitute (4f mocking strategy) rather than mocking
  * `OutboxWriter`/`OutboxRelayService` themselves (❌#4).
+ *
+ * ENG-1383 fix-pass-1 (F1): the `@OnEvent`-based `OrvexEventBusService`
+ * lifecycle-handler scaffolding (workspace/space/comment/attachment family)
+ * was removed here — nothing in this repo emits those `EventName`s, and
+ * PD-4d descoped that family to ENG-1609. The real, live producers are
+ * `PageRepo` (page.created / page.content_updated) and
+ * `OrvexPageProvenanceService.writeStatus` (page.status_changed), both of
+ * which enqueue directly, in-transaction, with no bus in between.
  */
 @Module({
   imports: [EnvironmentModule],
   providers: [
     OutboxRelayService,
-    OrvexEventBusService,
     { provide: KAFKA_PUBLISHER_PORT, useClass: KafkaPublisherAdapter },
   ],
   exports: [OutboxRelayService],

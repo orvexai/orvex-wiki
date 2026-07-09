@@ -24,7 +24,6 @@ import {
 import {
   InMemoryKafkaPublisher,
 } from '../in-memory-kafka-publisher';
-import { OrvexEventBusService } from '../../../services/orvex-event-bus.service';
 import {
   EVT_PAGE_CREATED,
   EVT_PAGE_CONTENT_UPDATED,
@@ -339,39 +338,6 @@ describe('OutboxAtomicityAndRelaySpec', () => {
       .where('aggregateId', 'in', pageIds)
       .execute();
     expect(rows.every((r) => r.relayedAt !== null)).toBe(true);
-  });
-
-  it('AC5/AC8 — page.content_updated carries changedBlockIds through the collab path, independent of the embed re-emit', async () => {
-    const bus = new OrvexEventBusService(outboxWriter);
-    const pageId = 'collab-page-1';
-
-    // Source 2 (REST path): PAGE_CONTENT_BLOCKS_CHANGED stores the delta.
-    bus.onPageContentBlocksChanged({
-      pageId,
-      workspaceId,
-      changedBlockIds: ['block-a', 'block-b'],
-    });
-
-    // AC8: fired here directly (as the collab BullMQ→EmbeddingProcessor
-    // re-emit would), WITHOUT the embed re-emit pipeline existing at all —
-    // proving the outbox row does not depend on it.
-    await bus.onPageContentUpdated({ pageId, workspaceId });
-
-    const rows = await db
-      .selectFrom('orvexEventOutbox')
-      .selectAll()
-      .where('aggregateId', '=', pageId)
-      .where('workspaceId', '=', workspaceId)
-      .execute();
-
-    expect(rows).toHaveLength(1);
-    const payload = rows[0].payload as { changedBlockIds?: string[] };
-    expect(payload.changedBlockIds).toEqual(['block-a', 'block-b']);
-
-    await db
-      .deleteFrom('orvexEventOutbox')
-      .where('aggregateId', '=', pageId)
-      .execute();
   });
 
   it('ENG-1383 F5 — an ACTUAL content write (PageRepo.updatePages, REAL caller shape — no workspaceId in the SET, exactly what PersistenceExtension.onStoreDocument sends) produces exactly one page.content_updated outbox row, atomically, with NO embed pipeline involved', async () => {

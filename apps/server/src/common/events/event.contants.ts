@@ -40,30 +40,14 @@ export enum EventName {
   BASE_ROWS_UPDATED = 'base.rows.updated',
   BASE_FORMULA_RECOMPUTE_STARTED = 'base.formula.recompute.started',
   BASE_FORMULA_RECOMPUTE_COMPLETED = 'base.formula.recompute.completed',
-
-  // ENG-1383: orvex-events lifecycle family ported from
-  // orvexai/docmost@050187676624f2395c55b36ec60e365f87fd4a9f
-  // (union, additive — dev's BASE_* family is untouched). AC7 needs these
-  // for outbox lifecycle coverage.
-  WORKSPACE_MEMBER_ADDED = 'workspace.member.added', // orvex-events
-  WORKSPACE_MEMBER_ROLE_CHANGED = 'workspace.member.role_changed', // orvex-events
-  WORKSPACE_MEMBER_DEACTIVATED = 'workspace.member.deactivated', // orvex-events
-  WORKSPACE_MEMBER_DELETED = 'workspace.member.deleted', // orvex-events
-
-  COMMENT_CREATED = 'comment.created', // orvex-events
-  COMMENT_UPDATED = 'comment.updated', // orvex-events
-  COMMENT_DELETED = 'comment.deleted', // orvex-events
-  COMMENT_RESOLVED = 'comment.resolved', // orvex-events
-  ATTACHMENT_CREATED = 'attachment.created', // orvex-events
-  ATTACHMENT_DELETED = 'attachment.deleted', // orvex-events
-  SPACE_MEMBER_ADDED = 'space.member.added', // orvex-events
-  SPACE_MEMBER_REMOVED = 'space.member.removed', // orvex-events
-  SPACE_MEMBER_ROLE_CHANGED = 'space.member.role_changed', // orvex-events
-  PAGE_PURGED = 'page.purged', // orvex-events
-  PAGE_STATUS_CHANGED = 'page.status_changed', // orvex-events: dedicated lifecycle status event
-
-  // R6: in-process event emitted by the REST write path carrying the
-  // block-level delta; OutboxEventBusService consumes it to enrich the next
-  // PAGE_CONTENT_UPDATED outbox row with changedBlockIds (AC5/AC8).
-  PAGE_CONTENT_BLOCKS_CHANGED = 'page-content-blocks-changed',
 }
+
+// ENG-1383 fix-pass-1 (F1): the workspace/space/comment/attachment
+// `orvex-events` lifecycle-family EventName members (and the dedicated
+// PAGE_STATUS_CHANGED / PAGE_CONTENT_BLOCKS_CHANGED members) that were
+// ported in for the now-removed `OrvexEventBusService` were deleted here —
+// nothing in this repo ever emitted them, and PD-4d descoped that family to
+// ENG-1609. The one real lifecycle-status producer, `page.status_changed`,
+// is written directly by `OrvexPageProvenanceService.writeStatus` via the
+// dedicated `EVT_PAGE_STATUS_CHANGED` outbox-type constant — it never went
+// through `EventEmitter2`/`EventName` at all.

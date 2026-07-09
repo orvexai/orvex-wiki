@@ -278,10 +278,10 @@ export class OrvexPageProvenanceService {
    * ENG-1383 F2 fix — also writes the `page.status_changed` outbox row IN
    * THE SAME TRANSACTION (AC7's one non-orphaned, non-satellite producer —
    * "page status" here is provenance status). This is the real atomic
-   * primitive (AC1/AC2-style); it does NOT go through
-   * `OrvexEventBusService.onPageStatusChanged` (which stays a `enqueueDetached`,
-   * post-commit fallback for any future non-transactional emitter of
-   * `EventName.PAGE_STATUS_CHANGED` — nothing emits that today).
+   * primitive (AC1/AC2-style), the ONLY producer of this event — there is
+   * no `@OnEvent`-based bus in the loop (ENG-1383 fix-pass-1 F1 removed
+   * that dead scaffolding; the workspace/space/comment/attachment
+   * lifecycle family it wired stays descoped to ENG-1609 per PD-4d).
    */
   private async writeStatus(
     pageId: string,
