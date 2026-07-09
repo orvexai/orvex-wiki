@@ -32,6 +32,7 @@ import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
 import { normalizePostgresUrl } from '../common/helpers';
 import { OrvexKyselySpanPlugin } from '../orvex/obs/orvex-kysely-span.plugin';
+import { OutboxWriter } from '../orvex/events/outbox/outbox-writer.service';
 
 @Global()
 @Module({
@@ -106,6 +107,9 @@ import { OrvexKyselySpanPlugin } from '../orvex/obs/orvex-kysely-span.plugin';
     LabelRepo,
     TemplateRepo,
     PageListener,
+    // ENG-1383 — global so any repo/service can enqueue an outbox row in
+    // its own transaction without a per-module import.
+    OutboxWriter,
   ],
   exports: [
     WorkspaceRepo,
@@ -130,6 +134,7 @@ import { OrvexKyselySpanPlugin } from '../orvex/obs/orvex-kysely-span.plugin';
     WatcherRepo,
     LabelRepo,
     TemplateRepo,
+    OutboxWriter,
   ],
 })
 export class DatabaseModule implements OnApplicationBootstrap {

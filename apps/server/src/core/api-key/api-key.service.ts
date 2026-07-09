@@ -113,6 +113,9 @@ export class ApiKeyService {
         actorId: ctx.creator.id,
         actorType: 'user',
         metadata: { name: withHash.name },
+        // ENG-1396 fix-1: auth/key-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return { apiKey: withHash, token };
@@ -154,6 +157,9 @@ export class ApiKeyService {
         actorId: ctx.actor.id,
         actorType: 'user',
         changes: { before: { name: existing.name }, after: { name: updated.name } },
+        // ENG-1396 fix-1: auth/key-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return updated;
@@ -199,6 +205,9 @@ export class ApiKeyService {
         metadata: isAdminActingOnAnother
           ? { revokedByAdmin: true, originalOwnerId: existing.creatorId }
           : undefined,
+        // ENG-1396 fix-1: auth/key-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return revoked;

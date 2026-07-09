@@ -221,8 +221,13 @@ export class SpaceRepo {
       .as('memberCount');
   }
 
-  async deleteSpace(spaceId: string, workspaceId: string): Promise<void> {
-    await this.db
+  async deleteSpace(
+    spaceId: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<void> {
+    const db = dbOrTx(this.db, trx);
+    await db
       .deleteFrom('spaces')
       .where('id', '=', spaceId)
       .where('workspaceId', '=', workspaceId)

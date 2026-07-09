@@ -37,6 +37,8 @@ import { IdempotencyStore } from '../../integrations/redis/idempotency-store.ser
 import { PaginationOptions } from '../../database/pagination/pagination-options';
 import { SearchSuggestionDTO } from '../../core/search/dto/search.dto';
 import { PageStatus } from '@orvex/extensions';
+import { OutboxWriter } from '../events/outbox/outbox-writer.service';
+import type { WsService } from '../../ws/ws.service';
 import type { DbInterface } from '../../database/types/db.interface';
 import type { KyselyDB } from '../../database/types/kysely.types';
 
@@ -111,7 +113,16 @@ describe('ENG-1434 AC11 — discovery-hiding (sidebar/suggestions/recent)', () =
       groupRepoStub,
       cacheManagerStub,
     );
-    pageRepo = new PageRepo(db, spaceMemberRepo, eventEmitter);
+    const wsServiceStub = {
+      emitInvalidate: () => {},
+    } as unknown as WsService; // inert: no realtime assertions on this path
+    pageRepo = new PageRepo(
+      db,
+      spaceMemberRepo,
+      eventEmitter,
+      new OutboxWriter(db),
+      wsServiceStub,
+    );
 
     pageService = new PageService(
       pageRepo,

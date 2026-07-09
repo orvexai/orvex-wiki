@@ -18,6 +18,7 @@ import { useAtom } from "jotai";
 import { userAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { PageVerificationBadge } from "@/ee/page-verification";
+import { PageProvenanceBadge } from "@/ee/page-provenance/components/page-provenance-badge";
 import { useTranslation } from "react-i18next";
 import { IContributor } from "@/features/page/types/page.types.ts";
 import { FixedToolbar } from "@/features/editor/components/fixed-toolbar/fixed-toolbar";
@@ -105,6 +106,7 @@ export function FullEditor({
         editable={editable}
       />
       <PageByline
+        pageId={pageId}
         creator={creator}
         contributors={contributors}
         readOnly={!editable}
@@ -121,12 +123,22 @@ export function FullEditor({
 }
 
 type PageBylineProps = {
+  pageId: string;
   creator?: PageUser;
   contributors?: IContributor[];
   readOnly?: boolean;
 };
 
-function PageByline({ creator, contributors, readOnly }: PageBylineProps) {
+// Exported (not just used internally) so ENG-1460's wiring spec
+// (`full-editor-provenance-wiring.spec.tsx`) can lock the composition: the
+// page-provenance badge must be mounted here, next to the QMS
+// `PageVerificationBadge`, or the surface is unreachable dead code.
+export function PageByline({
+  pageId,
+  creator,
+  contributors,
+  readOnly,
+}: PageBylineProps) {
   const { t } = useTranslation();
   const detailsTriggerProps = useAsideTriggerProps("details");
 
@@ -215,6 +227,7 @@ function PageByline({ creator, contributors, readOnly }: PageBylineProps) {
       </Tooltip>
 
       <PageVerificationBadge readOnly={readOnly} />
+      <PageProvenanceBadge pageId={pageId} />
     </Group>
   );
 }

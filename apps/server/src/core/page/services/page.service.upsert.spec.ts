@@ -16,6 +16,7 @@ import {
 
 import { PageService } from './page.service';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { AttachmentRepo } from '@docmost/db/repos/attachment/attachment.repo';
 import { PageTransclusionsRepo } from '@docmost/db/repos/page-transclusions/page-transclusions.repo';
@@ -102,7 +103,18 @@ describe('PageUpsertDedupSpec', () => {
       record: async () => {},
     } as any;
 
-    const pageRepo = new PageRepo(db, spaceMemberRepoStub, eventEmitter);
+    // ENG-1383 — OutboxWriter is real (local-substitutable Postgres, per 4f;
+    // never mock the outbox's own repo). `wsService` is an unrelated side
+    // channel here (no scenario asserts on the Socket.IO invalidate sweep).
+    const outboxWriter = new OutboxWriter(db);
+    const wsServiceStub = { emitInvalidate: () => {} } as any;
+    const pageRepo = new PageRepo(
+      db,
+      spaceMemberRepoStub,
+      eventEmitter,
+      outboxWriter,
+      wsServiceStub,
+    );
     const pagePermissionRepo = new PagePermissionRepo(
       db,
       groupRepoStub,

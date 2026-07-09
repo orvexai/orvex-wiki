@@ -49,6 +49,15 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_WORKSPACE_CREATED,
+  EVT_WORKSPACE_UPDATED,
+  EVT_WORKSPACE_MEMBER_ADDED,
+  EVT_WORKSPACE_MEMBER_ROLE_CHANGED,
+  EVT_WORKSPACE_MEMBER_DEACTIVATED,
+  EVT_WORKSPACE_MEMBER_DELETED,
+} from '../../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
 export class WorkspaceService {
@@ -73,6 +82,7 @@ export class WorkspaceService {
     @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private userSessionRepo: UserSessionRepo,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   async findById(workspaceId: string) {
@@ -229,6 +239,16 @@ export class WorkspaceService {
           trx,
         );
 
+        // ENG-1609 AC1 — workspace.created lands atomically in the SAME
+        // transaction as the workspace insert (commit ⇒ 1 row; rollback ⇒
+        // 0 rows, since this whole block is one `executeTx`).
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_WORKSPACE_CREATED,
+          aggregateId: workspace.id,
+          workspaceId: workspace.id,
+          payload: { id: workspace.id, name: workspace.name },
+        });
+
         return workspace;
       },
       trx,
@@ -284,6 +304,14 @@ export class WorkspaceService {
           })
           .where('id', '=', userId)
           .execute();
+
+        // ENG-1609 AC2 — workspace.member_added, atomic in the same tx.
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_WORKSPACE_MEMBER_ADDED,
+          aggregateId: userId,
+          workspaceId: workspace.id,
+          payload: { userId, workspaceId: workspace.id },
+        });
       },
       trx,
     );
@@ -556,6 +584,16 @@ export class WorkspaceService {
         workspaceId,
         trx,
       );
+
+      // ENG-1609 AC1 — workspace.updated, atomic in the same tx as the
+      // update above (this block always performs the update write, even
+      // when every optional field is undefined, so it is a real mutation).
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_UPDATED,
+        aggregateId: workspaceId,
+        workspaceId,
+        payload: { id: workspaceId },
+      });
     });
 
     if (after.aiSearch === true) {
@@ -655,13 +693,24 @@ export class WorkspaceService {
       );
     }
 
-    await this.userRepo.updateUser(
-      {
-        role: newRole,
-      },
-      user.id,
-      workspaceId,
-    );
+    await executeTx(this.db, async (trx) => {
+      await this.userRepo.updateUser(
+        {
+          role: newRole,
+        },
+        user.id,
+        workspaceId,
+        trx,
+      );
+
+      // ENG-1609 AC2 — workspace.member_role_changed, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_ROLE_CHANGED,
+        aggregateId: user.id,
+        workspaceId,
+        payload: { userId: user.id, workspaceId, before: user.role, after: newRole },
+      });
+    });
 
     this.auditService.log({
       event: AuditEvent.USER_ROLE_CHANGED,
@@ -766,6 +815,14 @@ export class WorkspaceService {
         trx,
       );
       await this.userSessionRepo.revokeByUserId(userId, workspaceId, trx);
+
+      // ENG-1609 AC2 — workspace.member_deactivated, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_DEACTIVATED,
+        aggregateId: userId,
+        workspaceId,
+        payload: { userId, workspaceId },
+      });
     });
 
     this.auditService.log({
@@ -886,6 +943,14 @@ export class WorkspaceService {
       });
 
       await this.userSessionRepo.revokeByUserId(userId, workspaceId, trx);
+
+      // ENG-1609 AC2 — workspace.member_deleted, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_DELETED,
+        aggregateId: userId,
+        workspaceId,
+        payload: { userId, workspaceId },
+      });
     });
 
     this.auditService.log({

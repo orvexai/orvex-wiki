@@ -23,6 +23,7 @@ import {
 } from '@testcontainers/postgresql';
 
 import { ApiKeyModule } from './api-key.module';
+import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { JwtStrategy } from '../../core/auth/strategies/jwt.strategy';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
@@ -53,6 +54,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
   let seedDb: Kysely<DB>;
   let app: NestFastifyApplication;
   let eventEmitter: EventEmitter2;
+  let orvexAudit: OrvexAuditService;
 
   let workspaceId: string;
   let adminId: string;
@@ -148,6 +150,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
     );
     app.setGlobalPrefix('api');
     eventEmitter = built.get(EventEmitter2);
+    orvexAudit = built.get(OrvexAuditService);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
@@ -418,6 +421,33 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       failedRows[0].metadata as unknown as string,
     );
     expect(failedMetadata.reason).toBe('admin_role_required');
+  });
+
+  it('ENG-1396 fix-1 (review finding 1) — create/update/revoke all mark their audit write critical:true (fail-hard, joins the caller tx per the ENG-1380 contract)', async () => {
+    const logAndCommitSpy = jest.spyOn(orvexAudit, 'logAndCommit');
+
+    const created = await createKey(adminId, 'ENG-1396 fix-1 key');
+    await app.inject({
+      method: 'POST',
+      url: '/api/api-keys/update',
+      headers: authHeader(signAccess(adminId, workspaceId)),
+      payload: { apiKeyId: created.apiKey.id, name: 'ENG-1396 fix-1 key renamed' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/api/api-keys/revoke',
+      headers: authHeader(signAccess(adminId, workspaceId)),
+      payload: { apiKeyId: created.apiKey.id },
+    });
+
+    const calls = logAndCommitSpy.mock.calls.filter(
+      ([, data]) => data.resourceId === created.apiKey.id,
+    );
+    expect(calls).toHaveLength(3);
+    for (const [, data] of calls) {
+      expect(data.critical).toBe(true);
+    }
+    logAndCommitSpy.mockRestore();
   });
 
   it('AC10 — workspace.deleted reconciles orphaned api-key rows', async () => {

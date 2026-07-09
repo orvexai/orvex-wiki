@@ -27,6 +27,11 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_ATTACHMENT_CREATED,
+  EVT_ATTACHMENT_DELETED,
+} from '../../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
 export class AttachmentService {
@@ -39,7 +44,29 @@ export class AttachmentService {
     private readonly spaceRepo: SpaceRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
+
+  /**
+   * ENG-1609 AC5 — attachment.deleted, atomic with the DB delete of the
+   * attachment row (the storage-file delete is a true external IO side
+   * effect and stays outside the DB transaction, matching every other
+   * caller in this service).
+   */
+  private async deleteAttachmentRow(
+    attachment: { id: string; workspaceId: string },
+  ): Promise<void> {
+    await executeTx(this.db, async (trx) => {
+      await this.attachmentRepo.deleteAttachmentById(attachment.id, trx);
+
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_ATTACHMENT_DELETED,
+        aggregateId: attachment.id,
+        workspaceId: attachment.workspaceId,
+        payload: { id: attachment.id, workspaceId: attachment.workspaceId },
+      });
+    });
+  }
 
   async uploadFile(opts: {
     filePromise: Promise<MultipartFile>;
@@ -271,19 +298,39 @@ export class AttachmentService {
       spaceId,
       trx,
     } = opts;
-    return this.attachmentRepo.insertAttachment(
-      {
-        id: attachmentId,
-        type: type,
-        filePath: filePath,
-        fileName: preparedFile.fileName,
-        fileSize: preparedFile.fileSize,
-        mimeType: preparedFile.mimeType,
-        fileExt: preparedFile.fileExtension,
-        creatorId: userId,
-        workspaceId: workspaceId,
-        pageId: pageId,
-        spaceId: spaceId,
+
+    // ENG-1609 AC5 — attachment.created, atomic with the insert. `saveAttachment`
+    // is the single production insert point shared by `uploadFile` (no caller
+    // trx) and `uploadImage` (caller-managed trx) — `executeTx` opens its own
+    // transaction only when the caller didn't already give it one.
+    return executeTx(
+      this.db,
+      async (innerTrx) => {
+        const attachment = await this.attachmentRepo.insertAttachment(
+          {
+            id: attachmentId,
+            type: type,
+            filePath: filePath,
+            fileName: preparedFile.fileName,
+            fileSize: preparedFile.fileSize,
+            mimeType: preparedFile.mimeType,
+            fileExt: preparedFile.fileExtension,
+            creatorId: userId,
+            workspaceId: workspaceId,
+            pageId: pageId,
+            spaceId: spaceId,
+          },
+          innerTrx,
+        );
+
+        await this.outboxWriter.enqueue(innerTrx, {
+          type: EVT_ATTACHMENT_CREATED,
+          aggregateId: attachment.id,
+          workspaceId,
+          payload: { id: attachment.id, workspaceId, type },
+        });
+
+        return attachment;
       },
       trx,
     );
@@ -300,7 +347,7 @@ export class AttachmentService {
         attachments.map(async (attachment) => {
           try {
             await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             this.logger.log(
               `DeleteAiChatAttachments: failed to delete attachment ${attachment.id}:`,
@@ -327,7 +374,7 @@ export class AttachmentService {
         attachments.map(async (attachment) => {
           try {
             await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             failedDeletions.push(attachment.id);
             this.logger.log(
@@ -352,7 +399,7 @@ export class AttachmentService {
     try {
       const userAvatars = await this.db
         .selectFrom('attachments')
-        .select(['id', 'filePath'])
+        .select(['id', 'filePath', 'workspaceId'])
         .where('creatorId', '=', userId)
         .where('type', '=', AttachmentType.Avatar)
         .execute();
@@ -365,7 +412,7 @@ export class AttachmentService {
         userAvatars.map(async (attachment) => {
           try {
             await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             this.logger.log(
               `DeleteUserAvatar: failed to delete user avatar ${attachment.id}:`,
@@ -384,7 +431,7 @@ export class AttachmentService {
       // Fetch attachments for this page from database
       const attachments = await this.db
         .selectFrom('attachments')
-        .select(['id', 'filePath'])
+        .select(['id', 'filePath', 'workspaceId'])
         .where('pageId', '=', pageId)
         .execute();
 
@@ -399,8 +446,8 @@ export class AttachmentService {
           try {
             // Delete from storage
             await this.storageService.delete(attachment.filePath);
-            // Delete from database
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            // Delete from database (+ ENG-1609 outbox row, atomic)
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             failedDeletions.push(attachment.id);
             this.logger.error(

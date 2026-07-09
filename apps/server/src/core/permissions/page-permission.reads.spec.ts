@@ -33,6 +33,8 @@ import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
+import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
+import { WsService } from '../../ws/ws.service';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { SessionActivityService } from '../session/session-activity.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
@@ -128,6 +130,8 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
         SpaceMemberRepo,
         PageRepo,
         PagePermissionRepo,
+        OutboxWriter,
+        WsService,
         SpaceAbilityFactory,
         JwtStrategy,
         { provide: CACHE_MANAGER, useValue: stubCache },
@@ -156,6 +160,8 @@ describe('TestPagePermissionsController_ListAndRestrictionInfoReads', () => {
         SpaceMemberRepo,
         PageRepo,
         PagePermissionRepo,
+        OutboxWriter,
+        WsService,
         SpaceAbilityFactory,
         JwtStrategy,
         CACHE_MANAGER,

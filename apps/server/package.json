@@ -103,6 +103,7 @@
     "jose": "6.2.3",
     "js-tiktoken": "1.0.21",
     "jsonwebtoken": "9.0.3",
+    "kafkajs": "2.2.4",
     "kysely": "0.28.17",
     "kysely-migration-cli": "0.4.2",
     "kysely-postgres-js": "3.0.0",

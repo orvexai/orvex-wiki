@@ -123,6 +123,10 @@ export const AuditEvent = {
   PAGE_UNSUPERSEDED: 'page.unsuperseded',
   SUPERSEDE_FORCED_BYPASS: 'page.supersede_forced_bypass',
   FORCE_SUPERSEDE_SETTING_UPDATED: 'force_supersede.setting_updated',
+
+  // Transclusion write-block safeguard (ENG-1470)
+  TRANSCLUSION_REFERENCE_UNSYNCED: 'transclusion.reference_unsynced',
+  TRANSCLUSION_FORCE_DELETE: 'transclusion.force_delete',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];
@@ -158,7 +162,10 @@ export const AuditResource = {
 export type AuditResourceType =
   (typeof AuditResource)[keyof typeof AuditResource];
 
-export type ActorType = 'user' | 'system' | 'api_key';
+// ENG-1396 (AC6): `external_agent` classifies an API-key-authenticated
+// caller (distinct from `api_key`, which is unused by any call site and
+// kept only for back-compat of the exported union).
+export type ActorType = 'user' | 'system' | 'api_key' | 'external_agent';
 
 export interface AuditLogPayload {
   event: AuditEventType;
@@ -170,6 +177,15 @@ export interface AuditLogPayload {
     after?: Record<string, any>;
   };
   metadata?: Record<string, any>;
+  // ENG-1396 (AC1/AC2): selects the durability mode of `logAndCommit` — a
+  // critical event joins the caller's transaction (fails/rolls back
+  // together); a non-critical event (the default, falsy) is deferred via
+  // `setImmediate` to run after the caller's transaction settles, so a
+  // caller-tx rollback never takes the audit row with it (H-30). This is
+  // not a sibling DB transaction — it's a same-connection deferral chosen
+  // to avoid a documented kysely deadlock when opening a second
+  // transaction concurrently on the same connection.
+  critical?: boolean;
 }
 
 export interface AuditLogData extends AuditLogPayload {
@@ -178,4 +194,7 @@ export interface AuditLogData extends AuditLogPayload {
   actorType: ActorType;
   ipAddress?: string;
   userAgent?: string;
+  // ENG-1396 (AC7): the API-key UUID for an `external_agent` actor. Never
+  // set for `user`/`system` rows.
+  clientId?: string;
 }
