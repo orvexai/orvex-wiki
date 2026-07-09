@@ -1,7 +1,11 @@
 export const meta = {
   name: 'studio-act3-delivery-engine',
-  description: 'Act-3 autonomous delivery engine: loop-until-dry over the ready frontier — claim, TDD build (sonnet), adversarial review (opus), deterministic Done gate with DoD ticking, per-repo serialized PR merges — until the backlog is done or caps trip',
-  phases: [{ title: 'Engine', detail: 'ticks: frontier -> parallel build/review -> serialized merge/gate -> advance' }],
+  description: 'Act-3 autonomous delivery engine: rolling-saturation over the ready frontier — claim, TDD build (sonnet), adversarial review (opus), deterministic Done gate with DoD ticking, per-repo serialized PR merges — until the backlog is done or caps trip',
+  phases: [
+    { title: 'Startup reclaim', detail: 'un-strand stale In-Progress/In-Review claims' },
+    { title: 'Frontier', detail: 'bulk cache sync + local readiness (cheap, repeatable)' },
+    { title: 'Deliver', detail: 'rolling dispatch: refill each slot the moment it frees — no tick barrier' },
+  ],
 }
 
 // ---- Constants -------------------------------------------------------------
@@ -10,11 +14,19 @@ const RDIR = SESSION_SCRATCH + '/act3'
 const DECISIONS = SESSION_SCRATCH + '/act2a/po-decisions-2026-07-07.md'
 const HUB = '/home/daniel/repos/orvex-wiki'
 const WORKTREES = '/tmp/worktrees'
-const MAX_TICKS = (args && args.maxTicks) || 40
-const FIRST_BATCH = 16
-const STEADY_BATCH = 18  // quota-sane: batch-28 blew the 2500/hr Linear quota (many claims rate-limited = wasted slots); 18 gives saturation headroom over the ~16 cap without exhausting the shared API budget
+const MAX_SYNCS = (args && args.maxTicks) || 120         // cap on frontier re-syncs (was maxTicks; a sync is ~5 API calls + one sonnet agent — far cheaper than an old tick)
+const TARGET_INFLIGHT = 16   // per-workflow agent cap is min(16, cores-2); refill to this the moment a slot frees (rolling — no tick barrier)
+const REFRESH_EVERY = 6      // re-sync the frontier after this many completions even if the queue is non-empty (newly-Done issues unblock successors)
 const BOUNCE_CAP = 3
-const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if the ready frontier is narrower than this, fill the spare slots with useful non-claiming pre-work.
+const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if ready work is narrower than this, fill the spare slots with useful non-claiming pre-work.
+// PARTITION (scale-out to the PO-ratified 32-agent ceiling, §3.28): two engines run
+// concurrently with DISJOINT project sets — each issue lives in exactly one project and
+// each repo in exactly one partition, so claims can never collide and per-repo merge
+// serialization holds across engines (this static partition is the claim arbiter the
+// Q7/PD-6 ruling requires; the main session stays the single orchestrator).
+// args.partitionProjects: array of project names this engine OWNS. Absent ⇒ whole initiative.
+const PARTITION = (args && args.partitionProjects) || null
+const PART_TAG = (args && args.partitionName) || 'solo'
 const GATE_MS = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','M14']
 
 const PROJECT_REPO = {
@@ -125,7 +137,6 @@ function withRepoLock(repo, fn) {
 const escalated = []
 const doneThisRun = []
 const bounces = {}
-let dryTicks = 0
 let complete = false
 let residueReport = null
 
@@ -133,17 +144,13 @@ let residueReport = null
 // When the ready frontier is narrower than CAPACITY_FLOOR, fill the spare slots
 // with useful NON-CLAIMING pre-work so the box never idles. These never build,
 // claim, or merge — comment-only analysis — so they can't race the delivery lane.
-function makeTopups(tick, slack) {
-  const thunks = []
-  for (let i = 0; i < slack; i++) {
-    const m = GATE_MS[(tick * 3 + i) % GATE_MS.length]
-    thunks.push(() => agent([
-      'CAPACITY-FILL pre-work for milestone ' + m + ' (the delivery frontier is narrow right now, so use this spare slot usefully). NON-CLAIMING, comment-only: NEVER claim/build/merge/change status — the delivery lane owns that.',
-      'Do a readiness + spec-drift pre-analysis: read the ' + m + ' closing gate + a sample of its issues LIVE (linearis); if any AC has drifted from current repo reality (route/package/test-name changes) or a Cancelled issue is still wired as a gate blocker (§3.24), post ONE corrective dev-context comment. Then re-verify ONE already-Done issue in ' + m + ' is not fake-done (§3.27: the named DoD test exists + impl present + any UI wired into the running app + real not-synthetic fixtures) and comment if suspect. If nothing needs fixing, no-op.',
-      RETDISC,
-    ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':fill:' + m + '-' + i, phase: 'Tick ' + tick, schema: NOTE_SCHEMA }).then(() => ({ out: 'topup' })))
-  }
-  return thunks
+function makeTopup(m, i) {
+  return agent([
+    'CAPACITY-FILL pre-work for milestone ' + m + ' (the delivery frontier is narrow right now, so use this spare slot usefully). NON-CLAIMING, comment-only: NEVER claim/build/merge/change status — the delivery lane owns that.',
+    'QUOTA-LIGHT: use the cached ' + HUB + '/.cache/linear/initiative.json to pick the ' + m + ' closing gate + sample issues; read AT MOST 2 issue bodies live (linearis) — the gate + one Done sample.',
+    'Do a readiness + spec-drift pre-analysis: if any AC has drifted from current repo reality (route/package/test-name changes) or a Cancelled issue is still wired as a gate blocker (§3.24), post ONE corrective dev-context comment. Then re-verify ONE already-Done issue in ' + m + ' is not fake-done (§3.27: the named DoD test exists + impl present + any UI wired into the running app + real not-synthetic fixtures) and comment if suspect. If nothing needs fixing, no-op.',
+    RETDISC,
+  ].join('\n'), { model: 'sonnet', effort: 'low', label: 'fill' + i + ':' + m, phase: 'Deliver', schema: NOTE_SCHEMA }).then(() => ({ out: 'topup' }))
 }
 
 // ---- Startup reclaim (§3.20c / §3.31) --------------------------------------
@@ -155,66 +162,58 @@ phase('Startup reclaim')
 await agent([
   'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '. Launch nonce: ' + ((args && args.nonce) || 'none') + ' (ignore; it only prevents stale cache replay).',
   '1. Write the in-scope project allowlist by running this EXACT command:\n' + WRITE_SCOPE_CMD + '\n   then run: _bmad/lnr/tools/linear-sync.sh sync-initiative --projects-file ' + SCOPE_FILE + ' (ONE bulk fetch; no per-issue reads).',
-  '2. Read ' + HUB + '/.cache/linear/initiative.json and list every issue with state "In Progress" (jq: .issues to_entries | select(.value.state=="In Progress")). For each, check gh for an open PR in its repo (repo map: ' + JSON.stringify(PROJECT_REPO) + ').',
-  '3. Reset EVERY stranded In-Progress issue to Todo via linearis so the frontier re-picks it (In Progress issues are invisible to the frontier — leaving them strands the work).',
-  '4. For issues that HAVE an open PR with substantive work: BEFORE resetting, post a comment "Prior work exists: PR <url> (<branch>). FINISH it — rebase onto the integration branch and complete the remaining ACs on top; do NOT rebuild from scratch." Archive dangling branch refs for no-PR issues; remove stale worktrees.',
+  '2. Read ' + HUB + '/.cache/linear/initiative.json and list every issue with state "In Progress" OR "In Review"' + (PARTITION ? ' whose project is one of ' + JSON.stringify(PARTITION) + ' (a sibling engine reclaims the rest)' : '') + ' (jq over .issues). For each, check gh for an open PR in its repo (repo map: ' + JSON.stringify(PROJECT_REPO) + ').',
+  '3. Reset EVERY such stranded issue to Todo via linearis so the frontier re-picks it (In Progress AND In Review issues are invisible to the Todo/Backlog frontier — leaving them strands the work; a prior run leaked done-but-unmerged work exactly this way).',
+  '4. For issues that HAVE an open PR with substantive work: BEFORE resetting, post a comment "Prior work exists: PR <url> (<branch>)' + '" plus, if a review verdict/report is already on the issue, "review PASS on record — just merge + gate" — the instruction is FINISH it (rebase onto the integration branch, complete remaining ACs on top); do NOT rebuild from scratch. Archive dangling branch refs for no-PR issues; remove stale worktrees.',
   'Return ok + a one-line reset count (with-PR vs no-PR). ' + RETDISC,
 ].join('\n'), { model: 'sonnet', effort: 'medium', label: 'startup-reclaim', phase: 'Startup reclaim', schema: NOTE_SCHEMA })
 
-// ---- Engine loop -----------------------------------------------------------
-for (let tick = 1; tick <= MAX_TICKS; tick++) {
-  phase('Tick ' + tick)
-  log('Tick ' + tick + ': quota gate, then frontier (escalated so far: ' + escalated.length + ', done this run: ' + doneThisRun.length + ')')
+// ---- One-time quota gate -----------------------------------------------------
+phase('Frontier')
+// §quota-gate: never launch into a drained Linear window — wait it out in ONE cheap
+// agent instead of burning build slots. Runs ONCE at startup; mid-run rate-limiting
+// surfaces through the frontier's honesty gate instead.
+const qg = await agent([
+  'LINEAR QUOTA GATE (startup, engine ' + PART_TAG + '). Work from ' + HUB + '. Probe the shared 2500/hr Linear quota with ONE cheap call USING THE LINEARIS CLI ONLY: linearis issues read ENG-1594. NEVER use the Linear MCP tools for this — they authenticate via a separate OAuth token that is currently expired, and an MCP auth error is NOT a quota signal (a prior run false-checkpointed on exactly that).',
+  'If the linearis read succeeds: return ok=true immediately.',
+  'If linearis returns rate_limited: WAIT IT OUT here — sleep in 120-300s chunks (bash sleep works in your shell), re-probing with linearis after each chunk, up to 65 minutes total. Return ok=true once a probe succeeds; ok=false only if STILL rate-limited after 65 minutes, or if linearis itself has an auth failure (say which in detail).',
+  RETDISC,
+].join('\n'), { model: 'sonnet', effort: 'low', label: 'quota-gate:' + PART_TAG, phase: 'Frontier', schema: NOTE_SCHEMA })
+if (!qg || !qg.ok) {
+  log('Linear quota still exhausted after 65 min — checkpointing, NOT complete')
+  return { complete: false, delivered: [], deliveredCount: 0, escalated: [], residue: null, reportDir: RDIR, stopReason: 'quota-exhausted', partition: PART_TAG }
+}
 
-  // §quota-gate: never fan a batch into a drained Linear window — wait it out in ONE cheap agent instead of burning N build slots.
-  const qg = await agent([
-    'LINEAR QUOTA GATE (tick ' + tick + '). Work from ' + HUB + '. Probe the shared 2500/hr Linear quota with ONE cheap call USING THE LINEARIS CLI ONLY: linearis issues read ENG-1594. NEVER use the Linear MCP tools for this — they authenticate via a separate OAuth token that is currently expired, and an MCP auth error is NOT a quota signal (a prior run false-checkpointed on exactly that).',
-    'If the linearis read succeeds: return ok=true immediately.',
-    'If linearis returns rate_limited: WAIT IT OUT here — sleep in 120-300s chunks (bash sleep works in your shell), re-probing with linearis after each chunk, up to 65 minutes total. Return ok=true once a probe succeeds; ok=false only if STILL rate-limited after 65 minutes, or if linearis itself has an auth failure (say which in detail).',
-    RETDISC,
-  ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':quota-gate', phase: 'Tick ' + tick, schema: NOTE_SCHEMA })
-  if (!qg || !qg.ok) { log('Linear quota still exhausted after 65 min — checkpointing, NOT complete'); break }
-
-  let frontier = null
+// ---- Frontier sync (cheap + repeatable: ~5 API calls, local readiness) -------
+async function syncFrontier(n) {
   for (let attempt = 1; attempt <= 3; attempt++) {
-    frontier = await agent([
+    const frontier = await agent([
       'FRONTIER COMPUTATION (ONE bulk cache sync, then LOCAL readiness — do NOT do per-project or per-issue live linearis reads; that per-tick sweep is exactly what drained the shared 2500/hr quota). Work from ' + HUB + '. Attempt ' + attempt + ' of 3.',
       '1. Write the in-scope project allowlist by running this EXACT command:\n' + WRITE_SCOPE_CMD,
       '2. Run: _bmad/lnr/tools/linear-sync.sh sync-initiative --projects-file ' + SCOPE_FILE + '\n   This does ONE bulk paginated fetch of the WHOLE initiative — all states INCLUDING Done — plus the blocked-by graph, in ~5 API calls, and writes ' + HUB + '/.cache/linear/initiative.json (scoped to the allowlist). Capture its exit code.',
       '3. Read ' + HUB + '/.cache/linear/initiative.json (local file — jq, no API). Its shape: {complete:bool, counts:{total,byState:{<state>:n}}, issues:{"ENG-N":{state,project,milestone,labels:[],updatedAt,blockedBy:[ids],blocks:[ids]}}}.',
       '4. HONESTY GATE (load-bearing — a prior run declared the backlog delivered off a rate-limited read of zeros): if the sync exited non-zero, OR .complete is false, OR (.counts.byState.Done // 0) == 0 → the Done half was rate-limited; set readComplete=false and RETURN immediately (do NOT fabricate, do NOT compute a frontier off a partial cache). Otherwise readComplete=true.',
-      '5. Candidates (jq over .issues): state == "Todo" or "Backlog", EXCLUDING any issue whose labels intersect {stripe-hold, keycloak-parked, deferred-future}, the id ENG-1594, and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.',
-      '6. READY (from the cached graph — the blockedBy edges ARE the real Linear "blocks" relations; ignore prose "blocked-by" in bodies): a candidate is ready iff EVERY id in its blockedBy has, in .issues, a state of Done/Canceled/Duplicate (a blocker id absent from the scoped cache counts as NOT satisfied → not ready). Gate issues (label contains "gate", or project "Orvex Studio — Delivery Gates") use the same rule.',
+      '5. Candidates (jq over .issues): state == "Todo" or "Backlog", EXCLUDING any issue whose labels intersect {stripe-hold, keycloak-parked, deferred-future}, the id ENG-1594, and these escalated ids: ' + JSON.stringify(escalated.map(e => e.eng)) + '.' + (PARTITION ? ' PARTITION: this engine owns ONLY these projects (a sibling engine owns the rest — returning an issue outside them would DOUBLE-CLAIM): project MUST be one of ' + JSON.stringify(PARTITION) + '.' : ''),
+      '6. READY (from the cached graph — the blockedBy edges ARE the real Linear "blocks" relations; ignore prose "blocked-by" in bodies): a candidate is ready iff EVERY id in its blockedBy has, in .issues, a state of Done/Canceled/Duplicate (a blocker id absent from the scoped cache counts as NOT satisfied → not ready). Blockers are judged across the WHOLE initiative cache regardless of partition. Gate issues (label contains "gate", or project "Orvex Studio — Delivery Gates") use the same rule.',
       '7. Order ready by: wave ascending (label Wave A/B/C, else the M-number label), then by |blocks| descending (how many others it blocks). Return at most 32. project + milestone come straight from the cache.',
-      '8. Counts: doneTotal = .counts.byState.Done; todoTotal = count of ALL Todo+Backlog in scope (incl. held); blockedResidue = count of Todo/Backlog candidates that are NOT ready (held/escalated/has an open blocker) = todoTotal minus the ready-eligible count.',
+      '8. Counts: doneTotal = .counts.byState.Done (whole initiative — sanity signal); todoTotal = count of ALL Todo+Backlog within THIS ENGINE\'S scope (the partition if set, else the whole initiative), incl. held; blockedResidue = count of those that are NOT ready (held/escalated/open blocker) = todoTotal minus the ready-eligible count.',
       '9. No live per-issue reads are needed or allowed here. The ONLY Linear calls this step makes are the handful inside sync-initiative. If sync-initiative itself reports rate-limiting, treat as readComplete=false per step 4.',
       RETDISC,
-      'Write the full candidate table (eng, project, milestone, wave, |blocks|, blockedBy states) to ' + RDIR + '/tick' + tick + '-frontier.md.',
-    ].join('\n'), { model: 'sonnet', effort: 'medium', label: 't' + tick + ':frontier:a' + attempt, phase: 'Tick ' + tick, schema: FRONTIER_SCHEMA })
-    if (frontier && frontier.readComplete && (frontier.doneTotal || 0) > 0) break
-    log('Tick ' + tick + ': frontier read incomplete/degenerate (attempt ' + attempt + ') — retrying')
-    frontier = null
+      'Write the full candidate table (eng, project, milestone, wave, |blocks|, blockedBy states) to ' + RDIR + '/frontier-' + PART_TAG + '-' + n + '.md.',
+    ].join('\n'), { model: 'sonnet', effort: 'medium', label: 'f' + n + ':' + PART_TAG + ':a' + attempt, phase: 'Frontier', schema: FRONTIER_SCHEMA })
+    if (frontier && frontier.readComplete && (frontier.doneTotal || 0) > 0) return frontier
+    log('Frontier sync ' + n + ' [' + PART_TAG + ']: incomplete/degenerate (attempt ' + attempt + ') — retrying')
   }
-  if (!frontier) { log('Frontier unreadable after 3 attempts (rate limit?) — checkpointing, NOT complete'); break }
-  if (!frontier.ready || frontier.ready.length === 0) {
-    // Complete ONLY on a sane, fully-read state: nothing left to do, nothing held, and a plausible done count.
-    if ((frontier.todoTotal || 0) === 0 && (frontier.blockedResidue || 0) === 0 && (frontier.doneTotal || 0) > 0) { complete = true }
-    residueReport = frontier
-    log('Frontier empty (residue: ' + (frontier.blockedResidue || 0) + ', todo: ' + (frontier.todoTotal || 0) + ') — ending run; complete=' + complete)
-    break
-  }
+  return null
+}
 
-  const batchSize = tick === 1 ? FIRST_BATCH : STEADY_BATCH
-  const batch = frontier.ready.slice(0, batchSize)
-  const slack = Math.max(0, CAPACITY_FLOOR - batch.length)
-  log('Tick ' + tick + ': ' + batch.length + ' build slots (' + batch.map(b => b.eng).join(', ') + ') + ' + slack + ' capacity-fill pre-work agents [floor ' + CAPACITY_FLOOR + ']')
-
-  const buildThunks = batch.map(item => async () => {
+// ---- Delivery chain: one issue end-to-end (build -> review -> gate) ----------
+async function deliverItem(item, seq) {
     const repo = PROJECT_REPO[item.project] || 'CROSS_REPO'
-    const T = 'Tick ' + tick
+    const T = 'Deliver'
 
     // --- build (or gate-verify for gate issues) ---
-    const wt = WORKTREES + '/t' + tick + '-' + item.eng.toLowerCase()
+    const wt = WORKTREES + '/' + PART_TAG + '-d' + seq + '-' + item.eng.toLowerCase()
     const build = await agent([
       item.isGate
         ? 'GATE ISSUE ' + item.eng + ' (' + (item.title || '') + '): this is a VERIFICATION issue, not a coding task. Read its full body LIVE (linearis). Confirm every blocked-by constituent is Done (live relations). Execute its gate checklist honestly: run the milestone integration/E2E suites its body names, in the repos they belong to (repo map: ' + JSON.stringify(PROJECT_REPO) + '). Record every command + result. green=true ONLY if every named check actually ran and passed; blocked=true ONLY if something unavailable (missing infra/credential) genuinely prevents verification — set escalate to the exact command + error then.'
@@ -231,7 +230,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
       ].join('\n'),
       DOCTRINE, LNR, RETDISC,
       'Full build log -> ' + RDIR + '/' + item.eng + '-build.md.',
-    ].join('\n'), { model: item.isGate ? 'opus' : 'sonnet', effort: item.isGate ? 'high' : 'medium', label: 't' + tick + ':build:' + item.eng, phase: T, schema: BUILD_SCHEMA })
+    ].join('\n'), { model: item.isGate ? 'opus' : 'sonnet', effort: item.isGate ? 'high' : 'medium', label: '#' + seq + ':build:' + item.eng, phase: T, schema: BUILD_SCHEMA })
 
     if (!build) { escalated.push({ eng: item.eng, why: 'build agent died' }); return { eng: item.eng, out: 'agent-died' } }
     if (!build.green || build.blocked) {
@@ -239,7 +238,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
       await agent([
         'ESCALATION BOOKKEEPING for ' + item.eng + ': add a Linear comment (linearis) stating exactly what blocks it: ' + JSON.stringify(build.escalate || 'build not green') + ' — include the command/error from ' + RDIR + '/' + item.eng + '-build.md if present. If a work branch exists, archive it (git update-ref refs/archive/inflight/' + item.eng.toLowerCase() + ' <sha>) then remove the worktree ' + wt + ' (git worktree remove --force) and delete the local branch only after archiving. Leave status as-is.',
         LNR, RETDISC,
-      ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+      ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
       return { eng: item.eng, out: 'escalated' }
     }
 
@@ -253,7 +252,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
         'verdict: PASS (all green, ACs met) | FINDINGS (fixable defects — list them) | ESCALATE (needs a human: missing infra/credential/product call).',
         DOCTRINE, LNR, RETDISC,
         'Full review -> ' + RDIR + '/' + item.eng + '-review' + (bounces[item.eng] + 1) + '.md.',
-      ].join('\n'), { model: 'opus', effort: 'high', label: 't' + tick + ':review:' + item.eng, phase: T, schema: REVIEW_SCHEMA })
+      ].join('\n'), { model: 'opus', effort: 'high', label: '#' + seq + ':review:' + item.eng, phase: T, schema: REVIEW_SCHEMA })
 
       if (!review) { escalated.push({ eng: item.eng, why: 'review agent died' }); return { eng: item.eng, out: 'agent-died' } }
       if (review.verdict === 'PASS') break
@@ -262,7 +261,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
         await agent([
           'ESCALATION BOOKKEEPING for ' + item.eng + ' (post-review): comment on the issue via linearis with the blocking findings ' + JSON.stringify((review.findings || []).slice(0, 5)) + ' or the escalation ask ' + JSON.stringify(review.escalate || '') + '. Archive the branch ref (refs/archive/inflight/) and remove the worktree as in the standard escalation step. Leave status In Progress.',
           LNR, RETDISC,
-        ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+        ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
         return { eng: item.eng, out: 'escalated' }
       }
       bounces[item.eng]++
@@ -271,7 +270,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
         JSON.stringify(review.findings || []),
         'TDD discipline; re-run the gates yourself; amend/append commits (green only) and update the PR.', DOCTRINE, RETDISC,
         'Fix log -> ' + RDIR + '/' + item.eng + '-fix' + bounces[item.eng] + '.md.',
-      ].join('\n'), { model: 'sonnet', effort: 'medium', label: 't' + tick + ':fix:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+      ].join('\n'), { model: 'sonnet', effort: 'medium', label: '#' + seq + ':fix:' + item.eng, phase: T, schema: NOTE_SCHEMA })
     }
 
     // --- deterministic Done gate + merge (serialized per repo) ---
@@ -288,7 +287,7 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
         ].join('\n'),
       LNR, RETDISC,
       'Gate log -> ' + RDIR + '/' + item.eng + '-gate.md.',
-    ].join('\n'), { model: 'sonnet', effort: 'medium', label: 't' + tick + ':gate:' + item.eng, phase: T, schema: GATE_SCHEMA }))
+    ].join('\n'), { model: 'sonnet', effort: 'medium', label: '#' + seq + ':gate:' + item.eng, phase: T, schema: GATE_SCHEMA }))
 
     if (gate && gate.done) {
       doneThisRun.push(item.eng)
@@ -297,28 +296,98 @@ for (let tick = 1; tick <= MAX_TICKS; tick++) {
         await agent([
           'Milestone notification: use ToolSearch (query select:PushNotification) to load the PushNotification tool if this environment exposes it, then send: "Orvex Studio: milestone ' + item.milestone + ' COMPLETE (gate ' + item.eng + ' Done; ' + (doneThisRun.length) + ' issues delivered this run)". If the tool is unavailable, return ok=true with detail noting it was skipped.',
           RETDISC,
-        ].join('\n'), { model: 'sonnet', effort: 'low', label: 't' + tick + ':notify:' + item.milestone, phase: T, schema: NOTE_SCHEMA })
+        ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':notify:' + item.milestone, phase: T, schema: NOTE_SCHEMA })
       }
       return { eng: item.eng, out: 'done' }
     }
     escalated.push({ eng: item.eng, why: ((gate && gate.escalate) || 'done-gate failed').slice(0, 200) })
     return { eng: item.eng, out: 'gate-failed' }
-  })
+}
 
-  // §3.31: dispatch the build batch AND the capacity-fill pre-work together so ~CAPACITY_FLOOR slots stay warm even when the frontier is narrow.
-  const tickResults = await parallel([...buildThunks, ...makeTopups(tick, slack)])
+// ---- Rolling engine loop (continuous saturation — no tick barrier) -----------
+// The old loop awaited a whole batch before the next frontier: one slow issue (a
+// 3-bounce review runs hours) held up to 17 FINISHED slots idle until the batch
+// drained. Now every slot refills the moment it frees, and the cheap frontier
+// re-syncs as completions unlock successors.
+phase('Deliver')
+const inFlight = new Set()
+const claimedIds = new Set()   // dispatched this run — never re-dispatch off a stale cache
+let queued = []
+let syncs = 0
+let seq = 0
+let doneSinceSync = 0
+let emptySyncs = 0
+let topupSeq = 0
+let stopReason = 'max-syncs'
 
-  const advanced = (tickResults || []).filter(Boolean).filter(r => r.out === 'done').length
-  log('Tick ' + tick + ' result: ' + advanced + ' Done, ' + ((tickResults || []).filter(Boolean).filter(r => r.out !== 'done').length) + ' not advanced')
-  if (advanced === 0) { dryTicks++ } else { dryTicks = 0 }
-  if (dryTicks >= 2) { log('No-progress cap tripped (2 dry ticks) — checkpointing for orchestrator review'); break }
+function launch(item) {
+  claimedIds.add(item.eng)
+  seq++
+  const mySeq = seq
+  let p
+  p = deliverItem(item, mySeq).then(
+    r => { inFlight.delete(p); doneSinceSync++; log('#' + mySeq + ' ' + item.eng + ' -> ' + ((r && r.out) || 'null') + '  [inflight ' + inFlight.size + ' | queued ' + queued.length + ' | done ' + doneThisRun.length + ' | escalated ' + escalated.length + ']'); return r },
+    () => { inFlight.delete(p); doneSinceSync++; escalated.push({ eng: item.eng, why: 'delivery chain threw' }); return { eng: item.eng, out: 'error' } }
+  )
+  inFlight.add(p)
+}
+
+function launchTopup() {
+  topupSeq++
+  const m = GATE_MS[(topupSeq * 3) % GATE_MS.length]
+  let p
+  p = makeTopup(m, topupSeq).then(r => { inFlight.delete(p); return r }, () => { inFlight.delete(p); return { out: 'topup' } })
+  inFlight.add(p)
+}
+
+while (true) {
+  // (Re)sync when: first pass; queue is empty and something changed (a completion) or
+  // nothing is running; or enough completions have unlocked successors.
+  const needSync = syncs === 0
+    || (queued.length === 0 && (doneSinceSync > 0 || inFlight.size === 0))
+    || doneSinceSync >= REFRESH_EVERY
+  if (needSync && syncs < MAX_SYNCS) {
+    syncs++; doneSinceSync = 0
+    const frontier = await syncFrontier(syncs)
+    if (!frontier) {
+      if (inFlight.size === 0) { stopReason = 'frontier-unreadable'; log('Frontier unreadable (rate limit?) and nothing in flight — checkpointing, NOT complete'); break }
+      log('Frontier unreadable — keeping ' + inFlight.size + ' in-flight deliveries; will retry after the next completion')
+    } else {
+      residueReport = frontier
+      const fresh = (frontier.ready || []).filter(it => it && it.eng && !claimedIds.has(it.eng))
+      queued = fresh
+      if (fresh.length === 0 && inFlight.size === 0) {
+        if ((frontier.todoTotal || 0) === 0 && (frontier.blockedResidue || 0) === 0 && (frontier.doneTotal || 0) > 0) {
+          complete = true; stopReason = 'backlog-complete'
+          log('PARTITION BACKLOG COMPLETE [' + PART_TAG + '] — todo 0, residue 0, done ' + frontier.doneTotal)
+          break
+        }
+        emptySyncs++
+        if (emptySyncs >= 2) { stopReason = 'dry'; log('Two consecutive empty frontiers, nothing in flight (residue: ' + (frontier.blockedResidue || 0) + ', todo: ' + (frontier.todoTotal || 0) + ') — checkpointing') ; break }
+      } else { emptySyncs = 0 }
+      log('Sync ' + syncs + ' [' + PART_TAG + ']: +' + fresh.length + ' ready (' + fresh.slice(0, 12).map(b => b.eng).join(', ') + (fresh.length > 12 ? ', …' : '') + ') | inflight ' + inFlight.size + ' | done ' + doneThisRun.length)
+    }
+  }
+  // Refill every free slot immediately (the runtime queues above its own cap anyway).
+  while (queued.length > 0 && inFlight.size < TARGET_INFLIGHT) launch(queued.shift())
+  // §3.31 capacity floor: real deliveries first; top up the remainder with non-claiming
+  // pre-work (bounded so top-ups never starve the loop or spam Linear).
+  while (queued.length === 0 && inFlight.size > 0 && inFlight.size < CAPACITY_FLOOR && topupSeq < syncs * 2) launchTopup()
+  if (inFlight.size === 0 && queued.length === 0) {
+    if (syncs >= MAX_SYNCS) { log('Max frontier syncs (' + MAX_SYNCS + ') reached — checkpointing'); break }
+    continue
+  }
+  await Promise.race(inFlight)
 }
 
 return {
   complete: complete,
+  partition: PART_TAG,
+  stopReason: stopReason,
   delivered: doneThisRun,
   deliveredCount: doneThisRun.length,
   escalated: escalated,
   residue: residueReport,
+  syncs: syncs,
   reportDir: RDIR,
 }
