@@ -343,10 +343,13 @@ export interface Pages {
 
 export interface OrvexEventOutbox {
   aggregateId: string;
+  correlationId: string | null;
   createdAt: Generated<Timestamp>;
   id: Generated<string>;
   payload: Json;
   relayedAt: Timestamp | null;
+  traceparent: string | null;
+  tracestate: string | null;
   type: string;
   workspaceId: string;
 }

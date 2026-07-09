@@ -9,6 +9,7 @@ import {
 } from '../../../database/types/kysely.types';
 import { executeTx } from '../../../database/utils';
 import { Json } from '../../../database/types/db';
+import { captureOutboxTraceContext } from './orvex-outbox-trace-context.util';
 
 /**
  * ENG-1383 T1/T2 — the outbox write primitive.
@@ -44,6 +45,12 @@ export class OutboxWriter {
    * (AC2) and a mutation commit carries exactly one outbox row (AC1).
    */
   async enqueue(trx: KyselyTransaction, event: OutboxEvent): Promise<void> {
+    // ENG-1600 AC1 — capture the CALLER's live trace context (the same
+    // request whose mutation is committing in this same `trx`) at the exact
+    // moment of the write, never later. All-null when tracing is off
+    // (vanilla-safe) or no request context is active.
+    const traceContext = captureOutboxTraceContext();
+
     // NEVER JSON.stringify a jsonb value here — postgres.js double-encodes
     // a pre-stringified value into a jsonb STRING (see api-key.repo.ts's
     // `scopes` gotcha). Pass the plain object; the driver serializes it.
@@ -54,6 +61,9 @@ export class OutboxWriter {
         aggregateId: event.aggregateId,
         workspaceId: event.workspaceId,
         payload: event.payload as unknown as Json,
+        traceparent: traceContext.traceparent,
+        tracestate: traceContext.tracestate,
+        correlationId: traceContext.correlationId,
       })
       .execute();
   }
