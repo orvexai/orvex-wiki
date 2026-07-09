@@ -191,6 +191,25 @@ describe('AiProvenanceStampSpec', () => {
     expect(await auditCountFor(page.id)).toBe(1);
   });
 
+  it('ENG-1396 fix-1 (review finding 1) — the provenance-change audit write marks critical:true (fail-hard, joins the caller tx per the ENG-1380 contract)', async () => {
+    const page = await insertPage();
+    const logAndCommitSpy = jest.spyOn(auditService, 'logAndCommit');
+
+    await service.markAiCreated(page.id, {
+      userId: null,
+      workspaceId,
+      spaceId: page.spaceId,
+      isHuman: false,
+    });
+
+    const calls = logAndCommitSpy.mock.calls.filter(
+      ([, data]) => data.resourceId === page.id,
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1].critical).toBe(true);
+    logAndCommitSpy.mockRestore();
+  });
+
   it('(b) applyAiEdit: an already-ai_produced page stays ai_produced (no re-mark, no churn)', async () => {
     const page = await insertPage();
     await service.markAiCreated(page.id, {

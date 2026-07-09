@@ -147,6 +147,9 @@ export class PagePermissionController {
         workspaceId: workspace.id,
         actorId: user.id,
         actorType: 'user',
+        // ENG-1396 fix-1: ACL/auth-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return { pageAccess };
@@ -181,6 +184,9 @@ export class PagePermissionController {
         workspaceId: workspace.id,
         actorId: user.id,
         actorType: 'user',
+        // ENG-1396 fix-1: ACL/auth-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return { success: true };
@@ -242,6 +248,9 @@ export class PagePermissionController {
         actorId: user.id,
         actorType: 'user',
         metadata: { [principal.type + 'Id']: principal.id, role: dto.role },
+        // ENG-1396 fix-1: ACL/auth-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return { success: true };
@@ -316,6 +325,9 @@ export class PagePermissionController {
         actorId: user.id,
         actorType: 'user',
         metadata: { [principal.type + 'Id']: principal.id },
+        // ENG-1396 fix-1: ACL/auth-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return { success: true };
@@ -392,6 +404,9 @@ export class PagePermissionController {
           fromRole: existing.role,
           toRole: dto.role,
         },
+        // ENG-1396 fix-1: ACL/auth-integrity event — fail-hard, join the
+        // caller tx (ENG-1380 contract). See review finding 1.
+        critical: true,
       });
 
       return { success: true };
