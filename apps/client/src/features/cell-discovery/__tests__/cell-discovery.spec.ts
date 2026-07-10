@@ -30,8 +30,11 @@ vi.mock("@/lib/config.ts", async () => {
     ...actual,
     getSubdomainHost: vi.fn(() => "wiki.example.com"),
     getGlobalEndpoint: vi.fn(() => "https://global.wiki.example.com"),
+    isCloud: vi.fn(() => true),
   };
 });
+
+import { isCloud, getGlobalEndpoint } from "@/lib/config.ts";
 
 const ACCOUNT_ID = "workspace-1";
 const HOME_HOST = "cell-a.wiki.example.com";
@@ -322,6 +325,78 @@ describe("AC4 — 421 re-resolution (integration, real axios instance + mock ada
   });
 });
 
+describe("F-A — useCellDiscovery is gated on isCloud() && GLOBAL_ENDPOINT (review ENG-1378)", () => {
+  let replaceSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    replaceSpy = vi.fn();
+    stubLocation(HOME_HOST, "/some/path", replaceSpy);
+  });
+
+  afterEach(() => {
+    restoreLocation();
+    vi.mocked(isCloud).mockReturnValue(true);
+    vi.mocked(getGlobalEndpoint).mockReturnValue(
+      "https://global.wiki.example.com",
+    );
+  });
+
+  test("self-hosted (isCloud() false): the hook never calls discover and never sets error, even with an accountId", async () => {
+    vi.mocked(isCloud).mockReturnValue(false);
+    const client = fakeClient(async () => ({
+      cellHost: FOREIGN_HOST,
+      cellEpoch: 1,
+    }));
+
+    const { result } = renderWithWorkspace(() =>
+      useCellDiscovery({ client, accountId: ACCOUNT_ID }),
+    );
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(client.discover).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(result.current.error).toBe(false);
+  });
+
+  test("cloud but no GLOBAL_ENDPOINT configured: the hook never calls discover and never sets error", async () => {
+    vi.mocked(isCloud).mockReturnValue(true);
+    vi.mocked(getGlobalEndpoint).mockReturnValue(undefined as unknown as string);
+    const client = fakeClient(async () => ({
+      cellHost: FOREIGN_HOST,
+      cellEpoch: 1,
+    }));
+
+    const { result } = renderWithWorkspace(() =>
+      useCellDiscovery({ client, accountId: ACCOUNT_ID }),
+    );
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(client.discover).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(result.current.error).toBe(false);
+  });
+
+  test("cloud + GLOBAL_ENDPOINT present: the hook still runs discovery as before", async () => {
+    vi.mocked(isCloud).mockReturnValue(true);
+    vi.mocked(getGlobalEndpoint).mockReturnValue(
+      "https://global.wiki.example.com",
+    );
+    const client = fakeClient(async () => ({
+      cellHost: FOREIGN_HOST,
+      cellEpoch: 1,
+    }));
+
+    renderWithWorkspace(() =>
+      useCellDiscovery({ client, accountId: ACCOUNT_ID }),
+    );
+
+    await waitFor(() => expect(client.discover).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe("AC5 — boot-failure banner (component)", () => {
   test("renders a visible retry affordance and calls onRetry when clicked", () => {
     const onRetry = vi.fn();
@@ -340,5 +415,73 @@ describe("AC5 — boot-failure banner (component)", () => {
     const retryButton = screen.getByRole("button", { name: /retry/i });
     fireEvent.click(retryButton);
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("AC5 — hook-to-banner integration (real App.tsx wiring, closes the review-2 gap)", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(isCloud).mockReturnValue(true);
+    vi.mocked(getGlobalEndpoint).mockReturnValue(
+      "https://global.wiki.example.com",
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.mocked(isCloud).mockReturnValue(true);
+    vi.mocked(getGlobalEndpoint).mockReturnValue(
+      "https://global.wiki.example.com",
+    );
+  });
+
+  function AppUnderTest({ client }: { client: CellDiscoveryClient }) {
+    const { error, retry } = useCellDiscovery({
+      client,
+      accountId: ACCOUNT_ID,
+    });
+    return React.createElement(
+      MantineProvider,
+      null,
+      error
+        ? React.createElement(CellDiscoveryErrorBanner, { onRetry: retry })
+        : null,
+    );
+  }
+
+  test("a discovery failure driven through the real hook renders the real banner, and Retry re-invokes discover", async () => {
+    const client = fakeClient(async () => {
+      throw new Error("discovery unreachable");
+    });
+
+    render(React.createElement(AppUnderTest, { client }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toBeTruthy();
+    expect(client.discover).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    await waitFor(() => expect(client.discover).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("alert")).toBeTruthy();
+  });
+
+  test("a valid same-host response never renders the banner", async () => {
+    const replaceSpy = vi.fn();
+    stubLocation(HOME_HOST, "/some/path", replaceSpy);
+    try {
+      const client = fakeClient(async () => ({
+        cellHost: HOME_HOST,
+        cellEpoch: 1,
+      }));
+
+      render(React.createElement(AppUnderTest, { client }));
+
+      await waitFor(() => expect(client.discover).toHaveBeenCalledTimes(1));
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(replaceSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreLocation();
+    }
   });
 });

@@ -5,6 +5,7 @@ import { CellDecision, CellDiscoveryClient } from "./types";
 import { clearPin, pinCell, readPin } from "./cell-discovery-store";
 import { validateCellHost } from "./cell-host-guard";
 import { createCellDiscoveryClient } from "./cell-discovery-client";
+import { getGlobalEndpoint, isCloud } from "@/lib/config.ts";
 
 /**
  * The deep module (CS §3): discover-once-then-pin (PO ruling 12).
@@ -98,6 +99,12 @@ export function useCellDiscovery(options: UseCellDiscoveryOptions = {}) {
 
   useEffect(() => {
     if (!accountId) return;
+    // F-A (review ENG-1378): the discovery leg is cloud-only and its
+    // backing endpoint is not always deployed/backed yet (ENG-1458). Stay
+    // inert on self-hosted installs and on any cloud boot where
+    // GLOBAL_ENDPOINT isn't configured, rather than firing a doomed
+    // request that surfaces a false-alarm error banner every boot.
+    if (!isCloud() || !getGlobalEndpoint()) return;
     let cancelled = false;
     setError(false);
     const discoveryClient = client ?? createCellDiscoveryClient();
