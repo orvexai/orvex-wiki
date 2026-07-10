@@ -49,6 +49,7 @@ import VerifyEmail from "@/ee/pages/verify-email.tsx";
 import LabelPage from "@/pages/label/label-page";
 import ClerkLoginPage from "@/pages/auth/clerk-login.tsx";
 import { isClerkTenancy } from "@/lib/config.ts";
+import { ClerkAppProvider } from "@/features/clerk/clerk-app-provider.tsx";
 
 export default function App() {
   const { t } = useTranslation();
@@ -61,7 +62,14 @@ export default function App() {
         <Route index element={<Navigate to="/home" />} />
         <Route path={"/login"} element={<LoginPage />} />
         {isClerkTenancy() && (
-          <Route path={"/clerk"} element={<ClerkLoginPage />} />
+          <Route
+            path={"/clerk"}
+            element={
+              <ClerkAppProvider>
+                <ClerkLoginPage />
+              </ClerkAppProvider>
+            }
+          />
         )}
         <Route path={"/invites/:invitationId"} element={<InviteSignup />} />
         <Route path={"/forgot-password"} element={<ForgotPassword />} />
