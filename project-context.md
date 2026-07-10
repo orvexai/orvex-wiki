@@ -2,11 +2,24 @@
 
 <!-- provenance: carried copy of the family Coding Standards.
      cs-source: 6aMAzsYeQb
-     cs-source-sha256: 691fde22c3af36f723549d6cea3064649ae8019286360b058ac50c6faed2b2a3
-     materialized: 2026-07-07
+     cs-source-sha256: 3a3ca94549aa400ffaa6c03121afe0b00151a743997626a3725579b4064f5945
+     materialized: 2026-07-10
      Freshness is CI-gated by scripts/check-context-freshness.sh (make context-check):
      it fails the build when the CS page's sha256 drifts from the pin above, so a
-     human folds the delta in (preserving this repo's overrides) and re-pins. -->
+     human folds the delta in (preserving this repo's overrides) and re-pins.
+
+     2026-07-10 re-pin review (prior pin 691fde22...a3, materialized 2026-07-07):
+     walked the full CS edit history (docmost-cli page history/diff) from the
+     2026-07-07 materialization point to HEAD. The only substantive (non-cosmetic)
+     content change in that window is confined to CS §13 (Build/CI substrate) —
+     the runner-label correction splitting private repos (shared `runners` group)
+     from the public `orvex-wiki` repo (dedicated `public-runners`/`public-dind-runners`
+     groups). This repo's project-context.md does not carry §13 content (out of
+     this carried copy's scope), and .github/workflows/ci.yml already uses
+     `public-runners`/`public-dind-runners` throughout — so no rule text below
+     needed updating. No other CS section changed substantively in that window
+     (remaining diff hunks were embed-mention JSON re-encoding only, byte-identical
+     prose). Full diff kept out-of-repo in the review log. -->
 
 **Carried doctrine (CS §9).** This file is the always-loaded copy of the family
 **Coding Standards** so the rules bind every agent at *planning* time, not only
