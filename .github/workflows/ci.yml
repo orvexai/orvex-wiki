@@ -7,7 +7,7 @@
 # handoff for the promote-later plan (Houston e2e-gates pattern).
 #
 # RUNNERS — CS §13. orvex-wiki is the family's only PUBLIC repo (the AGPL
-# engine), so its jobs run on `public-runners`: a DEDICATED, ephemeral,
+# engine), so most of its jobs run on `public-runners`: a DEDICATED, ephemeral,
 # NON-privileged self-hosted runner group (ARC platform service in the my-idp
 # repo, group scoped to ONLY orvex-wiki). It is deliberately isolated from the
 # shared `runners` / `dind-runners` sets that serve the PRIVATE repos and hold
@@ -15,8 +15,22 @@
 # public-runners are single-use (minRunners 0), have NO dind, NO cluster/secret
 # reach (no-perms SA), and are resource-capped. Fork/outside-collaborator PRs
 # additionally require maintainer approval before a run starts (org setting).
-# This repo's CI needs zero cluster access (lint/typecheck/test/build/
+# Most of this repo's CI needs zero cluster access (lint/typecheck/test/build/
 # kubeconform/audit only). Images stay Tekton-only regardless (never built in CI).
+#
+# DOCKER-NEEDING JOBS — the three jobs that need a real Docker daemon
+# (test-server [its test:ci set runs testcontainers-backed src/**/*.integration
+# .spec.ts + *.e2e.spec.ts], test-server-integration [testcontainers PG], and
+# gate-m6-e2e [docker-compose env-up + `docker run` Kafka]) run on
+# `public-dind-runners`: a DEDICATED sibling group that is Kata-qemu isolated
+# with a per-runner DinD sidecar, org-scoped and allowlisted to ONLY orvex-wiki
+# (allows_public_repositories), carrying the SAME no-cluster / no-OpenBao
+# no-perms SA and fork-PR maintainer-approval posture as `public-runners`. It
+# exists because `public-runners` is deliberately Docker-less. ADR-0018 (Am2 of
+# ADR-0005) ratifies this Kata-isolated DinD set as the sanctioned Docker
+# substrate for public-repo CI — chosen over a GitHub-hosted VM (org
+# billing-dead) and over the shared privileged `dind-runners` (which would
+# breach the public/private CI-isolation doctrine).
 
 name: CI
 
@@ -149,7 +163,8 @@ jobs:
 
   test-server:
     name: Test Server (jest, CI set)
-    runs-on: public-runners
+    # DinD set: test:ci runs testcontainers-backed src integration/e2e specs.
+    runs-on: public-dind-runners
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -173,7 +188,8 @@ jobs:
 
   test-server-integration:
     name: Test Server (integration, testcontainers PG)
-    runs-on: public-runners
+    # DinD set: testcontainers spins a real Postgres via the runner's Docker daemon.
+    runs-on: public-dind-runners
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -248,7 +264,8 @@ jobs:
   # ---------------------------------------------------------------------------
   gate-m6-e2e:
     name: Gate M6 E2E (ENG-1572, TestGateM6E2E)
-    runs-on: public-runners
+    # DinD set: docker-compose env-up + `docker run` Kafka + engine boot in-VM.
+    runs-on: public-dind-runners
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
