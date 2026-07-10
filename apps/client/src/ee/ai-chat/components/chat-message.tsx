@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import DOMPurify from "dompurify";
 import { ActionIcon, Tooltip } from "@mantine/core";
@@ -14,6 +14,9 @@ import { markdownToHtml } from "@docmost/editor-ext";
 import { CopyButton } from "@/components/common/copy-button";
 import type { AiChatMessage, AiChatToolCall } from "../types/ai-chat.types";
 import ChatToolGroup from "./chat-tool-group";
+import ChatMermaidBlock from "./chat-mermaid-block";
+import CitationSourceList from "./citation-source-list";
+import { splitMermaidBlocks } from "../utils/split-mermaid-blocks";
 import classes from "../styles/chat-message.module.css";
 import CopyTextButton from "@/components/common/copy.tsx";
 
@@ -96,6 +99,7 @@ export default function ChatMessage({
         className={classes.userMessage}
         role="article"
         aria-label={t("You said:")}
+        data-testid="chat-message"
       >
         <div className={classes.userBubble}>
           {attachments.length > 0 && (
@@ -127,21 +131,33 @@ export default function ChatMessage({
       className={classes.assistantMessage}
       role="article"
       aria-label={hasAnnouncableContent ? t("Assistant said:") : undefined}
+      data-testid="chat-message"
     >
       <div className={classes.messageContent}>
         {toolCalls && toolCalls.length > 0 && (
           <ChatToolGroup toolCalls={toolCalls} isStreaming={isStreaming} />
         )}
         {content && (
-          <div
-            onClick={handleContentClick}
-            dangerouslySetInnerHTML={{
-              __html: chatSanitizer.sanitize(
-                markdownToHtml(content) as string,
-                { ADD_ATTR: ["target", "rel"] },
+          <div onClick={handleContentClick} data-testid="chat-message-body">
+            {splitMermaidBlocks(content).map((segment, i) =>
+              segment.kind === "mermaid" ? (
+                <ChatMermaidBlock key={i} code={segment.code} />
+              ) : (
+                <div
+                  key={i}
+                  dangerouslySetInnerHTML={{
+                    __html: chatSanitizer.sanitize(
+                      markdownToHtml(segment.text) as string,
+                      { ADD_ATTR: ["target", "rel"] },
+                    ),
+                  }}
+                />
               ),
-            }}
-          />
+            )}
+          </div>
+        )}
+        {!isStreaming && message.citations && message.citations.length > 0 && (
+          <CitationSourceList citations={message.citations} />
         )}
         {isStreaming && (
           <>

@@ -2,7 +2,9 @@ import api from "@/lib/api-client.ts";
 import type {
   AiChat,
   AiChatMessage,
-  AiChatStreamEvent,
+  AiChatStreamEventWire,
+  AiHealthStatus,
+  AiModel,
   ChatAttachment,
 } from "../types/ai-chat.types";
 import { IPagination } from "@/lib/types.ts";
@@ -57,6 +59,16 @@ export async function uploadChatFile(
   });
 }
 
+export async function getAiHealth(): Promise<AiHealthStatus> {
+  const req = await api.post<AiHealthStatus>("/ai/health");
+  return req.data;
+}
+
+export async function getAiModels(): Promise<AiModel[]> {
+  const req = await api.post<AiModel[]>("/ai/models");
+  return req.data;
+}
+
 export function sendChatMessage(
   params: {
     chatId?: string;
@@ -64,8 +76,10 @@ export function sendChatMessage(
     mentionedPageIds?: string[];
     contextPageId?: string;
     attachmentIds?: string[];
+    scope?: "page" | "workspace";
+    model?: string;
   },
-  onEvent: (event: AiChatStreamEvent) => void,
+  onEvent: (event: AiChatStreamEventWire) => void,
   onError?: (error: string) => void,
   onComplete?: () => void,
 ): AbortController {
@@ -113,14 +127,20 @@ export function sendChatMessage(
           buffer = lines.pop() || "";
 
           for (const line of lines) {
+            // Per the PINNED wire (orvex-studio-contracts sse/AI-CHAT.md):
+            // every frame except `keepalive` is a `data: <json>` line;
+            // `keepalive` is a bare SSE COMMENT line (`: keepalive`, no
+            // `data:` prefix) — falls through and is ignored here by
+            // construction, matching the producer's documented intent
+            // ("browsers ignore comment frames"). There is no `[DONE]`
+            // sentinel on the real wire — completion is the
+            // `{"type":"state","state":"done"}` frame, and `onComplete`
+            // fires below when the reader naturally observes the HTTP body
+            // close.
             if (line.startsWith("data: ")) {
               const data = line.slice(6);
-              if (data === "[DONE]") {
-                onComplete?.();
-                return;
-              }
               try {
-                const parsed = JSON.parse(data) as AiChatStreamEvent;
+                const parsed = JSON.parse(data) as AiChatStreamEventWire;
                 onEvent(parsed);
               } catch {
                 // Skip invalid JSON

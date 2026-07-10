@@ -284,3 +284,17 @@
     opacity: 0;
   }
 }
+
+.mermaidDiagram {
+  margin: var(--mantine-spacing-xs) 0;
+  overflow-x: auto;
+}
+
+.mermaidFallback {
+  margin: var(--mantine-spacing-xs) 0;
+  padding: var(--mantine-spacing-sm);
+  background-color: var(--mantine-color-gray-0);
+  border-radius: var(--mantine-radius-sm);
+  overflow-x: auto;
+  font-size: var(--mantine-font-size-xs);
+}

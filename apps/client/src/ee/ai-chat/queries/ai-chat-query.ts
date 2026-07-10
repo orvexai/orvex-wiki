@@ -10,7 +10,30 @@ import {
   deleteChat,
   updateChatTitle,
   searchChats,
+  getAiHealth,
+  getAiModels,
 } from "../services/ai-chat-service";
+
+// Health poll interval kept in sync with the pin's ai-status-banner.tsx
+// L16-17 (60s).
+const AI_HEALTH_POLL_INTERVAL_MS = 60_000;
+
+export function useAiHealthQuery() {
+  return useQuery({
+    queryKey: ["ai-health"],
+    queryFn: getAiHealth,
+    refetchInterval: AI_HEALTH_POLL_INTERVAL_MS,
+    retry: false,
+  });
+}
+
+export function useAiModelsQuery() {
+  return useQuery({
+    queryKey: ["ai-models"],
+    queryFn: getAiModels,
+    staleTime: AI_HEALTH_POLL_INTERVAL_MS,
+  });
+}
 
 export function useChatsQuery() {
   return useInfiniteQuery({

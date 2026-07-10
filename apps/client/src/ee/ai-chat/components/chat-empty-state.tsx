@@ -54,7 +54,7 @@ export default function ChatEmptyState({ isStreaming, onSend, onStop }: Props) {
   };
 
   return (
-    <div className={classes.emptyState}>
+    <div className={classes.emptyState} data-testid="chat-empty-state">
       <IconSparkles size={48} stroke={1.5} className={classes.emptyStateIcon} />
       <div className={classes.emptyStateBrand}>
         {t("{{name}} AI", { name: getAppName() })}

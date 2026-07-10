@@ -479,6 +479,21 @@ jobs:
         run: bash scripts/ci/engine-only-import-guard.sh .
 
   # ---------------------------------------------------------------------------
+  # Client AI thinness guard (ENG-1359 — AC7, ruling 10 / CS §6 tier
+  # confinement). Static gate: apps/client/src/ee/ai-chat may only contain
+  # rendering + SSE-reading + forwarding — no model-capability tables,
+  # prompt templates, agent/tool orchestration, or budget-policy math. All
+  # of that logic is confined behind the REST+SSE seam in orvex-studio-ai.
+  # ---------------------------------------------------------------------------
+  client-ai-thinness:
+    name: Client AI Thinness Guard (AC7)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: client-ai-thinness-guard.sh
+        run: bash scripts/ci/client-ai-thinness-guard.sh .
+
+  # ---------------------------------------------------------------------------
   # CS §13 build/CI substrate conformance (ENG-1386 — CI-config layer gate).
   # Static config scan: no hosted runners without a documented public-repo
   # exception, no image build/push in Actions, Tekton build+rollout present,
@@ -611,6 +626,7 @@ jobs:
       - engine-license-guard
       - license-header-check
       - engine-only-import-guard
+      - client-ai-thinness
       - ci-substrate-conformance
       - security
       - sbom-generation
