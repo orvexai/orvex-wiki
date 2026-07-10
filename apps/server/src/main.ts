@@ -15,6 +15,7 @@ import { InternalLogFilter } from './common/logger/internal-log-filter';
 import { EnvironmentService } from './integrations/environment/environment.service';
 import { resolveFrameHeader } from './common/helpers';
 import { initOrvexTracing } from './orvex/obs/orvex-tracing.bootstrap';
+import { resolveGlobalPrefixExclude } from './orvex/http/orvex-global-prefix-exclude';
 
 async function bootstrap() {
   // ENG-1599: the OTel SDK MUST patch (http/fastify/ioredis instrumentation)
@@ -49,8 +50,10 @@ async function bootstrap() {
 
   app.useLogger(app.get(PinoLogger));
 
+  // ENG-1604 AC8.4 — env-driven (ORVEX_GLOBAL_PREFIX_EXCLUDE), defaults to
+  // the upstream exclusions + mcp + health/orvex.
   app.setGlobalPrefix('api', {
-    exclude: ['robots.txt', 'share/:shareId/p/:pageSlug', 'mcp'],
+    exclude: resolveGlobalPrefixExclude(),
   });
 
   const reflector = app.get(Reflector);

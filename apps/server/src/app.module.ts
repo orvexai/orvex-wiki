@@ -35,6 +35,7 @@ import { OrvexPageProvenanceModule } from './core/page-provenance/orvex-page-pro
 import { OrvexPageVisualsModule } from './orvex/page-visuals/orvex-page-visuals.module';
 import { OrvexTransclusionSafeguardModule } from './orvex/transclusion-safeguard/orvex-transclusion-safeguard.module';
 import { OrvexEventsModule } from './orvex/events/orvex-events.module';
+import { OrvexMigratorModule } from './orvex/extensions/orvex-migrator.module';
 
 const enterpriseModules = [];
 try {
@@ -100,6 +101,13 @@ try {
     OrvexPageProvenanceModule,
     OrvexPageVisualsModule,
     OrvexTransclusionSafeguardModule,
+    // ENG-1604 AC1 DoD — wires the already-shipped OrvexMigratorService
+    // (ENG-1389/ENG-1411) into the boot path. Unconditional + outside
+    // OrvexRootModule, same carve-out-(b) precedent as the DB-backed
+    // modules above (@InjectKysely() would break the DB-free
+    // orvex-http.e2e.spec.ts harness if mounted in the gated root — see
+    // orvex-root.module.ts / orvex-migrator.module.ts docstrings).
+    OrvexMigratorModule,
     EventEmitterModule.forRoot(),
     OrvexEventsModule,
     SecurityModule,
