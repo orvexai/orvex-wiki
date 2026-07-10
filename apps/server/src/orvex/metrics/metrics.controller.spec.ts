@@ -5,6 +5,7 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { OrvexMetricsService } from '@orvexai/metrics';
+import { FastifyReply, FastifyRequest } from 'fastify';
 
 import { MetricsController } from './metrics.controller';
 import { METRICS_AUTH_CONFIG, readMetricsAuthConfig } from './metrics-auth';
@@ -50,8 +51,8 @@ describe('MetricsController', () => {
 
     await expect(
       controller.getMetrics(
-        { ip: '10.1.2.3', headers: {} } as any,
-        reply as any,
+        { ip: '10.1.2.3', headers: {} } as unknown as FastifyRequest,
+        reply as unknown as FastifyReply,
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(reply.send).not.toHaveBeenCalled();
@@ -70,8 +71,8 @@ describe('MetricsController', () => {
       {
         ip: '203.0.113.9',
         headers: { authorization: 'Bearer secret' },
-      } as any,
-      reply as any,
+      } as unknown as FastifyRequest,
+      reply as unknown as FastifyReply,
     );
 
     expect(reply.header).toHaveBeenCalledWith(
@@ -102,8 +103,11 @@ describe('MetricsController', () => {
     expect(expectedFamilies.length).toBeGreaterThanOrEqual(9);
 
     await controller.getMetrics(
-      { ip: '203.0.113.9', headers: { authorization: 'Bearer secret' } } as any,
-      reply as any,
+      {
+        ip: '203.0.113.9',
+        headers: { authorization: 'Bearer secret' },
+      } as unknown as FastifyRequest,
+      reply as unknown as FastifyReply,
     );
 
     const sentBody = reply.send.mock.calls[0][0] as string;
@@ -120,16 +124,16 @@ describe('MetricsController', () => {
 
     const okReply = fakeReply();
     await controller.getMetrics(
-      { ip: '10.1.2.3', headers: {} } as any,
-      okReply as any,
+      { ip: '10.1.2.3', headers: {} } as unknown as FastifyRequest,
+      okReply as unknown as FastifyReply,
     );
     expect(okReply.send).toHaveBeenCalled();
 
     const deniedReply = fakeReply();
     await expect(
       controller.getMetrics(
-        { ip: '192.168.0.1', headers: {} } as any,
-        deniedReply as any,
+        { ip: '192.168.0.1', headers: {} } as unknown as FastifyRequest,
+        deniedReply as unknown as FastifyReply,
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(deniedReply.send).not.toHaveBeenCalled();
@@ -145,8 +149,11 @@ describe('MetricsController', () => {
     const reply = fakeReply();
 
     await controller.getMetrics(
-      { ip: '203.0.113.9', headers: { authorization: 'Bearer secret' } } as any,
-      reply as any,
+      {
+        ip: '203.0.113.9',
+        headers: { authorization: 'Bearer secret' },
+      } as unknown as FastifyRequest,
+      reply as unknown as FastifyReply,
     );
 
     expect(spy).toHaveBeenCalledTimes(1);
