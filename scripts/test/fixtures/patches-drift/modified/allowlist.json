@@ -1,0 +1,13 @@
+{
+  "pinnedUpstreamSha": "0000000000000000000000000000000000000000",
+  "entries": [
+    {
+      "path": "fixture/modified-file.ts",
+      "reason": "self-test fixture (ENG-1649 F1): a modification hunk whose before/after context is SEPARATED in upstream by the removed lines (line 5, line 6) must stay CLEAN — the fused-block matcher wrongly flagged this as drift",
+      "anchorBefore": ["line 3", "line 4"],
+      "anchorAfter": ["line 7", "line 8"],
+      "offset": 2,
+      "changeSpan": 2
+    }
+  ]
+}
