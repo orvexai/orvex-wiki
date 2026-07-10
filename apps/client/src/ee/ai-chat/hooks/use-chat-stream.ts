@@ -3,12 +3,29 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { sendChatMessage } from "../services/ai-chat-service";
 import type {
+  AiChatCitation,
   AiChatMessage,
   AiChatStreamEvent,
+  AiChatStreamEventWire,
   AiChatToolCall,
   ChatAttachment,
   PageMention,
+  SendArgs,
 } from "../types/ai-chat.types";
+
+// The SSE event types this reader knows how to handle. Anything else is a
+// forward-compat no-op (AC8) — future service versions may add event types
+// the client doesn't understand yet; ignoring them keeps the stream alive.
+const KNOWN_EVENT_TYPES = new Set([
+  "chat_created",
+  "content",
+  "tool_call",
+  "tool_result",
+  "stream_state",
+  "reasoning",
+  "done",
+  "error",
+]);
 
 type ChatStreamOptions = {
   onChatCreated?: (chatId: string) => void;
@@ -24,10 +41,14 @@ export function useChatStream(
     [],
   );
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingState, setStreamingState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isRetryable, setIsRetryable] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Added by the port (ENG-1359): remembers the last SendArgs so `retry()`
+  // can re-send verbatim after a retryable stream error.
+  const lastSendArgsRef = useRef<SendArgs | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const currentChatIdRef = useRef(chatId);
@@ -59,8 +80,26 @@ export function useChatStream(
   }, []);
 
   const sendMessage = useCallback(
-    (content: string, mentions: PageMention[] = [], attachments: ChatAttachment[] = [], contextPageId?: string) => {
+    (
+      content: string,
+      mentions: PageMention[] = [],
+      attachments: ChatAttachment[] = [],
+      contextPageId?: string,
+      scope?: "page" | "workspace",
+      model?: string,
+    ) => {
       if (isStreaming || (!content.trim() && attachments.length === 0)) return;
+
+      // Remember this send so retry() can re-issue it verbatim on a
+      // retryable stream error (added by the port, ENG-1359).
+      lastSendArgsRef.current = {
+        content,
+        mentions,
+        attachments,
+        contextPageId,
+        scope,
+        model,
+      };
 
       setError(null);
       setErrorCode(null);
@@ -68,6 +107,7 @@ export function useChatStream(
       setIsStreaming(true);
       setStreamingContent("");
       setStreamingToolCalls([]);
+      setStreamingState(null);
 
       const metadata: Record<string, unknown> = {};
       if (mentions.length) {
@@ -102,8 +142,17 @@ export function useChatStream(
           mentionedPageIds: mentions.map((m) => m.id),
           ...(contextPageId && { contextPageId }),
           ...(attachmentIds.length && { attachmentIds }),
+          ...(scope && { scope }),
+          ...(model && { model }),
         },
-        (event: AiChatStreamEvent) => {
+        (wireEvent: AiChatStreamEventWire) => {
+          // Forward-compat (AC8): a still-unknown SSE event type is a no-op
+          // — never throw, never break the stream. Known events fall
+          // through to the switch below, narrowed to the closed union.
+          if (!KNOWN_EVENT_TYPES.has(wireEvent.type)) {
+            return;
+          }
+          const event = wireEvent as AiChatStreamEvent;
           switch (event.type) {
             case "chat_created":
               currentChatIdRef.current = event.chatId;
@@ -138,7 +187,17 @@ export function useChatStream(
                 ),
               );
               break;
+            case "stream_state":
+              setStreamingState(event.state);
+              break;
+            case "reasoning":
+              // Reasoning tokens are not yet surfaced in the transcript UI;
+              // tracked via streamingState so a future affordance can show
+              // "thinking" text without a citation/AC change here.
+              setStreamingState("reasoning");
+              break;
             case "done": {
+              const citations: AiChatCitation[] | undefined = event.citations;
               setStreamingContent((currentContent) => {
                 setStreamingToolCalls((currentToolCalls) => {
                   const assistantMessage: AiChatMessage = {
@@ -151,6 +210,7 @@ export function useChatStream(
                       : null,
                     metadata: event.usage ? { tokenUsage: event.usage } : null,
                     createdAt: new Date().toISOString(),
+                    ...(citations?.length && { citations }),
                   };
 
                   setMessages((prev) => [...prev, assistantMessage]);
@@ -159,6 +219,7 @@ export function useChatStream(
                 return "";
               });
               setIsStreaming(false);
+              setStreamingState(null);
               queryClient.invalidateQueries({
                 queryKey: ["ai-chat", currentChatIdRef.current],
               });
@@ -185,6 +246,21 @@ export function useChatStream(
     },
     [isStreaming, navigate, queryClient],
   );
+
+  // Re-sends the last SendArgs verbatim (AC6). No-op if nothing was ever
+  // sent or a send is already in flight.
+  const retry = useCallback(() => {
+    const args = lastSendArgsRef.current;
+    if (!args || isStreaming) return;
+    sendMessage(
+      args.content,
+      args.mentions,
+      args.attachments,
+      args.contextPageId,
+      args.scope,
+      args.model,
+    );
+  }, [isStreaming, sendMessage]);
 
   const stopGeneration = useCallback(() => {
     abortRef.current?.abort();
@@ -217,10 +293,12 @@ export function useChatStream(
     streamingContent,
     streamingToolCalls,
     isStreaming,
+    streamingState,
     error,
     errorCode,
     isRetryable,
     sendMessage,
+    retry,
     stopGeneration,
     hydrateFromServer,
   };

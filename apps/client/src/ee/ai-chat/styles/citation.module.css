@@ -1,0 +1,39 @@
+.citationMarker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin: 0 2px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  background-color: var(--mantine-color-blue-1);
+  color: var(--mantine-color-blue-7);
+  cursor: pointer;
+  border: none;
+}
+
+.citationCard {
+  max-width: 320px;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+}
+
+.citationCardTitle {
+  font-weight: 600;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.citationCardSnippet {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+  margin-top: 4px;
+}
+
+.citationSourceList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--mantine-spacing-xs);
+}

@@ -21,6 +21,7 @@ import { useChatInfoQuery } from "../queries/ai-chat-query";
 import ChatMessageList from "./chat-message-list";
 import ChatInput from "./chat-input";
 import AsideChatHistory from "./aside-chat-history";
+import AiStatusBanner from "./ai-status-banner";
 import type { ChatAttachment, PageMention } from "../types/ai-chat.types";
 import classes from "../styles/aside-chat-panel.module.css";
 
@@ -37,6 +38,10 @@ export default function AsideChatPanel() {
   const [chatId, setChatId] = useState<string | undefined>(undefined);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [contextPages, setContextPages] = useState<PageMention[]>([]);
+  // Presentational only — forwarded verbatim on the next send (AC5); the
+  // client does not decide model capabilities.
+  const [model, setModel] = useState<string | undefined>(undefined);
+  const [scope, setScope] = useState<"page" | "workspace">("page");
   const { pageSlug } = useParams();
   const slugId = extractPageSlugId(pageSlug);
   const { data: page } = usePageQuery({ pageId: slugId });
@@ -48,7 +53,9 @@ export default function AsideChatPanel() {
     streamingToolCalls,
     isStreaming,
     error,
+    isRetryable,
     sendMessage,
+    retry,
     stopGeneration,
     hydrateFromServer,
   } = useChatStream(chatId, {
@@ -124,9 +131,9 @@ export default function AsideChatPanel() {
   const handleSend = useCallback(
     (content: string, mentions: PageMention[], attachments: ChatAttachment[]) => {
       const contextPageId = contextPages.length > 0 ? contextPages[0].id : undefined;
-      sendMessage(content, mentions, attachments, contextPageId);
+      sendMessage(content, mentions, attachments, contextPageId, scope, model);
     },
-    [sendMessage, contextPages],
+    [sendMessage, contextPages, scope, model],
   );
 
   const handleQuickAction = useCallback(
@@ -208,15 +215,30 @@ export default function AsideChatPanel() {
         </Tooltip>
       </div>
 
+      <AiStatusBanner />
+
       {error && (
         <div
+          data-testid="chat-error"
+          role="alert"
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--mantine-spacing-xs)",
             padding: "var(--mantine-spacing-xs) var(--mantine-spacing-sm)",
             color: "var(--mantine-color-red-6)",
             fontSize: "var(--mantine-font-size-xs)",
           }}
         >
-          {error}
+          <span>{error}</span>
+          {isRetryable && (
+            <UnstyledButton
+              onClick={retry}
+              style={{ textDecoration: "underline" }}
+            >
+              {t("Retry")}
+            </UnstyledButton>
+          )}
         </div>
       )}
 

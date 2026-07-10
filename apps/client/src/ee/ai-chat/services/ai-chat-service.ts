@@ -2,7 +2,9 @@ import api from "@/lib/api-client.ts";
 import type {
   AiChat,
   AiChatMessage,
-  AiChatStreamEvent,
+  AiChatStreamEventWire,
+  AiHealthStatus,
+  AiModel,
   ChatAttachment,
 } from "../types/ai-chat.types";
 import { IPagination } from "@/lib/types.ts";
@@ -57,6 +59,16 @@ export async function uploadChatFile(
   });
 }
 
+export async function getAiHealth(): Promise<AiHealthStatus> {
+  const req = await api.post<AiHealthStatus>("/ai/health");
+  return req.data;
+}
+
+export async function getAiModels(): Promise<AiModel[]> {
+  const req = await api.post<AiModel[]>("/ai/models");
+  return req.data;
+}
+
 export function sendChatMessage(
   params: {
     chatId?: string;
@@ -64,8 +76,10 @@ export function sendChatMessage(
     mentionedPageIds?: string[];
     contextPageId?: string;
     attachmentIds?: string[];
+    scope?: "page" | "workspace";
+    model?: string;
   },
-  onEvent: (event: AiChatStreamEvent) => void,
+  onEvent: (event: AiChatStreamEventWire) => void,
   onError?: (error: string) => void,
   onComplete?: () => void,
 ): AbortController {
@@ -120,7 +134,7 @@ export function sendChatMessage(
                 return;
               }
               try {
-                const parsed = JSON.parse(data) as AiChatStreamEvent;
+                const parsed = JSON.parse(data) as AiChatStreamEventWire;
                 onEvent(parsed);
               } catch {
                 // Skip invalid JSON

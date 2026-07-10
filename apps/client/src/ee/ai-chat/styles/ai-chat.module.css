@@ -4,6 +4,25 @@
   width: 100%;
 }
 
+.inputToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  padding: 0 var(--mantine-spacing-sm) var(--mantine-spacing-xs);
+}
+
+.statusBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  margin: 0 var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--mantine-color-yellow-1);
+  color: var(--mantine-color-yellow-9);
+  font-size: var(--mantine-font-size-xs);
+}
+
 .main {
   flex: 1;
   display: flex;

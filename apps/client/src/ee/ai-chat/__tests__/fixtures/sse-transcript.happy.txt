@@ -1,0 +1,16 @@
+data: {"type":"chat_created","chatId":"chat-fixture-1"}
+
+data: {"type":"content","text":"Here is a diagram of the flow:\n\n"}
+
+data: {"type":"stream_state","state":"thinking"}
+
+data: {"type":"content","text":"```mermaid\ngraph TD;\n  A[Start] --> B[Finish];\n```\n\n"}
+
+data: {"type":"citation_preview","pageId":"unknown-fixture-event"}
+
+data: {"type":"content","text":"The citation above documents this pattern."}
+
+data: {"type":"done","messageId":"msg-fixture-1","citations":[{"id":"c1","pageId":"page-42","title":"Orvex Wiki Architecture","url":"/s/orvexwiki/p/architecture-abc123","snippet":"How the engine and satellites split."}]}
+
+data: [DONE]
+

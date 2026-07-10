@@ -1,18 +1,28 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Button } from "@mantine/core";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useChatInfoQuery } from "../queries/ai-chat-query";
 import { useChatStream } from "../hooks/use-chat-stream";
 import ChatMessageList from "./chat-message-list";
 import ChatEmptyState from "./chat-empty-state";
 import ChatInput from "./chat-input";
+import AiStatusBanner from "./ai-status-banner";
+import ChatModelPicker from "./chat-model-picker";
+import ChatScopeSwitcher from "./chat-scope-switcher";
 import type { HomeAiPromptInitialState } from "@/features/home/components/home-ai-prompt";
 import classes from "../styles/ai-chat.module.css";
 
 export default function AiChatLayout() {
+  const { t } = useTranslation();
   const { chatId } = useParams<{ chatId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const chatInfoQuery = useChatInfoQuery(chatId);
+  // Presentational only — forwarded verbatim on the next send (AC5); the
+  // client does not decide model capabilities.
+  const [model, setModel] = useState<string | undefined>(undefined);
+  const [scope, setScope] = useState<"page" | "workspace">("workspace");
 
   // If the URL points at a chat the user does not own, the info fetch 404s.
   // Bounce them back to /ai so they cannot interact with any chat UI (including
@@ -28,7 +38,9 @@ export default function AiChatLayout() {
     streamingToolCalls,
     isStreaming,
     error,
+    isRetryable,
     sendMessage,
+    retry,
     stopGeneration,
     hydrateFromServer,
   } = useChatStream(chatId);
@@ -57,6 +69,14 @@ export default function AiChatLayout() {
 
   const hasMessages = messages.length > 0 || isStreaming || !!chatId;
 
+  const handleSend = (
+    content: string,
+    mentions: Parameters<typeof sendMessage>[1],
+    attachments: Parameters<typeof sendMessage>[2],
+  ) => {
+    sendMessage(content, mentions, attachments, undefined, scope, model);
+  };
+
   // While the redirect effect is running (or if the user is still on this
   // component for any reason) never render the chat UI for a forbidden chat.
   if (chatId && chatInfoQuery.isError) {
@@ -65,6 +85,7 @@ export default function AiChatLayout() {
 
   return (
     <div className={classes.main}>
+      <AiStatusBanner />
       {hasMessages ? (
         <>
           <ChatMessageList
@@ -75,30 +96,55 @@ export default function AiChatLayout() {
           />
           {error && (
             <div
+              data-testid="chat-error"
+              role="alert"
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--mantine-spacing-xs)",
                 padding: "var(--mantine-spacing-sm) var(--mantine-spacing-lg)",
                 color: "var(--mantine-color-red-6)",
                 fontSize: "var(--mantine-font-size-sm)",
               }}
             >
-              {error}
+              <span>{error}</span>
+              {isRetryable && (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="red"
+                  onClick={retry}
+                >
+                  {t("Retry")}
+                </Button>
+              )}
             </div>
           )}
           <div className={classes.inputArea}>
+            <div className={classes.inputToolbar}>
+              <ChatScopeSwitcher value={scope} onChange={setScope} disabled={isStreaming} />
+              <ChatModelPicker value={model} onChange={setModel} disabled={isStreaming} />
+            </div>
             <ChatInput
               isStreaming={isStreaming}
-              onSend={sendMessage}
+              onSend={handleSend}
               onStop={stopGeneration}
               chatId={chatId}
             />
           </div>
         </>
       ) : (
-        <ChatEmptyState
-          isStreaming={isStreaming}
-          onSend={sendMessage}
-          onStop={stopGeneration}
-        />
+        <>
+          <div className={classes.inputToolbar}>
+            <ChatScopeSwitcher value={scope} onChange={setScope} disabled={isStreaming} />
+            <ChatModelPicker value={model} onChange={setModel} disabled={isStreaming} />
+          </div>
+          <ChatEmptyState
+            isStreaming={isStreaming}
+            onSend={handleSend}
+            onStop={stopGeneration}
+          />
+        </>
       )}
     </div>
   );

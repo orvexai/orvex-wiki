@@ -182,25 +182,27 @@ export default function ChatMessageList({
           </ErrorBoundary>
         ))}
         {isStreaming && (
-          <ErrorBoundary
-            resetKeys={[streamingContent, streamingToolCalls.length]}
-            fallback={<ChatMessageErrorFallback />}
-          >
-            <ChatMessage
-              message={{
-                id: "streaming",
-                chatId: "",
-                role: "assistant",
-                content: null,
-                toolCalls: null,
-                metadata: null,
-                createdAt: new Date().toISOString(),
-              }}
-              isStreaming
-              streamingContent={streamingContent}
-              streamingToolCalls={streamingToolCalls}
-            />
-          </ErrorBoundary>
+          <div data-testid="chat-streaming">
+            <ErrorBoundary
+              resetKeys={[streamingContent, streamingToolCalls.length]}
+              fallback={<ChatMessageErrorFallback />}
+            >
+              <ChatMessage
+                message={{
+                  id: "streaming",
+                  chatId: "",
+                  role: "assistant",
+                  content: null,
+                  toolCalls: null,
+                  metadata: null,
+                  createdAt: new Date().toISOString(),
+                }}
+                isStreaming
+                streamingContent={streamingContent}
+                streamingToolCalls={streamingToolCalls}
+              />
+            </ErrorBoundary>
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
