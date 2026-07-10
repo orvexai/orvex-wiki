@@ -46,6 +46,7 @@ import { PageService } from 'src/core/page/services/page.service';
 import { BacklinkService } from 'src/core/page/services/backlink.service';
 import { LabelService } from 'src/core/label/label.service';
 import { OrvexPageProvenanceService } from 'src/core/page-provenance/orvex-page-provenance.service';
+import { ConfirmTokenService } from 'src/orvex/page-metadata/confirm-token.service';
 import { PageHistoryService } from 'src/core/page/services/page-history.service';
 import { PageAccessService } from 'src/core/page/page-access/page-access.service';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
@@ -190,6 +191,7 @@ describe('TestPageHistoryRestoreEndpoint_HttpContractAndAuth (ENG-1369 fix1 F1)'
         { provide: LabelService, useValue: {} },
         { provide: AUDIT_SERVICE, useValue: { log: () => {} } },
         { provide: OrvexPageProvenanceService, useValue: {} },
+        { provide: ConfirmTokenService, useValue: {} },
         { provide: 'KyselyModuleConnectionToken', useValue: db },
       ],
     })
