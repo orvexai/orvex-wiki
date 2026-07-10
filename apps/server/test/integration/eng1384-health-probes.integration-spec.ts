@@ -7,9 +7,16 @@
  * Integration test against REAL Postgres + Redis (testcontainers/GenericContainer,
  * CS §5: DB/Redis are local-substitutable infra, never mocked). There is no AI
  * subsystem in this engine to stub down — AC1/AC4/AC5 are proven by asserting the
- * AI-aggregation surface (`/health/orvex`, `workspaceAiCredentials`,
- * `orvex:ai:litellm-health`) is simply ABSENT from the tree, so liveness/readiness
+ * AI-CREDENTIAL-AGGREGATION surface (`workspaceAiCredentials`,
+ * `orvex:ai:litellm-health`) is ABSENT from the tree, so liveness/readiness
  * cannot possibly be gated on it (ruling 5, ruling 10).
+ *
+ * `GET /health/orvex` itself is NOT absent — ENG-1604 (AC8, later, ratified;
+ * the FAMILY HEALTH RULING at `tools/act3/po-decisions-2026-07-07.md`)
+ * legitimately mounts a plain infra liveness probe (Postgres/Redis/storage/
+ * Kafka-if-wired, HTTP 200 unconditionally, ADR-0020) at that same path. AC4
+ * here proves that route carries no AI-aggregation content, not that the
+ * route doesn't exist.
  *
  * Uses the same FastifyAdapter as the live main.ts (see
  * `src/orvex/http/orvex-http.e2e.spec.ts` for the sibling pattern) so the
@@ -29,6 +36,13 @@ import { HealthController } from '../../src/integrations/health/health.controlle
 import { PostgresHealthIndicator } from '../../src/integrations/health/postgres.health';
 import { RedisHealthIndicator } from '../../src/integrations/health/redis.health';
 import { EnvironmentService } from '../../src/integrations/environment/environment.service';
+import { OrvexHealthModule } from '../../src/orvex/health/orvex-health.module';
+import {
+  ORVEX_HEALTH_KAFKA_PROBE,
+  ORVEX_HEALTH_POSTGRES_PROBE,
+  ORVEX_HEALTH_REDIS_PROBE,
+  ORVEX_HEALTH_STORAGE_PROBE,
+} from '../../src/orvex/health/orvex-health.probes';
 import { startTestDatabase, TestDb } from './db-test-harness';
 
 // nestjs-kysely's InjectKysely() (no namespace) resolves to this exact token —
@@ -40,8 +54,14 @@ async function buildApp(
   dbProvider: unknown,
   redisUrl: string,
 ): Promise<NestFastifyApplication> {
+  // `OrvexHealthModule` (ENG-1604 AC8, FAMILY HEALTH RULING) is mounted
+  // alongside the upstream `HealthController` — see the AC4 test below for
+  // why. Its probes are overridden at the DI boundary (same pattern as
+  // `orvex-health.e2e.spec.ts`) so no real network/DB I/O happens here; this
+  // suite's own real-Postgres/Redis wiring stays on the upstream
+  // `HealthController` only.
   const moduleRef = await Test.createTestingModule({
-    imports: [TerminusModule],
+    imports: [TerminusModule, OrvexHealthModule],
     controllers: [HealthController],
     providers: [
       PostgresHealthIndicator,
@@ -49,7 +69,16 @@ async function buildApp(
       { provide: KYSELY_TOKEN, useValue: dbProvider },
       { provide: EnvironmentService, useValue: { getRedisUrl: () => redisUrl } },
     ],
-  }).compile();
+  })
+    .overrideProvider(ORVEX_HEALTH_POSTGRES_PROBE)
+    .useValue(async () => ({ ok: true }))
+    .overrideProvider(ORVEX_HEALTH_REDIS_PROBE)
+    .useValue(async () => ({ ok: true }))
+    .overrideProvider(ORVEX_HEALTH_STORAGE_PROBE)
+    .useValue(async () => ({ ok: true, driver: 'local' }))
+    .overrideProvider(ORVEX_HEALTH_KAFKA_PROBE)
+    .useValue(async () => ({ ok: true }))
+    .compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),
@@ -120,14 +149,23 @@ describe('EngineProbesAreSatelliteIndependentSpec (ENG-1384)', () => {
     }
   });
 
-  // AC4 (negative) — the AI-aggregation surface was never ported into this
-  // engine (confirmed by source-absence grep below), so it cannot be served.
-  it('AC4: GET /health/orvex is absent from the engine (404) — no AI-aggregation route exists', async () => {
+  // AC4 (negative) — `GET /health/orvex` is now a real, ratified route
+  // (ENG-1604 AC8, FAMILY HEALTH RULING, `tools/act3/po-decisions-2026-07-07.md`):
+  // a plain infra liveness probe (Postgres/Redis/storage/Kafka-if-wired),
+  // HTTP 200 UNCONDITIONALLY per ADR-0020, distinct from the upstream
+  // `/health` readiness probe this suite otherwise exercises. What AC4
+  // actually guards against — an AI-CREDENTIAL-AGGREGATION surface on the
+  // engine — was never reintroduced: no `workspaceAiCredentials`, no
+  // `orvex:ai:litellm-health`, no workspace/tenant data in the body (proved
+  // by the source grep below and inline here).
+  it('AC4: GET /health/orvex is a plain infra liveness probe (200, never AI-aggregation)', async () => {
     const res = await app.inject({ method: 'GET', url: '/health/orvex' });
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.toLowerCase()).not.toMatch(/litellm|workspaceaicredentials/);
+    expect(res.body).not.toMatch(/workspaceId/i);
   });
 
-  it('AC4/AC5: source grep — apps/server/src contains zero references to the AI-aggregation surface (workspaceAiCredentials, orvex:ai:litellm-health, orvex/health)', () => {
+  it('AC4/AC5: source grep — apps/server/src contains zero references to the AI-aggregation surface (workspaceAiCredentials, orvex:ai:litellm-health)', () => {
     const repoRoot = path.resolve(__dirname, '../../../..');
     const serverSrc = path.join(repoRoot, 'apps/server/src');
 
@@ -141,14 +179,14 @@ describe('EngineProbesAreSatelliteIndependentSpec (ENG-1384)', () => {
       }
     };
 
+    // `orvex/health` itself is no longer required to be absent — ENG-1604
+    // (later, ratified — see the AC4 HTTP test above) legitimately reuses
+    // that path for the plain liveness probe. The invariant this AC
+    // protects — no AI-CREDENTIAL-aggregation surface anywhere in the
+    // engine, including inside `orvex/health` — is what these two greps
+    // (run over the whole of `serverSrc`, `orvex/health` included) prove.
     expect(grep('workspaceAiCredentials')).toBe('');
     expect(grep('orvex:ai:litellm-health')).toBe('');
-    expect(
-      execSync(
-        `[ -d "${path.join(serverSrc, 'orvex/health')}" ] && echo present || echo absent`,
-        { encoding: 'utf8' },
-      ).trim(),
-    ).toBe('absent');
   });
 
   // AC5 — the retained probes never expose workspace/tenant-enumeration data.

@@ -169,7 +169,7 @@ export async function seedPage(
     .insertInto('pages')
     .values({
       slugId: uniqueSlug('slug'),
-      title: opts.title ?? 'Untitled',
+      title: opts.title ?? `Untitled ${uniqueSlug('t')}`,
       spaceId: opts.spaceId,
       workspaceId: opts.workspaceId,
       creatorId: opts.creatorId,

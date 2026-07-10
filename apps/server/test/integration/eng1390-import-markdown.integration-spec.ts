@@ -245,6 +245,7 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
   it('AC2/AC4 — no public convert/fidelity route or dangling serializer import remains on the engine', async () => {
     const files = await walk(SERVER_SRC);
     const markdownToHtmlImporters: string[] = [];
+    const pmToDfmReferences: string[] = [];
 
     for (const file of files) {
       const content = await fsp.readFile(file, 'utf-8');
@@ -256,13 +257,30 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
         /['"`]\/api\/markdown\/(to-prosemirror|to-dfm|fidelity)['"`]/,
       );
 
-      // AC4: no dangling import of the moved reverse-serializer convert
-      // surface (`pmToDfm`) from the engine.
-      expect(content).not.toMatch(/\bpmToDfm\b/);
+      // AC4: no DANGLING reference to the reverse-serializer convert
+      // surface (`pmToDfm`) from the engine. ENG-1492 (later, merged)
+      // legitimately imports `pmToDfm` from the sanctioned in-repo
+      // `@orvex/dfm` clean-room AGPL twin (A-DFM/FR-W18) and exercises it
+      // IN-PROCESS by design (CS §5) — that is not the removed public
+      // convert/fidelity route this AC guards against, so it is
+      // allowlisted below rather than flagged inline. Any OTHER
+      // `pmToDfm` reference (a reintroduced local reverse-serializer, or
+      // an import from a different path) remains forbidden.
+      if (/\bpmToDfm\b/.test(content)) {
+        pmToDfmReferences.push(path.relative(SERVER_SRC, file));
+      }
 
       if (/from ['"]@docmost\/editor-ext['"]/.test(content) && /markdownToHtml/.test(content)) {
         markdownToHtmlImporters.push(path.relative(SERVER_SRC, file));
       }
+    }
+
+    const pmToDfmAllowlist = new Set([
+      'orvex/llms/orvex-llms.service.ts',
+      'orvex/llms/orvex-llms.controller.spec.ts',
+    ]);
+    for (const importer of pmToDfmReferences) {
+      expect(pmToDfmAllowlist.has(importer)).toBe(true);
     }
 
     // markdownToHtml is retained in the two import-ingestion files this
