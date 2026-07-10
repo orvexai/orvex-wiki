@@ -87,11 +87,7 @@ export const AiPalette: FC<AiPaletteProps> = ({ editor }) => {
         {translateOpen ? (
           <TranslatePickerMenu
             editor={editor}
-            params={{
-              mode: insertBelow ? "insert-below" : "replace",
-              range: runParams()?.range ?? { from: 0, to: 0 },
-              content: runParams()?.content ?? "",
-            }}
+            getParams={runParams}
             deps={deps}
           />
         ) : (
