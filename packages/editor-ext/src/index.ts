@@ -42,3 +42,5 @@ export * from "./lib/base-embed";
 export * from "./lib/changelog";
 export * from "./lib/freshness-ribbon";
 export * from "./lib/chart";
+export * from "./lib/ai-inline-handler";
+export * from "./lib/ai-bubble-handler";
