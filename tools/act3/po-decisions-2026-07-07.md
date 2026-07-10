@@ -276,3 +276,71 @@ Per-candidate PO ask on the 7 speculative Orvex primitives (metrics/secret/clerk
 **gate-m6-e2e wired into ci-success `needs:` (round-5 finding).** The M6 E2E closing gate (ENG-1572, `TestGateM6E2E`) had been DEFINED on `eng-1572-harness` but never added to the required-check fan-in — so it "never ran in CI" as a gate. Its two former blockers have since landed on dev (ENG-1382's `entitlementService.assertWithinQuota` write chokepoint in `PageService.create`; the ENG-1650 LabelModule DI boot-break fix). *Judgment call (delivery-orchestrator's to make; AC1/AC6 are coordination-plane per the gate's own tier map):* brought the committed harness onto dev (3 Go smoke tests + the sanctioned `gate-m6-billing-stub.mjs` + go.mod/go.sum deps — a strict superset of dev's smoke module) and added `gate-m6-e2e` to ci-success `needs:`. *Verified runnable on the public-runner env:* full `TestGateM6E2E` green end-to-end against a real booted engine (`ORVEX_MODULES_ENABLED=true`) + real Postgres/Redis/MinIO + a real KRaft Kafka broker + the committed billing stub — AC2 (mutation→CloudEvent on `orvex.studio-spine.events`), **AC3 (over-quota→HTTP 402 `QUOTA_EXCEEDED`)**, AC4 (export IDOR + AI-path ACL), AC5 (byte-parity + AGPL import guard) all PASS. AC3 is proven non-tautological by its own history: RED on dev before ENG-1382 merged ("still the 501 stub"), GREEN now with the chokepoint present.
 
 **Landing:** merged `green-dev-land` → `dev` (`b30666e4`), fetch-rebase-retry on push. Branches `green-dev-c1/c2/c3` and their worktrees cleaned up. Isolated verification infra (`gate-m6-*` containers) torn down; the shared `orvex-wiki-dev` dev stack left untouched. Trailer on all authored commits: `Co-Authored-By: Claude Sonnet 5`.
+
+## RULING — M6 CI substrate (round 8): GitHub-hosted rejected; the fix is a follow-up-ADR public DinD set (judgment-call mode, 2026-07-10)
+
+Resolves the multi-round `orvex-wiki` CI-substrate saga (ENG-1572). The three
+Docker-dependent jobs — `test-server` (jest CI set, testcontainers), `test-server-integration`
+(testcontainers PG), `gate-m6-e2e` (docker-compose env-up + `docker run` Kafka) —
+cannot run on the ratified `public-runners` substrate because it is deliberately
+Docker-less. Round 7 rerouted them to `runs-on: ubuntu-latest` on branch
+`crew/eng-1572-m6-substrate` (commit `734f0ca3`). **That branch is REJECTED and NOT merged.**
+
+**Evidence gathered live (2026-07-10):**
+- **GitHub-hosted is empirically dead for this org.** Live run `29075099283`: every
+  non-Docker job passed on `public-runners`; the 3 rerouted jobs sat **QUEUED for
+  18+ minutes** on `ubuntu-latest` with zero pickup, then were cancelled. `orvex-wiki`
+  is confirmed **public** (free-tier hosted-runner eligible) yet nothing answers —
+  the org's GitHub-hosted billing is failed. This is the exact **ENG-1555**
+  ("payments failed / spending limit") condition that ADR-0005 cites as the reason
+  it withdrew the hosted-runner exception. `hosted-runners` API = 0; org Actions
+  policy = enabled/all (not a policy block — a billing/provisioning death).
+- **GitHub-hosted is also doctrinally void.** The ratified **ADR-0005** (`F64Czq3mBa`,
+  Canonical) has TWO amendments reversing its original decision; Amendment 2 (final)
+  rules: public `orvex-wiki` → dedicated non-privileged **`public-runners`** group,
+  no dind, fork-PRs require approval, and **"GitHub-hosted runners are no longer used
+  by any family repo."** **CS §13** amendment #2 (`6aMAzsYeQb`, "There is no public-repo
+  exception"), the **ci-substrate-conformance.spec.sh** header, and **A1** above all
+  AGREE. So the orchestrator-prompt binding ("stay on GitHub-hosted, never self-hosted")
+  quotes ADR-0005's WITHDRAWN original layer — it is stale (see drift note).
+- **Runner topology (org API + `my-idp` ARC manifests `platform/apps/arc`):** the
+  `public-runners` group (the ONLY group with `allows_public_repositories:true`, org-scoped
+  to orvex-wiki) serves the `public-runners` set — **non-privileged, NO docker-in-docker**
+  by design ("Anything needing Docker is out of scope for public-repo CI"). The
+  Docker-capable **`dind-runners`** set (Kata VM + privileged DinD, certified safe for
+  untrusted PRs) is in the **`Default`** group (`allows_public_repositories:false`) →
+  the public repo cannot reach it, and ADR-0005 explicitly rejects flipping that flag.
+- **Fork-PR approval IS enforced** on orvex-wiki: `approval_policy=all_external_contributors`
+  (stricter than the org default), verified via the repo Actions permissions API — the
+  ADR-0005 Am2 compensating control is in place.
+
+**Ruling (evidence + logged, never asked; no gate relaxed):**
+1. **Reject `ubuntu-latest`** on both counts (billing-dead + doctrine-void). Do NOT
+   merge `crew/eng-1572-m6-substrate`. `dev` already targets `public-runners` on the 3
+   jobs (lines 152/176/251) — it stays ADR-conformant; no dev revert needed. The 3 jobs
+   remain runtime-RED for lack of Docker — the honest gate-blocking state; NOT faked green,
+   NOT descoped (dev-CI debt stays gate-blocking per the 2026-07-10 prior ruling).
+2. **Chosen substrate:** a **dedicated ephemeral Kata-isolated DinD scale set
+   `public-dind-runners` in the `public-runners` group**, targeted by the 3 Docker jobs.
+   This is ADR-0005's own **Decision option 5** — "a public repo that genuinely needs
+   [Docker] gets a dedicated, secret-less, no-cluster-RBAC scale set, decided by a
+   follow-up ADR." It is the ONLY doctrine-legal way to give the public repo Docker:
+   Kata VM isolation makes privileged DinD safe for untrusted PRs (proven by the existing
+   `dind-runners` set), the dedicated public group keeps it off the cluster-admin fleet,
+   and fork-PR approval + no-secret/no-cluster reach preserve the isolation invariant.
+3. **Scope discipline:** provisioning that scale set is `my-idp` shared-cluster infra AND
+   is gated by ADR-0005 behind a **follow-up ADR + PO ratification** — beyond this task's
+   orvex-wiki write scope, and self-provisioning + self-ratifying it would bypass the ADR's
+   own governance gate. So it is **staged, not enacted**: ARC manifest
+   (`staged/public-dind-runner-values.yaml`), follow-up ADR text
+   (`staged/ADR-followup-public-dind.md`), and the wiki drift-corrections
+   (`staged/adr-0005-drift-correction.md`) are prepared for the next infra/wiki batch.
+   Reworking the jobs to "no daemon" was rejected: testcontainers AND `services:` both need
+   a container runtime the non-privileged public set lacks, and a native-process rewrite
+   would gut the ALL-REAL M6 gate (CS §11) and exceed the 4Gi cap.
+
+**Net:** the substrate confusion is definitively resolved — the blocker is org-infra +
+an ADR gate, not a ci.yml flip. Once `public-dind-runners` is live, retarget the 3 jobs to
+it, register the label in `.github/actionlint.yaml` + the conformance allowed-set, and
+close the AC1 `ubuntu-latest` loophole. This record appended under `flock` on
+`tools/act3/po-decisions-2026-07-07.md.lock`.
