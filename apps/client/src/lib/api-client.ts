@@ -1,6 +1,9 @@
 import axios, { AxiosInstance } from "axios";
+import { getDefaultStore } from "jotai";
 import APP_ROUTE from "@/lib/app-route.ts";
 import { isClerkTenancy, isCloud } from "@/lib/config.ts";
+import { workspaceAtom } from "@/features/user/atoms/current-user-atom";
+import { reresolveCellOnMismatch } from "@/features/cell-discovery/use-cell-discovery.ts";
 
 const api: AxiosInstance = axios.create({
   baseURL: "/api",
@@ -40,6 +43,16 @@ api.interceptors.response.use(
         case 403:
           // Handle forbidden error
           break;
+        case 421: {
+          // AC4 — cell-mismatch (ruling 12/13): the tenant moved and its
+          // cell_epoch was bumped server-side; the pin is stale. Clear it
+          // and re-resolve so the client redirects to the new cell host.
+          const workspace = getDefaultStore().get(workspaceAtom);
+          if (workspace?.id) {
+            void reresolveCellOnMismatch(workspace.id);
+          }
+          break;
+        }
         case 404:
           // Handle not found error
           if (

@@ -50,14 +50,21 @@ import LabelPage from "@/pages/label/label-page";
 import ClerkLoginPage from "@/pages/auth/clerk-login.tsx";
 import { isClerkTenancy } from "@/lib/config.ts";
 import { ClerkAppProvider } from "@/features/clerk/clerk-app-provider.tsx";
+import { useCellDiscovery } from "@/features/cell-discovery/use-cell-discovery.ts";
+import { CellDiscoveryErrorBanner } from "@/features/cell-discovery/cell-discovery-error-banner.tsx";
 
 export default function App() {
   const { t } = useTranslation();
+  const { error: cellDiscoveryError, retry: retryCellDiscovery } =
+    useCellDiscovery();
   useRedirectToCloudSelect();
   useTrackOrigin();
 
   return (
     <>
+      {cellDiscoveryError && (
+        <CellDiscoveryErrorBanner onRetry={retryCellDiscovery} />
+      )}
       <Routes>
         <Route index element={<Navigate to="/home" />} />
         <Route path={"/login"} element={<LoginPage />} />

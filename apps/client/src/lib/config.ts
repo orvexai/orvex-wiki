@@ -43,6 +43,14 @@ export function isCloud(): boolean {
   return castToBoolean(getConfigValue("CLOUD"));
 }
 
+// getGlobalEndpoint is the SOLE flag-read surface for the multi-region cell
+// discovery front door (CS §6 client-shallow — no tenancy/cell-authority
+// decision here, just a config read; the discovery boot hook in
+// apps/client/src/features/cell-discovery/ consumes it, per ENG-1378).
+export function getGlobalEndpoint(): string {
+  return getConfigValue("GLOBAL_ENDPOINT");
+}
+
 export function getAvatarUrl(
   avatarUrl: string,
   type: AvatarIconType = AvatarIconType.AVATAR,
