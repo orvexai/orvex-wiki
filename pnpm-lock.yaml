@@ -780,9 +780,6 @@ importers:
       passport-jwt:
         specifier: 4.0.1
         version: 4.0.1
-      pg-tsquery:
-        specifier: 8.4.2
-        version: 8.4.2
       pgvector:
         specifier: ^0.2.1
         version: 0.2.1
@@ -9092,10 +9089,6 @@ packages:
 
   pg-protocol@1.13.0:
     resolution: {integrity: sha512-zzdvXfS6v89r6v7OcFCHfHlyG/wvry1ALxZo4LqgUoy7W9xhBDMaqOuMiF3qEV45VqsN6rdlcehHrfDtlCPc8w==}
-
-  pg-tsquery@8.4.2:
-    resolution: {integrity: sha512-waJSlBIKE+shDhuDpuQglTH6dG5zakDhnrnxu8XB8V5c7yoDSuy4pOxY6t2dyoxTjaKMcMmlByJN7n9jx9eqMA==}
-    engines: {node: '>=10'}
 
   pg-types@2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
@@ -20363,8 +20356,6 @@ snapshots:
 
   pg-protocol@1.13.0:
     optional: true
-
-  pg-tsquery@8.4.2: {}
 
   pg-types@2.2.0:
     dependencies:

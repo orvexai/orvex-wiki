@@ -61,7 +61,6 @@ export interface Attachments {
   pageId: string | null;
   spaceId: string | null;
   textContent: string | null;
-  tsv: string | null;
   type: string | null;
   updatedAt: Generated<Timestamp>;
   workspaceId: string;
@@ -335,7 +334,6 @@ export interface Pages {
   spaceId: string;
   textContent: string | null;
   title: string | null;
-  tsv: string | null;
   updatedAt: Generated<Timestamp>;
   workspaceId: string;
   ydoc: Buffer | null;
