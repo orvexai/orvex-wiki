@@ -127,12 +127,18 @@ export function sendChatMessage(
           buffer = lines.pop() || "";
 
           for (const line of lines) {
+            // Per the PINNED wire (orvex-studio-contracts sse/AI-CHAT.md):
+            // every frame except `keepalive` is a `data: <json>` line;
+            // `keepalive` is a bare SSE COMMENT line (`: keepalive`, no
+            // `data:` prefix) — falls through and is ignored here by
+            // construction, matching the producer's documented intent
+            // ("browsers ignore comment frames"). There is no `[DONE]`
+            // sentinel on the real wire — completion is the
+            // `{"type":"state","state":"done"}` frame, and `onComplete`
+            // fires below when the reader naturally observes the HTTP body
+            // close.
             if (line.startsWith("data: ")) {
               const data = line.slice(6);
-              if (data === "[DONE]") {
-                onComplete?.();
-                return;
-              }
               try {
                 const parsed = JSON.parse(data) as AiChatStreamEventWire;
                 onEvent(parsed);

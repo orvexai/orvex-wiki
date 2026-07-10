@@ -46,14 +46,11 @@ describe("useChatStream", () => {
   it("AC8 — an unknown SSE event type is ignored (no throw) and the stream still renders", async () => {
     (fetch as any).mockResolvedValue(
       fakeSseResponse([
-        JSON.stringify({ type: "chat_created", chatId: "c1" }),
-        JSON.stringify({ type: "content", text: "Hello" }),
+        JSON.stringify({ type: "chat_id", chatId: "c1" }),
+        JSON.stringify({ type: "state", chatId: "c1", state: "connecting" }),
+        JSON.stringify({ type: "token", token: "Hello" }),
         JSON.stringify({ type: "a_future_event_type", payload: { x: 1 } }),
-        JSON.stringify({
-          type: "done",
-          messageId: "m1",
-        }),
-        "[DONE]",
+        JSON.stringify({ type: "state", chatId: "c1", state: "done" }),
       ]),
     );
 
@@ -74,11 +71,9 @@ describe("useChatStream", () => {
       fakeSseResponse([
         JSON.stringify({
           type: "error",
-          message: "upstream hiccup",
-          code: "UPSTREAM_ERROR",
-          retryable: true,
+          errCode: "MODEL_STREAM_FAILED",
+          errMsg: "upstream hiccup",
         }),
-        "[DONE]",
       ]),
     );
 
@@ -95,8 +90,7 @@ describe("useChatStream", () => {
     (fetch as any).mockClear();
     (fetch as any).mockResolvedValue(
       fakeSseResponse([
-        JSON.stringify({ type: "done", messageId: "m2" }),
-        "[DONE]",
+        JSON.stringify({ type: "state", chatId: "c1", state: "done" }),
       ]),
     );
 

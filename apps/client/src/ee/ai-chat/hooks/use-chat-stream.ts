@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { sendChatMessage } from "../services/ai-chat-service";
 import type {
-  AiChatCitation,
   AiChatMessage,
   AiChatStreamEvent,
   AiChatStreamEventWire,
@@ -13,19 +12,27 @@ import type {
   SendArgs,
 } from "../types/ai-chat.types";
 
-// The SSE event types this reader knows how to handle. Anything else is a
-// forward-compat no-op (AC8) — future service versions may add event types
-// the client doesn't understand yet; ignoring them keeps the stream alive.
+// The SSE event types this reader knows how to handle — the PINNED wire
+// vocabulary (orvex-studio-contracts sse/AI-CHAT.md), ratified from the
+// real ENG-1450 producer. Anything else is a forward-compat no-op (AC8) —
+// future service versions may add event types the client doesn't
+// understand yet; ignoring them keeps the stream alive.
 const KNOWN_EVENT_TYPES = new Set([
-  "chat_created",
-  "content",
-  "tool_call",
-  "tool_result",
-  "stream_state",
-  "reasoning",
-  "done",
+  "chat_id",
+  "state",
+  "banner",
+  "token",
+  "citation",
+  "cap",
   "error",
+  "keepalive",
 ]);
+
+// The wire carries no `retryable` boolean (sse/AI-CHAT.md) — retryability is
+// derived from the closed `errCode` set. MODEL_STREAM_FAILED is a transient
+// upstream/model failure; the other three are permanent for this turn's
+// inputs (retrying with the same args would fail identically).
+const RETRYABLE_ERROR_CODES = new Set(["MODEL_STREAM_FAILED"]);
 
 type ChatStreamOptions = {
   onChatCreated?: (chatId: string) => void;
@@ -55,7 +62,7 @@ export function useChatStream(
   currentChatIdRef.current = chatId;
   // Tracks which chatId the local `messages` state currently represents.
   // Set when we seed from a server fetch AND when we optimistically own a
-  // freshly-created chat after `chat_created`. This is the single authority
+  // freshly-created chat after `chat_id`. This is the single authority
   // marker that keeps server-state effects from clobbering in-flight streams.
   const hydratedChatIdRef = useRef<string | undefined>(undefined);
 
@@ -154,7 +161,9 @@ export function useChatStream(
           }
           const event = wireEvent as AiChatStreamEvent;
           switch (event.type) {
-            case "chat_created":
+            // Always the first frame of a turn (sse/AI-CHAT.md) — was
+            // `chat_created` under the stale fork-client vocabulary.
+            case "chat_id":
               currentChatIdRef.current = event.chatId;
               // Claim authority over this new chatId so when the consumer's
               // prop catches up via navigation/onChatCreated, the reset effect
@@ -167,69 +176,97 @@ export function useChatStream(
               }
               queryClient.invalidateQueries({ queryKey: ["ai-chats"] });
               break;
-            case "content":
-              setStreamingContent((prev) => prev + event.text);
-              break;
-            case "tool_call":
-              setStreamingToolCalls((prev) => [
-                ...prev,
-                {
-                  id: event.id,
-                  name: event.name,
-                  args: event.args,
-                },
-              ]);
-              break;
-            case "tool_result":
-              setStreamingToolCalls((prev) =>
-                prev.map((tc) =>
-                  tc.id === event.id ? { ...tc, result: event.result } : tc,
-                ),
-              );
-              break;
-            case "stream_state":
-              setStreamingState(event.state);
-              break;
-            case "reasoning":
-              // Reasoning tokens are not yet surfaced in the transcript UI;
-              // tracked via streamingState so a future affordance can show
-              // "thinking" text without a citation/AC change here.
-              setStreamingState("reasoning");
-              break;
-            case "done": {
-              const citations: AiChatCitation[] | undefined = event.citations;
-              setStreamingContent((currentContent) => {
-                setStreamingToolCalls((currentToolCalls) => {
-                  const assistantMessage: AiChatMessage = {
-                    id: event.messageId,
-                    chatId: currentChatIdRef.current || "",
-                    role: "assistant",
-                    content: currentContent || null,
-                    toolCalls: currentToolCalls.length
-                      ? currentToolCalls
-                      : null,
-                    metadata: event.usage ? { tokenUsage: event.usage } : null,
-                    createdAt: new Date().toISOString(),
-                    ...(citations?.length && { citations }),
-                  };
+            // The state-machine transition frame. `connecting`/`streaming`
+            // are surfaced via streamingState for a future affordance;
+            // `done` finalizes the turn, `error` is a no-op here because the
+            // paired `error` frame (below) already carries the message the
+            // inline error UI needs (producer emits `error` THEN
+            // `state:"error"` — sse/AI-CHAT.md).
+            case "state":
+              switch (event.state) {
+                case "connecting":
+                  setStreamingState("connecting");
+                  break;
+                case "streaming":
+                  setStreamingState(null);
+                  break;
+                case "done": {
+                  // The wire carries no messageId (sse/AI-CHAT.md) — a
+                  // stable id is synthesized client-side, same pattern
+                  // already used for the stopGeneration partial-message id.
+                  const messageId = `msg-${Date.now()}`;
+                  setStreamingContent((currentContent) => {
+                    setStreamingToolCalls((currentToolCalls) => {
+                      const assistantMessage: AiChatMessage = {
+                        id: messageId,
+                        chatId: currentChatIdRef.current || "",
+                        role: "assistant",
+                        content: currentContent || null,
+                        toolCalls: currentToolCalls.length
+                          ? currentToolCalls
+                          : null,
+                        metadata: null,
+                        createdAt: new Date().toISOString(),
+                      };
 
-                  setMessages((prev) => [...prev, assistantMessage]);
-                  return [];
-                });
-                return "";
-              });
-              setIsStreaming(false);
-              setStreamingState(null);
-              queryClient.invalidateQueries({
-                queryKey: ["ai-chat", currentChatIdRef.current],
-              });
+                      setMessages((prev) => [...prev, assistantMessage]);
+                      return [];
+                    });
+                    return "";
+                  });
+                  setIsStreaming(false);
+                  setStreamingState(null);
+                  queryClient.invalidateQueries({
+                    queryKey: ["ai-chat", currentChatIdRef.current],
+                  });
+                  break;
+                }
+                case "error":
+                  setIsStreaming(false);
+                  setStreamingState(null);
+                  break;
+              }
               break;
-            }
-            case "error":
-              setError(event.message);
-              setErrorCode(event.code || null);
-              setIsRetryable(event.retryable || false);
+            // Model/scope/health metadata for this turn (sse/AI-CHAT.md).
+            // Not yet surfaced by a dedicated affordance — the existing
+            // AiStatusBanner reads the independent /ai/health poll, not
+            // this per-turn frame. No-op today (same documented posture as
+            // the old `reasoning` case), tracked for a future banner.
+            case "banner":
+              break;
+            // Was `content` under the stale fork-client vocabulary.
+            case "token":
+              setStreamingContent((prev) => prev + event.token);
+              break;
+            // KNOWN GAP (sse/AI-CHAT.md): the wire carries a bare citation
+            // string, not a structured AiChatCitation — the producer never
+            // emits this frame today (RunChat has no citation source
+            // wired). No-op rather than fabricating id/pageId/url/title;
+            // citation-hover-card rendering stays unreachable until a
+            // producer follow-up lands structured citations on this frame.
+            case "citation":
+              break;
+            // Spend-cap-reached turn — replaces the entire turn (no
+            // chat_id/state precede it). Surfaced as the same inline,
+            // non-retryable error UI as a typed `error` frame.
+            case "cap":
+              setError("Spend cap reached");
+              setErrorCode(event.errCode);
+              setIsRetryable(false);
               setIsStreaming(false);
+              break;
+            case "error":
+              setError(event.errMsg || "Something went wrong");
+              setErrorCode(event.errCode || null);
+              setIsRetryable(
+                event.errCode ? RETRYABLE_ERROR_CODES.has(event.errCode) : false,
+              );
+              setIsStreaming(false);
+              break;
+            // Bare SSE comment frame — never reaches here in practice (the
+            // service-layer parser only forwards `data:` lines), kept for
+            // documentation/forward-compat completeness.
+            case "keepalive":
               break;
           }
         },

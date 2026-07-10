@@ -181,12 +181,21 @@ describe("ai-chat-stream-renders", () => {
       screen.getByTestId("mock-chat-input-send").click();
     });
 
-    // Final answer text present (AC1).
-    await screen.findByText(
-      "The citation above documents this pattern.",
-      undefined,
-      { timeout: 3000 },
-    );
+    // Final answer text present (AC1). Substring taken FROM the committed
+    // real fixture (AC1's own language: "final answer substring from
+    // fixture") — this is the real captured model output, not narrative.
+    // Scoped to the rendered message body (not `screen`) because Mantine's
+    // ScrollArea mounts a visually-hidden aria-live status mirror of the
+    // same text for a11y, which would otherwise multiple-match a broad
+    // screen-wide text query.
+    await waitFor(() => {
+      expect(
+        container.querySelector('[data-testid="chat-message-body"]')
+          ?.textContent,
+      ).toMatch(
+        /A message queue is a form of asynchronous service-to-service communication/,
+      );
+    }, { timeout: 3000 });
 
     // Exactly one user turn + one assistant turn rendered (AC1 message
     // count invariant — survives internal field renames, asserts DOM
@@ -198,7 +207,15 @@ describe("ai-chat-stream-renders", () => {
     });
 
     // Citation hover-card href byte-equal to the fixture citation URL
-    // (AC2).
+    // (AC2). KNOWN GAP, not fixed by this realignment (sse/AI-CHAT.md,
+    // orvex-wiki scratchpad/pass6-followups/1359-fix.md): the pinned wire's
+    // `citation` frame is a bare string with no url/title, and the real
+    // ENG-1450 producer's RunChat never constructs this frame at all today
+    // (confirmed by reading internal/chat/service.go — dead code, not a
+    // sampling gap) — no real transcript can carry a citation until a
+    // producer follow-up wires the cited-ask core's citations into the chat
+    // loop. This assertion stays RED honestly rather than being weakened or
+    // removed; AC2/H1 cannot be ticked until it is.
     const marker = await screen.findByTestId("citation-marker");
     fireEvent.mouseEnter(marker);
     const card = await screen.findByTestId("citation-card");
@@ -243,13 +260,16 @@ describe("ai-chat-stream-renders", () => {
       screen.getByTestId("mock-chat-input-send").click();
     });
 
-    // Push a chat_created + a partial content chunk only — no `done` yet —
-    // so the assertion below observes a genuinely in-flight stream, not a
-    // synchronously-resolved one.
+    // Push a chat_id + a partial token chunk only — no terminal `state:done`
+    // yet — so the assertion below observes a genuinely in-flight stream,
+    // not a synchronously-resolved one. Vocabulary per the pinned wire
+    // (orvex-studio-contracts sse/AI-CHAT.md).
     await act(async () => {
       controlled.push(
-        'data: {"type":"chat_created","chatId":"chat-fixture-2"}\n\n' +
-          'data: {"type":"content","text":"Partial answer chunk"}\n\n',
+        'data: {"type":"chat_id","chatId":"chat-fixture-2"}\n\n' +
+          'data: {"type":"state","chatId":"chat-fixture-2","state":"connecting"}\n\n' +
+          'data: {"type":"state","chatId":"chat-fixture-2","state":"streaming"}\n\n' +
+          'data: {"type":"token","token":"Partial answer chunk"}\n\n',
       );
     });
 
@@ -261,10 +281,11 @@ describe("ai-chat-stream-renders", () => {
     expect(streamingNode.textContent).toContain("Partial answer chunk");
 
     // Finish the stream cleanly so no open handles leak into the next test.
+    // Completion is the terminal state:"done" frame — there is no
+    // `data: [DONE]` sentinel on the pinned wire.
     await act(async () => {
       controlled.push(
-        'data: {"type":"done","messageId":"msg-fixture-2","citations":[]}\n\n' +
-          "data: [DONE]\n\n",
+        'data: {"type":"state","chatId":"chat-fixture-2","state":"done"}\n\n',
       );
       controlled.close();
     });

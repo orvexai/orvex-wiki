@@ -35,15 +35,30 @@ export type AiChatCitation = {
   snippet?: string;
 };
 
+// The frame vocabulary PINNED in orvex-studio-contracts sse/AI-CHAT.md —
+// ratified from the real, merged ENG-1450 producer (orvex-studio-ai
+// internal/chat/types.go FrameType consts + internal/stream/sse.go), NOT
+// the stale fork-client shape this file used to carry (chat_created/
+// content/stream_state/citation_preview/done{messageId,citations[]}) —
+// see ENG-1359 pass6-followup ruling. `errCode` values are the closed set
+// from FrameType's error codes: CURRENT_PAGE_REQUIRED, SPEND_CAP_REACHED,
+// MODEL_STREAM_FAILED, FORBIDDEN_PAGE. There is no `retryable` boolean on
+// the wire — the client derives it from `errCode` (ERROR_RETRYABLE below).
 export type AiChatStreamEvent =
-  | { type: 'chat_created'; chatId: string }
-  | { type: 'content'; text: string }
-  | { type: 'tool_call'; id: string; name: string; args: Record<string, unknown> }
-  | { type: 'tool_result'; id: string; result: unknown }
-  | { type: 'stream_state'; state: string }
-  | { type: 'reasoning'; text: string }
-  | { type: 'done'; messageId: string; usage?: Record<string, number>; citations?: AiChatCitation[] }
-  | { type: 'error'; message: string; code?: string; retryable?: boolean };
+  | { type: 'chat_id'; chatId: string }
+  | { type: 'state'; chatId?: string; state: 'connecting' | 'streaming' | 'done' | 'error' }
+  | { type: 'banner'; chatId?: string; model?: string; scope?: 'page' | 'workspace'; health?: string }
+  | { type: 'token'; token: string }
+  // KNOWN GAP (pinned honestly in sse/AI-CHAT.md, not fabricated here): the
+  // producer's RunChat never constructs this frame today — `citation` is a
+  // bare string on the wire (no id/pageId/url/title), so it CANNOT be
+  // assembled into an AiChatCitation without inventing fields. Tracked as a
+  // raw string only; citation-hover-card rendering stays unreachable until
+  // a producer follow-up wires structured citations onto this frame.
+  | { type: 'citation'; citation: string }
+  | { type: 'cap'; errCode: string }
+  | { type: 'error'; chatId?: string; errCode?: string; errMsg?: string }
+  | { type: 'keepalive' };
 
 // The wire shape is looser than the known union above — a future AI service
 // version may emit event types this client doesn't understand yet (AC8

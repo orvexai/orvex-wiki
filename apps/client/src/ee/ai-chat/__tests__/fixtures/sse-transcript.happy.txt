@@ -21,24 +21,30 @@
 :   were all 429 rate-limited on the shared LiteLLM key at capture time —
 :   itself a real, reproducible finding, not fabricated).
 :
-: CRITICAL FINDING (blocks Done — see ENG-1359 escalation, do not remove
-: this note): this real transcript's wire contract does NOT match
-: types/ai-chat.types.ts' AiChatStreamEvent union that this client's parser
-: (services/ai-chat-service.ts) is built against. The real ENG-1450 producer
-: emits frame types chat_id / state / banner / token / citation(string) /
-: cap / error / keepalive, with completion signaled as
-: {"type":"state","state":"done"} — there is no chat_created, no `content`
-: frame (content arrives as `token`), no `stream_state`, no `reasoning`, and
-: the terminal frame carries neither a messageId nor a citations[] array
-: (FrameCitation is a single string, not a structured
-: {id,pageId,title,url,snippet} object, and this transcript's simple prompt
-: never triggered one — ENG-1450 ships NO tool/citation registry per its own
-: build notes). Per AC8's documented forward-compat behavior ("narrow
-: against AiChatStreamEvent's known type values; anything else is a no-op"),
-: EVERY frame in this real transcript is unrecognized by the current client
-: parser, so replaying it renders nothing. This is a genuine cross-repo
-: wire-contract mismatch, not a fixture-quality issue — escalated, not
-: silently patched around. See scratchpad/pass6/1359.md.
+: RESOLUTION (pass6-followup, 2026-07-10 — see
+: orvex-wiki scratchpad/pass6-followups/1359-ruling.md +
+: scratchpad/pass6-followups/1359-fix.md): the wire-contract mismatch this
+: note originally flagged is FIXED. Root cause per the ruling: no SSE frame
+: catalog was pinned in orvex-studio-contracts for this stream at all — both
+: legs built to their own un-pinned half of a stale fork and diverged as a
+: result. Fix: orvex-studio-contracts sse/AI-CHAT.md now PINS the real
+: producer vocabulary (chat_id/state/banner/token/citation/cap/error/
+: keepalive, completion = {"type":"state","state":"done"}) as the contract
+: of record, and types/ai-chat.types.ts + services/ai-chat-service.ts +
+: hooks/use-chat-stream.ts were rewritten to that pin (no more
+: chat_created/content/stream_state/reasoning/done{messageId,citations[]}).
+: This transcript needed NO re-capture — the producer's shape is unchanged;
+: only the consumer was realigned.
+:
+: REMAINING KNOWN GAP (does not block the wire-contract fix; blocks AC2
+: specifically): sse/AI-CHAT.md pins `citation` as a bare string and
+: documents, from a direct read of internal/chat/service.go, that RunChat
+: never constructs a FrameCitation frame at all — dead code, not a sampling
+: gap. No real transcript can carry a citation until a producer follow-up
+: wires the cited-ask core's citations into the chat loop. The citation
+: hover-card assertion in ai-chat-stream-renders.spec.tsx (AC2) therefore
+: cannot be proven against real traffic today; the citation-card/
+: citation-source-list rendering path is intact and dormant, not deleted.
 data: {"type":"chat_id","chatId":"capture-chat-1"}
 
 data: {"type":"state","chatId":"capture-chat-1","state":"connecting"}
