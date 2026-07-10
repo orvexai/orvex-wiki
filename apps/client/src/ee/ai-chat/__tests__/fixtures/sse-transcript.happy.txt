@@ -1,27 +1,60 @@
-: PROVENANCE (CS §11 honesty) — this fixture is SYNTHETIC, not a recorded
-: transcript. Ticket ENG-1359 §5b/§5c requires a committed real SSE transcript
-: captured from a live orvex-studio-ai instance; that instance is produced by
-: ENG-1450 (blocked-by), which is unavailable in this sandbox to record from.
-: This file is hand-authored to match the wire contract byte-for-byte
-: (types/ai-chat.types.ts, AiChatStreamEvent) so the DoD test exercises real
-: parsing/rendering logic, but it does NOT satisfy the "recorded transcript"
-: requirement. Escalated in ENG-1359-fix1.md; the 5c/NFR-honesty review-gate
-: boxes must stay unchecked until a real transcript replaces this file once
-: ENG-1450 lands. Lines starting with ":" are SSE comments (RFC-ignored by
-: the reader in services/ai-chat-service.ts, which only matches "data: ").
-data: {"type":"chat_created","chatId":"chat-fixture-1"}
+: PROVENANCE (CS §11 honesty) — this is a REAL SSE transcript, recorded from
+: the merged ENG-1450 producer (orvex-studio-ai), not hand-authored.
+: Source commit: orvexai/orvex-studio-ai@6ea5e8bce099e4cc40d7411cdff39d38b4c83f3b
+:   ("ENG-1450: AI-chat core (SSE streaming, model/scope/health, history,
+:   state-machine) (#18)", squash-merged to dev 2026-07-10T09:55:58Z).
+: Captured: 2026-07-10, via a throwaway Go test harness
+:   (internal/server/zz_capture_real_sse_test.go, never committed to
+:   orvex-studio-ai) run in a worktree detached at 6ea5e8b. The harness wires
+:   the REAL internal/chat.Service + REAL internal/stream.SSEWriter, mounted
+:   on the REAL NewRouter/auth-middleware HTTP path (RS256 JWKS-fixture auth,
+:   the same pattern internal/server/chat_route_test.go itself uses as real
+:   edge auth), POSTed one real turn through /api/ai/chat against the REAL
+:   LiteLLM backend (LITELLM_URL/LITELLM_API_KEY, the actual cluster secret).
+:   Only the chat store, page-permission check, and spend gate are in-memory
+:   fakes (auth/page-access/spend gating are not what this fixture proves —
+:   the real wire framing + real model content is). Command:
+:     LITELLM_URL=... LITELLM_API_KEY=... CAPTURE_MODEL=gemini-3.1-flash-lite \
+:     CAPTURE_OUT_PATH=... go test -run TestCaptureRealSSE_ENG1450 -v \
+:       ./internal/server/...
+: Model: gemini-3.1-flash-lite (gpt-4o-mini/gpt-5-nano/gpt-4.1-mini/o4-mini
+:   were all 429 rate-limited on the shared LiteLLM key at capture time —
+:   itself a real, reproducible finding, not fabricated).
+:
+: CRITICAL FINDING (blocks Done — see ENG-1359 escalation, do not remove
+: this note): this real transcript's wire contract does NOT match
+: types/ai-chat.types.ts' AiChatStreamEvent union that this client's parser
+: (services/ai-chat-service.ts) is built against. The real ENG-1450 producer
+: emits frame types chat_id / state / banner / token / citation(string) /
+: cap / error / keepalive, with completion signaled as
+: {"type":"state","state":"done"} — there is no chat_created, no `content`
+: frame (content arrives as `token`), no `stream_state`, no `reasoning`, and
+: the terminal frame carries neither a messageId nor a citations[] array
+: (FrameCitation is a single string, not a structured
+: {id,pageId,title,url,snippet} object, and this transcript's simple prompt
+: never triggered one — ENG-1450 ships NO tool/citation registry per its own
+: build notes). Per AC8's documented forward-compat behavior ("narrow
+: against AiChatStreamEvent's known type values; anything else is a no-op"),
+: EVERY frame in this real transcript is unrecognized by the current client
+: parser, so replaying it renders nothing. This is a genuine cross-repo
+: wire-contract mismatch, not a fixture-quality issue — escalated, not
+: silently patched around. See scratchpad/pass6/1359.md.
+data: {"type":"chat_id","chatId":"capture-chat-1"}
 
-data: {"type":"content","text":"Here is a diagram of the flow:\n\n"}
+data: {"type":"state","chatId":"capture-chat-1","state":"connecting"}
 
-data: {"type":"stream_state","state":"thinking"}
+data: {"type":"banner","chatId":"capture-chat-1","model":"gemini-3.1-flash-lite","scope":"workspace","health":"unknown"}
 
-data: {"type":"content","text":"```mermaid\ngraph TD;\n  A[Start] --> B[Finish];\n```\n\n"}
+data: {"type":"state","chatId":"capture-chat-1","state":"streaming"}
 
-data: {"type":"citation_preview","pageId":"unknown-fixture-event"}
+data: {"type":"token","token":"A message"}
 
-data: {"type":"content","text":"The citation above documents this pattern."}
+data: {"type":"token","token":" queue is a form of asynchronous service-to-service communication that allows different components of"}
 
-data: {"type":"done","messageId":"msg-fixture-1","citations":[{"id":"c1","pageId":"page-42","title":"Orvex Wiki Architecture","url":"/s/orvexwiki/p/architecture-abc123","snippet":"How the engine and satellites split."}]}
+data: {"type":"token","token":" an application to exchange data without needing to be active or connected at the same time. By decoupling the sender and the receiver"}
 
-data: [DONE]
+data: {"type":"token","token":", the queue acts as a buffer that stores messages until the receiving component is ready to process them, effectively improving system scalability"}
 
+data: {"type":"token","token":" and reliability.\n\n```mermaid\ngraph TD\n    A[Producer] --> B[Message Queue]\n```"}
+
+data: {"type":"state","chatId":"capture-chat-1","state":"done"}
