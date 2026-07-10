@@ -13,18 +13,30 @@ import { OrvexPageProvenanceModule } from '../page-provenance/orvex-page-provena
 import { OrvexPageMetadataModule } from '../../orvex/page-metadata/orvex-page-metadata.module';
 import { OrvexLlmsModule } from '../../orvex/llms/orvex-llms.module';
 import { OrvexApplyOpsModule } from '../../orvex/page-blocks/apply-ops.module';
+import { CaslModule } from '../casl/casl.module';
+import { PageVerificationController } from './page-verification.controller';
+import { PageVerificationService } from './page-verification.service';
+import { PageVerificationRepo } from './page-verification.repo';
+import { PageVerificationEntitlementGuard } from './page-verification-entitlement.guard';
 
 @Module({
-  controllers: [PageController],
+  controllers: [PageController, PageVerificationController],
   providers: [
     PageService,
     PageHistoryService,
     TrashCleanupService,
     BacklinkService,
+    // ENG-1459 — QMS page-verification (entitlement-gated, D-EE-1 defer).
+    PageVerificationService,
+    PageVerificationRepo,
+    PageVerificationEntitlementGuard,
   ],
   exports: [PageService, PageHistoryService],
   imports: [
     StorageModule,
+    // ENG-1459 — SpaceAbilityFactory for the verification controller's
+    // read/edit page-access checks.
+    CaslModule,
     // ENG-1603 (F2 fix) — forwardRef: CollaborationModule now (transitively,
     // via OrvexPageProvenanceModule) requires this file at module-load time
     // before this class's exports binding is set. A direct (non-deferred)
