@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from "axios";
 import APP_ROUTE from "@/lib/app-route.ts";
-import { isCloud } from "@/lib/config.ts";
+import { isClerkTenancy, isCloud } from "@/lib/config.ts";
 
 const api: AxiosInstance = axios.create({
   baseURL: "/api",
@@ -67,9 +67,10 @@ api.interceptors.response.use(
   },
 );
 
-function redirectToLogin() {
+export function redirectToLogin() {
   const exemptPaths = [
     APP_ROUTE.AUTH.LOGIN,
+    APP_ROUTE.AUTH.CLERK_LOGIN,
     APP_ROUTE.AUTH.SIGNUP,
     APP_ROUTE.AUTH.FORGOT_PASSWORD,
     APP_ROUTE.AUTH.PASSWORD_RESET,
@@ -78,12 +79,18 @@ function redirectToLogin() {
     "/invites",
   ];
   if (!exemptPaths.some((path) => window.location.pathname.startsWith(path))) {
+    // Under Clerk tenancy, identity is delegated to Clerk — the login
+    // surface is /clerk, never the local-credentials /login page (CS §6
+    // client-shallow: this reads the flag, decides nothing about tenancy).
+    const loginRoute = isClerkTenancy()
+      ? APP_ROUTE.AUTH.CLERK_LOGIN
+      : APP_ROUTE.AUTH.LOGIN;
     const redirectTo = window.location.pathname;
     if (redirectTo === APP_ROUTE.HOME) {
-      window.location.href = APP_ROUTE.AUTH.LOGIN;
+      window.location.href = loginRoute;
     } else {
       const params = new URLSearchParams({ redirect: redirectTo });
-      window.location.href = `${APP_ROUTE.AUTH.LOGIN}?${params.toString()}`;
+      window.location.href = `${loginRoute}?${params.toString()}`;
     }
   }
 }

@@ -100,6 +100,18 @@ export function getPostHogKey() {
   return getConfigValue("POSTHOG_KEY");
 }
 
+// isClerkTenancy / getClerkPublishableKey are the SOLE flag-read surface for
+// Clerk tenancy (CS §6 client-shallow — no tenancy/authority decision here,
+// just a config read). Tenancy is ON only when both the flag is truthy AND a
+// publishable key is present; a flag with no key can never enable Clerk UI.
+export function isClerkTenancy(): boolean {
+  return castToBoolean(getConfigValue("CLERK_TENANCY")) && Boolean(getClerkPublishableKey());
+}
+
+export function getClerkPublishableKey(): string {
+  return getConfigValue("CLERK_PUBLISHABLE_KEY");
+}
+
 function getConfigValue(key: string, defaultValue: string = undefined): string {
   const rawValue = import.meta.env.DEV
     ? process?.env?.[key]

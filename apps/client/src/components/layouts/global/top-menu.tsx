@@ -20,7 +20,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
-import { getSpaceUrl } from "@/lib/config.ts";
+import { getSpaceUrl, isClerkTenancy } from "@/lib/config.ts";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import { usePersonalSpaceQuery } from "@/ee/personal-space/queries/personal-space-query";
@@ -76,25 +76,29 @@ export default function TopMenu() {
         </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
-        <Menu.Label>{t("Workspace")}</Menu.Label>
+        {!isClerkTenancy() && (
+          <>
+            <Menu.Label>{t("Workspace")}</Menu.Label>
 
-        <Menu.Item
-          component={Link}
-          to={APP_ROUTE.SETTINGS.WORKSPACE.GENERAL}
-          leftSection={<IconSettings size={16} />}
-        >
-          {t("Workspace settings")}
-        </Menu.Item>
+            <Menu.Item
+              component={Link}
+              to={APP_ROUTE.SETTINGS.WORKSPACE.GENERAL}
+              leftSection={<IconSettings size={16} />}
+            >
+              {t("Workspace settings")}
+            </Menu.Item>
 
-        <Menu.Item
-          component={Link}
-          to={APP_ROUTE.SETTINGS.WORKSPACE.MEMBERS}
-          leftSection={<IconUsers size={16} />}
-        >
-          {t("Manage members")}
-        </Menu.Item>
+            <Menu.Item
+              component={Link}
+              to={APP_ROUTE.SETTINGS.WORKSPACE.MEMBERS}
+              leftSection={<IconUsers size={16} />}
+            >
+              {t("Manage members")}
+            </Menu.Item>
 
-        <Menu.Divider />
+            <Menu.Divider />
+          </>
+        )}
 
         <Menu.Label>{t("Account")}</Menu.Label>
         <Menu.Item component={Link} to={APP_ROUTE.SETTINGS.ACCOUNT.PROFILE}>

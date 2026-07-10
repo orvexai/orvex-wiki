@@ -19,7 +19,7 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import classes from "./settings.module.css";
 import { useTranslation } from "react-i18next";
-import { isCloud } from "@/lib/config.ts";
+import { isClerkTenancy, isCloud } from "@/lib/config.ts";
 import useUserRole from "@/hooks/use-user-role.tsx";
 import { useAtom } from "jotai";
 import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
@@ -172,6 +172,12 @@ export default function SettingsSidebar() {
 
   const menuItems = groupedData.map((group) => {
     if (group.heading === "System" && (!isAdmin || isCloud())) {
+      return null;
+    }
+    // Clerk tenancy: workspace administration is owned by the Studio, and
+    // the server hard-403s via ClerkWorkspaceLockoutGuard — this is the
+    // matching UI removal so no client route reaches a broken 403.
+    if (group.heading === "Workspace" && isClerkTenancy()) {
       return null;
     }
 

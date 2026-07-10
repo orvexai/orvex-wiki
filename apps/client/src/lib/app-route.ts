@@ -5,6 +5,7 @@ const APP_ROUTE = {
   SEARCH: "/search",
   AUTH: {
     LOGIN: "/login",
+    CLERK_LOGIN: "/clerk",
     SIGNUP: "/signup",
     SETUP: "/setup/register",
     FORGOT_PASSWORD: "/forgot-password",
