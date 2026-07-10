@@ -27,6 +27,7 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
+import type { Redis } from 'ioredis';
 
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
@@ -44,6 +45,38 @@ import type { KyselyDB } from '../../database/types/kysely.types';
 
 import { OrvexApplyOpsController } from './orvex-apply-ops.controller';
 import { ApplyOpsService } from './apply-ops.service';
+
+/**
+ * A minimal in-memory double for the ONE `ioredis` surface
+ * `IdempotencyStore` actually calls (`set(key, val, 'EX', ttl, 'NX')` +
+ * `get(key)`), implementing REAL `SET ... NX` semantics (refuse to
+ * overwrite an existing key) rather than the degraded
+ * `getOrNil() -> null` stub used by the main suite below. Faking the true
+ * external (Redis) at its client boundary is legitimate (CS zero-mock);
+ * the point here is that this fake actually behaves like Redis, so
+ * `IdempotencyStore.claim()`/`.record()` run their REAL winner/loser logic
+ * instead of always degrading — the only way to exercise AC3's dedup path
+ * (F1).
+ */
+class FakeRedisClient {
+  private readonly store = new Map<string, string>();
+
+  async set(
+    key: string,
+    value: string,
+    ..._flags: unknown[]
+  ): Promise<'OK' | null> {
+    if (_flags.includes('NX') && this.store.has(key)) {
+      return null;
+    }
+    this.store.set(key, value);
+    return 'OK';
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.store.get(key) ?? null;
+  }
+}
 
 /**
  * ENG-1652 — the named DoD gate:
@@ -255,7 +288,8 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.data ?? body).toMatchObject({ version: 2 });
+    const envelope = body.data ?? body;
+    expect(envelope).toMatchObject({ version: 2 });
 
     const persisted = await db
       .selectFrom('pages')
@@ -263,6 +297,55 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       .where('id', '=', pageId)
       .executeTakeFirstOrThrow();
     expect((persisted.content as any).content).toHaveLength(2);
+
+    // AC5 — the success envelope equals a FRESH independent read, not just
+    // a stale in-memory computed value. Two separate queries (page row +
+    // orvex_page_meta), not a re-use of anything the request handler saw.
+    const freshPage = await db
+      .selectFrom('pages')
+      .select('updatedAt')
+      .where('id', '=', pageId)
+      .executeTakeFirstOrThrow();
+    const freshMeta = await db
+      .selectFrom('orvexPageMeta')
+      .select(['version', 'contentHash'])
+      .where('pageId', '=', pageId)
+      .executeTakeFirstOrThrow();
+
+    expect(envelope.version).toBe(freshMeta.version);
+    expect(envelope.contentHash).toBe(freshMeta.contentHash);
+    expect(new Date(envelope.settledUpdatedAt).getTime()).toBe(
+      new Date(freshPage.updatedAt as unknown as string).getTime(),
+    );
+  });
+
+  it('AC6 — flag-off (ORVEX_MODULES_ENABLED not exactly "true") 404s before the handler body runs', async () => {
+    const pageId = await createPage({ type: 'doc', content: [] });
+    const prevFlag = process.env.ORVEX_MODULES_ENABLED;
+    delete process.env.ORVEX_MODULES_ENABLED;
+
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orvex/pages/${pageId}/apply-ops`,
+        payload: {
+          ifVersion: 1,
+          ops: [{ type: 'append', node: { type: 'paragraph', attrs: { id: 'x' } } }],
+        },
+      });
+      expect(res.statusCode).toBe(404);
+    } finally {
+      if (prevFlag === undefined) delete process.env.ORVEX_MODULES_ENABLED;
+      else process.env.ORVEX_MODULES_ENABLED = prevFlag;
+    }
+
+    // Byte-parity: nothing was written while the tree was flag-off.
+    const persisted = await db
+      .selectFrom('pages')
+      .select('content')
+      .where('id', '=', pageId)
+      .executeTakeFirstOrThrow();
+    expect((persisted.content as any).content).toEqual([]);
   });
 
   it(
@@ -372,5 +455,232 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       expect(JSON.stringify(res.json())).not.toContain('"ok":true');
       expect(res.json().message?.code ?? res.json().code).toBe(code);
     }
+  });
+
+  /**
+   * F1 — AC3's dedup/replay half, exercised through a REAL (if in-memory)
+   * Redis double that actually implements `SET NX` semantics, so
+   * `IdempotencyStore.claim()`/`.record()` run their real winner/loser
+   * branches instead of always degrading. A second Nest app (same
+   * Postgres container/db), differing only in the `RedisService` provider.
+   */
+  describe('AC3 — idempotency dedup/replay (working fake Redis)', () => {
+    let dedupApp: NestFastifyApplication;
+    let dedupIdempotencyStore: IdempotencyStore;
+    const fakeRedis = new FakeRedisClient();
+
+    beforeAll(async () => {
+      @Global()
+      @Module({
+        providers: [
+          PageRepo,
+          SpaceMemberRepo,
+          GroupRepo,
+          SpaceRepo,
+          PagePermissionRepo,
+          WsService,
+          OutboxWriter,
+          SpaceAbilityFactory,
+          IdempotencyStore,
+          {
+            provide: RedisService,
+            useValue: { getOrNil: () => fakeRedis as unknown as Redis },
+          },
+        ],
+        exports: [
+          PageRepo,
+          SpaceMemberRepo,
+          GroupRepo,
+          SpaceRepo,
+          PagePermissionRepo,
+          WsService,
+          OutboxWriter,
+          SpaceAbilityFactory,
+          IdempotencyStore,
+        ],
+      })
+      class DedupTestSupportModule {}
+
+      @Module({
+        controllers: [OrvexApplyOpsController],
+        providers: [ApplyOpsService],
+      })
+      class DedupTestApplyOpsModule {}
+
+      const moduleRef = await Test.createTestingModule({
+        imports: [
+          KyselyModule.forRoot({
+            dialect: new PostgresJSDialect({ postgres: sqlClient }),
+            plugins: [new CamelCasePlugin()],
+          }),
+          EventEmitterModule.forRoot(),
+          CacheModule.register({ isGlobal: true }),
+          DedupTestSupportModule,
+          DedupTestApplyOpsModule,
+        ],
+      })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({
+          canActivate: (context: any) => {
+            const req = context.switchToHttp().getRequest();
+            req.user = {
+              user: { id: userId, workspaceId },
+              workspace: { id: workspaceId },
+            };
+            return true;
+          },
+        })
+        .compile();
+
+      dedupApp = moduleRef.createNestApplication<NestFastifyApplication>(
+        new FastifyAdapter(),
+      );
+      dedupApp.setGlobalPrefix('api');
+      dedupApp.useGlobalPipes(
+        new ValidationPipe({ whitelist: true, transform: true }),
+      );
+      await dedupApp.init();
+      await dedupApp.getHttpAdapter().getInstance().ready();
+      dedupIdempotencyStore = moduleRef.get(IdempotencyStore);
+    });
+
+    afterAll(async () => {
+      await dedupApp?.close();
+    });
+
+    it('concurrent keyed duplicates -> one inserted node, identical envelope both times (loser never re-applies)', async () => {
+      // Two requests race for the SAME idempotency key at the SAME
+      // ifVersion (the real-world shape of a keyed retry: the client
+      // doesn't yet know the first attempt is landing). Firing them
+      // concurrently — not sequentially after the first commits — is what
+      // makes both see `ifVersion: 1` as still current, so the loser's
+      // 409 does NOT come from AC3's separate stale-CAS path; only ONE of
+      // them may actually claim the slot and write.
+      const original = {
+        type: 'doc',
+        content: [{ type: 'paragraph', attrs: { id: 'seed' }, content: [{ type: 'text', text: 'seed' }] }],
+      };
+      const pageId = await createPage(original);
+      const idempotencyKey = `eng-1652-idem-${Date.now()}`;
+      const payload = {
+        ifVersion: 1,
+        ops: [
+          {
+            type: 'append',
+            node: { type: 'paragraph', attrs: { id: 'dedup-node' }, content: [{ type: 'text', text: 'once' }] },
+          },
+        ],
+      };
+
+      const [first, second] = await Promise.all([
+        dedupApp.inject({
+          method: 'POST',
+          url: `/api/orvex/pages/${pageId}/apply-ops`,
+          headers: { 'idempotency-key': idempotencyKey },
+          payload,
+        }),
+        dedupApp.inject({
+          method: 'POST',
+          url: `/api/orvex/pages/${pageId}/apply-ops`,
+          headers: { 'idempotency-key': idempotencyKey },
+          payload,
+        }),
+      ]);
+
+      // Exactly one node landed — the batch was never applied twice.
+      const persisted = await db
+        .selectFrom('pages')
+        .select('content')
+        .where('id', '=', pageId)
+        .executeTakeFirstOrThrow();
+      const nodes = (persisted.content as any).content as unknown[];
+      expect(nodes).toHaveLength(2);
+
+      const metaAfter = await db
+        .selectFrom('orvexPageMeta')
+        .select('version')
+        .where('pageId', '=', pageId)
+        .executeTakeFirstOrThrow();
+      expect(metaAfter.version).toBe(2);
+
+      // Both requests observed 200 with identical envelopes — the loser
+      // replayed the winner's recorded result rather than 409ing or
+      // fabricating its own.
+      expect(first.statusCode).toBe(200);
+      expect(second.statusCode).toBe(200);
+      expect(second.json().data ?? second.json()).toEqual(
+        first.json().data ?? first.json(),
+      );
+    });
+
+    it('a sequential keyed retry after the winner has landed replays the SAME recorded envelope without writing again (real claim()/record())', async () => {
+      // Deterministic complement to the concurrent case above: seed the
+      // store via the REAL `IdempotencyStore.claim()`+`record()` calls
+      // (not a business-logic mock) to pin down the winner's result, then
+      // fire the actual HTTP retry and prove the loser branch
+      // (`claim() -> {claimed:false, result}`) returns that exact
+      // recorded envelope and performs zero additional writes.
+      const original = {
+        type: 'doc',
+        content: [{ type: 'paragraph', attrs: { id: 'seed2' }, content: [{ type: 'text', text: 'seed2' }] }],
+      };
+      const pageId = await createPage(original);
+      const idempotencyKey = `eng-1652-idem-seq-${Date.now()}`;
+
+      const winnerClaim = await dedupIdempotencyStore.claim(
+        'apply-ops',
+        pageId,
+        userId,
+        idempotencyKey,
+      );
+      expect(winnerClaim.claimed).toBe(true);
+      expect(winnerClaim.degraded).toBe(false);
+
+      const recordedEnvelope = {
+        version: 2,
+        settledUpdatedAt: new Date().toISOString(),
+        contentHash: 'recorded-by-real-winner',
+      };
+      await dedupIdempotencyStore.record(
+        'apply-ops',
+        pageId,
+        userId,
+        idempotencyKey,
+        recordedEnvelope,
+      );
+
+      const retry = await dedupApp.inject({
+        method: 'POST',
+        url: `/api/orvex/pages/${pageId}/apply-ops`,
+        headers: { 'idempotency-key': idempotencyKey },
+        payload: {
+          ifVersion: 1,
+          ops: [
+            {
+              type: 'append',
+              node: { type: 'paragraph', attrs: { id: 'must-not-land' } },
+            },
+          ],
+        },
+      });
+
+      expect(retry.statusCode).toBe(200);
+      expect(retry.json().data ?? retry.json()).toEqual(recordedEnvelope);
+
+      // Zero-write proof: the page is byte-identical to pre-retry.
+      const persisted = await db
+        .selectFrom('pages')
+        .select('content')
+        .where('id', '=', pageId)
+        .executeTakeFirstOrThrow();
+      expect((persisted.content as any).content).toEqual(original.content);
+
+      const metaAfter = await db
+        .selectFrom('orvexPageMeta')
+        .select('version')
+        .where('pageId', '=', pageId)
+        .executeTakeFirstOrThrow();
+      expect(metaAfter.version).toBe(1);
+    });
   });
 });

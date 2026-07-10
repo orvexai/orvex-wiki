@@ -42,9 +42,13 @@ export interface ApplyOpsSettledEnvelope {
  *    `stampBlockIds`) — re-used directly, not re-implemented, so this write
  *    path can never mint ids differently than `PageService`'s;
  *  - the ENG-1413 CAS/idempotency primitive (`if-version.util` +
- *    `PageRepo.casIncrementMeta` + `IdempotencyStore`) — the SAME
- *    pre-check-before-idempotency-claim ordering as `PageService.update`
- *    (AC3).
+ *    `PageRepo.casIncrementMeta` + `IdempotencyStore`) — the same
+ *    CAS-precheck-before-idempotency-claim ordering as `PageService.update`
+ *    (AC3). The idempotency slot is claimed AFTER the batch has been
+ *    validated (applied in-memory + `jsonToNode`-checked), so a malformed
+ *    batch 4xxs before any slot is taken — a same-key retry can never
+ *    replay an unchanged page as a false success for a request that never
+ *    actually got recorded (F1 honest-state fix).
  *
  * AC2 (single-transact all-or-nothing): the batch is fully applied against
  * an in-memory clone BEFORE any transaction opens. The one transaction that
@@ -80,22 +84,13 @@ export class ApplyOpsService {
     // legitimate retry with the correct version.
     assertIfVersionMatches(page.updatedAt, dto.ifVersion, meta?.version);
 
-    if (idempotencyKey) {
-      const claim = await this.idempotencyStore.claim<ApplyOpsSettledEnvelope>(
-        'apply-ops',
-        pageId,
-        userId,
-        idempotencyKey,
-      );
-      if (!claim.claimed) {
-        // AC3: the loser does not re-apply — return the winner's recorded
-        // envelope (or, if it hasn't landed yet, the page's current state).
-        return claim.result ?? (await this.readSettledEnvelope(pageId));
-      }
-    }
-
     // AC2/AC4: apply the WHOLE batch in memory first. Any op failure throws
-    // here — before a single row has been touched.
+    // here — before a single row has been touched, AND before the
+    // idempotency slot below is claimed. Claiming a slot for a batch that
+    // never gets `record()`-ed (because it 4xx'd) would let a same-key
+    // retry replay the page's UNCHANGED state as a false success envelope,
+    // masking the original error (F1 honest-state fix) — so a bad-op batch
+    // must throw here, before any slot is taken.
     let workingDoc: unknown;
     try {
       workingDoc = applyOpsBatch(getProsemirrorContent(page.content), dto.ops);
@@ -119,6 +114,20 @@ export class ApplyOpsService {
     const textContent = jsonToText(stamped as any);
     const ydoc = createYdocFromJson(stamped);
     const contentHash = computeContentHash(stamped);
+
+    if (idempotencyKey) {
+      const claim = await this.idempotencyStore.claim<ApplyOpsSettledEnvelope>(
+        'apply-ops',
+        pageId,
+        userId,
+        idempotencyKey,
+      );
+      if (!claim.claimed) {
+        // AC3: the loser does not re-apply — return the winner's recorded
+        // envelope (or, if it hasn't landed yet, the page's current state).
+        return claim.result ?? (await this.readSettledEnvelope(pageId));
+      }
+    }
 
     const expectedVersion = isIntegerVersion(dto.ifVersion)
       ? toIntegerVersion(dto.ifVersion)
