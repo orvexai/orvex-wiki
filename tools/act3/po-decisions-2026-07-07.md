@@ -487,3 +487,83 @@ Adversarial re-review of the gosec G705 (CWE-79) fix (build pass ruling above). 
 **Finalize discipline — deliberately CONSERVATIVE.** This pass reviewed the gosec CI-unblock slice only, not the full ENG-1477 acceptance surface. Therefore: **no AC/DoD box ticked** (none of AC1–AC10 nor the "adversarial CS §0 + SE-Arch review PASS" whole-ticket box is proven by a security-header review; ticking would be fake-done). **Status left In Progress — NOT advanced to Done.** Per §5e the fake-done gate reserves Done for the orchestrator (`gkkUDzn277`) after the full DoD is proven; the whole-ticket adversarial acceptance review is a separate lane. Deferral annotated on the ticket.
 
 **Discipline:** linearis CLI only for Linear; temp-file body writes; refresh-on-write (read ENG-1477 live before commenting); tick only proven (ticked nothing); worktree isolation (`/tmp/worktrees/A-d11-eng-1477`, left intact); fetch-rebase-retry (rebased before merge); trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`. Appended under `flock` on `tools/act3/po-decisions-2026-07-07.md.lock`.
+
+## RULING — ENG-1558 M3 gate: CI infra fix — dind-runners already org-wide, no runner-group grant needed (2026-07-10)
+
+Orchestrator ruling: same-morning precedent to the public-dind-runners provisioning
+(`## RULING — public-dind-runners provisioning ENACTED`, above) — grant
+`orvex-studio-workflows` access to the EXISTING dind-capable runner set via the
+admin:org runner-groups API if needed, then point the M3 gate CI job at those
+labels, trigger + bounded-watch the run, report outcome. Per review3 (F1/F1b/F2/F3):
+`m3-e2e` ran on `runs-on: runners` (no docker daemon) → `TestMain`'s
+`docker run temporalio/temporal` always failed → `os.Exit(0)` self-skip →
+vacuous CI green, `TestM3WorkflowsE2E` never executed; also not a required
+branch-protection check.
+
+**Verified BEFORE touching anything** (admin:org PAT, OpenBao
+`apps/orvex-wiki-scripts/github` field `token`, never printed):
+`GET /orgs/orvexai/actions/runner-groups` → only 3 groups exist: `Default`
+(id 1, `visibility:"all"`, `default:true`), `public-runners` (id 3,
+`visibility:"selected"`), `public-dind` (id 4, `visibility:"selected"`, the
+set enacted earlier this morning per the ruling above). **There is no
+distinct "dind-runners" GitHub runner group, and nothing is Default-barred**
+— `dind-runner-values.yaml` / `dind-runner-large-values.yaml` (my-idp,
+`platform/apps/arc/manifests/runners/`) both set `runnerGroup: "Default"`,
+which is already org-wide. Cross-checked against live usage: `grep -rl
+"runs-on:.*dind-runners" */.github/workflows/*.yml` across `~/repos/*` shows
+many PRIVATE repos already run CI on `runs-on: dind-runners` (orvex-studio-ai,
+orvex-studio-identity, houston, orvex-studio-billing, orvex-studio-console,
+docmost, cc-mcp, etc.) — private repos are not blocked from `Default` at all.
+
+**Decision (executed, not just proposed):** no runner-groups API write —
+the ticket's premise that an allowlist grant was required did not survive
+verification; forcing a group creation/patch here would have been
+gate-infrastructure surface-area for no reason (the fallback path — "new
+restricted group over the same set" — was correctly NOT taken, since the
+group is not "genuinely unusable," it is already usable and was verified as
+such). The only change needed: `orvex-studio-workflows` `.github/workflows/ci.yml`,
+`m3-e2e` job, `runs-on: runners` → `runs-on: dind-runners` (Kata VM +
+privileged DinD sidecar — has the docker daemon `TestMain` needs).
+`build-test` job left untouched (no docker need there). No test logic,
+`TestMain` behavior, or gate assertions were touched — scope stayed to the
+CI label per "do not advance the gate, the engine verifies next pass."
+
+**Commit + push.** `7d12d58` on `eng-1558-work` (`orvex-studio-workflows`,
+worktree `/tmp/worktrees/B-d12-eng-1558`), trailer exactly
+`Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`. Fetch-rebase-retry
+checked first (local was already at remote tip `d3d46db`, clean fast-forward
+push, no retry needed). PR #8 (base `dev`) picked it up automatically via
+`pull_request`.
+
+**Triggered + bounded-watch (~20min, not full completion).** CI run
+https://github.com/orvexai/orvex-studio-workflows/actions/runs/29095398388:
+`Set up job` → `checkout` → `setup-go` → `no testsuite import in test/e2e`
+all `completed/success`, then `TestM3WorkflowsE2E (real Temporal)` genuinely
+entered `in_progress` — past the docker-availability check that previously
+killed the step in <5s (review3's F1 failure point) — and was still running
+at the close of the bounded window. AC3 (deprovision-with-grace) needs a real
+~1h `workflow.Sleep` (D3; AC6 bans the testsuite time-skip that would
+compress it), so full 6-subtest completion falls outside a 20min bounded
+watch by design — this was expected, not a failure; the run was left
+executing, not cancelled. Genuinely-runs criterion MET: the job is no longer
+vacuous. Full pass/fail of all subtests (particularly AC3) is left for the
+engine's next verification pass, per the ruling's explicit "do not advance
+the gate" instruction.
+
+**Ticket comment posted** (non-claiming, dev-context): Linear discussion
+`6b0f531c-f260-4fe2-87b5-5dbabcc90c70` on ENG-1558, outcome + evidence as
+above. Cache refreshed post-write (`_bmad/lnr/tools/linear-sync.sh issue
+ENG-1558` → `status: In Progress`, unchanged — correctly NOT advanced).
+
+**Discipline:** linearis CLI only for the Linear write (`issues discuss`,
+compat `comments create` rejected `--issue`/`--body-file` flags that don't
+exist on this CLI version — used the documented `--body <text>` form
+instead); admin:org PAT read from OpenBao `apps/orvex-wiki-scripts/github`
+field `token` via `bao kv get`, held only in an unset shell var, never
+echoed/logged; worktree isolation (`/tmp/worktrees/B-d12-eng-1558`, reused
+rather than duplicated — the existing `eng-1558-work` checkout was already
+there from the prior build pass); temp-file body writes (commit message +
+comment body both via `Write`/heredoc-free files, not inline shell heredocs
+into tracked files); tick nothing (no DoD box proven this pass — CI-genuinely-
+runs is an infra precondition, not an AC); trailer exact match. Appended
+under `flock` on `tools/act3/po-decisions-2026-07-07.md.lock`.
