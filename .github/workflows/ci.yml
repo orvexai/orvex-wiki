@@ -102,6 +102,8 @@ jobs:
         run: |
           pnpm --dir packages/editor-ext build
           pnpm --dir packages/base-formula build
+          pnpm --dir packages/@orvex/extensions build
+          pnpm --dir packages/@orvex/dfm build
       # This repo has flat, non-composite tsconfigs (no TS project
       # references), so plain per-app tsc is the correct form here; the
       # family "tsc -b, never --noEmit" lesson applies to reference graphs.
@@ -138,6 +140,10 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build workspace package dists (test inputs)
+        run: |
+          pnpm --dir packages/editor-ext build
+          pnpm --dir packages/base-formula build
       - name: Vitest
         run: pnpm --dir apps/client test
 
@@ -153,6 +159,12 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Build workspace package dists (test inputs)
+        run: |
+          pnpm --dir packages/editor-ext build
+          pnpm --dir packages/base-formula build
+          pnpm --dir packages/@orvex/extensions build
+          pnpm --dir packages/@orvex/dfm build
       # test:ci excludes the 16 NAMED upstream never-green DI-scaffold specs
       # (upstream test debt, recorded in the foundation handoff). Full suite:
       # make test-server-full.
@@ -175,6 +187,8 @@ jobs:
         run: |
           pnpm --dir packages/editor-ext build
           pnpm --dir packages/base-formula build
+          pnpm --dir packages/@orvex/extensions build
+          pnpm --dir packages/@orvex/dfm build
       # ENG-1372: real-Postgres integration suite (testcontainers spins its
       # own container via the runner's Docker daemon).
       - name: Jest (integration, real Postgres via testcontainers)
