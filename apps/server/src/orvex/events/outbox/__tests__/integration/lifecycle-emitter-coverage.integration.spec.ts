@@ -12,6 +12,7 @@ import {
 } from '@testcontainers/postgresql';
 
 import { OutboxWriter } from '../../outbox-writer.service';
+import type { EntitlementService } from '../../../../entitlement/entitlement.service';
 import {
   EVT_WORKSPACE_CREATED,
   EVT_WORKSPACE_UPDATED,
@@ -233,6 +234,13 @@ describe('LifecycleEmitterCoverageSpec', () => {
       upload: async () => undefined,
       delete: async () => undefined,
     } as unknown as StorageService;
+    // ENG-1382 — this spec covers outbox lifecycle emission, not F-QUOTA;
+    // the entitlement service is stubbed permissive (never rejects) so it
+    // doesn't interfere with the behaviour under test here.
+    const stubEntitlementService = {
+      assertWithinQuota: async () => undefined,
+      assertIncrementWithinQuota: async () => undefined,
+    } as unknown as EntitlementService;
     attachmentService = new AttachmentService(
       stubStorageService,
       attachmentRepo,
@@ -242,6 +250,7 @@ describe('LifecycleEmitterCoverageSpec', () => {
       db,
       noopQueue,
       outboxWriter,
+      stubEntitlementService,
     );
   });
 

@@ -9,9 +9,6 @@ import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const tsquery = require('pg-tsquery')();
-
 @Injectable()
 export class SearchService {
   constructor(
@@ -22,6 +19,28 @@ export class SearchService {
     private pagePermissionRepo: PagePermissionRepo,
   ) {}
 
+  /**
+   * ENG-1451 — the page-hero Postgres full-text-search (FTS) ranking
+   * path (rank-by-relevance + snippet-extraction queries over the
+   * `pages.tsv` tsvector column, previously built with a to-tsquery-
+   * style Postgres text-search function) has been removed: hero /
+   * semantic / hybrid search now lives in `knowledge` (Turbopuffer,
+   * ENG-1479 — landed) so the engine no longer carries a duplicate
+   * search brain (ruling 5). The `pages.tsv` column, its GIN index, and
+   * its maintenance trigger are dropped by the
+   * `20260710T090000-drop-pages-tsvector` migration in this same leg.
+   * (AC4 grep-gate: this file must contain no literal FTS ranking call.)
+   *
+   * This method now returns an honest empty result — no fabricated
+   * ranking/highlighting is synthesized in its place (CS §11 honesty;
+   * zero-mock delivery). The engine does NOT call out to `knowledge`
+   * here: per CS §7 (seam 4d) the engine adds no new network port for
+   * this leg — the retained in-process query is `/search/suggest`
+   * (`searchSuggestions`, below), which never used the dropped column.
+   * Wiring an authenticated hero-search client to the `knowledge`
+   * search API is out of scope for this decommission leg (owned by
+   * ENG-1479's seam).
+   */
   async searchPage(
     searchParams: SearchDTO,
     opts: {
@@ -29,126 +48,7 @@ export class SearchService {
       workspaceId: string;
     },
   ): Promise<{ items: SearchResponseDto[] }> {
-    const { query } = searchParams;
-
-    if (query.length < 1) {
-      return { items: [] };
-    }
-    const searchQuery = tsquery(query.trim() + '*');
-
-    let queryResults = this.db
-      .selectFrom('pages')
-      .select([
-        'id',
-        'slugId',
-        'title',
-        'icon',
-        'parentPageId',
-        'creatorId',
-        'createdAt',
-        'updatedAt',
-        sql<number>`ts_rank(tsv, to_tsquery('english', f_unaccent(${searchQuery})))`.as(
-          'rank',
-        ),
-        sql<string>`ts_headline('english', text_content, to_tsquery('english', f_unaccent(${searchQuery})),'MinWords=9, MaxWords=10, MaxFragments=3')`.as(
-          'highlight',
-        ),
-      ])
-      .where(
-        'tsv',
-        '@@',
-        sql<string>`to_tsquery('english', f_unaccent(${searchQuery}))`,
-      )
-      .$if(Boolean(searchParams.creatorId), (qb) =>
-        qb.where('creatorId', '=', searchParams.creatorId),
-      )
-      .where('deletedAt', 'is', null)
-      .orderBy('rank', 'desc')
-      .limit(searchParams.limit || 25)
-      .offset(searchParams.offset || 0);
-
-    if (!searchParams.shareId) {
-      queryResults = queryResults.select((eb) => this.pageRepo.withSpace(eb));
-    }
-
-    if (searchParams.spaceId) {
-      // search by spaceId
-      queryResults = queryResults.where('spaceId', '=', searchParams.spaceId);
-    } else if (opts.userId && !searchParams.spaceId) {
-      // only search spaces the user is a member of
-      queryResults = queryResults
-        .where(
-          'spaceId',
-          'in',
-          this.spaceMemberRepo.getUserSpaceIdsQuery(opts.userId),
-        )
-        .where('workspaceId', '=', opts.workspaceId);
-    } else if (searchParams.shareId && !searchParams.spaceId && !opts.userId) {
-      // search in shares
-      const shareId = searchParams.shareId;
-      const share = await this.shareRepo.findById(shareId);
-      if (!share || share.workspaceId !== opts.workspaceId) {
-        return { items: [] };
-      }
-
-      const isRestricted =
-        await this.pagePermissionRepo.hasRestrictedAncestor(share.pageId);
-      if (isRestricted) {
-        return { items: [] };
-      }
-
-      const pageIdsToSearch = [];
-      if (share.includeSubPages) {
-        const pageList = await this.pageRepo.getPageAndDescendantsExcludingRestricted(
-          share.pageId,
-          {
-            includeContent: false,
-          },
-        );
-
-        pageIdsToSearch.push(...pageList.map((page) => page.id));
-      } else {
-        pageIdsToSearch.push(share.pageId);
-      }
-
-      if (pageIdsToSearch.length > 0) {
-        queryResults = queryResults
-          .where('id', 'in', pageIdsToSearch)
-          .where('workspaceId', '=', opts.workspaceId);
-      } else {
-        return { items: [] };
-      }
-    } else {
-      return { items: [] };
-    }
-
-    //@ts-ignore
-    let results: any[] = await queryResults.execute();
-
-    // Filter results by page-level permissions (if user is authenticated)
-    if (opts.userId && results.length > 0) {
-      const pageIds = results.map((r: any) => r.id);
-      const accessibleIds =
-        await this.pagePermissionRepo.filterAccessiblePageIds({
-          pageIds,
-          userId: opts.userId,
-          spaceId: searchParams.spaceId,
-        });
-      const accessibleSet = new Set(accessibleIds);
-      results = results.filter((r: any) => accessibleSet.has(r.id));
-    }
-
-    //@ts-ignore
-    const searchResults = results.map((result: SearchResponseDto) => {
-      if (result.highlight) {
-        result.highlight = result.highlight
-          .replace(/\r\n|\r|\n/g, ' ')
-          .replace(/\s+/g, ' ');
-      }
-      return result;
-    });
-
-    return { items: searchResults };
+    return { items: [] };
   }
 
   async searchSuggestions(

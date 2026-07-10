@@ -22,6 +22,7 @@ import { TelemetryModule } from './integrations/telemetry/telemetry.module';
 import { RedisModule } from '@nestjs-labs/nestjs-ioredis';
 import { RedisConfigService } from './integrations/redis/redis-config.service';
 import { IdempotencyStoreModule } from './integrations/redis/idempotency-store.module';
+import { EntitlementModule } from './orvex/entitlement/entitlement.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
 import { LoggerModule } from './common/logger/logger.module';
@@ -71,6 +72,7 @@ try {
       useClass: RedisConfigService,
     }),
     IdempotencyStoreModule,
+    EntitlementModule,
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async (environmentService: EnvironmentService) => {

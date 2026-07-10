@@ -9,6 +9,7 @@ import {
 } from '../../../collaboration/collaboration.util';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx, acquireWorkspaceQuotaLock } from '@docmost/db/utils';
 import {
   generateSlugId,
   sanitizeFileName,
@@ -31,6 +32,8 @@ import { QueueJob, QueueName } from '../../queue/constants';
 import { ModuleRef } from '@nestjs/core';
 import { load } from 'cheerio';
 import { normalizeImportHtml } from '../utils/import-formatter';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
+import { QuotaExceededException } from '../../../orvex/entitlement/quota.exception';
 
 @Injectable()
 export class ImportService {
@@ -43,6 +46,7 @@ export class ImportService {
     @InjectQueue(QueueName.FILE_TASK_QUEUE)
     private readonly fileTaskQueue: Queue,
     private moduleRef: ModuleRef,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async importPage(
@@ -112,25 +116,54 @@ export class ImportService {
     if (prosemirrorJson) {
       try {
         const pagePosition = await this.getNewPagePosition(spaceId);
+        const ydoc = await this.createYdoc(prosemirrorJson);
 
-        createdPage = await this.pageRepo.insertPage({
-          ...(pageId ? { id: pageId } : {}),
-          slugId: generateSlugId(),
-          title: pageTitle,
-          content: prosemirrorJson,
-          textContent: jsonToText(prosemirrorJson),
-          ydoc: await this.createYdoc(prosemirrorJson),
-          position: pagePosition,
-          spaceId: spaceId,
-          creatorId: userId,
-          workspaceId: workspaceId,
-          lastUpdatedById: userId,
+        // ENG-1382 fix pass 2 (F1) — imported pages MUST go through the same
+        // F-QUOTA chokepoint as `PageService.create`: take the per-workspace
+        // advisory lock, re-count, then assert-before-insert inside ONE
+        // transaction. Without this a workspace already at its page cap
+        // could import an unbounded number of pages (the T6 bypass) since
+        // `pageRepo.insertPage` itself performs no quota check.
+        createdPage = await executeTx(this.db, async (quotaTrx) => {
+          await acquireWorkspaceQuotaLock(quotaTrx, 'pages', workspaceId);
+
+          const currentPageCount = await this.pageRepo.countByWorkspaceId(
+            workspaceId,
+            quotaTrx,
+          );
+          await this.entitlementService.assertWithinQuota(
+            workspaceId,
+            'pages',
+            currentPageCount,
+          );
+
+          return this.pageRepo.insertPage(
+            {
+              ...(pageId ? { id: pageId } : {}),
+              slugId: generateSlugId(),
+              title: pageTitle,
+              content: prosemirrorJson,
+              textContent: jsonToText(prosemirrorJson),
+              ydoc,
+              position: pagePosition,
+              spaceId: spaceId,
+              creatorId: userId,
+              workspaceId: workspaceId,
+              lastUpdatedById: userId,
+            },
+            quotaTrx,
+          );
         });
 
         this.logger.debug(
           `Successfully imported "${title}${fileExtension}. ID: ${createdPage.id} - SlugId: ${createdPage.slugId}"`,
         );
       } catch (err) {
+        if (err instanceof QuotaExceededException) {
+          // AC1-style fail-closed 402 — propagate as-is, never mask a quota
+          // rejection as a generic "failed to create imported page" 400.
+          throw err;
+        }
         const message = 'Failed to create imported page';
         this.logger.error(message, err);
         throw new BadRequestException(message);

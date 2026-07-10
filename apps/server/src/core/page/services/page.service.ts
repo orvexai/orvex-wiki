@@ -22,7 +22,7 @@ import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { MovePageDto } from '../dto/move-page.dto';
 import { generateSlugId } from '../../../common/helpers';
 import { getPageTitle } from '../../../common/helpers';
-import { executeTx } from '@docmost/db/utils';
+import { executeTx, acquireWorkspaceQuotaLock } from '@docmost/db/utils';
 import { AttachmentRepo } from '@docmost/db/repos/attachment/attachment.repo';
 import { v7 as uuid7 } from 'uuid';
 import {
@@ -63,6 +63,7 @@ import {
   isIntegerVersion,
   toIntegerVersion,
 } from '../if-version.util';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
 
 @Injectable()
 export class PageService {
@@ -82,6 +83,7 @@ export class PageService {
     private readonly watcherService: WatcherService,
     private readonly transclusionService: TransclusionService,
     private readonly idempotencyStore: IdempotencyStore,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async findById(
@@ -138,26 +140,61 @@ export class PageService {
       ydoc = createYdocFromJson(prosemirrorJson);
     }
 
+    const position = await this.nextPagePosition(
+      createPageDto.spaceId,
+      parentPageId,
+    );
+
     let page: Page;
     try {
-      page = await this.pageRepo.insertPage({
-        slugId: generateSlugId(),
-        title: createPageDto.title,
-        position: await this.nextPagePosition(
-          createPageDto.spaceId,
-          parentPageId,
-        ),
-        icon: createPageDto.icon,
-        parentPageId: parentPageId,
-        spaceId: createPageDto.spaceId,
-        creatorId: userId,
-        workspaceId: workspaceId,
-        lastUpdatedById: userId,
-        isBase,
-        content,
-        textContent,
-        ydoc,
-      }, trx);
+      // ENG-1382 fix pass 1 (F1) — count -> assert -> insert MUST be one
+      // atomic critical section, not three separate awaits: two concurrent
+      // requests both reading `cap - 1` would both pass the check and both
+      // insert, exceeding the cap (the T6 attack). `acquireWorkspaceQuotaLock`
+      // takes a Postgres advisory xact lock as the FIRST statement of this
+      // transaction, so a second concurrent create() for the same workspace
+      // blocks until this transaction commits or rolls back and then
+      // re-reads the now-current count — never racing past the cap.
+      //
+      // (AC1/AC2/AC6) — the cap VALUE is read from billing via
+      // EntitlementService — never hard-coded here (❌#10). Throws
+      // `QuotaExceededException` (402) at-cap; a no-op under cap.
+      page = await executeTx(
+        this.db,
+        async (quotaTrx) => {
+          await acquireWorkspaceQuotaLock(quotaTrx, 'pages', workspaceId);
+
+          const currentPageCount = await this.pageRepo.countByWorkspaceId(
+            workspaceId,
+            quotaTrx,
+          );
+          await this.entitlementService.assertWithinQuota(
+            workspaceId,
+            'pages',
+            currentPageCount,
+          );
+
+          return this.pageRepo.insertPage(
+            {
+              slugId: generateSlugId(),
+              title: createPageDto.title,
+              position,
+              icon: createPageDto.icon,
+              parentPageId: parentPageId,
+              spaceId: createPageDto.spaceId,
+              creatorId: userId,
+              workspaceId: workspaceId,
+              lastUpdatedById: userId,
+              isBase,
+              content,
+              textContent,
+              ydoc,
+            },
+            quotaTrx,
+          );
+        },
+        trx,
+      );
     } catch (err: any) {
       // pages_unique_title_per_parent (ENG-1471) — a sibling with the same
       // title already exists at this location.
