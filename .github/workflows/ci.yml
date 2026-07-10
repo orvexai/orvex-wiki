@@ -622,9 +622,17 @@ jobs:
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "$RESULTS" | python3 - <<'PYEOF'
-          import json, sys
-          needs = json.load(sys.stdin)
+          # Read the fan-in results from the RESULTS env var (set above from
+          # toJSON(needs)). NOT via `echo "$RESULTS" | python3 - <<HEREDOC`:
+          # the heredoc that feeds python its program overrides the pipe on
+          # stdin (shellcheck SC2259), so json.load(sys.stdin) always saw an
+          # empty stream and this required check fail-closed on EVERY run,
+          # all-green included — it could never report green since inception
+          # (foundation-m4 98ef0175). os.environ keeps program (heredoc) and
+          # data (env) on separate channels.
+          python3 - <<'PYEOF'
+          import json, os, sys
+          needs = json.loads(os.environ["RESULTS"])
           failed = [k for k, v in needs.items() if v.get('result') != 'success']
           for k, v in sorted(needs.items()):
               print(f"{k}: {v.get('result')}")
