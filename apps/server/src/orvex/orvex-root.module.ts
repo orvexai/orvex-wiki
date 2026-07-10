@@ -11,6 +11,7 @@ import { OrvexHttpModule } from './http/orvex-http.module';
 import { OrvexEnforceSsoModule } from './enforce-sso/orvex-enforce-sso.module';
 import { OrvexPageBlocksModule } from './page-blocks/page-blocks.module';
 import { OrvexTracingModule } from './obs/orvex-tracing.module';
+import { OrvexHealthModule } from './health/orvex-health.module';
 import { ExchangeTokenVerifier } from './session-mint/exchange-token-verifier';
 import type { ExchangeTokenVerifierDeps } from './session-mint/exchange-token-verifier';
 import type { ExchangeTokenClaims } from './session-mint/exchange-token.types';
@@ -103,6 +104,15 @@ function composeSessionMint(config: OrvexConfigService): DynamicModule {
  * `OrvexPageProvenanceModule` (ENG-1447) — and binds
  * `OrvexMarkdownInterceptor` on `PageController.create`/`.update`
  * (review1 F1/F2).
+ *
+ * ENG-1604 AC1 — `OrvexMigratorService`/`OrvexLlmsModule` are likewise
+ * deliberately NOT mounted here for the identical DB-DI-in-DB-free-harness
+ * reason (both need `@InjectKysely()`); their real delivery paths are
+ * `app.module.ts` (migrator, unconditional — same carve-out-(b) precedent as
+ * Provenance/Visuals/Transclusion/Events) and `PageModule` (llms) respectively.
+ * `OrvexHealthModule` (AC8) IS mounted here — it is deliberately built with
+ * zero DatabaseModule/Kysely dependency (raw probes, see its docstring), so
+ * it does not hit this constraint.
  */
 @Module({})
 export class OrvexRootModule {
@@ -120,6 +130,7 @@ export class OrvexRootModule {
         OrvexEnforceSsoModule,
         OrvexPageBlocksModule,
         OrvexTracingModule,
+        OrvexHealthModule,
         composeSessionMint(config),
       ],
     };
