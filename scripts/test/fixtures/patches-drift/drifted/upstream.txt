@@ -1,0 +1,10 @@
+line 1
+line 2
+totally different line A
+totally different line B
+totally different line C
+totally different line D
+line 7
+line 8
+line 9
+line 10
