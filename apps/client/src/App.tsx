@@ -47,6 +47,8 @@ import FavoritesPage from "@/pages/favorites/favorites-page";
 import AiChat from "@/ee/ai-chat/pages/ai-chat.tsx";
 import VerifyEmail from "@/ee/pages/verify-email.tsx";
 import LabelPage from "@/pages/label/label-page";
+import ClerkLoginPage from "@/pages/auth/clerk-login.tsx";
+import { isClerkTenancy } from "@/lib/config.ts";
 
 export default function App() {
   const { t } = useTranslation();
@@ -58,6 +60,9 @@ export default function App() {
       <Routes>
         <Route index element={<Navigate to="/home" />} />
         <Route path={"/login"} element={<LoginPage />} />
+        {isClerkTenancy() && (
+          <Route path={"/clerk"} element={<ClerkLoginPage />} />
+        )}
         <Route path={"/invites/:invitationId"} element={<InviteSignup />} />
         <Route path={"/forgot-password"} element={<ForgotPassword />} />
         <Route path={"/password-reset"} element={<PasswordReset />} />
