@@ -5,12 +5,14 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { Global, Module } from '@nestjs/common';
+import type { ExecutionContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { ValidationPipe } from '@nestjs/common';
+import type { JSONContent } from '@tiptap/core';
 import { CacheModule } from '@nestjs/cache-manager';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { KyselyModule } from 'nestjs-kysely';
@@ -29,11 +31,11 @@ import {
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import type { Redis } from 'ioredis';
 
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
-import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
-import { GroupRepo } from '@docmost/db/repos/group/group.repo';
-import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
-import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
+import { PageRepo } from '../../database/repos/page/page.repo';
+import { SpaceMemberRepo } from '../../database/repos/space/space-member.repo';
+import { GroupRepo } from '../../database/repos/group/group.repo';
+import { SpaceRepo } from '../../database/repos/space/space.repo';
+import { PagePermissionRepo } from '../../database/repos/page/page-permission.repo';
 import { WsService } from '../../ws/ws.service';
 import { OutboxWriter } from '../events/outbox/outbox-writer.service';
 import { IdempotencyStore } from '../../integrations/redis/idempotency-store.service';
@@ -184,7 +186,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({
-        canActivate: (context: any) => {
+        canActivate: (context: ExecutionContext) => {
           const req = context.switchToHttp().getRequest();
           req.user = {
             user: { id: userId, workspaceId },
@@ -245,7 +247,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
   });
 
   let pageCounter = 0;
-  async function createPage(content: any) {
+  async function createPage(content: JSONContent) {
     pageCounter += 1;
     const page = await db
       .insertInto('pages')
@@ -300,7 +302,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       .select('content')
       .where('id', '=', pageId)
       .executeTakeFirstOrThrow();
-    expect((persisted.content as any).content).toHaveLength(2);
+    expect((persisted.content as JSONContent).content).toHaveLength(2);
 
     // AC5 — the success envelope equals a FRESH independent read, not just
     // a stale in-memory computed value. Two separate queries (page row +
@@ -349,7 +351,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       .select('content')
       .where('id', '=', pageId)
       .executeTakeFirstOrThrow();
-    expect((persisted.content as any).content).toEqual([]);
+    expect((persisted.content as JSONContent).content).toEqual([]);
   });
 
   it(
@@ -524,7 +526,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       })
         .overrideGuard(JwtAuthGuard)
         .useValue({
-          canActivate: (context: any) => {
+          canActivate: (context: ExecutionContext) => {
             const req = context.switchToHttp().getRequest();
             req.user = {
               user: { id: userId, workspaceId },
@@ -595,7 +597,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
         .select('content')
         .where('id', '=', pageId)
         .executeTakeFirstOrThrow();
-      const nodes = (persisted.content as any).content as unknown[];
+      const nodes = (persisted.content as JSONContent).content as unknown[];
       expect(nodes).toHaveLength(2);
 
       const metaAfter = await db
@@ -682,7 +684,7 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
         .select('content')
         .where('id', '=', pageId)
         .executeTakeFirstOrThrow();
-      const nodes = (persisted.content as any).content as unknown[];
+      const nodes = (persisted.content as JSONContent).content as unknown[];
       expect(nodes).toHaveLength(2);
 
       // meta.version is unchanged by the retry (still 2, not bumped again).

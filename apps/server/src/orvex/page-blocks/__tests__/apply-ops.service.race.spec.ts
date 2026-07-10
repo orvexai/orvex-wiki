@@ -3,8 +3,11 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
+import type { Redis } from 'ioredis';
 import { ApplyOpsService } from '../apply-ops.service';
 import { IdempotencyStore } from '../../../integrations/redis/idempotency-store.service';
+import { PageRepo } from '../../../database/repos/page/page.repo';
+import { KyselyDB } from '../../../database/types/kysely.types';
 
 /**
  * ENG-1652 fix pass 2 — review-2 finding: "a 409 never poisons the slot"
@@ -59,7 +62,9 @@ describe('ApplyOpsService — AC3 slot-poisoning race (fix pass 2)', () => {
 
   function buildService(casSucceeds: boolean) {
     const fakeRedis = new FakeRedisClient();
-    const redisService = { getOrNil: () => fakeRedis as any } as RedisService;
+    const redisService = {
+      getOrNil: () => fakeRedis as unknown as Redis,
+    } as RedisService;
     const idempotencyStore = new IdempotencyStore(redisService);
 
     const pageRepo = {
@@ -78,8 +83,8 @@ describe('ApplyOpsService — AC3 slot-poisoning race (fix pass 2)', () => {
     };
 
     const service = new ApplyOpsService(
-      pageRepo as any,
-      db as any,
+      pageRepo as unknown as PageRepo,
+      db as unknown as KyselyDB,
       idempotencyStore,
     );
 

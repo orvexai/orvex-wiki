@@ -9,9 +9,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { PageRepo } from '@docmost/db/repos/page/page.repo';
-import { KyselyDB } from '@docmost/db/types/kysely.types';
-import { executeTx } from '@docmost/db/utils';
+import type { JSONContent } from '@tiptap/core';
+import { PageRepo } from '../../database/repos/page/page.repo';
+import { KyselyDB } from '../../database/types/kysely.types';
+import { executeTx } from '../../database/utils';
+import type { Json } from '../../database/types/db';
 import { jsonToNode, jsonToText, stampBlockIds } from 'src/collaboration/collaboration.util';
 import { createYdocFromJson, getProsemirrorContent } from '../../common/helpers/prosemirror/utils';
 import { computeContentHash } from '../../common/helpers/content-hash';
@@ -151,7 +153,7 @@ export class ApplyOpsService {
     }
 
     try {
-      jsonToNode(workingDoc as any);
+      jsonToNode(workingDoc as JSONContent);
     } catch {
       throw new BadRequestException({ code: 'INVALID_CONTENT_FORMAT' });
     }
@@ -159,8 +161,8 @@ export class ApplyOpsService {
     // ENG-1397 chokepoint semantics — stamp any missing block ids (existing
     // ids are never regenerated, so this is a no-op for already-stamped
     // content).
-    const { content: stamped } = stampBlockIds(workingDoc as any);
-    const textContent = jsonToText(stamped as any);
+    const { content: stamped } = stampBlockIds(workingDoc as JSONContent);
+    const textContent = jsonToText(stamped);
     const ydoc = createYdocFromJson(stamped);
     const contentHash = computeContentHash(stamped);
 
@@ -202,7 +204,7 @@ export class ApplyOpsService {
         // the CAS guard above (never a partial write on rollback).
         await this.pageRepo.updatePage(
           {
-            content: stamped as any,
+            content: stamped as unknown as Json,
             textContent,
             ydoc,
             lastUpdatedById: userId,
