@@ -24,7 +24,7 @@ import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { InjectQueue } from '@nestjs/bullmq';
-import { QueueJob, QueueName } from '../../../integrations/queue/constants';
+import { QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
 import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
@@ -218,22 +218,10 @@ export class AttachmentService {
         });
       }
 
-      // Only index PDFs and DOCX files
-      if (['.pdf', '.docx'].includes(attachment.fileExt.toLowerCase())) {
-        await this.attachmentQueue.add(
-          QueueJob.ATTACHMENT_INDEX_CONTENT,
-          {
-            attachmentId: attachmentId,
-          },
-          {
-            attempts: 2,
-            backoff: {
-              type: 'exponential',
-              delay: 10000,
-            },
-          },
-        );
-      }
+      // ENG-1437 — engine-local FTS-index enqueue REMOVED. Extraction is
+      // owned solely by orvex-studio-knowledge (ENG-1480), which consumes
+      // the `attachment.created` outbox event written atomically by
+      // `saveAttachment` (below) — that delegation is preserved.
     } catch (err) {
       if (err instanceof QuotaExceededException) {
         // The bytes were already streamed to storage (skipBuffer means the

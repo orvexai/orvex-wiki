@@ -3,18 +3,20 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { AttachmentService } from '../services/attachment.service';
 import { QueueJob, QueueName } from 'src/integrations/queue/constants';
-import { ModuleRef } from '@nestjs/core';
 
 @Processor(QueueName.ATTACHMENT_QUEUE)
 export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
   private readonly logger = new Logger(AttachmentProcessor.name);
-  constructor(
-    private readonly attachmentService: AttachmentService,
-    private moduleRef: ModuleRef,
-  ) {
+  constructor(private readonly attachmentService: AttachmentService) {
     super();
   }
 
+  // ENG-1437 — the attachment FTS-index job branch (lazy `require` of the
+  // non-bundled attachments-EE extractor) is REMOVED. Extraction is owned
+  // solely by orvex-studio-knowledge (ENG-1480), consuming the
+  // `attachment.created` outbox event. The DELETE_* branches below are
+  // unaffected. `ModuleRef` was only ever injected to lazily resolve that
+  // removed EE extractor — dropped as a dead collaborator (review-1 F3).
   async process(job: Job<any, void>): Promise<void> {
     try {
       if (job.name === QueueJob.DELETE_SPACE_ATTACHMENTS) {
@@ -33,33 +35,6 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
           job.data.aiChatId,
         );
       }
-      if (
-        job.name === QueueJob.ATTACHMENT_INDEX_CONTENT ||
-        job.name === QueueJob.ATTACHMENT_INDEXING
-      ) {
-        let AttachmentEeModule: any;
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          AttachmentEeModule = require('./../../../ee/attachments-ee/attachment-ee.service');
-        } catch (err) {
-          this.logger.debug(
-            'Attachment enterprise module requested but EE module not bundled in this build',
-          );
-          return;
-        }
-        const attachmentEeService = this.moduleRef.get(
-          AttachmentEeModule.AttachmentEeService,
-          { strict: false },
-        );
-
-        if (job.name === QueueJob.ATTACHMENT_INDEX_CONTENT) {
-          await attachmentEeService.indexAttachment(job.data.attachmentId);
-        } else if (job.name === QueueJob.ATTACHMENT_INDEXING) {
-          await attachmentEeService.indexAttachments(
-            job.data.workspaceId,
-          );
-        }
-      }
     } catch (err) {
       throw err;
     }
@@ -72,15 +47,9 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
 
   @OnWorkerEvent('failed')
   onError(job: Job) {
-    if (job.name === QueueJob.ATTACHMENT_INDEX_CONTENT) {
-      this.logger.debug(
-        `Error processing ${job.name} job for attachment ${job.data?.attachmentId}. Reason: ${job.failedReason}`,
-      );
-    } else {
-      this.logger.error(
-        `Error processing ${job.name} job. Reason: ${job.failedReason}`,
-      );
-    }
+    this.logger.error(
+      `Error processing ${job.name} job. Reason: ${job.failedReason}`,
+    );
   }
 
   @OnWorkerEvent('completed')
