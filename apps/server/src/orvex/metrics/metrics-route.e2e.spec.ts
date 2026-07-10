@@ -5,17 +5,20 @@
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 
+import { resolveGlobalPrefixExclude } from '../http/orvex-global-prefix-exclude';
 import { OrvexRootModule } from '../orvex-root.module';
 
 /**
  * ENG-1360 §5b route test (review1 F1) — `/metrics` sits OUTSIDE the `/api`
  * global prefix (AC6). Boots the real `OrvexRootModule` tree (flag ON) and
- * applies the IDENTICAL `setGlobalPrefix('api', { exclude: [...] })` call
- * `main.ts` makes, so this proves the actual exclude wiring, not a
- * hand-rolled substitute. `app.inject` (no bearer/CIDR configured) is
- * enough here: AC6 only cares whether the route RESOLVES vs 404s — the
- * fail-closed 401 body (AC4) is covered separately in
- * `metrics.controller.spec.ts`/`metrics-auth.spec.ts`.
+ * applies the IDENTICAL `setGlobalPrefix('api', { exclude: resolveGlobalPrefixExclude() })`
+ * call `main.ts` makes — the production resolver, not a hand-copied
+ * literal — so this is a failing-if-broken guard: dropping 'metrics' from
+ * `UPSTREAM_GLOBAL_PREFIX_EXCLUDE` fails this suite instead of silently
+ * passing against a stale duplicate list (review1 F1). `app.inject` (no
+ * bearer/CIDR configured) is enough here: AC6 only cares whether the route
+ * RESOLVES vs 404s — the fail-closed 401 body (AC4) is covered separately
+ * in `metrics.controller.spec.ts`/`metrics-auth.spec.ts`.
  */
 describe('AC6 — /metrics route sits outside the /api global prefix', () => {
   let app: NestFastifyApplication;
@@ -36,9 +39,11 @@ describe('AC6 — /metrics route sits outside the /api global prefix', () => {
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
-    // Mirrors main.ts:52-56 exactly (same exclude list, same call shape).
+    // Calls the SAME production resolver main.ts:56 calls — not a
+    // hand-copied literal — so a future edit to the exclude list is caught
+    // here, not silently rubber-stamped (review1 F1).
     app.setGlobalPrefix('api', {
-      exclude: ['robots.txt', 'share/:shareId/p/:pageSlug', 'mcp', 'metrics'],
+      exclude: resolveGlobalPrefixExclude(),
     });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
@@ -66,5 +71,9 @@ describe('AC6 — /metrics route sits outside the /api global prefix', () => {
   it('GET /api/metrics 404s — the route is not double-mounted under /api', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/metrics' });
     expect(res.statusCode).toBe(404);
+  });
+
+  it("resolveGlobalPrefixExclude() actually contains 'metrics' (review1 F1 literal guard)", () => {
+    expect(resolveGlobalPrefixExclude()).toContain('metrics');
   });
 });
