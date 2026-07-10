@@ -7,6 +7,8 @@ import {
   ArrayMinSize,
   IsArray,
   IsInt,
+  IsObject,
+  IsOptional,
   IsString,
   Min,
   ValidateNested,
@@ -15,15 +17,53 @@ import {
 /**
  * A single typed PM-JSON / block-op — `#/components/schemas/PmOp`.
  *
- * Coarse-but-real: the exact discriminated op grammar (replaceBlock /
- * insertBlock / deleteBlock / mark / opaque-node reattach) is frozen at delivery
- * against the DfM parity corpus, so only the `type` discriminant is constrained
- * here. The contract marks PmOp `additionalProperties: true`; the op payload is
- * carried through untouched by the write primitive (which is 501 today).
+ * ENG-1652 — the ten-verb grammar (append/prepend/insert-at/insert_before/
+ * replace-at/move/patch-by-id/delete-by-id/patch-string/section-edit).
+ * Coarse-but-real (CS scope discipline): only `type` is required; every op
+ * uses whichever subset of the optional fields its verb needs (see
+ * `apply-ops-batch.util.ts` for the per-verb requirements + typed error
+ * taxonomy on a missing/invalid one). The contract marks PmOp
+ * `additionalProperties: true` — the `node`/`patch` payloads are carried
+ * through untouched.
  */
 export class PmOpDto {
   @IsString()
   type!: string;
+
+  /** append/prepend/insert-at/insert_before/replace-at: the node payload. */
+  @IsOptional()
+  @IsObject()
+  node?: Record<string, unknown>;
+
+  /** replace-at/delete-by-id/patch-by-id/move/patch-string/section-edit target. */
+  @IsOptional()
+  @IsString()
+  blockId?: string;
+
+  /** insert_before/move: the anchor block id. */
+  @IsOptional()
+  @IsString()
+  refBlockId?: string;
+
+  /** insert-at: the target doc-root index. */
+  @IsOptional()
+  @IsInt()
+  index?: number;
+
+  /** patch-by-id: the attrs patch merged onto the target block. */
+  @IsOptional()
+  @IsObject()
+  patch?: Record<string, unknown>;
+
+  /** patch-string: the substring to find within the target block's text. */
+  @IsOptional()
+  @IsString()
+  find?: string;
+
+  /** patch-string: the replacement text. */
+  @IsOptional()
+  @IsString()
+  replace?: string;
 }
 
 /**
