@@ -8,6 +8,11 @@ export const meta = {
   ],
 }
 
+// v11: Done-gate boxes-clean refusal (prompt instructions + a code-side guard that never
+// honors a finalize agent's done=true self-report unless dodClean=true, §ENG-1479 fake-done)
+// + gate-dispatch pre-check routes a closing gate whose named DoD harness does not yet
+// exist to an AUTHORING build instead of an endless verify-only bounce (§ENG-1579/ENG-1581).
+
 // ---- Constants -------------------------------------------------------------
 const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
 const RDIR = SESSION_SCRATCH + '/act3'
@@ -77,6 +82,12 @@ const DOCTRINE = [
 
 const RETDISC = 'RETURN DISCIPLINE (an oversized return kills the run): return ONLY the schema fields, every string within its cap; long detail goes into your report file under ' + RDIR + '.'
 
+// §DoD-refusal (grounded in ENG-1479 fake-done: status flipped to Done while the DoD gate
+// line + 4 ACs + 10 tasks sat unticked). A checkbox is REQUIRED unless it carries a DATED
+// moved/deferred/sanctioned-TBD annotation (e.g. "moved to ENG-N (YYYY-MM-DD)", "deferred —
+// sanctioned TBD (YYYY-MM-DD)") — that exception, and only that exception, does not block.
+const BOXES_CLEAN = 'BOXES-CLEAN CHECK (binding, refuse-Done gate): re-inspect the body you just wrote. If the DoD gate line OR any AC checkbox is still "- [ ]" without a dated moved/deferred/sanctioned-TBD annotation, you MUST NOT advance to Done — set done=false, dodClean=false, list the unticked boxes in uncheckedBoxes[], comment on the issue naming them, and STOP before the status-flip step. Only flip to Done (and report dodClean=true) once every required box is ticked.'
+
 // ---- Schemas ---------------------------------------------------------------
 const FRONTIER_SCHEMA = {
   type: 'object', required: ['ready', 'blockedResidue', 'doneTotal', 'readComplete'],
@@ -113,14 +124,22 @@ const REVIEW_SCHEMA = {
   },
 }
 const GATE_SCHEMA = {
-  type: 'object', required: ['eng', 'done'],
+  type: 'object', required: ['eng', 'done', 'dodClean'],
   properties: {
-    eng: { type: 'string', maxLength: 12 }, done: { type: 'boolean' },
+    eng: { type: 'string', maxLength: 12 }, done: { type: 'boolean' }, dodClean: { type: 'boolean' },
     merged: { type: 'boolean' }, dodTicked: { type: 'integer' },
+    uncheckedBoxes: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 80 } },
     headline: { type: 'string', maxLength: 250 }, escalate: { type: 'string', maxLength: 400 },
   },
 }
 const NOTE_SCHEMA = { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean' }, detail: { type: 'string', maxLength: 200 } } }
+const HARNESS_SCHEMA = {
+  type: 'object', required: ['eng', 'exists'],
+  properties: {
+    eng: { type: 'string', maxLength: 12 }, exists: { type: 'boolean' },
+    testName: { type: 'string', maxLength: 120 }, repo: { type: 'string', maxLength: 80 },
+  },
+}
 
 // ---- Per-repo merge lock ---------------------------------------------------
 const repoLocks = {}
@@ -210,25 +229,42 @@ async function deliverItem(item, seq) {
     const repo = PROJECT_REPO[item.project] || 'CROSS_REPO'
     const T = 'Deliver'
 
-    // --- build (or gate-verify for gate issues) ---
+    // --- pre-dispatch gate-harness existence check (§gate-authoring): a closing gate whose
+    // named DoD test does not exist yet must be AUTHORED, not verified — dispatching a
+    // verifier at it just greps, finds nothing, correctly refuses to self-advance, and
+    // bounces forever (ENG-1579/ENG-1581 both looped on exactly this). Zero Linear calls.
+    let gateAuthoring = false
+    if (item.isGate) {
+      const harness = await agent([
+        'PRE-DISPATCH GATE-HARNESS CHECK for ' + item.eng + ' (' + (item.title || '') + '). Zero Linear calls — read ONLY the cache: ' + HUB + '/.cache/linear/issues/' + item.eng + '.yaml. Extract the named binary DoD test(s) its gate checklist requires and the target repo (dev-context §4 is authoritative over the project map ' + JSON.stringify(PROJECT_REPO) + ').',
+        'grep for EACH named test across the target repo (git grep -n "<TestName>" over the repo working tree/default branch; fetch + a throwaway checkout of the integration branch if none is local). exists=true ONLY if ALL named tests are found somewhere in the repo; exists=false if even one is genuinely absent.',
+        RETDISC,
+      ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':harness:' + item.eng, phase: T, schema: HARNESS_SCHEMA })
+      gateAuthoring = !!(harness && harness.exists === false)
+    }
+
+    // --- build (verify for gate issues with an existing harness; author for gates without
+    // one; plain build otherwise) ---
     const wt = WORKTREES + '/' + PART_TAG + '-d' + seq + '-' + item.eng.toLowerCase()
     const build = await agent([
-      item.isGate
+      item.isGate && !gateAuthoring
         ? 'GATE ISSUE ' + item.eng + ' (' + (item.title || '') + '): this is a VERIFICATION issue, not a coding task. Read its full body from the CACHE file ' + HUB + '/.cache/linear/issues/' + item.eng + '.yaml (cache-first — no live read). Confirm every blockedBy constituent is Done/Canceled/Duplicate from ' + HUB + '/.cache/linear/initiative.json (refresh-on-write current). Execute its gate checklist honestly: run the milestone integration/E2E suites its body names, in the repos they belong to (repo map: ' + JSON.stringify(PROJECT_REPO) + '). Record every command + result. green=true ONLY if every named check actually ran and passed; blocked=true ONLY if something unavailable (missing infra/credential) genuinely prevents verification — set escalate to the exact command + error then.'
+        : item.isGate
+        ? 'GATE ISSUE ' + item.eng + ' (' + (item.title || '') + '): AUTHORING build — the pre-dispatch check found its named DoD harness ABSENT from the repo, so this closes as a coding task, not a verification pass (an unauthored gate must never bounce a verifier). Write the missing gate harness EXACTLY as the ticket names it (test file + test names) plus the minimal real implementation to make it pass; apply any spec-drift correction comments already posted instead of re-deriving from a body section they supersede.'
         : 'BUILD ISSUE ' + item.eng + ' (' + (item.title || '') + ') in repo ' + repo + '.',
-      item.isGate ? '' : [
+      (item.isGate && !gateAuthoring) ? '' : [
         '1. CLAIM: advance ' + item.eng + ' to In Progress via linearis (explicit; you are the single claimer), then refresh its cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows In Progress (this is the write-verify) and note it now also carries the full comment thread.',
         '1b. REPO OVERRIDE: if the issue dev-context §4 names a DIFFERENT target repo than the project map gave ("' + repo + '"), USE THE DEV-CONTEXT REPO (it is authoritative — e.g. platform tickets live in orvex-omk). If the map gave CROSS_REPO, resolve the real repo from the dev-context and proceed; only escalate if the dev-context truly names no repo.',
       '2. Read the issue body + comments IN FULL from the CACHE file ' + HUB + '/.cache/linear/issues/' + item.eng + '.yaml (fresh as of your claim refresh — includes any "Prior work exists: PR..." finish-not-rebuild note; honor it). The cached body is your spec; cite it as you work. Do NOT live-read the issue.',
         '3. Isolate in a PRIVATE worktree (never shared): cd ' + repo + '; git fetch origin; determine the integration branch (the repo default; orvex-wiki uses dev); mkdir -p ' + WORKTREES + '; git worktree add ' + wt + ' -b ' + item.eng.toLowerCase() + '-work origin/<integration-branch>. Work ONLY inside ' + wt + '. If that path somehow exists, add a numeric suffix — never reuse another agent\'s tree.',
-        '4. TDD-build the issue to its ACs. Run the repo CI gates (make ci-local if present, else the targeted equivalents incl. gofmt -l separately for Go).',
+        '4. TDD-build the issue to its ACs' + (item.isGate ? ' (here: the named gate harness + its minimal impl)' : '') + '. Run the repo CI gates (make ci-local if present, else the targeted equivalents incl. gofmt -l separately for Go).',
         '5. BASELINE-DIFF every gate failure (CRITICAL — do not attribute pre-existing breakage to your change): before treating any gate as red, re-run that SAME gate on a clean checkout of origin/<integration-branch> (git stash or a scratch clone). If it fails IDENTICALLY without your changes, it is PRE-EXISTING repo noise (e.g. make context-check CS-pin drift, lint:boundary parse errors) — record it in notes[], do NOT let it set green=false or blocked=true, and proceed. Only failures your diff actually introduced count against you.',
         '6. Commit green work only (trailer per doctrine). Push the branch (SSH url if HTTPS push is rejected: git push git@github.com:orvexai/<repo-name>.git <branch>). Open a PR to the integration branch via gh (title "' + item.eng + ': <short>", body references Part of ' + item.eng + ' — NEVER a closing keyword — and ends with the generated-with-Claude-Code footer).',
-        '7. SEMANTICS (load-bearing — an earlier run wrongly parked green PRs by conflating these): green=true means your work is committed + pushed + PR opened + your own gates pass (pre-existing noise ignored per step 5). blocked=true means you genuinely could NOT finish (missing infra/credential the run cannot self-provide, or the ticket premise assumes code that does not exist in this repo) — set escalate to the exact ask then. A non-blocking observation is NEVER a blocker: put it in notes[], leave blocked=false. If green=true and blocked=false the engine sends you to review — do not put "None"/"non-blocking" text in escalate, leave escalate empty.',
+        '7. SEMANTICS (load-bearing — an earlier run wrongly parked green PRs by conflating these): green=true means your work is committed + pushed + PR opened + your own gates pass (pre-existing noise ignored per step 5)' + (item.isGate ? ' AND the named gate test(s) now exist and pass' : '') + '. blocked=true means you genuinely could NOT finish (missing infra/credential the run cannot self-provide, or the ticket premise assumes code that does not exist in this repo) — set escalate to the exact ask then. A non-blocking observation is NEVER a blocker: put it in notes[], leave blocked=false. If green=true and blocked=false the engine sends you to review — do not put "None"/"non-blocking" text in escalate, leave escalate empty.',
       ].join('\n'),
       DOCTRINE, LNR, RETDISC,
       'Full build log -> ' + RDIR + '/' + item.eng + '-build.md.',
-    ].join('\n'), { model: item.isGate ? 'opus' : 'sonnet', effort: item.isGate ? 'high' : 'medium', label: '#' + seq + ':build:' + item.eng, phase: T, schema: BUILD_SCHEMA })
+    ].join('\n'), { model: (item.isGate && !gateAuthoring) ? 'opus' : 'sonnet', effort: (item.isGate && !gateAuthoring) ? 'high' : 'medium', label: '#' + seq + ':build:' + item.eng, phase: T, schema: BUILD_SCHEMA })
 
     if (!build) { escalated.push({ eng: item.eng, why: 'build agent died' }); return { eng: item.eng, out: 'agent-died' } }
     if (!build.green || build.blocked) {
@@ -274,13 +310,14 @@ async function deliverItem(item, seq) {
     // --- deterministic Done gate + merge (serialized per repo) ---
     const gate = await withRepoLock(repo, () => agent([
       'DETERMINISTIC DONE GATE for ' + item.eng + ' (repo ' + repo + '; review PASS on record: ' + (review.reportPath || '') + '; verified ACs: ' + JSON.stringify(review.verifiedAcs || []) + ').',
-      item.isGate
-        ? 'Gate ISSUE: no PR to merge. Steps: (a) confirm from ' + HUB + '/.cache/linear/initiative.json that every blockedBy constituent is Done/Canceled/Duplicate (cache-first; refresh-on-write keeps it current); (b) tick the DoD boxes for the checks the review VERIFIED (LIVE full-body read immediately before the replace — clobber safety — -> flip only those "- [ ]" -> temp-file write); (c) advance ' + item.eng + ' to Done via linearis (explicit); (d) refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + the ticked boxes (this is the write-verify AND what unblocks successors in both engines\' frontiers).'
+      (item.isGate && !gateAuthoring)
+        ? 'Gate ISSUE: no PR to merge. Steps: (a) confirm from ' + HUB + '/.cache/linear/initiative.json that every blockedBy constituent is Done/Canceled/Duplicate (cache-first; refresh-on-write keeps it current); (b) tick the DoD boxes for the checks the review VERIFIED (LIVE full-body read immediately before the replace — clobber safety — -> flip only those "- [ ]" -> temp-file write); (b2) ' + BOXES_CLEAN + ' (c) advance ' + item.eng + ' to Done via linearis (explicit) ONLY if the boxes-clean check passed; (d) refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + the ticked boxes (this is the write-verify AND what unblocks successors in both engines\' frontiers).'
         : [
           'Steps IN ORDER — abort (done=false + escalate) if any hard step fails:',
           '(a) Merge the PR via gh (respect branch protection; if checks are pending, wait up to 10 minutes polling gh pr checks; if a conflict: rebase the branch once, re-push, retry merge once).',
           '(b) Tick the DoD checkboxes on ' + item.eng + ' ONLY for the ACs the review verified (' + JSON.stringify(review.verifiedAcs || []) + '): LIVE full-body read immediately before the replace (clobber safety — the ONLY sanctioned pre-write live read) -> flip exactly those boxes -> temp-file write. NEVER blanket-tick.',
-          '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked).',
+          '(b2) ' + BOXES_CLEAN,
+          '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked AND boxes-clean check passed).',
           '(d) Refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + intact body + ticked boxes (write-verify; also what unblocks successors in both engines\' frontiers with zero API).',
           '(e) Cleanup (eager, mandatory): git worktree remove ' + wt + '; git branch -d (merge-checked, NEVER -D) the local branch; delete the remote branch via gh/git push --delete.',
         ].join('\n'),
@@ -288,6 +325,17 @@ async function deliverItem(item, seq) {
       'Gate log -> ' + RDIR + '/' + item.eng + '-gate.md.',
     ].join('\n'), { model: 'sonnet', effort: 'medium', label: '#' + seq + ':gate:' + item.eng, phase: T, schema: GATE_SCHEMA }))
 
+    if (gate && gate.done && gate.dodClean !== true) {
+      // Code-side Done-gate guard (§ENG-1479 fake-done): never honor a finalize agent's
+      // done=true self-report when its OWN full-body read (dodClean) does not confirm every
+      // required DoD/AC box is ticked — refuse the transition regardless of the claim.
+      escalated.push({ eng: item.eng, why: ('Done-gate guard: dodClean!=true despite done=true — refusing (' + JSON.stringify((gate.uncheckedBoxes || []).slice(0, 5)) + ' ' + (gate.escalate || '')).slice(0, 190) + ')' })
+      await agent([
+        'DONE-GATE GUARD CORRECTION for ' + item.eng + ' (repo ' + repo + '): the finalize step reported done=true but did not confirm its boxes-clean check (dodClean). Do NOT trust that Done write. LIVE full-body read the issue now; if its status currently shows Done, move it BACK to In Review via linearis and comment listing every unticked required box (DoD line + AC boxes lacking a dated moved/deferred/sanctioned-TBD annotation): ' + JSON.stringify(gate.uncheckedBoxes || []) + '. Then refresh the ticket cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '.',
+        LNR, RETDISC,
+      ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':gateguard:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+      return { eng: item.eng, out: 'gate-blocked-unticked' }
+    }
     if (gate && gate.done) {
       doneThisRun.push(item.eng)
       if (item.isGate) {
