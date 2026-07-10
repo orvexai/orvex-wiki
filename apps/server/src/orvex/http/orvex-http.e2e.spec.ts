@@ -89,15 +89,12 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     }
   });
 
-  it('orvexApplyOps -> 501 typed sentinel', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/orvex/pages/9b2e4f6a-1c3d-4e5f-8a7b-0c1d2e3f4a5b/apply-ops',
-      payload: { ifVersion: 7, ops: [{ type: 'replaceBlock' }] },
-    });
-    expect(res.statusCode).toBe(501);
-    expect(res.json()).toEqual(sentinel('orvexApplyOps'));
-  });
+  // ENG-1652 — `orvexApplyOps` is no longer part of this DB-less flag-e2e
+  // harness: the real orchestrator needs `PageRepo`/`@InjectKysely()`, so
+  // the controller moved to `OrvexApplyOpsModule` (mounted unconditionally
+  // by `PageModule`, its real DB-aware home) — see that module's docstring
+  // and `OrvexHttpModule`'s. Its own DoD e2e (testcontainers Postgres) lives
+  // at `page-blocks/orvex-apply-ops.controller.e2e.spec.ts`.
 
   it('orvexGetQuota -> 501 typed sentinel', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/orvex/quota' });

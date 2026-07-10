@@ -12,6 +12,7 @@ import { LabelModule } from '../label/label.module';
 import { OrvexPageProvenanceModule } from '../page-provenance/orvex-page-provenance.module';
 import { OrvexPageMetadataModule } from '../../orvex/page-metadata/orvex-page-metadata.module';
 import { OrvexLlmsModule } from '../../orvex/llms/orvex-llms.module';
+import { OrvexApplyOpsModule } from '../../orvex/page-blocks/apply-ops.module';
 
 @Module({
   controllers: [PageController],
@@ -44,6 +45,11 @@ import { OrvexLlmsModule } from '../../orvex/llms/orvex-llms.module';
     // home, mirroring OrvexPageMetadataModule above); OrvexModulesEnabledGuard
     // reproduces ORVEX_MODULES_ENABLED at the request edge (AC6).
     OrvexLlmsModule,
+    // ENG-1652 — the apply-ops HTTP write primitive (`POST /orvex/pages/
+    // :pageId/apply-ops`). Unconditional import (DB-aware home, same
+    // precedent as OrvexLlmsModule above); OrvexModulesEnabledGuard
+    // reproduces ORVEX_MODULES_ENABLED at the request edge (AC6).
+    OrvexApplyOpsModule,
   ],
 })
 export class PageModule {}
