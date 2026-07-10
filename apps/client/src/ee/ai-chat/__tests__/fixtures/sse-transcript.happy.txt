@@ -1,3 +1,14 @@
+: PROVENANCE (CS §11 honesty) — this fixture is SYNTHETIC, not a recorded
+: transcript. Ticket ENG-1359 §5b/§5c requires a committed real SSE transcript
+: captured from a live orvex-studio-ai instance; that instance is produced by
+: ENG-1450 (blocked-by), which is unavailable in this sandbox to record from.
+: This file is hand-authored to match the wire contract byte-for-byte
+: (types/ai-chat.types.ts, AiChatStreamEvent) so the DoD test exercises real
+: parsing/rendering logic, but it does NOT satisfy the "recorded transcript"
+: requirement. Escalated in ENG-1359-fix1.md; the 5c/NFR-honesty review-gate
+: boxes must stay unchecked until a real transcript replaces this file once
+: ENG-1450 lands. Lines starting with ":" are SSE comments (RFC-ignored by
+: the reader in services/ai-chat-service.ts, which only matches "data: ").
 data: {"type":"chat_created","chatId":"chat-fixture-1"}
 
 data: {"type":"content","text":"Here is a diagram of the flow:\n\n"}
