@@ -21,7 +21,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { checkDrift, formatReport } from './lib/patches-drift.mjs';
+import { checkDrift, formatReport, selectUndeclared } from './lib/patches-drift.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -47,6 +47,7 @@ export function loadAllowlist(repoRoot) {
       contextBefore: e.anchorBefore || [],
       contextAfter: e.anchorAfter || [],
       offset: e.offset ?? 0,
+      changeSpan: e.changeSpan ?? 0,
       source: 'patches/inline-edit-allowlist.json',
       reason: e.reason,
     }));
@@ -77,6 +78,7 @@ function parseUnifiedDiffPatch(patchFile, sourceName) {
   let hunkOldStart = null;
   let contextBefore = [];
   let contextAfter = [];
+  let removedCount = 0;
   let seenChange = false;
 
   const flushHunk = () => {
@@ -87,12 +89,17 @@ function parseUnifiedDiffPatch(patchFile, sourceName) {
         contextAfter,
         // 0-based line index into the upstream file where contextBefore starts
         offset: hunkOldStart !== null ? hunkOldStart - 1 : 0,
+        // upstream lines removed by the hunk — i.e. the gap between the before-
+        // and after-context in upstream, so the after-anchor is positioned
+        // correctly (a modification/deletion hunk is not contiguous; ENG-1649 F1)
+        changeSpan: removedCount,
         source: sourceName,
         reason: `declared via ${sourceName}`,
       });
     }
     contextBefore = [];
     contextAfter = [];
+    removedCount = 0;
     seenChange = false;
     hunkOldStart = null;
   };
@@ -112,7 +119,10 @@ function parseUnifiedDiffPatch(patchFile, sourceName) {
     }
     if (line.startsWith(' ')) {
       (seenChange ? contextAfter : contextBefore).push(line.slice(1));
-    } else if (line.startsWith('-') || line.startsWith('+')) {
+    } else if (line.startsWith('-')) {
+      seenChange = true;
+      removedCount += 1; // upstream line the hunk deletes — counts toward the gap
+    } else if (line.startsWith('+')) {
       seenChange = true;
     }
   }
@@ -171,7 +181,7 @@ function findUndeclaredEdits(repoRoot, sha, allowlistPaths) {
   } catch {
     return null; // infra error
   }
-  return changedPaths.filter((p) => !allowlistPaths.has(p));
+  return selectUndeclared(changedPaths, allowlistPaths);
 }
 
 function runCheck({ allowlistOnly } = {}) {
@@ -220,7 +230,7 @@ function runSelfTest() {
   const fixturesDir = path.join(REPO_ROOT, 'scripts', 'test', 'fixtures', 'patches-drift');
   let ok = true;
 
-  for (const [name, expectedProblems] of [['clean', 0], ['drifted', 1]]) {
+  for (const [name, expectedProblems] of [['clean', 0], ['modified', 0], ['drifted', 1]]) {
     const dir = path.join(fixturesDir, name);
     const upstreamText = readFileSync(path.join(dir, 'upstream.txt'), 'utf8');
     const allowlist = JSON.parse(readFileSync(path.join(dir, 'allowlist.json'), 'utf8'));
@@ -229,6 +239,7 @@ function runSelfTest() {
       contextBefore: e.anchorBefore || [],
       contextAfter: e.anchorAfter || [],
       offset: e.offset ?? 0,
+      changeSpan: e.changeSpan ?? 0,
       source: `fixture:${name}`,
       reason: e.reason,
     }));
@@ -243,7 +254,7 @@ function runSelfTest() {
   }
 
   if (ok) {
-    console.log('self-test PASS — clean fixture 0 problems, drifted fixture 1 problem.');
+    console.log('self-test PASS — clean 0, modified 0 (mod-hunk stays clean), drifted 1 problem.');
     return 0;
   }
   return 1;

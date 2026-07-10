@@ -1,6 +1,7 @@
 // Unit + self-test-integration tests for the patches-drift subsystem (ENG-1649).
 // TDD tracer-bullet order: exact match -> fuzzy-within-5 match -> tie-break ->
-// drift -> undeclared-edit detection -> end-to-end --self-test.
+// separate before/after anchoring (mod/del hunks stay clean) -> drift ->
+// undeclared-edit detection -> end-to-end --self-test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
@@ -8,8 +9,10 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   matchContext,
+  matchEntry,
   checkDrift,
   formatReport,
+  selectUndeclared,
 } from '../lib/patches-drift.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,8 +60,77 @@ test('matchContext: tie-break picks the smallest absolute distance from the reco
 });
 
 // ---------------------------------------------------------------------------
+// matchEntry — before/after anchored SEPARATELY (ENG-1649 F1 regression)
+// ---------------------------------------------------------------------------
+
+test('matchEntry: a modification hunk (before/after separated by removed upstream lines) is NOT drifted', () => {
+  // upstream still has the hunk's removed lines (const orig...) BETWEEN the
+  // before- and after-context, so the fused block is non-contiguous. The patch
+  // still applies cleanly => must be clean, not drift.
+  const upstream = ['import a;', 'import b;', 'const orig = 1;', 'return x;', '}'];
+  const entry = {
+    contextBefore: ['import a;', 'import b;'],
+    contextAfter: ['return x;', '}'],
+    offset: 0,
+    changeSpan: 1, // one removed line between the anchors
+  };
+  const result = matchEntry(upstream, entry);
+  assert.notEqual(result.status, 'drifted');
+});
+
+test('matchEntry: modification hunk stays clean even without an explicit changeSpan (fuzzy window absorbs a small gap)', () => {
+  const upstream = ['import a;', 'import b;', 'const orig = 1;', 'return x;', '}'];
+  const entry = {
+    contextBefore: ['import a;', 'import b;'],
+    contextAfter: ['return x;', '}'],
+    offset: 0,
+    // changeSpan omitted -> defaults 0; the after-anchor's +/-5 window covers it
+  };
+  assert.notEqual(matchEntry(upstream, entry).status, 'drifted');
+});
+
+test('matchEntry: a genuinely drifted before-anchor is DRIFTED', () => {
+  const upstream = ['gone', 'gone', 'const orig = 1;', 'return x;', '}'];
+  const entry = {
+    contextBefore: ['import a;', 'import b;'],
+    contextAfter: ['return x;', '}'],
+    offset: 0,
+    changeSpan: 1,
+  };
+  assert.equal(matchEntry(upstream, entry).status, 'drifted');
+});
+
+test('matchEntry: after-anchor drifted (only before survives) is DRIFTED', () => {
+  const upstream = ['import a;', 'import b;', 'x', 'y', 'z', 'w', 'gone', 'gone'];
+  const entry = {
+    contextBefore: ['import a;', 'import b;'],
+    contextAfter: ['return x;', '}'],
+    offset: 0,
+    changeSpan: 1,
+  };
+  assert.equal(matchEntry(upstream, entry).status, 'drifted');
+});
+
+// ---------------------------------------------------------------------------
 // checkDrift — orchestration with an injected upstreamResolver (no real git)
 // ---------------------------------------------------------------------------
+
+test('checkDrift: a clean modification hunk is not reported (ENG-1649 F1 regression)', () => {
+  const entries = [
+    {
+      path: 'fixture/mod.ts',
+      contextBefore: ['import a;', 'import b;'],
+      contextAfter: ['return x;', '}'],
+      offset: 0,
+      changeSpan: 1,
+      source: 'test',
+    },
+  ];
+  const resolver = () => 'import a;\nimport b;\nconst orig = 1;\nreturn x;\n}\n';
+  const report = checkDrift(entries, resolver);
+  assert.equal(report.problemCount, 0);
+  assert.equal(report.drifted.length, 0);
+});
 
 test('checkDrift: an entry whose context matches upstream is not reported as a problem', () => {
   const entries = [
@@ -124,6 +196,40 @@ test('formatReport: a report with problems prints FAIL and the count', () => {
   };
   const text = formatReport(report);
   assert.match(text, /^FAIL: patches-drift check/);
+  assert.match(text, /1 problem\(s\) found/);
+});
+
+// ---------------------------------------------------------------------------
+// selectUndeclared — AC7 governance predicate (ENG-1649 F2)
+// ---------------------------------------------------------------------------
+
+test('selectUndeclared: a changed upstream file NOT in the frozen allow-list is undeclared', () => {
+  const changed = ['apps/server/src/a.ts', 'apps/server/src/b.ts'];
+  const allow = new Set(['apps/server/src/a.ts']);
+  assert.deepEqual(selectUndeclared(changed, allow), ['apps/server/src/b.ts']);
+});
+
+test('selectUndeclared: every changed file being allow-listed yields no violation', () => {
+  const changed = ['a.ts', 'b.ts'];
+  const allow = new Set(['a.ts', 'b.ts']);
+  assert.deepEqual(selectUndeclared(changed, allow), []);
+});
+
+test('selectUndeclared: accepts a plain array allow-list too', () => {
+  assert.deepEqual(selectUndeclared(['x', 'y'], ['x']), ['y']);
+});
+
+test('formatReport: an undeclared inline edit prints FAIL, the path, and counts toward problems', () => {
+  const report = {
+    drifted: [],
+    undeclared: [{ path: 'apps/server/src/core/somefile.ts' }],
+    problemCount: 0,
+    infraError: false,
+  };
+  const text = formatReport(report);
+  assert.match(text, /^FAIL: patches-drift check/);
+  assert.match(text, /Undeclared inline edits/);
+  assert.match(text, /apps\/server\/src\/core\/somefile\.ts/);
   assert.match(text, /1 problem\(s\) found/);
 });
 

@@ -69,7 +69,57 @@ export function matchContext(upstreamLines, contextBlock, recordedOffset) {
 }
 
 /**
- * checkDrift — orchestrates matchContext across every allow-listed/patch
+ * matchEntry — does a single patch/inline-edit entry still anchor cleanly in
+ * upstream? Returns { status: 'exact'|'fuzzy'|'drifted' }.
+ *
+ * The before- and after-context are anchored **separately**, exactly how
+ * `patch`/`git apply` locate a hunk: the change region (the hunk's removed
+ * lines for a patch, or the edited span for an inline anchor) sits *between*
+ * the two context blocks in upstream, so they are NOT contiguous there. Only a
+ * pure-insertion hunk has adjacent before/after. Fusing them into one
+ * contiguous block (the pre-fix behaviour) reported every modification/deletion
+ * hunk as drifted even when the patch still applied cleanly (ENG-1649 F1).
+ *
+ * `entry.changeSpan` = the number of upstream lines between the before- and
+ * after-context (a patch hunk's removed-line count; 0 for a pure insertion).
+ * It positions the after-anchor's expected offset precisely so exact matches
+ * stay exact; the ±5 fuzzy window still absorbs upstream drift on top of it.
+ * Absent (inline anchors that don't record it) it defaults to 0 and the fuzzy
+ * window absorbs a small edited span.
+ */
+export function matchEntry(upstreamLines, entry) {
+  const before = entry.contextBefore || [];
+  const after = entry.contextAfter || [];
+  const baseOffset = entry.offset ?? 0;
+  const changeSpan = entry.changeSpan ?? 0;
+
+  if (before.length === 0 && after.length === 0) {
+    return { status: 'drifted' }; // no context to anchor against
+  }
+
+  let worst = 'exact';
+  let beforeOffset = baseOffset;
+
+  if (before.length > 0) {
+    const b = matchContext(upstreamLines, before, baseOffset);
+    if (b.status === 'drifted') return { status: 'drifted' };
+    beforeOffset = b.offset;
+    if (b.status === 'fuzzy') worst = 'fuzzy';
+  }
+
+  if (after.length > 0) {
+    // after-context sits past the before-context + the change region
+    const expected = beforeOffset + before.length + changeSpan;
+    const a = matchContext(upstreamLines, after, expected);
+    if (a.status === 'drifted') return { status: 'drifted' };
+    if (a.status === 'fuzzy') worst = 'fuzzy';
+  }
+
+  return { status: worst };
+}
+
+/**
+ * checkDrift — orchestrates matchEntry across every allow-listed/patch
  * entry, resolving each entry's upstream file text via the injected
  * `upstreamResolver(path) -> string | null` (null == fetch failed -> infra
  * error, never conflated with a real drift finding; design §2/§7).
@@ -85,8 +135,7 @@ export function checkDrift(entries, upstreamResolver) {
       continue;
     }
     const upstreamLines = upstreamText.split('\n');
-    const contextBlock = [...(entry.contextBefore || []), ...(entry.contextAfter || [])];
-    const result = matchContext(upstreamLines, contextBlock, entry.offset ?? 0);
+    const result = matchEntry(upstreamLines, entry);
     if (result.status === 'drifted') {
       drifted.push({
         path: entry.path,
@@ -102,6 +151,18 @@ export function checkDrift(entries, upstreamResolver) {
     problemCount: drifted.length,
     infraError,
   };
+}
+
+/**
+ * selectUndeclared — AC7 predicate (pure): of the paths that differ from their
+ * pinned-upstream content (`changedPaths`), which are NOT in the frozen
+ * allow-list set (`allowlistPaths`)? Those are undeclared inline edits to
+ * upstream files. Extracted from the CLI's `findUndeclaredEdits` so the
+ * enforcement rule is unit-testable without a real git diff (ENG-1649 F2).
+ */
+export function selectUndeclared(changedPaths, allowlistPaths) {
+  const allowed = allowlistPaths instanceof Set ? allowlistPaths : new Set(allowlistPaths);
+  return changedPaths.filter((p) => !allowed.has(p));
 }
 
 /** formatReport — the CI remediation-report shape (design §5). Never
