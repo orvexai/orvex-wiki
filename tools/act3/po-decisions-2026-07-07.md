@@ -408,3 +408,11 @@ Enacted under PO standing delivery authority (2026-07-10). Directive: "Wire + cl
 **M6 is the FOURTH closed milestone.**
 
 **Discipline:** linearis CLI only for Linear (stage-tolerant on rate_limited); commit trailer exactly `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` on all three commits; GitOps merge-to-watched-branch (`dev`) is the enactment, all CI/cluster observation read-only; admin:org PAT not needed this session. Full trace: `scratchpad/dind-orgscope/close.md`. This record appended under `flock` on `tools/act3/po-decisions-2026-07-07.md.lock`.
+
+## ENG-1667 — AC4/T4 engine seam ruling (2026-07-10)
+
+"AC4/T4 seam = net-new additive ResolvePage() returning title + DfM-shaped body; ResolveBody stays untouched - additive-verb-grammar pattern (ADR-0008 precedent, slot-out-safe, no mutation of a shipped seam); option (a) extend-ResolveBody rejected as a breaking change to existing callers. Orchestrator judgment under PO standing authority 2026-07-10."
+
+- Posted as comment on ENG-1667.
+- Body amended: AC4 + T4 resolved to concrete `ResolvePage(ctx, pageID) (title string, dfmBody *dfm.Node, err error)` signature.
+- Status flip to Todo: RATE_LIMITED at execution time; staged at scratchpad/pass5/staged/ENG-1667-status-todo.sh for retry.
