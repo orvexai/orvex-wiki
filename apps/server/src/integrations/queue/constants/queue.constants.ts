@@ -15,8 +15,10 @@ export enum QueueName {
 export enum QueueJob {
   SEND_EMAIL = 'send-email',
   DELETE_SPACE_ATTACHMENTS = 'delete-space-attachments',
-  ATTACHMENT_INDEX_CONTENT = 'attachment-index-content',
-  ATTACHMENT_INDEXING = 'attachment-indexing',
+  // ENG-1437 — the two attachment FTS-index queue-job constants were
+  // REMOVED here (zero live callers confirmed); engine-local FTS-index
+  // enqueue is decommissioned, extraction now owned solely by
+  // orvex-studio-knowledge (ENG-1480).
   DELETE_PAGE_ATTACHMENTS = 'delete-page-attachments',
   DELETE_AI_CHAT_ATTACHMENTS = 'delete-ai-chat-attachments',
 

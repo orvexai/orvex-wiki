@@ -15,6 +15,11 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
     super();
   }
 
+  // ENG-1437 — the attachment FTS-index job branch (lazy `require` of the
+  // non-bundled attachments-EE extractor) is REMOVED. Extraction is owned
+  // solely by orvex-studio-knowledge (ENG-1480), consuming the
+  // `attachment.created` outbox event. The DELETE_* branches below are
+  // unaffected.
   async process(job: Job<any, void>): Promise<void> {
     try {
       if (job.name === QueueJob.DELETE_SPACE_ATTACHMENTS) {
@@ -33,33 +38,6 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
           job.data.aiChatId,
         );
       }
-      if (
-        job.name === QueueJob.ATTACHMENT_INDEX_CONTENT ||
-        job.name === QueueJob.ATTACHMENT_INDEXING
-      ) {
-        let AttachmentEeModule: any;
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          AttachmentEeModule = require('./../../../ee/attachments-ee/attachment-ee.service');
-        } catch (err) {
-          this.logger.debug(
-            'Attachment enterprise module requested but EE module not bundled in this build',
-          );
-          return;
-        }
-        const attachmentEeService = this.moduleRef.get(
-          AttachmentEeModule.AttachmentEeService,
-          { strict: false },
-        );
-
-        if (job.name === QueueJob.ATTACHMENT_INDEX_CONTENT) {
-          await attachmentEeService.indexAttachment(job.data.attachmentId);
-        } else if (job.name === QueueJob.ATTACHMENT_INDEXING) {
-          await attachmentEeService.indexAttachments(
-            job.data.workspaceId,
-          );
-        }
-      }
     } catch (err) {
       throw err;
     }
@@ -72,15 +50,9 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
 
   @OnWorkerEvent('failed')
   onError(job: Job) {
-    if (job.name === QueueJob.ATTACHMENT_INDEX_CONTENT) {
-      this.logger.debug(
-        `Error processing ${job.name} job for attachment ${job.data?.attachmentId}. Reason: ${job.failedReason}`,
-      );
-    } else {
-      this.logger.error(
-        `Error processing ${job.name} job. Reason: ${job.failedReason}`,
-      );
-    }
+    this.logger.error(
+      `Error processing ${job.name} job. Reason: ${job.failedReason}`,
+    );
   }
 
   @OnWorkerEvent('completed')

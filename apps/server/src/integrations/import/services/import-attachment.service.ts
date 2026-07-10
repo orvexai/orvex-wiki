@@ -19,7 +19,7 @@ import { load } from 'cheerio';
 import pLimit from 'p-limit';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { QueueJob, QueueName } from '../../queue/constants';
+import { QueueName } from '../../queue/constants';
 
 interface AttachmentInfo {
   href: string;
@@ -938,35 +938,9 @@ export class ImportAttachmentService {
           })
           .execute();
 
-        // Queue PDF and DOCX files for indexing
-        const supportedExtensions = ['.pdf', '.docx'];
-        if (supportedExtensions.includes(ext.toLowerCase())) {
-          try {
-            await this.attachmentQueue.add(
-              QueueJob.ATTACHMENT_INDEX_CONTENT,
-              { attachmentId },
-              {
-                attempts: 1,
-                backoff: {
-                  type: 'exponential',
-                  delay: 3 * 60 * 1000,
-                },
-                deduplication: {
-                  id: attachmentId,
-                },
-                removeOnComplete: true,
-                removeOnFail: false,
-              },
-            );
-            this.logger.debug(
-              `Queued ${fileNameWithExt} for indexing (attachment ID: ${attachmentId})`,
-            );
-          } catch (err) {
-            this.logger.error(
-              `Failed to queue indexing for imported attachment ${attachmentId}: ${err}`,
-            );
-          }
-        }
+        // ENG-1437 — engine-local FTS-index enqueue REMOVED. Extraction is
+        // owned solely by orvex-studio-knowledge (ENG-1480); the import
+        // path's attachment insert above is unaffected.
 
         uploadStats.completed++;
 
