@@ -43,18 +43,38 @@ export interface ApplyOpsSettledEnvelope {
  *    path can never mint ids differently than `PageService`'s;
  *  - the ENG-1413 CAS/idempotency primitive (`if-version.util` +
  *    `PageRepo.casIncrementMeta` + `IdempotencyStore`) — the same
- *    CAS-precheck-before-idempotency-claim ordering as `PageService.update`
- *    (AC3). The idempotency slot is claimed AFTER the batch has been
- *    validated (applied in-memory + `jsonToNode`-checked), so a malformed
- *    batch 4xxs before any slot is taken — a same-key retry can never
- *    replay an unchanged page as a false success for a request that never
- *    actually got recorded (F1 honest-state fix). The line-85 precheck is
- *    ADVISORY, not atomic — a concurrent writer can still bump the version
- *    between it and the CAS below, so the CAS itself can 409 AFTER a slot
- *    has already been claimed. Fix pass 2 (review-2 finding): that path is
- *    wrapped so the slot is explicitly RELEASED (`IdempotencyStore.release`)
- *    on any transaction failure, never left pinned to `{pending:true}` for
- *    the retry to poll out to a fabricated false-success envelope.
+ *    CAS-precheck-before-idempotency-CLAIM ordering as `PageService.update`
+ *    (AC3). The idempotency slot is claimed (SET-NX write) AFTER the batch
+ *    has been validated (applied in-memory + `jsonToNode`-checked), so a
+ *    malformed batch 4xxs before any slot is taken — a same-key retry can
+ *    never replay an unchanged page as a false success for a request that
+ *    never actually got recorded (F1 honest-state fix). The line-85
+ *    precheck is ADVISORY, not atomic — a concurrent writer can still bump
+ *    the version between it and the CAS below, so the CAS itself can 409
+ *    AFTER a slot has already been claimed. Fix pass 2 (review-2 finding):
+ *    that path is wrapped so the slot is explicitly RELEASED
+ *    (`IdempotencyStore.release`) on any transaction failure, never left
+ *    pinned to `{pending:true}` for the retry to poll out to a fabricated
+ *    false-success envelope.
+ *
+ *    Fix pass 3 (review-3 finding): the precheck-before-claim ordering
+ *    above governs the CAS-precheck-before-idempotency-claim **WRITE**
+ *    (SET-NX) — it says nothing about a recorded-result **READ**. AC3 also
+ *    requires "identical keyed retry -> identical envelope both times",
+ *    including for a retry that arrives AFTER the winner has committed
+ *    (version already advanced) — standard idempotency-key semantics: a
+ *    recorded response replays regardless of the resource's current state.
+ *    So a READ-ONLY `IdempotencyStore.lookup()` runs BEFORE the line-~90
+ *    precheck: if a settled (non-pending) result is already on record for
+ *    this key, it is returned immediately, before the version is ever
+ *    checked. This does not reopen the F1 hole above — `lookup()` never
+ *    claims a slot and never observes a `{pending:true}` marker (that
+ *    in-flight case still falls through to the precheck + `claim()`'s poll,
+ *    unchanged from fix pass 1/2). Net effect: BOTH AC3 clauses hold
+ *    simultaneously — a settled replay short-circuits the version check
+ *    (satisfies "identical envelope both times"), while a fresh/stale
+ *    request with no settled record still hits the precheck before ever
+ *    taking a slot (satisfies "a 409 never poisons the slot").
  *
  * AC2 (single-transact all-or-nothing): the batch is fully applied against
  * an in-memory clone BEFORE any transaction opens. The one transaction that
@@ -81,6 +101,29 @@ export class ApplyOpsService {
     const page = await this.pageRepo.findById(pageId, { includeContent: true });
     if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
       throw new NotFoundException({ code: 'PAGE_NOT_FOUND' });
+    }
+
+    // ENG-1652 fix pass 3 (review-3 finding) — REPLAY LOOKUP, read-only,
+    // BEFORE the CAS precheck below. A settled (non-pending) recorded
+    // result for this exact (pageId, userId, idempotencyKey) replays
+    // immediately, regardless of the current version — this is what makes
+    // a keyed retry that arrives AFTER the winner has already committed
+    // (and bumped the version) still return the SAME envelope instead of
+    // 409ing at the version precheck. `lookup()` never claims a slot and
+    // never surfaces a `{pending:true}` marker, so the still-in-flight
+    // concurrent-duplicate window (both requests racing at the same
+    // version) is untouched — it still falls through to the precheck and
+    // `claim()`'s poll below, unchanged from fix passes 1/2.
+    if (idempotencyKey) {
+      const hit = await this.idempotencyStore.lookup<ApplyOpsSettledEnvelope>(
+        'apply-ops',
+        pageId,
+        userId,
+        idempotencyKey,
+      );
+      if (hit.recorded) {
+        return hit.result!;
+      }
     }
 
     const meta = await this.pageRepo.getPageMeta(pageId);

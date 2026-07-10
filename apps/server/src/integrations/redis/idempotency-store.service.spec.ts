@@ -134,4 +134,69 @@ describe('IdempotencyStore', () => {
       throwingStore.record('page-write', 'page-1', 'user-1', 'key-1', {}),
     ).resolves.toBeUndefined();
   });
+
+  describe('lookup() — ENG-1652 fix pass 3 (review-3 finding): read-only replay lookup', () => {
+    it('returns {recorded:false} when nothing has been claimed for this key', async () => {
+      const store = storeWith(new FakeRedisClient());
+
+      const lookup = await store.lookup('page-write', 'page-1', 'user-1', 'key-1');
+
+      expect(lookup).toEqual({ recorded: false });
+    });
+
+    it('returns {recorded:false} for a still-PENDING slot (in-flight concurrent claim) — never surfaces a pending marker as a replay', async () => {
+      const client = new FakeRedisClient();
+      const store = storeWith(client);
+
+      const claim = await store.claim('page-write', 'page-1', 'user-1', 'key-1');
+      expect(claim.claimed).toBe(true); // slot now holds {pending:true}
+
+      const lookup = await store.lookup('page-write', 'page-1', 'user-1', 'key-1');
+
+      expect(lookup).toEqual({ recorded: false });
+    });
+
+    it('returns {recorded:true, result} once the slot has been record()-ed — regardless of resource-version state (the caller never checks version for this path)', async () => {
+      const client = new FakeRedisClient();
+      const store = storeWith(client);
+
+      await store.claim('page-write', 'page-1', 'user-1', 'key-1');
+      await store.record('page-write', 'page-1', 'user-1', 'key-1', {
+        pageId: 'page-1',
+        version: 2,
+      });
+
+      const lookup = await store.lookup('page-write', 'page-1', 'user-1', 'key-1');
+
+      expect(lookup).toEqual({
+        recorded: true,
+        result: { pageId: 'page-1', version: 2 },
+      });
+    });
+
+    it('never SETs or claims a slot as a side effect — a lookup() on a fresh key does not block a subsequent real claim()', async () => {
+      const client = new FakeRedisClient();
+      const store = storeWith(client);
+
+      const before = await store.lookup('page-write', 'page-1', 'user-1', 'key-1');
+      expect(before.recorded).toBe(false);
+
+      // If lookup() had written anything (e.g. a pending marker), this
+      // claim would lose (SET NX would fail). It must still win.
+      const claim = await store.claim('page-write', 'page-1', 'user-1', 'key-1');
+      expect(claim.claimed).toBe(true);
+    });
+
+    it('AC4: degrades to {recorded:false} (never throws) when there is no Redis client or the client errors', async () => {
+      const noClientStore = storeWith(null);
+      const throwingStore = storeWith(new ThrowingRedisClient());
+
+      await expect(
+        noClientStore.lookup('page-write', 'page-1', 'user-1', 'key-1'),
+      ).resolves.toEqual({ recorded: false });
+      await expect(
+        throwingStore.lookup('page-write', 'page-1', 'user-1', 'key-1'),
+      ).resolves.toEqual({ recorded: false });
+    });
+  });
 });

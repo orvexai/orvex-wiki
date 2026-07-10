@@ -470,7 +470,6 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
    */
   describe('AC3 — idempotency dedup/replay (working fake Redis)', () => {
     let dedupApp: NestFastifyApplication;
-    let dedupIdempotencyStore: IdempotencyStore;
     const fakeRedis = new FakeRedisClient();
 
     beforeAll(async () => {
@@ -545,7 +544,6 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       );
       await dedupApp.init();
       await dedupApp.getHttpAdapter().getInstance().ready();
-      dedupIdempotencyStore = moduleRef.get(IdempotencyStore);
     });
 
     afterAll(async () => {
@@ -617,74 +615,83 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
       );
     });
 
-    it('a sequential keyed retry after the winner has landed replays the SAME recorded envelope without writing again (real claim()/record())', async () => {
-      // Deterministic complement to the concurrent case above: seed the
-      // store via the REAL `IdempotencyStore.claim()`+`record()` calls
-      // (not a business-logic mock) to pin down the winner's result, then
-      // fire the actual HTTP retry and prove the loser branch
-      // (`claim() -> {claimed:false, result}`) returns that exact
-      // recorded envelope and performs zero additional writes.
+    it('a sequential keyed retry AFTER THE WINNER HAS ACTUALLY COMMITTED (via the real HTTP route, meta.version advances) replays the SAME recorded envelope, not a 409 (ENG-1652 review-3 finding — corrected from a direct claim()/record() seed that pinned meta.version at 1 and never drove the post-commit precheck)', async () => {
+      // Review 3 (adjudication triage3/eng1652.md): the PRIOR version of this
+      // test seeded the "winner" via direct `claim()`+`record()` calls,
+      // which never advances `orvex_page_meta.version` — so the retry's
+      // `ifVersion:1` always matched the still-current `meta.version:1` and
+      // the L91 CAS precheck always passed regardless of whether the replay
+      // short-circuit ran before or after it. That masked the real bug: a
+      // retry whose `ifVersion` was correct AT SEND TIME but is now STALE
+      // (because the winner committed and bumped the version) must still
+      // replay the recorded envelope, not 409 at the precheck. This
+      // corrected version drives the winner through the REAL HTTP route so
+      // `meta.version` genuinely advances 1 -> 2 before the retry fires.
       const original = {
         type: 'doc',
         content: [{ type: 'paragraph', attrs: { id: 'seed2' }, content: [{ type: 'text', text: 'seed2' }] }],
       };
       const pageId = await createPage(original);
       const idempotencyKey = `eng-1652-idem-seq-${Date.now()}`;
-
-      const winnerClaim = await dedupIdempotencyStore.claim(
-        'apply-ops',
-        pageId,
-        userId,
-        idempotencyKey,
-      );
-      expect(winnerClaim.claimed).toBe(true);
-      expect(winnerClaim.degraded).toBe(false);
-
-      const recordedEnvelope = {
-        version: 2,
-        settledUpdatedAt: new Date().toISOString(),
-        contentHash: 'recorded-by-real-winner',
+      const payload = {
+        ifVersion: 1,
+        ops: [
+          {
+            type: 'append',
+            node: { type: 'paragraph', attrs: { id: 'seq-node' }, content: [{ type: 'text', text: 'once' }] },
+          },
+        ],
       };
-      await dedupIdempotencyStore.record(
-        'apply-ops',
-        pageId,
-        userId,
-        idempotencyKey,
-        recordedEnvelope,
-      );
 
+      // PROBE_FIRST — the winner, via the real HTTP route. Commits and
+      // bumps meta.version 1 -> 2.
+      const winner = await dedupApp.inject({
+        method: 'POST',
+        url: `/api/orvex/pages/${pageId}/apply-ops`,
+        headers: { 'idempotency-key': idempotencyKey },
+        payload,
+      });
+      expect(winner.statusCode).toBe(200);
+      const winnerEnvelope = winner.json().data ?? winner.json();
+      expect(winnerEnvelope.version).toBe(2);
+
+      const metaAfterWinner = await db
+        .selectFrom('orvexPageMeta')
+        .select('version')
+        .where('pageId', '=', pageId)
+        .executeTakeFirstOrThrow();
+      expect(metaAfterWinner.version).toBe(2);
+
+      // PROBE_RETRY — SAME key AND SAME (now-stale) ifVersion:1. Must
+      // replay the winner's recorded (v2) envelope, NOT 409
+      // VERSION_MISMATCH — the literal AC3 assertion ("identical keyed
+      // retry -> identical envelope both times").
       const retry = await dedupApp.inject({
         method: 'POST',
         url: `/api/orvex/pages/${pageId}/apply-ops`,
         headers: { 'idempotency-key': idempotencyKey },
-        payload: {
-          ifVersion: 1,
-          ops: [
-            {
-              type: 'append',
-              node: { type: 'paragraph', attrs: { id: 'must-not-land' } },
-            },
-          ],
-        },
+        payload,
       });
 
       expect(retry.statusCode).toBe(200);
-      expect(retry.json().data ?? retry.json()).toEqual(recordedEnvelope);
+      expect(retry.json().data ?? retry.json()).toEqual(winnerEnvelope);
 
-      // Zero-write proof: the page is byte-identical to pre-retry.
+      // Exactly one node landed — the retry did not re-apply the batch.
       const persisted = await db
         .selectFrom('pages')
         .select('content')
         .where('id', '=', pageId)
         .executeTakeFirstOrThrow();
-      expect((persisted.content as any).content).toEqual(original.content);
+      const nodes = (persisted.content as any).content as unknown[];
+      expect(nodes).toHaveLength(2);
 
-      const metaAfter = await db
+      // meta.version is unchanged by the retry (still 2, not bumped again).
+      const metaAfterRetry = await db
         .selectFrom('orvexPageMeta')
         .select('version')
         .where('pageId', '=', pageId)
         .executeTakeFirstOrThrow();
-      expect(metaAfter.version).toBe(1);
+      expect(metaAfterRetry.version).toBe(2);
     });
   });
 });

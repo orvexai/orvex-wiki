@@ -6,6 +6,15 @@ const DEFAULT_TTL_SECONDS = 300; // 5-minute window (CS §4i cost/governance)
 const POLL_ATTEMPTS = 5;
 const POLL_INTERVAL_MS = 50; // 5 * 50ms = 250ms poll budget (CS §4i)
 
+export interface IdempotencyLookup<T = unknown> {
+  /** true only when a settled (non-pending) result is on record for this
+   *  key — the caller should replay `result` immediately without ever
+   *  touching the CAS precheck or claiming a slot. */
+  recorded: boolean;
+  /** populated only when `recorded` is true. */
+  result?: T;
+}
+
 export interface IdempotencyClaim<T = unknown> {
   /** true when this caller may proceed with the write (first writer, OR a
    *  degraded/no-Redis fallback that never dedups). */
@@ -111,6 +120,57 @@ export class IdempotencyStore {
         `IdempotencyStore.claim degraded (Redis error): ${(err as Error).message}`,
       );
       return { claimed: true, degraded: true };
+    }
+  }
+
+  /**
+   * ENG-1652 fix pass 3 (review-3 finding) — a READ-ONLY lookup of a
+   * settled (non-pending) recorded result, with NO side effects: never
+   * `SET`s, never polls, never claims a slot. Callers use this to
+   * short-circuit a same-key retry to the winner's recorded envelope
+   * BEFORE any version/CAS precheck runs — the recorded response replays
+   * regardless of the resource's current version (standard idempotency-key
+   * semantics), which is what `claim()`'s loser branch already does, but
+   * `claim()` only runs AFTER the CAS precheck, so a genuinely post-commit
+   * retry (version already advanced) never reached it and 409'd instead of
+   * replaying (the review-3 finding).
+   *
+   * A `{pending:true}` marker (the in-flight concurrent-writer case) is
+   * NOT surfaced here — it falls through to `{recorded:false}` so the
+   * caller proceeds to the precheck and `claim()`'s poll, which is the
+   * right place to wait out a genuinely-concurrent winner.
+   *
+   * Same "never 500" contract as `claim`/`release`/`record` (CS §10):
+   * Redis being unavailable or erroring degrades to `{recorded:false}`,
+   * never throws.
+   */
+  async lookup<T = unknown>(
+    namespace: string,
+    pageId: string,
+    userId: string,
+    key: string,
+  ): Promise<IdempotencyLookup<T>> {
+    const redis = this.redisService.getOrNil();
+    if (!redis) {
+      return { recorded: false };
+    }
+
+    const redisKey = this.buildKey(namespace, pageId, userId, key);
+    try {
+      const raw = await redis.get(redisKey);
+      if (!raw) {
+        return { recorded: false };
+      }
+      const parsed = JSON.parse(raw) as { pending: boolean; result?: T };
+      if (parsed.pending === false) {
+        return { recorded: true, result: parsed.result };
+      }
+      return { recorded: false };
+    } catch (err) {
+      this.logger.warn(
+        `IdempotencyStore.lookup degraded (Redis error): ${(err as Error).message}`,
+      );
+      return { recorded: false };
     }
   }
 

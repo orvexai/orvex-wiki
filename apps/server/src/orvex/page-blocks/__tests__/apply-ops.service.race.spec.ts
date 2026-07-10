@@ -126,6 +126,48 @@ describe('ApplyOpsService — AC3 slot-poisoning race (fix pass 2)', () => {
     expect(retryClaim.degraded).toBe(false);
   });
 
+  it('ENG-1652 fix pass 3 (review-3 finding): a same-key retry with a STALE ifVersion replays the recorded envelope instead of 409ing at the precheck — the lookup() short-circuit runs before assertIfVersionMatches', async () => {
+    const { service, idempotencyStore, pageRepo } = buildService(true);
+
+    // getPageMeta reports the CURRENT (post-commit) version — 2 — while
+    // the retry below sends the now-stale `ifVersion: 1` it originally
+    // computed against. Before the fix, this combination 409s at the
+    // line-~90 precheck (assertIfVersionMatches sees ifVersion !==
+    // meta.version). After the fix, the read-only `lookup()` short-circuit
+    // returns the settled envelope before the precheck is ever reached.
+    pageRepo.getPageMeta.mockResolvedValue({ version: 2, contentHash: null });
+
+    const recordedEnvelope = {
+      version: 2,
+      settledUpdatedAt: '2026-01-01T00:00:05.000Z',
+      contentHash: 'winner-hash',
+    };
+    // Seed a settled (non-pending) record directly via the REAL store —
+    // simulates the winner having already committed and record()-ed.
+    await idempotencyStore.claim('apply-ops', pageId, userId, idempotencyKey);
+    await idempotencyStore.record(
+      'apply-ops',
+      pageId,
+      userId,
+      idempotencyKey,
+      recordedEnvelope,
+    );
+
+    const result = await service.applyOps(
+      pageId,
+      workspaceId,
+      userId,
+      dto, // dto.ifVersion === 1 — stale relative to the mocked meta.version 2
+      idempotencyKey,
+    );
+
+    expect(result).toEqual(recordedEnvelope);
+    // The CAS/tx path was never entered — this was a pure replay, not a
+    // fresh (successful-by-luck) re-apply.
+    expect(pageRepo.casIncrementMeta).not.toHaveBeenCalled();
+    expect(pageRepo.updatePage).not.toHaveBeenCalled();
+  });
+
   it('control: a successful CAS records the slot, so a same-key retry replays the recorded envelope (no regression on the happy path)', async () => {
     const { service, idempotencyStore } = buildService(true);
     // Retarget findById's second call (post-commit read in
