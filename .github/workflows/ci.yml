@@ -165,6 +165,14 @@ jobs:
     name: Test Server (jest, CI set)
     # DinD set: test:ci runs testcontainers-backed src integration/e2e specs.
     runs-on: public-dind-runners
+    env:
+      # Ryuk (testcontainers' resource-reaper) can't initialize inside the
+      # Kata-qemu + DinD sandbox — its startup log-wait (/.*Started.*/) never
+      # completes, so every testcontainers spec dies at "Log stream ended".
+      # Ephemeral runners are torn down after the job, so the reaper is
+      # unnecessary; disabling it lets the Postgres containers start via the
+      # default port-wait. Job-env fix only — no test or assertion changed.
+      TESTCONTAINERS_RYUK_DISABLED: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -190,6 +198,14 @@ jobs:
     name: Test Server (integration, testcontainers PG)
     # DinD set: testcontainers spins a real Postgres via the runner's Docker daemon.
     runs-on: public-dind-runners
+    env:
+      # Ryuk (testcontainers' resource-reaper) can't initialize inside the
+      # Kata-qemu + DinD sandbox — its startup log-wait (/.*Started.*/) never
+      # completes, so every testcontainers spec dies at "Log stream ended".
+      # Ephemeral runners are torn down after the job, so the reaper is
+      # unnecessary; disabling it lets the Postgres containers start via the
+      # default port-wait. Job-env fix only — no test or assertion changed.
+      TESTCONTAINERS_RYUK_DISABLED: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
