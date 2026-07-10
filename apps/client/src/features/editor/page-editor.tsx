@@ -71,7 +71,7 @@ import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { jwtDecode } from "jwt-decode";
 import { searchSpotlight } from "@/features/search/constants.ts";
 import { useEditorScroll } from "./hooks/use-editor-scroll";
-import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
+import { AiPalette } from "@/features/editor/components/ai-palette/ai-palette";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
 import ColumnsMenu from "@/features/editor/components/columns/columns-menu.tsx";
 import { TransclusionLookupProvider } from "@/features/editor/components/transclusion/transclusion-lookup-context";
@@ -441,7 +441,7 @@ export default function PageEditor({
 
             {editor && editorIsEditable && (
               <div>
-                <EditorAiMenu editor={editor} />
+                <AiPalette editor={editor} />
                 <EditorLinkMenu editor={editor} />
                 <EditorBubbleMenu editor={editor} />
                 <TableMenu editor={editor} />
