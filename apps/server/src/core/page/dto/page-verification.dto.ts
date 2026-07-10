@@ -5,6 +5,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
@@ -39,12 +40,12 @@ export class CreateVerificationDto extends PageIdDto {
   periodUnit?: (typeof PERIOD_UNITS)[number];
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   fixedExpiresAt?: string;
 
   @IsArray()
   @ArrayMaxSize(50)
-  @IsUUID('4', { each: true })
+  @IsUUID(undefined, { each: true })
   verifierIds: string[];
 }
 
@@ -64,13 +65,13 @@ export class UpdateVerificationDto extends PageIdDto {
   periodUnit?: (typeof PERIOD_UNITS)[number];
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   fixedExpiresAt?: string;
 
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
-  @IsUUID('4', { each: true })
+  @IsUUID(undefined, { each: true })
   verifierIds?: string[];
 }
 
