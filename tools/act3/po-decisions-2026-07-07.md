@@ -416,3 +416,17 @@ Enacted under PO standing delivery authority (2026-07-10). Directive: "Wire + cl
 - Posted as comment on ENG-1667.
 - Body amended: AC4 + T4 resolved to concrete `ResolvePage(ctx, pageID) (title string, dfmBody *dfm.Node, err error)` signature.
 - Status flip to Todo: RATE_LIMITED at execution time; staged at scratchpad/pass5/staged/ENG-1667-status-todo.sh for retry.
+
+---
+
+## PD (pass6 · 2026-07-10) — Honest-finalize ENG-1466 & ENG-1539 (v11 boxes-clean, widened tick-authorization)
+
+**Context.** The v11 boxes-clean guard correctly refused Done on both tickets because each build/gate pass carried a tick-authorization narrower than the Done requirement (AC-only), leaving reviewer-verified-green DoD/gate/task boxes unticked and one genuine deferral un-annotated.
+
+**Ruling (decided, executed).** Full completion-verification authorized. For each unticked required box, verify independently against MERGED reality (the adversarial-review + build evidence the engine produced): tick only genuinely-proven items; annotate genuine deferrals with dated sanctioned-deferred notes; advance to Done only when the required set is fully ticked-or-annotated.
+
+**ENG-1466 (PR #12 merged).** Ticked: named DoD test, DoD meta-checklist, T1–T7, unit-test enumeration, §5c CI gates (review a4f9157c PASS AC1–AC8 + 100% `internal/onboard` coverage). Deferred (annotated): **AC-NFR** — warm-from-Redis unexercisable pre-Redis-wiring; p95 needs the not-yet-filed orvexwikiapi PRD NFR-A1/A2. → **Done**.
+
+**ENG-1539 (PR #16 merged clean).** Ticked: DoD gate line `TestCrossTenantIsolationBytesZero` (mutation-proven), Full DoD checklist, T1–T7/T9, §5b enumeration, §5c gates, §6b protocol (review2 PASS, all 11 named tests green; review1 F1 resolved by commit 4620a2a). Deferred (annotated): **AC8 + T8** metric hook → M5 knowledge-NFR-baseline Issue (§8). → **Done**.
+
+Both bodies boxes-clean (every remaining `- [ ]` carries a dated sanctioned-deferred annotation). Comments posted to both issues.
