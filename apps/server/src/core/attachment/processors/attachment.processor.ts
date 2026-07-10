@@ -3,15 +3,11 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { AttachmentService } from '../services/attachment.service';
 import { QueueJob, QueueName } from 'src/integrations/queue/constants';
-import { ModuleRef } from '@nestjs/core';
 
 @Processor(QueueName.ATTACHMENT_QUEUE)
 export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
   private readonly logger = new Logger(AttachmentProcessor.name);
-  constructor(
-    private readonly attachmentService: AttachmentService,
-    private moduleRef: ModuleRef,
-  ) {
+  constructor(private readonly attachmentService: AttachmentService) {
     super();
   }
 
@@ -19,7 +15,8 @@ export class AttachmentProcessor extends WorkerHost implements OnModuleDestroy {
   // non-bundled attachments-EE extractor) is REMOVED. Extraction is owned
   // solely by orvex-studio-knowledge (ENG-1480), consuming the
   // `attachment.created` outbox event. The DELETE_* branches below are
-  // unaffected.
+  // unaffected. `ModuleRef` was only ever injected to lazily resolve that
+  // removed EE extractor — dropped as a dead collaborator (review-1 F3).
   async process(job: Job<any, void>): Promise<void> {
     try {
       if (job.name === QueueJob.DELETE_SPACE_ATTACHMENTS) {

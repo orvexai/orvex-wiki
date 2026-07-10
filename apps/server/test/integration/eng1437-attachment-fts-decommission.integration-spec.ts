@@ -35,6 +35,14 @@ import { AttachmentService } from 'src/core/attachment/services/attachment.servi
 import { ImportAttachmentService } from 'src/integrations/import/services/import-attachment.service';
 import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { QueueName } from 'src/integrations/queue/constants';
+import { EntitlementService } from 'src/orvex/entitlement/entitlement.service';
+import { InMemoryEntitlementCache } from 'src/orvex/entitlement/entitlement-cache';
+import { BillingEntitlementPort } from 'src/orvex/entitlement/entitlement-billing.port';
+import {
+  EntitlementCaps,
+  EntitlementCheckResponse,
+  Principal,
+} from 'src/orvex/entitlement/entitlement.types';
 import {
   seedSpace,
   seedUser,
@@ -80,6 +88,57 @@ const storageServiceStub = {
   },
 };
 
+// ENG-1382 (post-ENG-1437-branch, dev@5e77408d) added a 9th
+// `AttachmentService` collaborator, `EntitlementService`, gating
+// `uploadFile` behind `assertWithinQuota`/`assertIncrementWithinQuota`.
+// This DoD gate is not about entitlement — it follows the established
+// `entitlement-storage-chokepoint.integration.spec.ts` pattern: a REAL
+// `EntitlementService` wired to an in-memory cache and a stub billing
+// port (billing's HTTP call is the true external — CS §5 — everything
+// else here is real), replaying an uncapped catalog (cap `0` is
+// billing's documented "uncapped" sentinel) so `uploadFile` proceeds
+// exactly as it did pre-ENG-1382.
+class StubBillingEntitlementPort implements BillingEntitlementPort {
+  catalogByWorkspace = new Map<string, EntitlementCheckResponse>();
+  async checkEntitlement(
+    principal: Principal,
+  ): Promise<EntitlementCheckResponse> {
+    const catalog = this.catalogByWorkspace.get(principal.principal_id);
+    if (!catalog) {
+      throw new Error('no committed catalog replay for principal');
+    }
+    return catalog;
+  }
+}
+
+function uncappedCatalog(): EntitlementCheckResponse {
+  const caps: EntitlementCaps = {
+    ai_monthly_budget_gbp: 0,
+    embedding_monthly_budget_gbp: 0,
+    curator_distillation_monthly: 0,
+    trial_weekly_actions_advisory: 0,
+    trial_weekly_actions_throttle: 0,
+    demo_ai_actions: 0,
+    wiki_max_pages: 0,
+    wiki_storage_bytes_aggregate: 0,
+    wiki_max_file_bytes: 0,
+    wiki_max_files: 0,
+    wiki_max_members: 0,
+    wiki_history_retention_versions: 0,
+    wiki_history_retention_days: 0,
+  };
+  return {
+    plan: 'enterprise',
+    plan_version: 'test',
+    features: [],
+    caps,
+    trial: { state: 'none' },
+    throttle: { state: 'none' },
+    version: 'entitlement-v1',
+    evaluatedAt: new Date().toISOString(),
+  };
+}
+
 describe('ENG-1437 — engine sheds FTS enqueue, keeps the outbox delegation', () => {
   let testDb: TestDb;
   let testQueue: TestQueue;
@@ -96,6 +155,20 @@ describe('ENG-1437 — engine sheds FTS enqueue, keeps the outbox delegation', (
     attachmentRepo = new AttachmentRepo(testDb.db as any);
     const outboxWriter = new OutboxWriter(testDb.db as any);
 
+    const workspace = await seedWorkspace(testDb.db);
+    workspaceId = workspace.id;
+    const user = await seedUser(testDb.db, workspaceId);
+    userId = user.id;
+    const space = await seedSpace(testDb.db, workspaceId, userId);
+    spaceId = space.id;
+
+    const stubPort = new StubBillingEntitlementPort();
+    stubPort.catalogByWorkspace.set(workspaceId, uncappedCatalog());
+    const entitlementService = new EntitlementService(
+      stubPort,
+      new InMemoryEntitlementCache(),
+    );
+
     attachmentService = new AttachmentService(
       storageServiceStub as any, // storageService — inert side channel, not under test
       attachmentRepo,
@@ -105,14 +178,8 @@ describe('ENG-1437 — engine sheds FTS enqueue, keeps the outbox delegation', (
       testDb.db as any,
       testQueue.queue as any,
       outboxWriter,
+      entitlementService,
     );
-
-    const workspace = await seedWorkspace(testDb.db);
-    workspaceId = workspace.id;
-    const user = await seedUser(testDb.db, workspaceId);
-    userId = user.id;
-    const space = await seedSpace(testDb.db, workspaceId, userId);
-    spaceId = space.id;
   }, 120000);
 
   afterAll(async () => {
