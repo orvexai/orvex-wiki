@@ -215,6 +215,126 @@ jobs:
         run: go vet ./...
 
   # ---------------------------------------------------------------------------
+  # M6 E2E closing gate (ENG-1572) — the named DoD test `TestGateM6E2E`
+  # (tests/smoke/tier5_gate_m6_e2e_test.go), driven against a REAL running
+  # engine + REAL Postgres/Redis/MinIO (this repo's own docker-compose.dev.yml,
+  # via the runner's Docker daemon — same convention test-server-integration
+  # already relies on) + a REAL Kafka broker (KRaft single-node — the studio-
+  # spine outbox relay's actual dependency, ENG-1383; this job is the first to
+  # add one, since the deploy tree/local compose claim none yet, see D-S13).
+  #
+  # AC3 (the F-QUOTA 402 write-chokepoint assertion) drives the real,
+  # now-landed ENG-1382 write chokepoint (`entitlementService.assertWithinQuota`
+  # in `PageService.create`), which is UNCONDITIONAL — every page create
+  # resolves a billing entitlement, and fails closed (503
+  # ENTITLEMENT_UNAVAILABLE) with no billing backend reachable. This job
+  # therefore stands up `gate-m6-billing-stub.mjs` (below) — the sanctioned
+  # contracts-seam fixture for billing's one read endpoint — and exports
+  # `ORVEX_BILLING_API_URL` at it, so the tracer mutation and AC3's
+  # quota-exhaustion probe get real 200/402 responses instead of 503. See
+  # that fixture's own doc comment for why a stub and not the real
+  # `orvex-studio-billing` service (public-runners' deliberate no-OpenBao/
+  # no-cluster-secret wall).
+  #
+  # Wired into `ci-success`'s `needs:` (below) by the 2026-07-10 dev-CI-debt
+  # landing (green-dev-land): the round-5 review found this job had been
+  # DEFINED but never added to the required-check fan-in, so it never gated
+  # ("it never ran in CI"). Its two former blockers have since landed on dev
+  # (ENG-1382 write chokepoint present in PageService.create; ENG-1650
+  # LabelModule DI boot-break fixed), so the gate now runs green end-to-end.
+  # Making a job part of the repo-wide required check is a delivery-orchestrator
+  # call (AC1/AC6 are coordination-plane per the gate's own tier map) — enacted
+  # here under PO standing judgment-call authority (2026-07-10).
+  # ---------------------------------------------------------------------------
+  gate-m6-e2e:
+    name: Gate M6 E2E (ENG-1572, TestGateM6E2E)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: tests/smoke/go.sum
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build workspace package dists (server build inputs)
+        run: |
+          pnpm --dir packages/editor-ext build
+          pnpm --dir packages/base-formula build
+          pnpm --dir packages/@orvex/extensions build
+          pnpm --dir packages/@orvex/dfm build
+      - name: Build server
+        run: pnpm --dir apps/server run build
+      - name: Start Postgres + Redis + MinIO (this repo's docker-compose.dev.yml)
+        run: make env-up
+      - name: Start a real single-node Kafka broker (KRaft, no ZooKeeper)
+        run: |
+          docker run -d --name gate-m6-kafka -p 19092:9092 \
+            -e KAFKA_NODE_ID=1 \
+            -e KAFKA_PROCESS_ROLES=broker,controller \
+            -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+            -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://127.0.0.1:19092 \
+            -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+            -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093 \
+            -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            -e CLUSTER_ID=Nk018hRAQFytWskYqtQduw \
+            apache/kafka:3.8.0
+          for _ in $(seq 1 30); do
+            docker logs gate-m6-kafka 2>&1 | grep -q "Kafka Server started" && exit 0
+            sleep 1
+          done
+          echo "Kafka did not report ready within 30s" >&2
+          docker logs gate-m6-kafka
+          exit 1
+      - name: Run migrations
+        run: make db-migrate
+      - name: Start the billing entitlement seam fixture (sanctioned contracts-seam stub, see tests/smoke/fixtures/gate-m6-billing-stub.mjs)
+        run: |
+          nohup node tests/smoke/fixtures/gate-m6-billing-stub.mjs > billing-stub.log 2>&1 &
+          for _ in $(seq 1 15); do
+            curl -sf http://127.0.0.1:18080/v1/entitlements/org/health-probe && exit 0
+            sleep 1
+          done
+          echo "billing entitlement stub did not become reachable within 15s" >&2
+          cat billing-stub.log
+          exit 1
+      - name: Boot the engine (ORVEX_MODULES_ENABLED=true, pointed at the real Kafka broker + the billing seam fixture)
+        run: |
+          set -a && . ./.env.dev && set +a
+          export ORVEX_MODULES_ENABLED=true
+          export KAFKA_BROKERS=127.0.0.1:19092
+          export KAFKA_OUTBOX_TOPIC=orvex.studio-spine.events
+          export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
+          nohup node apps/server/dist/main.js > server.log 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:3000/api/health && exit 0
+            sleep 1
+          done
+          echo "Engine did not become healthy within 30s" >&2
+          cat server.log
+          exit 1
+      - name: TestGateM6E2E
+        run: |
+          set -a && . ./.env.dev && set +a
+          export APP_URL=http://localhost:3000
+          export KAFKA_BROKERS=127.0.0.1:19092
+          export KAFKA_OUTBOX_TOPIC=orvex.studio-spine.events
+          export ORVEX_MODULES_ENABLED=true
+          cd tests/smoke && go test -run TestGateM6E2E -v ./...
+      - name: Engine log (always, for post-mortem)
+        if: always()
+        run: cat server.log || true
+      - name: Billing entitlement stub log (always, for post-mortem)
+        if: always()
+        run: cat billing-stub.log || true
+
+  # ---------------------------------------------------------------------------
   # Deploy-tree validation (BUILD-ONLY — never applies; CS §13)
   # ---------------------------------------------------------------------------
   k8s-validate:
@@ -452,6 +572,7 @@ jobs:
       - test-server
       - test-server-integration
       - smoke-module
+      - gate-m6-e2e
       - k8s-validate
       - deploy-render-gate
       - engine-license-guard
