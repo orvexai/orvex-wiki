@@ -28,6 +28,8 @@ import { WatcherService } from '../../core/watcher/watcher.service';
 import { TransclusionService } from '../../core/page/transclusion/transclusion.service';
 import { IdempotencyStore } from '../../integrations/redis/idempotency-store.service';
 import { KyselyDB } from '../../database/types/kysely.types';
+import { OutboxWriter } from '../events/outbox/outbox-writer.service';
+import { WsService } from '../../ws/ws.service';
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
@@ -156,10 +158,15 @@ describe('EntitlementWriteChokepointSpec (integration)', () => {
     const kyselyDb = db as unknown as KyselyDB;
     // SpaceMemberRepo is a PageRepo constructor dependency but is never
     // called by the create()/countByWorkspaceId() paths this spec exercises.
+    // OutboxWriter is real (writes the page.created row in the same real
+    // Postgres transaction, ENG-1383 AC1/AC2); wsService is a stub — this
+    // spec doesn't assert realtime invalidation.
     pageRepo = new PageRepo(
       kyselyDb,
       undefined as unknown as SpaceMemberRepo,
       eventEmitter,
+      new OutboxWriter(kyselyDb),
+      { emitInvalidate: () => undefined } as unknown as WsService,
     );
 
     stubPort = new StubBillingEntitlementPort();

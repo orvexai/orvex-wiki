@@ -29,6 +29,7 @@ import { LocalDriver } from '../../integrations/storage/drivers/local.driver';
 import { Queue } from 'bullmq';
 import { QueueJob } from '../../integrations/queue/constants';
 import { KyselyDB } from '../../database/types/kysely.types';
+import { OutboxWriter } from '../events/outbox/outbox-writer.service';
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
@@ -175,6 +176,7 @@ describe('EntitlementStorageChokepointSpec (integration)', () => {
       undefined as unknown as SpaceRepo, // unused by uploadFile()
       kyselyDb,
       { add: async () => undefined } as unknown as Queue<QueueJob>, // attachmentQueue
+      new OutboxWriter(kyselyDb),
       entitlementService,
     );
   });

@@ -23,6 +23,8 @@ import { ImportService } from '../../integrations/import/services/import.service
 import { StorageService } from '../../integrations/storage/storage.service';
 import { QueueJob } from '../../integrations/queue/constants';
 import { KyselyDB } from '../../database/types/kysely.types';
+import { OutboxWriter } from '../events/outbox/outbox-writer.service';
+import { WsService } from '../../ws/ws.service';
 import { EntitlementService } from './entitlement.service';
 import { InMemoryEntitlementCache } from './entitlement-cache';
 import { BillingEntitlementPort } from './entitlement-billing.port';
@@ -119,10 +121,15 @@ describe('EntitlementImportChokepointSpec (integration, F1 fix pass 2)', () => {
 
     const kyselyDb = db as unknown as KyselyDB;
     const eventEmitter = new EventEmitter2();
+    // OutboxWriter is real (writes the page.created row in the same real
+    // Postgres transaction, ENG-1383 AC1/AC2); wsService is a stub — this
+    // spec doesn't assert realtime invalidation.
     pageRepo = new PageRepo(
       kyselyDb,
       undefined as unknown as SpaceMemberRepo,
       eventEmitter,
+      new OutboxWriter(kyselyDb),
+      { emitInvalidate: () => undefined } as unknown as WsService,
     );
 
     stubPort = new StubBillingEntitlementPort();
