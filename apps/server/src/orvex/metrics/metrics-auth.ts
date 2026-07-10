@@ -18,6 +18,18 @@ export interface MetricsAuthConfig {
   bearerToken: string | null;
 }
 
+/**
+ * DI token for the fail-closed-by-default auth config (CIDR allow-list +
+ * bearer token). Lives here (not in `metrics.module.ts`) to avoid a
+ * controller<->module circular import — `metrics.controller.ts` needs the
+ * token but must not import `metrics.module.ts` (which imports the
+ * controller for `@Module({ controllers: [...] })`). Read from
+ * `process.env` ONCE at module-init (§4h ❌#8 — no inline credentialed
+ * client); tests override it directly via this token instead of mutating
+ * `process.env`.
+ */
+export const METRICS_AUTH_CONFIG = 'METRICS_AUTH_CONFIG';
+
 /** Reads the fail-closed-by-default auth config from process.env (or an
  * injected env-like record for tests). §4h ❌#8 — env read only, no inline
  * credentialed client. */

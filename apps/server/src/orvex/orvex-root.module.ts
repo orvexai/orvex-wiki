@@ -12,6 +12,7 @@ import { OrvexEnforceSsoModule } from './enforce-sso/orvex-enforce-sso.module';
 import { OrvexPageBlocksModule } from './page-blocks/page-blocks.module';
 import { OrvexTracingModule } from './obs/orvex-tracing.module';
 import { OrvexHealthModule } from './health/orvex-health.module';
+import { OrvexMetricsModule } from './metrics/metrics.module';
 import { ExchangeTokenVerifier } from './session-mint/exchange-token-verifier';
 import type { ExchangeTokenVerifierDeps } from './session-mint/exchange-token-verifier';
 import type { ExchangeTokenClaims } from './session-mint/exchange-token.types';
@@ -131,6 +132,7 @@ export class OrvexRootModule {
         OrvexPageBlocksModule,
         OrvexTracingModule,
         OrvexHealthModule,
+        OrvexMetricsModule,
         composeSessionMint(config),
       ],
     };
