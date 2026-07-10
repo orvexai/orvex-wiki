@@ -264,6 +264,25 @@ jobs:
         run: bash scripts/engine-license-guard.sh .
 
   # ---------------------------------------------------------------------------
+  # Patches-drift CI gate + frozen inline-edit allow-list (ENG-1649, split from
+  # ENG-1604 AC6/AC7). Self-test runs against committed fixtures (no network);
+  # the real check is a no-op until a follow-up ticket backfills the allow-list
+  # and activates a real pinnedUpstreamSha (design: docs/design/patches-drift-ci-design.md §8).
+  # ---------------------------------------------------------------------------
+  patches-drift-check:
+    name: Patches Drift + Inline-Edit Allow-list (ENG-1649)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: check-patches.mjs --self-test
+        run: node scripts/check-patches.mjs --self-test
+      - name: pnpm check:patches (CI gate)
+        run: node scripts/check-patches.mjs
+
+  # ---------------------------------------------------------------------------
   # AGPL §13 license-header gate (ENG-1491 — AC3). Static gate: every engine
   # `.ts` file under apps/server/src/orvex/ (non-spec) must carry the AGPL
   # license header (SPDX-License-Identifier: AGPL-3.0-only marker). Reads
