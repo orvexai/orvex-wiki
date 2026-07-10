@@ -567,3 +567,55 @@ comment body both via `Write`/heredoc-free files, not inline shell heredocs
 into tracked files); tick nothing (no DoD box proven this pass — CI-genuinely-
 runs is an infra precondition, not an AC); trailer exact match. Appended
 under `flock` on `tools/act3/po-decisions-2026-07-07.md.lock`.
+
+
+## RULING — ENG-1933 filed: the missing M5 knowledge-NFR-baseline Issue (2026-07-10)
+
+Orchestrator judgment call (PO standing authority 2026-07-10, per the capacity-floor
+non-claiming-prework standing mandate) — no live PO ping required for a find-before-create
+ticket-filing gap-close.
+
+**Trigger.** Three Done/near-Done tickets carried dated SANCTIONED-DEFERRED annotations
+pointing at an M5 knowledge-NFR-baseline Issue that was never filed:
+- ENG-1466 (AC-NFR: Redis warm-cache p95, `orvexwikiapi` PRD NFR-A1/A2 unfiled) — pass6
+  `finalize-1466-1539.md`.
+- ENG-1539 (AC8 + §8 metric hook) — pass6 `finalize-1466-1539.md`.
+- ENG-1927 (F2 TBD-reverify: `grep -rE "NFR[- ].*TBD"` over the M5 Knowledge Backbone
+  milestone's adopted issues still returns ~10 hits, every one a freshness/latency NFR
+  deferred to this unfiled Issue — explicitly flagged for a PO call rather than folded
+  into ENG-1927) — pass7 `1927.md`.
+- ENG-1548 (AC10 + T8 + §8 dup-check latency/freshness NFR ids) — ENG-1548's own earlier
+  deferral note, which is the one that originally coined the name "the M5
+  knowledge-NFR-baseline Issue" that the other three tickets copied verbatim.
+
+**FIND-BEFORE-CREATE.** Cache-grepped `.cache/linear/issues/*.yaml` for
+`NFR-baseline|NFR baseline|knowledge-NFR|knowledge NFR` and for a title matching
+`nfr` case-insensitively — the only NFR-titled issues are ENG-1551 ("Knowledge NFR
+baseline + rebuild step-API counterpart (M3 pairing)", Done — a DIFFERENT, already-landed
+scope: the rebuild-RTO/step-API pairing, split into ENG-1927 for its two unlanded legs)
+and ENG-1927 itself. No issue titled or scoped as the freshness/latency NFR-id-filing
+gap exists. Confirmed genuinely unfiled — not a duplicate of ENG-1551/ENG-1927.
+
+**Decision (executed).** Filed **ENG-1933** — "M5 knowledge NFR baseline: file + verify
+freshness/latency/p95 NFR targets" — team ENG, project **Orvex Studio Knowledge**,
+milestone **M5 — Knowledge Backbone** (`8350f8f6-a713-4de5-b295-61fdea4824f1`, resolved
+from cache: shared by ENG-1477/1479/1928 and other M5-labeled `Orvex Studio Knowledge`
+issues), status **Todo**. Body is contract-authored: one named DoD test
+(`TestKnowledgeNFRBaselineAssertionsGreen`), 5 machine-checkable ACs (AC1 PRD ids filed,
+AC2 rebuild-RTO/NFR-K4 cross-check, AC3 the ENG-1466 Redis warm-cache p95 assert, AC4 the
+ENG-1539/ENG-1548 metric-hook re-point, AC5 the ENG-1927 TBD-reverify sweep re-run), with
+a citations section naming all four source tickets.
+
+**Ticket comments posted** (one-line, re-pointing each dangling deferral note at the
+concrete ticket id) on ENG-1466, ENG-1539, ENG-1927, ENG-1548 — all four confirmed
+posted, cache refreshed per ticket.
+
+**Discipline:** linearis CLI only (`issues create`, `issues discuss` — 5 writes; cache
+refresh via `_bmad/lnr/tools/linear-sync.sh issue <id>`, which itself shells out to a
+single `linearis issues read --with-comments` per ticket — 5 refreshes); 10 linearis-CLI
+calls total, under the 12-call budget, no staging needed (no rate_limited response hit,
+no spin-retry attempted); temp-file body writes for the description and all four comment
+bodies; refresh-on-write after every write. Note: ENG-1927's live status read back as
+**Todo** during this pass's refresh (pass7's own log recorded it as "In Progress" at
+close) — a state drift outside this ticket's scope; not touched, flagged here only for
+the record. Appended under `flock` on `tools/act3/po-decisions-2026-07-07.md.lock`.
