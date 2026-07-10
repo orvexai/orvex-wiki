@@ -115,6 +115,42 @@ export class IdempotencyStore {
   }
 
   /**
+   * ENG-1652 fix pass 2 (AC3 poisoning) — releases a previously-claimed slot
+   * WITHOUT recording a result, so a same-key retry can claim it afresh
+   * (`SET NX` succeeds again) instead of polling forever for a `record()`
+   * that will never come. Callers MUST invoke this when the write that
+   * claimed the slot fails AFTER the claim but BEFORE `record()` (e.g. the
+   * atomic CAS guard 409s inside the transaction) — otherwise the slot sits
+   * pinned to `{pending:true}` for the full TTL and a retry silently
+   * replays the page's current state as a false-success 200 (F1 honest-
+   * state fix, ruling-5 no-silent-drop).
+   *
+   * Best-effort / never throws: Redis being unavailable here just means the
+   * slot degrades the same way `claim()` already degrades (no dedup), which
+   * is the existing "never 500" contract (CS §10).
+   */
+  async release(
+    namespace: string,
+    pageId: string,
+    userId: string,
+    key: string,
+  ): Promise<void> {
+    const redis = this.redisService.getOrNil();
+    if (!redis) {
+      return;
+    }
+
+    const redisKey = this.buildKey(namespace, pageId, userId, key);
+    try {
+      await redis.del(redisKey);
+    } catch (err) {
+      this.logger.warn(
+        `IdempotencyStore.release degraded (Redis error): ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
    * Records the winner's result so losers polling the same key observe it.
    * A no-op (best-effort) when Redis is unavailable or errors — never
    * throws, since the write it is recording has already succeeded.

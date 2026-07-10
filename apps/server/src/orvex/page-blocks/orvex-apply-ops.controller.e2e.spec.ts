@@ -76,6 +76,10 @@ class FakeRedisClient {
   async get(key: string): Promise<string | null> {
     return this.store.get(key) ?? null;
   }
+
+  async del(key: string): Promise<number> {
+    return this.store.delete(key) ? 1 : 0;
+  }
 }
 
 /**

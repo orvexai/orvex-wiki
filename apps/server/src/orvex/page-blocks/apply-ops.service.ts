@@ -48,7 +48,13 @@ export interface ApplyOpsSettledEnvelope {
  *    validated (applied in-memory + `jsonToNode`-checked), so a malformed
  *    batch 4xxs before any slot is taken — a same-key retry can never
  *    replay an unchanged page as a false success for a request that never
- *    actually got recorded (F1 honest-state fix).
+ *    actually got recorded (F1 honest-state fix). The line-85 precheck is
+ *    ADVISORY, not atomic — a concurrent writer can still bump the version
+ *    between it and the CAS below, so the CAS itself can 409 AFTER a slot
+ *    has already been claimed. Fix pass 2 (review-2 finding): that path is
+ *    wrapped so the slot is explicitly RELEASED (`IdempotencyStore.release`)
+ *    on any transaction failure, never left pinned to `{pending:true}` for
+ *    the retry to poll out to a fabricated false-success envelope.
  *
  * AC2 (single-transact all-or-nothing): the batch is fully applied against
  * an in-memory clone BEFORE any transaction opens. The one transaction that
@@ -115,6 +121,7 @@ export class ApplyOpsService {
     const ydoc = createYdocFromJson(stamped);
     const contentHash = computeContentHash(stamped);
 
+    let claimedSlot = false;
     if (idempotencyKey) {
       const claim = await this.idempotencyStore.claim<ApplyOpsSettledEnvelope>(
         'apply-ops',
@@ -127,38 +134,62 @@ export class ApplyOpsService {
         // envelope (or, if it hasn't landed yet, the page's current state).
         return claim.result ?? (await this.readSettledEnvelope(pageId));
       }
+      claimedSlot = true;
     }
 
     const expectedVersion = isIntegerVersion(dto.ifVersion)
       ? toIntegerVersion(dto.ifVersion)
       : (meta?.version ?? 1);
 
-    await executeTx(this.db, async (trx) => {
-      // AC2: exactly ONE CAS guard for the whole batch.
-      const cas = await this.pageRepo.casIncrementMeta(
-        pageId,
-        expectedVersion,
-        { contentHash },
-        trx,
-      );
-      if (!cas) {
-        throw new ConflictException({ code: 'VERSION_MISMATCH' });
-      }
+    try {
+      await executeTx(this.db, async (trx) => {
+        // AC2: exactly ONE CAS guard for the whole batch.
+        const cas = await this.pageRepo.casIncrementMeta(
+          pageId,
+          expectedVersion,
+          { contentHash },
+          trx,
+        );
+        if (!cas) {
+          throw new ConflictException({ code: 'VERSION_MISMATCH' });
+        }
 
-      // AC2: exactly ONE chokepoint write for the whole batch — content,
-      // textContent and ydoc all land in the SAME transaction/statement as
-      // the CAS guard above (never a partial write on rollback).
-      await this.pageRepo.updatePage(
-        {
-          content: stamped as any,
-          textContent,
-          ydoc,
-          lastUpdatedById: userId,
-        },
-        pageId,
-        trx,
-      );
-    });
+        // AC2: exactly ONE chokepoint write for the whole batch — content,
+        // textContent and ydoc all land in the SAME transaction/statement as
+        // the CAS guard above (never a partial write on rollback).
+        await this.pageRepo.updatePage(
+          {
+            content: stamped as any,
+            textContent,
+            ydoc,
+            lastUpdatedById: userId,
+          },
+          pageId,
+          trx,
+        );
+      });
+    } catch (err) {
+      // ENG-1652 fix pass 2 (AC3 poisoning): a claimed slot that never
+      // reaches `record()` — e.g. because a concurrent writer bumped the
+      // version between the line-85 precheck and this CAS, so the atomic
+      // guard 409s AFTER the slot was already taken — must be released here.
+      // Otherwise the slot sits pinned to `{pending:true}` for the full TTL
+      // and a same-key retry polls out to `claim.result === undefined`,
+      // falling through to `readSettledEnvelope` (line ~128 above) and
+      // returning the CONCURRENT WRITER's state as a fabricated 200
+      // false-success — silently dropping this request's ops (ruling-5,
+      // AC6). Releasing lets the retry claim the (now-free) slot afresh and
+      // genuinely re-attempt the write instead of replaying a stale ghost.
+      if (claimedSlot && idempotencyKey) {
+        await this.idempotencyStore.release(
+          'apply-ops',
+          pageId,
+          userId,
+          idempotencyKey,
+        );
+      }
+      throw err;
+    }
 
     return this.readSettledEnvelope(pageId, contentHash, idempotencyKey, userId);
   }
