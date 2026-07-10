@@ -2,10 +2,11 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
+import type { JSONContent } from '@tiptap/core';
 import { applyOpsBatch } from '../apply-ops-batch.util';
 import { ApplyOpsError } from '../apply-ops.errors';
 
-function paragraph(id: string, text: string) {
+function paragraph(id: string, text: string): JSONContent {
   return {
     type: 'paragraph',
     attrs: { id },
@@ -13,7 +14,7 @@ function paragraph(id: string, text: string) {
   };
 }
 
-function doc(...children: any[]) {
+function doc(...children: JSONContent[]): JSONContent {
   return { type: 'doc', content: children };
 }
 
@@ -42,7 +43,7 @@ describe('applyOpsBatch', () => {
     const result = applyOpsBatch(doc(paragraph('a', '1'), paragraph('b', '2')), [
       { type: 'insert-at', index: 1, node: paragraph('mid', 'inserted') },
     ]);
-    expect(result.content!.map((n: any) => n.attrs.id)).toEqual([
+    expect(result.content!.map((n: JSONContent) => n.attrs!.id)).toEqual([
       'a',
       'mid',
       'b',
@@ -53,7 +54,7 @@ describe('applyOpsBatch', () => {
     const result = applyOpsBatch(doc(paragraph('a', '1'), paragraph('b', '2')), [
       { type: 'insert_before', refBlockId: 'b', node: paragraph('new', 'x') },
     ]);
-    expect(result.content!.map((n: any) => n.attrs.id)).toEqual([
+    expect(result.content!.map((n: JSONContent) => n.attrs!.id)).toEqual([
       'a',
       'new',
       'b',
@@ -114,7 +115,7 @@ describe('applyOpsBatch', () => {
       doc(paragraph('a', '1'), paragraph('b', '2'), paragraph('c', '3')),
       [{ type: 'move', blockId: 'c', refBlockId: 'a' }],
     );
-    expect(result.content!.map((n: any) => n.attrs.id)).toEqual([
+    expect(result.content!.map((n: JSONContent) => n.attrs!.id)).toEqual([
       'c',
       'a',
       'b',
@@ -126,7 +127,7 @@ describe('applyOpsBatch', () => {
       doc(paragraph('a', '1'), paragraph('b', '2')),
       [{ type: 'move', blockId: 'a' }],
     );
-    expect(result.content!.map((n: any) => n.attrs.id)).toEqual(['b', 'a']);
+    expect(result.content!.map((n: JSONContent) => n.attrs!.id)).toEqual(['b', 'a']);
   });
 
   it('move throws MOVE_SOURCE_MISSING when the source block does not exist', () => {
@@ -172,7 +173,7 @@ describe('applyOpsBatch', () => {
   it('rejects an unknown node type with UNKNOWN_BLOCK_TYPE', () => {
     try {
       applyOpsBatch(doc(paragraph('a', '1')), [
-        { type: 'append', node: { type: 'totallyNotARealNodeType' } as any },
+        { type: 'append', node: { type: 'totallyNotARealNodeType' } },
       ]);
       fail('expected throw');
     } catch (err) {
