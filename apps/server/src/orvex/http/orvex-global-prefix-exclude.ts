@@ -8,6 +8,10 @@ import { OrvexConfigService } from '../config/orvex-config.service';
 export const UPSTREAM_GLOBAL_PREFIX_EXCLUDE: readonly string[] = [
   'robots.txt',
   'share/:shareId/p/:pageSlug',
+  // 'metrics' — ENG-1360 AC6: the Prometheus scrape endpoint stays OUTSIDE
+  // the /api prefix (own fail-closed CIDR/bearer authz, not the app's).
+  // Fixed, not env-overridable, like the other upstream exclusions above.
+  'metrics',
 ];
 
 /**

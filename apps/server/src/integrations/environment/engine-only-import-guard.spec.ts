@@ -60,6 +60,20 @@ describe('engine-only-import-guard', () => {
     expect(output).toContain('PASS');
   });
 
+  it('PASSES for the ratified @orvexai/metrics exception (ENG-1360) while still banning other @orvexai/* imports', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'engine-only-import-guard-fixture-'));
+    fixtures.push(dir);
+    mkdirSync(join(dir, 'apps/server/src/orvex/metrics'), { recursive: true });
+    writeFileSync(
+      join(dir, 'apps/server/src/orvex/metrics/thing.ts'),
+      `import { OrvexMetricsService } from '@orvexai/metrics';\nexport class Thing { constructor(private m: OrvexMetricsService) {} }\n`,
+    );
+
+    const { code, output } = runGuard(dir);
+    expect(code).toBe(0);
+    expect(output).toContain('PASS');
+  });
+
   it('FAILS when an orvex file imports a closed-satellite package (@orvexai/*)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'engine-only-import-guard-fixture-'));
     fixtures.push(dir);
