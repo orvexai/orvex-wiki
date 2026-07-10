@@ -148,23 +148,4 @@ export class OrvexConfigService {
       .map((v) => v.trim())
       .filter(Boolean);
   }
-
-  /**
-   * ORVEX_LOADED_INTEGRATIONS (AC1 DoD / AC3) — the retained integration set.
-   * `linear` is stripped unconditionally regardless of what the raw env
-   * carries: Linear was removed from this engine (exclusions D-S11 /
-   * po-ruling 2), so the reported set must never include it even on a
-   * misconfigured deploy.
-   */
-  get loadedIntegrations(): string[] {
-    const raw = this.read('ORVEX_LOADED_INTEGRATIONS');
-    if (raw === null) {
-      return [];
-    }
-    return raw
-      .split(',')
-      .map((v) => v.trim())
-      .filter(Boolean)
-      .filter((v) => v.toLowerCase() !== 'linear');
-  }
 }

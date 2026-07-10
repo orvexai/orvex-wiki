@@ -146,22 +146,4 @@ describe('OrvexConfigService', () => {
       ).toEqual(['mcp', 'metrics', 'health/orvex']);
     });
   });
-
-  describe('ORVEX_LOADED_INTEGRATIONS (AC1/AC3 — never includes linear)', () => {
-    it('reads a comma-separated list', () => {
-      expect(
-        svc({ ORVEX_LOADED_INTEGRATIONS: 'kafka,s3' }).loadedIntegrations,
-      ).toEqual(['kafka', 's3']);
-    });
-
-    it('defaults to an empty list when unset', () => {
-      expect(svc({}).loadedIntegrations).toEqual([]);
-    });
-
-    it('strips linear even if present in the raw env (exclusions D-S11 / po-ruling 2)', () => {
-      expect(
-        svc({ ORVEX_LOADED_INTEGRATIONS: 'linear,kafka' }).loadedIntegrations,
-      ).toEqual(['kafka']);
-    });
-  });
 });
