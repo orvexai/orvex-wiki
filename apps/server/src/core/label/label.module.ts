@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { LabelController } from './label.controller';
 import { LabelService } from './label.service';
 import { OrvexLabelModule } from './orvex-label.module';
-import { OrvexLabelService, ORVEX_LABEL_SERVICE } from './orvex-label.service';
 
 @Module({
   controllers: [LabelController],
@@ -14,6 +13,6 @@ import { OrvexLabelService, ORVEX_LABEL_SERVICE } from './orvex-label.service';
   // `OrvexPageMetadataModule`); wiring it here makes `OrvexLabelService`
   // resolvable everywhere `LabelModule` is imported (already `PageModule`).
   imports: [OrvexLabelModule],
-  exports: [LabelService, OrvexLabelService, ORVEX_LABEL_SERVICE],
+  exports: [LabelService, OrvexLabelModule],
 })
 export class LabelModule {}

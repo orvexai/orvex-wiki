@@ -27,11 +27,17 @@ describe('LabelModule imports OrvexLabelModule (ENG-1650)', () => {
     expect(imports).toContain(OrvexLabelModule);
   });
 
-  it('exports OrvexLabelService so consumers of LabelModule can inject it', async () => {
+  it('re-exports OrvexLabelModule so consumers of LabelModule can inject OrvexLabelService', async () => {
+    // Nest DI: a module may only export a provider/token that appears in its
+    // OWN `providers` array; `OrvexLabelService`/`ORVEX_LABEL_SERVICE` are
+    // provided by the imported `OrvexLabelModule`, not by `LabelModule`
+    // itself, so exporting the raw tokens directly throws
+    // `UnknownExportException` at boot (the ENG-1650 boot regression fixed
+    // forward here). The correct re-export shape names the imported MODULE
+    // in `exports`, which transitively surfaces everything that module
+    // itself exports (`OrvexLabelService`, `ORVEX_LABEL_SERVICE`).
     const { LabelModule } = await import('./label.module');
-    const { OrvexLabelService, ORVEX_LABEL_SERVICE } = await import(
-      './orvex-label.service'
-    );
+    const { OrvexLabelModule } = await import('./orvex-label.module');
 
     const exportsList: unknown[] = Reflect.getMetadata(
       MODULE_METADATA.EXPORTS,
@@ -39,7 +45,6 @@ describe('LabelModule imports OrvexLabelModule (ENG-1650)', () => {
     );
 
     expect(exportsList).toBeDefined();
-    expect(exportsList).toContain(OrvexLabelService);
-    expect(exportsList).toContain(ORVEX_LABEL_SERVICE);
+    expect(exportsList).toContain(OrvexLabelModule);
   });
 });
