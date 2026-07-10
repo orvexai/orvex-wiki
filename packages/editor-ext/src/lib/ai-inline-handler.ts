@@ -13,12 +13,28 @@ import { Transaction } from "@tiptap/pm/state";
  *  - the single 50ms flush-timer cadence (liveness cadence only — CS §4h
  *    #9, never read-model determinism; tests are transcript-driven and
  *    deterministic, never `time.Now`/`rand`);
- *  - single-undo grouping: every interim flush is a non-history
- *    transaction (`addToHistory: false`), and exactly one
- *    history-recorded transaction (the final commit, on stream complete
- *    OR error) lands the transform — so exactly one
- *    `editor.commands.undo()` reverts the whole transform, even a partial
- *    one (AC3, AC7);
+ *  - single-undo grouping (fixed post-R3/pass14: see below): every interim
+ *    flush AND the final commit are ordinary history-tracked transactions,
+ *    fired in immediate succession (well inside prosemirror-history's
+ *    default 500ms `newGroupDelay`) over the same (adjacent/overlapping)
+ *    range — so prosemirror-history merges the whole sequence into ONE
+ *    undo-stack item. Exactly one `editor.commands.undo()` therefore
+ *    reverts the whole transform, even a partial one, all the way back to
+ *    the ORIGINAL pre-stream content (AC3, AC7) — not merely to the last
+ *    interim paint.
+ *
+ *    Why not `addToHistory: false` for interim flushes (the pre-fix
+ *    approach): prosemirror-history only uses `addToHistory: false`
+ *    transactions to remap *existing* undo items' positions (`addMaps`);
+ *    it never records their inverse. `Transaction.invert()` is only ever
+ *    defined relative to that transaction's own starting doc, so no
+ *    matter what `commitFinal()` did, undoing the ONE tracked transaction
+ *    could only ever restore the doc to whatever it looked like
+ *    immediately before `commitFinal` ran — i.e. the last untracked
+ *    interim paint, not the true original. Grouping every flush into the
+ *    same tracked history item sidesteps this: the group's combined
+ *    inverse targets the doc state before the FIRST transaction in the
+ *    group, which is the true pre-stream original;
  *  - Yjs awareness, when a collab `provider` is supplied, so collaborators
  *    can see who is streaming.
  *
@@ -160,19 +176,30 @@ export class OrvexAiInlineHandler {
     }
   }
 
-  /** Interim flush: paints the buffer so far. Never added to undo history. */
+  /**
+   * Interim flush: paints the buffer so far. History-tracked (NOT
+   * `addToHistory: false` — see the class doc for why that broke
+   * single-undo). Fired well inside prosemirror-history's `newGroupDelay`
+   * of every neighbouring flush/commit over an adjacent range, so it
+   * merges into the same undo-stack item instead of opening a new one.
+   */
   private flushInterim(): void {
     if (!this.range) return;
     const { view } = this.editor;
     const tr = view.state.tr;
-    tr.setMeta("addToHistory", false);
     tr.setMeta("orvexAiInlineFlush", true);
     this.replaceRange(tr, this.range, this.buffer);
     this.range = { from: this.range.from, to: this.range.from + this.buffer.length };
     view.dispatch(tr);
   }
 
-  /** Final commit: the ONE history-recorded transaction for this transform. */
+  /**
+   * Final commit: lands the full buffer. History-tracked, like every
+   * interim flush — it's the last transaction in the group, not the only
+   * one, so its own inverse only has to cover the tail (interim ->
+   * final); the group's combined inverse (what a single undo actually
+   * runs) covers the whole transform back to the original.
+   */
   private commitFinal(): void {
     if (!this.range) return;
     const { view } = this.editor;

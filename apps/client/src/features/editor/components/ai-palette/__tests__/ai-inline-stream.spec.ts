@@ -33,6 +33,18 @@ import sseTranscript from "../__fixtures__/ai-inline-stream.sse.txt?raw";
  * exist to call from this repo yet. 5c's "no hand-authored SSE bodies"
  * review gate should re-verify this fixture once ENG-1415 lands and a real
  * transcript can be captured.
+ *
+ * PASS14/R3 FIX (F1): the single-undo half of the DoD claim used to be
+ * checked against a replay that chained every chunk through nothing but
+ * `await Promise.resolve()` — under `vi.advanceTimersByTimeAsync`, that
+ * whole microtask chain (all 5 chunks + `[DONE]`) drains before the fake
+ * clock ever reaches the first 50ms tick, so `flushInterim()` never ran
+ * and `commitFinal()` landed against the untouched original range. Undo
+ * trivially "passed" without ever exercising the interim-flush path the
+ * AC is actually about (mutation-proven tautology: deleting the
+ * `addToHistory:false` flush-history handling left this test green).
+ * The replay below now gates after the first real chunk so a genuine
+ * `flushInterim()` paints mid-stream before the assertions run.
  */
 describe("OrvexAiInlineHandlerSpec", () => {
   afterEach(() => {
@@ -52,28 +64,43 @@ describe("OrvexAiInlineHandlerSpec", () => {
    * `ReadableStream` (data: lines, [DONE] sentinel, {error} -> onError) —
    * without going through `fetch` itself (jsdom has no network), and
    * without mocking `@docmost/editor-ext`.
+   *
+   * PASS14/R3 FIX (F1): `await Promise.resolve()` alone (fix pass 1's
+   * fix for F4) still isn't enough to force a REAL interim flush — under
+   * `vi.advanceTimersByTimeAsync`, a chain of bare microtask yields drains
+   * completely before the fake clock advances to the first 50ms tick, so
+   * `flushInterim()` still never ran. This replay additionally gates
+   * after `gateAfterChunk` real chunks, held open by an externally
+   * resolved `release()`, so the caller can advance the fake clock across
+   * a flush boundary WHILE the transcript is genuinely still in flight —
+   * exercising `flushInterim()` for real, not `commitFinal()` racing
+   * ahead of it. Still reads the same committed wire-format fixture
+   * (no hand-authored chunk content).
    */
-  /**
-   * FIX PASS 1 (F4): each chunk is separated by a real microtask yield
-   * (`await Promise.resolve()`) instead of running the whole transcript
-   * synchronously in one tick. `vi.advanceTimersByTimeAsync` interleaves
-   * pending microtasks with fake-timer advancement, so this lets the
-   * handler's 50ms flush timer actually fire and paint interim buffer
-   * content DURING the stream — exercising `flushInterim()` for real,
-   * instead of every chunk landing before the first timer tick (the prior
-   * gap: a synchronous stub made the interim-flush path dead code as far
-   * as this test was concerned).
-   */
-  function replaySseTranscript(
+  function replaySseTranscriptWithGate(
     transcript: string,
-  ): (
-    data: Record<string, unknown>,
-    onChunk: (chunk: AiStreamChunk) => void,
-    onError?: (error: AiStreamError) => void,
-    onComplete?: () => void,
-  ) => Promise<AbortController> {
-    return async (_data, onChunk, onError, onComplete) => {
+    gateAfterChunk: number,
+  ): {
+    streamFn: (
+      data: Record<string, unknown>,
+      onChunk: (chunk: AiStreamChunk) => void,
+      onError?: (error: AiStreamError) => void,
+      onComplete?: () => void,
+    ) => Promise<AbortController>;
+    release: () => void;
+  } {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const streamFn = async (
+      _data: Record<string, unknown>,
+      onChunk: (chunk: AiStreamChunk) => void,
+      onError?: (error: AiStreamError) => void,
+      onComplete?: () => void,
+    ) => {
       const abortController = new AbortController();
+      let chunkCount = 0;
       for (const line of transcript.split("\n")) {
         if (!line.startsWith("data: ")) continue;
         await Promise.resolve();
@@ -88,13 +115,18 @@ describe("OrvexAiInlineHandlerSpec", () => {
           return abortController;
         }
         onChunk(parsed);
+        chunkCount++;
+        if (chunkCount === gateAfterChunk) {
+          await gate;
+        }
       }
       onComplete?.();
       return abortController;
     };
+    return { streamFn, release };
   }
 
-  test("streams the committed transcript into the captured range, single-undo reverts it, and exactly one 50ms flush timer runs", async () => {
+  test("streams the committed transcript into the captured range, single-undo reverts it to the ORIGINAL doc (not an interim paint), and exactly one 50ms flush timer runs", async () => {
     vi.useFakeTimers();
     const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
 
@@ -105,10 +137,14 @@ describe("OrvexAiInlineHandlerSpec", () => {
     const range = { from: 7, to: 12 };
     const handler = new OrvexAiInlineHandler(editor);
 
+    // Gate the replay after the first real chunk ("The ") so a flush
+    // boundary can be crossed while the stream is still genuinely open.
+    const { streamFn, release } = replaySseTranscriptWithGate(sseTranscript, 1);
+
     const streamPromise = handler.startStream(
       range,
       { content: "world" },
-      replaySseTranscript(sseTranscript),
+      streamFn,
     );
 
     // Exactly one 50ms flush timer is constructed for this stream.
@@ -117,9 +153,17 @@ describe("OrvexAiInlineHandlerSpec", () => {
     );
     expect(flushTimerCalls).toHaveLength(1);
 
-    // Advance past several flush cycles while the (synchronous) stub
-    // resolves; the interim flushes are non-history so they never touch
-    // the undo stack.
+    // Advance past one flush cycle WHILE the transcript is still gated
+    // after the first chunk — this must be a GENUINE flushInterim paint,
+    // not commitFinal running early.
+    await vi.advanceTimersByTimeAsync(60);
+    expect(handler.isStreaming).toBe(true);
+    expect(editor.state.doc.textBetween(7, 7 + "The ".length, "\n")).toBe(
+      "The ",
+    );
+
+    // Release the rest of the transcript and let the stream complete.
+    release();
     await vi.advanceTimersByTimeAsync(200);
     await streamPromise;
 
@@ -132,7 +176,11 @@ describe("OrvexAiInlineHandlerSpec", () => {
     expect(docText).toBe(finalText);
     expect(handler.isStreaming).toBe(false);
 
-    // (b) exactly one undo() restores the pre-transform doc.
+    // (b) exactly one undo() restores the pre-transform ORIGINAL doc, not
+    // the "The " interim paint that was on-screen mid-stream. Mutation
+    // check (manual, see class doc on OrvexAiInlineHandler): reintroduce
+    // `addToHistory: false` on `flushInterim` and this assertion goes RED
+    // — undo would restore "The " instead of "world".
     editor.commands.undo();
     expect(editor.state.doc.toJSON()).toEqual(preTransformDoc);
 
