@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { sendChatMessage } from "../services/ai-chat-service";
+import { parseCitationString } from "../utils/citation-metadata";
 import type {
+  AiChatCitation,
   AiChatMessage,
   AiChatStreamEvent,
   AiChatStreamEventWire,
@@ -47,6 +49,13 @@ export function useChatStream(
   const [streamingToolCalls, setStreamingToolCalls] = useState<AiChatToolCall[]>(
     [],
   );
+  // Citations accumulated for the in-flight turn from `citation` frames
+  // (AC2), attached to the assistant message once the turn's `done` frame
+  // finalizes it — same accumulate-then-finalize pattern already used for
+  // streamingContent/streamingToolCalls.
+  const [streamingCitations, setStreamingCitations] = useState<
+    AiChatCitation[]
+  >([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingState, setStreamingState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +123,7 @@ export function useChatStream(
       setIsStreaming(true);
       setStreamingContent("");
       setStreamingToolCalls([]);
+      setStreamingCitations([]);
       setStreamingState(null);
 
       const metadata: Record<string, unknown> = {};
@@ -197,19 +207,25 @@ export function useChatStream(
                   const messageId = `msg-${Date.now()}`;
                   setStreamingContent((currentContent) => {
                     setStreamingToolCalls((currentToolCalls) => {
-                      const assistantMessage: AiChatMessage = {
-                        id: messageId,
-                        chatId: currentChatIdRef.current || "",
-                        role: "assistant",
-                        content: currentContent || null,
-                        toolCalls: currentToolCalls.length
-                          ? currentToolCalls
-                          : null,
-                        metadata: null,
-                        createdAt: new Date().toISOString(),
-                      };
+                      setStreamingCitations((currentCitations) => {
+                        const assistantMessage: AiChatMessage = {
+                          id: messageId,
+                          chatId: currentChatIdRef.current || "",
+                          role: "assistant",
+                          content: currentContent || null,
+                          toolCalls: currentToolCalls.length
+                            ? currentToolCalls
+                            : null,
+                          metadata: null,
+                          createdAt: new Date().toISOString(),
+                          citations: currentCitations.length
+                            ? currentCitations
+                            : undefined,
+                        };
 
-                      setMessages((prev) => [...prev, assistantMessage]);
+                        setMessages((prev) => [...prev, assistantMessage]);
+                        return [];
+                      });
                       return [];
                     });
                     return "";
@@ -238,13 +254,15 @@ export function useChatStream(
             case "token":
               setStreamingContent((prev) => prev + event.token);
               break;
-            // KNOWN GAP (sse/AI-CHAT.md): the wire carries a bare citation
-            // string, not a structured AiChatCitation — the producer never
-            // emits this frame today (RunChat has no citation source
-            // wired). No-op rather than fabricating id/pageId/url/title;
-            // citation-hover-card rendering stays unreachable until a
-            // producer follow-up lands structured citations on this frame.
+            // Bare wire string ("Title — URL", sse/AI-CHAT.md) — parsed
+            // client-side into an AiChatCitation and accumulated for the
+            // in-flight turn; attached to the assistant message when its
+            // `done` frame finalizes it (AC2).
             case "citation":
+              setStreamingCitations((prev) => [
+                ...prev,
+                parseCitationString(event.citation, prev.length),
+              ]);
               break;
             // Spend-cap-reached turn — replaces the entire turn (no
             // chat_id/state precede it). Surfaced as the same inline,

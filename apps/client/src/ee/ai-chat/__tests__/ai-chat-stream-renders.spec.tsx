@@ -14,15 +14,16 @@
 // only true-external boundary substituted is the AI service transport
 // (fetch + the api-client HTTP layer), per CS §5.
 //
-// HONESTY NOTE (review1 F1, CS §11): fixtures/sse-transcript.happy.txt is
-// hand-authored (contract-matched), NOT a recorded transcript from a live
-// orvex-studio-ai instance — the ticket's §5c "recorded transcript" gate is
-// blocked by ENG-1450 (the AI core that produces the SSE stream), which is
-// unavailable in this sandbox. See the fixture's own leading `:` comment
-// lines for the full provenance note and ENG-1359-fix1.md for the
-// escalation. Do not remove the fixture's provenance comment, and do not
-// tick the 5c/NFR-honesty review-gate boxes until a real recorded
-// transcript replaces it.
+// HONESTY NOTE (CS §11, updated 2026-07-10): fixtures/sse-transcript.happy.txt
+// is a REAL recorded transcript captured against the merged ENG-1450
+// producer (orvex-studio-ai) plus the ENG-1945 citation-frame fix
+// (branch eng-1945-work, commit 3a086899) — real chat.Service + real
+// SSEWriter + real router/auth + real LiteLLM backend, with only the
+// chat store/permission/spend/citation-retrieval ports substituted by
+// in-memory fakes (the same category of double chat_route_test.go already
+// uses for Store/Perms/Spend). See the fixture's own leading `:` comment
+// lines for the full provenance note. Do not remove the fixture's
+// provenance comment.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -206,16 +207,13 @@ describe("ai-chat-stream-renders", () => {
       ).toBe(2);
     });
 
-    // Citation hover-card href byte-equal to the fixture citation URL
-    // (AC2). KNOWN GAP, not fixed by this realignment (sse/AI-CHAT.md,
-    // orvex-wiki scratchpad/pass6-followups/1359-fix.md): the pinned wire's
-    // `citation` frame is a bare string with no url/title, and the real
-    // ENG-1450 producer's RunChat never constructs this frame at all today
-    // (confirmed by reading internal/chat/service.go — dead code, not a
-    // sampling gap) — no real transcript can carry a citation until a
-    // producer follow-up wires the cited-ask core's citations into the chat
-    // loop. This assertion stays RED honestly rather than being weakened or
-    // removed; AC2/H1 cannot be ticked until it is.
+    // Citation hover-card href byte-equal to the fixture citation URL (AC2).
+    // RESOLVED (ENG-1945, 2026-07-10): the pinned wire's `citation` frame is
+    // a bare string ("Title — URL", sse/AI-CHAT.md); the fixture's `citation`
+    // frame is parsed client-side (parseCitationString) into an
+    // AiChatCitation and attached to the assistant message on `done`. The
+    // fixture is a real recorded transcript against the ENG-1945-fixed
+    // producer (see the fixture's own provenance header).
     const marker = await screen.findByTestId("citation-marker");
     fireEvent.mouseEnter(marker);
     const card = await screen.findByTestId("citation-card");

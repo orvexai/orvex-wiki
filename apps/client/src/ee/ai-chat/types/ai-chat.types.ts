@@ -49,12 +49,13 @@ export type AiChatStreamEvent =
   | { type: 'state'; chatId?: string; state: 'connecting' | 'streaming' | 'done' | 'error' }
   | { type: 'banner'; chatId?: string; model?: string; scope?: 'page' | 'workspace'; health?: string }
   | { type: 'token'; token: string }
-  // KNOWN GAP (pinned honestly in sse/AI-CHAT.md, not fabricated here): the
-  // producer's RunChat never constructs this frame today — `citation` is a
-  // bare string on the wire (no id/pageId/url/title), so it CANNOT be
-  // assembled into an AiChatCitation without inventing fields. Tracked as a
-  // raw string only; citation-hover-card rendering stays unreachable until
-  // a producer follow-up wires structured citations onto this frame.
+  // The wire's `citation` frame is a bare STRING (`"Title — URL"`), per the
+  // ratified sse/AI-CHAT.md pin — not a structured {id,pageId,url,title}
+  // object (amended 2026-07-10, consistent with ENG-1945, which wired
+  // orvex-studio-ai's RunChat to actually emit this frame). The client
+  // parses this string into an AiChatCitation for rendering
+  // (utils/citation-metadata.ts parseCitationString); the wire shape itself
+  // never carries structured fields.
   | { type: 'citation'; citation: string }
   | { type: 'cap'; errCode: string }
   | { type: 'error'; chatId?: string; errCode?: string; errMsg?: string }

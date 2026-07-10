@@ -1,66 +1,95 @@
 : PROVENANCE (CS §11 honesty) — this is a REAL SSE transcript, recorded from
-: the merged ENG-1450 producer (orvex-studio-ai), not hand-authored.
-: Source commit: orvexai/orvex-studio-ai@6ea5e8bce099e4cc40d7411cdff39d38b4c83f3b
-:   ("ENG-1450: AI-chat core (SSE streaming, model/scope/health, history,
-:   state-machine) (#18)", squash-merged to dev 2026-07-10T09:55:58Z).
+: the orvex-studio-ai chat core AFTER ENG-1945 (citation-frame emission)
+: on branch eng-1945-work, commit 3a0868994aec4db3a398cccf38e21a7ba540f8ae
+: ("ENG-1945: wire cited-ask citations into RunChat SSE (FrameCitation)"),
+: not hand-authored.
 : Captured: 2026-07-10, via a throwaway Go test harness
 :   (internal/server/zz_capture_real_sse_test.go, never committed to
-:   orvex-studio-ai) run in a worktree detached at 6ea5e8b. The harness wires
-:   the REAL internal/chat.Service + REAL internal/stream.SSEWriter, mounted
-:   on the REAL NewRouter/auth-middleware HTTP path (RS256 JWKS-fixture auth,
-:   the same pattern internal/server/chat_route_test.go itself uses as real
-:   edge auth), POSTed one real turn through /api/ai/chat against the REAL
-:   LiteLLM backend (LITELLM_URL/LITELLM_API_KEY, the actual cluster secret).
-:   Only the chat store, page-permission check, and spend gate are in-memory
-:   fakes (auth/page-access/spend gating are not what this fixture proves —
-:   the real wire framing + real model content is). Command:
+:   orvex-studio-ai — mirrors the ENG-1450 pass6 capture pattern) run in a
+:   worktree checked out at eng-1945-work. The harness wires the REAL
+:   internal/chat.Service + REAL internal/stream.SSEWriter, mounted on the
+:   REAL NewRouter/auth-middleware HTTP path (RS256 JWKS-fixture auth, the
+:   same pattern internal/server/chat_route_test.go itself uses as real edge
+:   auth), POSTed one real turn through /api/ai/chat against the REAL
+:   LiteLLM backend (LITELLM_URL/LITELLM_API_KEY, the actual cluster
+:   secret). The chat store, page-permission check, and spend gate are
+:   in-memory fakes (same posture as the ENG-1450 capture); CitationSource
+:   is a controlled in-memory double supplying one deterministic citation
+:   (same fake-double category as Store/Perms/Spend — CitationSource is an
+:   optional injected port on chat.Service, not itself the true-external
+:   boundary; LiteLLM is the true-external boundary and is real here).
+:   Command:
 :     LITELLM_URL=... LITELLM_API_KEY=... CAPTURE_MODEL=gemini-3.1-flash-lite \
-:     CAPTURE_OUT_PATH=... go test -run TestCaptureRealSSE_ENG1450 -v \
+:     CAPTURE_OUT_PATH=... go test -run TestCaptureRealSSE_ENG1945 -v \
 :       ./internal/server/...
-: Model: gemini-3.1-flash-lite (gpt-4o-mini/gpt-5-nano/gpt-4.1-mini/o4-mini
-:   were all 429 rate-limited on the shared LiteLLM key at capture time —
-:   itself a real, reproducible finding, not fabricated).
+: Model: gemini-3.1-flash-lite.
 :
-: RESOLUTION (pass6-followup, 2026-07-10 — see
-: orvex-wiki scratchpad/pass6-followups/1359-ruling.md +
-: scratchpad/pass6-followups/1359-fix.md): the wire-contract mismatch this
-: note originally flagged is FIXED. Root cause per the ruling: no SSE frame
-: catalog was pinned in orvex-studio-contracts for this stream at all — both
-: legs built to their own un-pinned half of a stale fork and diverged as a
-: result. Fix: orvex-studio-contracts sse/AI-CHAT.md now PINS the real
-: producer vocabulary (chat_id/state/banner/token/citation/cap/error/
-: keepalive, completion = {"type":"state","state":"done"}) as the contract
-: of record, and types/ai-chat.types.ts + services/ai-chat-service.ts +
-: hooks/use-chat-stream.ts were rewritten to that pin (no more
-: chat_created/content/stream_state/reasoning/done{messageId,citations[]}).
-: This transcript needed NO re-capture — the producer's shape is unchanged;
-: only the consumer was realigned.
-:
-: REMAINING KNOWN GAP (does not block the wire-contract fix; blocks AC2
-: specifically): sse/AI-CHAT.md pins `citation` as a bare string and
-: documents, from a direct read of internal/chat/service.go, that RunChat
-: never constructs a FrameCitation frame at all — dead code, not a sampling
-: gap. No real transcript can carry a citation until a producer follow-up
-: wires the cited-ask core's citations into the chat loop. The citation
-: hover-card assertion in ai-chat-stream-renders.spec.tsx (AC2) therefore
-: cannot be proven against real traffic today; the citation-card/
-: citation-source-list rendering path is intact and dormant, not deleted.
-data: {"type":"chat_id","chatId":"capture-chat-1"}
+: RESOLVED (2026-07-10, ENG-1945 landed): the prior transcript's remaining
+: known gap — RunChat never constructing a FrameCitation frame for any
+: prompt (dead field) — is fixed on eng-1945-work. This transcript carries
+: a real `citation` frame (bare string, "Title — URL", per the ratified
+: sse/AI-CHAT.md pin), sourced from the controlled CitationSource double
+: described above (the real production wiring additionally requires a live
+: Knowledge service to retrieve real citations for a real question — out of
+: scope for this client-side capture; the WIRE SHAPE and FRAME ORDERING are
+: what this transcript proves, both of which come from real, tested
+: producer code). AC2's hover-card assertion (ai-chat-stream-renders.spec.tsx)
+: is proven against this transcript's citation frame.
+data: {"type":"chat_id","chatId":"route-chat-1"}
 
-data: {"type":"state","chatId":"capture-chat-1","state":"connecting"}
+data: {"type":"state","chatId":"route-chat-1","state":"connecting"}
 
-data: {"type":"banner","chatId":"capture-chat-1","model":"gemini-3.1-flash-lite","scope":"workspace","health":"unknown"}
+data: {"type":"banner","chatId":"route-chat-1","model":"gemini-3.1-flash-lite","scope":"workspace","health":"unknown"}
 
-data: {"type":"state","chatId":"capture-chat-1","state":"streaming"}
+data: {"type":"state","chatId":"route-chat-1","state":"streaming"}
 
-data: {"type":"token","token":"A message"}
+data: {"type":"token","token":"Hello!"}
 
-data: {"type":"token","token":" queue is a form of asynchronous service-to-service communication that allows different components of"}
+data: {"type":"token","token":" I am the Orvex AI chat assistant. I’d be happy to explain what"}
 
-data: {"type":"token","token":" an application to exchange data without needing to be active or connected at the same time. By decoupling the sender and the receiver"}
+data: {"type":"token","token":" a message queue is and how it functions.\n\n### What is a Message Queue?\n\nA **message queue** is a form"}
 
-data: {"type":"token","token":", the queue acts as a buffer that stores messages until the receiving component is ready to process them, effectively improving system scalability"}
+data: {"type":"token","token":" of asynchronous service-to-service communication used in serverless and microservices architectures. \n\nAt its core, it"}
 
-data: {"type":"token","token":" and reliability.\n\n```mermaid\ngraph TD\n    A[Producer] --> B[Message Queue]\n```"}
+data: {"type":"token","token":" is a buffer that sits between two or more components (services) of an application. Instead of Service A calling Service B directly (which requires"}
 
-data: {"type":"state","chatId":"capture-chat-1","state":"done"}
+data: {"type":"token","token":" both to be online and available at the exact same moment), Service A puts a \"message\" into the queue. Service"}
+
+data: {"type":"token","token":" B then picks up that message whenever it is ready to process it.\n\n#### Key Benefits:\n1.  **Dec"}
+
+data: {"type":"token","token":"oupling:** The sender and receiver don't need to know about each other's existence or state.\n2.  **"}
+
+data: {"type":"token","token":"Scalability:** You can add more \"consumers\" (receivers) to handle a spike in traffic without overwhelming the system"}
+
+data: {"type":"token","token":".\n3.  **Resilience:** If the receiver crashes, the messages stay safely in the queue until the receiver"}
+
+data: {"type":"token","token":" comes back online.\n4.  **Load Leveling:** It smooths out traffic spikes, preventing backend services from being overwhelmed during high"}
+
+data: {"type":"token","token":"-demand periods.\n\n---\n\n### How it Works (Mermaid Diagram)\n\nThe following diagram illustrates the flow: A"}
+
+data: {"type":"token","token":" **Producer** sends a message to the **Queue**, and the **Consumer** retrieves and processes it.\n\n```mermaid"}
+
+data: {"type":"token","token":"\ngraph LR\n    subgraph \"Messaging System\"\n        P[Producer Service] --\u003e Q[(Message Queue)]\n        "}
+
+data: {"type":"token","token":"Q --\u003e C[Consumer Service]\n    end\n\n    style Q fill:#f9f,stroke:#333,"}
+
+data: {"type":"token","token":"stroke-width:2px\n    style P fill:#bbf,stroke:#333\n    style C"}
+
+data: {"type":"token","token":" fill:#bbf,stroke:#333\n```\n\n### Common Use Cases:\n*   **Order Processing:** An"}
+
+data: {"type":"token","token":" e-commerce site places an order in a queue; a separate shipping service processes it later.\n*   **Email/"}
+
+data: {"type":"token","token":"Notification Sending:** An application triggers a \"Password Reset\" request; a notification service polls the queue to send the email."}
+
+data: {"type":"token","token":"\n*   **Log Processing:** Multiple services send logs to a queue, which a centralized log aggregator then collects and stores"}
+
+data: {"type":"token","token":".\n\n**Popular tools** used for message queuing include **RabbitMQ, Apache Kafka, Amazon SQS, and Redis.**\n\nDo you"}
+
+data: {"type":"token","token":" have any questions about specific queue implementations or how to choose the right one for your architecture?"}
+
+data: {"type":"citation","citation":"Architecture — /s/orvexwiki/p/architecture-abc123"}
+
+data: {"type":"cost","chatId":"route-chat-1"}
+
+data: {"type":"state","chatId":"route-chat-1","state":"done"}
+
