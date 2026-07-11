@@ -12,6 +12,13 @@ export const meta = {
 // honors a finalize agent's done=true self-report unless dodClean=true, §ENG-1479 fake-done)
 // + gate-dispatch pre-check routes a closing gate whose named DoD harness does not yet
 // exist to an AUTHORING build instead of an endless verify-only bounce (§ENG-1579/ENG-1581).
+// v11.1 (2026-07-12): anti-auto-close guard (P1_GUARD / marker "P1-guard"). Linear's GitHub
+// integration auto-flips a linked ticket to Done seconds after its branch/PR merges (branch-
+// name identifier linking, UI-only toggle; confirmed victims ENG-1405/ENG-1395, precedent
+// ENG-1375, pattern P1). Prompt-contract text now runs immediately after any merge/branch-PR
+// step in the build + gate stages: re-read live status, and if it flipped to Done without the
+// engine's own Done-gate making that transition, revert to In Progress ("reverting Linear
+// GitHub auto-close (pattern P1); Done is gate-owned") and continue the normal cycle.
 
 // ---- Constants -------------------------------------------------------------
 const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
@@ -87,6 +94,14 @@ const RETDISC = 'RETURN DISCIPLINE (an oversized return kills the run): return O
 // moved/deferred/sanctioned-TBD annotation (e.g. "moved to ENG-N (YYYY-MM-DD)", "deferred —
 // sanctioned TBD (YYYY-MM-DD)") — that exception, and only that exception, does not block.
 const BOXES_CLEAN = 'BOXES-CLEAN CHECK (binding, refuse-Done gate): re-inspect the body you just wrote. If the DoD gate line OR any AC checkbox is still "- [ ]" without a dated moved/deferred/sanctioned-TBD annotation, you MUST NOT advance to Done — set done=false, dodClean=false, list the unticked boxes in uncheckedBoxes[], comment on the issue naming them, and STOP before the status-flip step. Only flip to Done (and report dodClean=true) once every required box is ticked.'
+
+// P1-guard (anti-auto-close, pattern P1 in the fake-done-forensics ledger). Linear's GitHub
+// integration auto-flips a linked ticket to Done seconds after its branch/PR merges — via
+// branch-name identifier linking (e.g. eng-1405-work) on a UI-only toggle we cannot disable
+// here. Confirmed victims ENG-1405/ENG-1395; precedent ENG-1375. Done in this engine is
+// GATE-OWNED: only the deterministic Done gate's boxes-clean-gated status-flip may set Done.
+// Any Done we did not make ourselves is the integration's auto-close and must be reverted.
+const P1_GUARD = 'P1-guard (anti-auto-close, pattern P1 — Linear\'s GitHub integration auto-flips a linked ticket to Done seconds after its branch/PR merges via branch-name identifier linking, e.g. eng-<n>-work; UI-only toggle; confirmed victims ENG-1405/ENG-1395, precedent ENG-1375): immediately after ANY merge (and after opening/pushing the identifier-named branch/PR) re-read this ticket\'s LIVE status — linearis issues read ' + '<ENG-N>' + ' then refresh cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N>. If the status is now Done and THIS engine\'s Done-gate did NOT perform that transition (in the build/review/fix stages the gate has NOT run yet, so ANY Done here is the auto-close; in the gate stage a Done appearing BEFORE your own boxes-clean-gated (c) status-flip is the auto-close), revert it to In Progress via linearis with the one-line comment "reverting Linear GitHub auto-close (pattern P1); Done is gate-owned", refresh the ticket cache again, and CONTINUE the normal cycle — the legitimate Done happens only later at the gate\'s boxes-clean-gated flip. Never leave an engine-unauthored Done standing.'
 
 // ---- Schemas ---------------------------------------------------------------
 const FRONTIER_SCHEMA = {
@@ -261,6 +276,7 @@ async function deliverItem(item, seq) {
         '5. BASELINE-DIFF every gate failure (CRITICAL — do not attribute pre-existing breakage to your change): before treating any gate as red, re-run that SAME gate on a clean checkout of origin/<integration-branch> (git stash or a scratch clone). If it fails IDENTICALLY without your changes, it is PRE-EXISTING repo noise (e.g. make context-check CS-pin drift, lint:boundary parse errors) — record it in notes[], do NOT let it set green=false or blocked=true, and proceed. Only failures your diff actually introduced count against you.',
         '6. Commit green work only (trailer per doctrine). Push the branch (SSH url if HTTPS push is rejected: git push git@github.com:orvexai/<repo-name>.git <branch>). Open a PR to the integration branch via gh (title "' + item.eng + ': <short>", body references Part of ' + item.eng + ' — NEVER a closing keyword — and ends with the generated-with-Claude-Code footer).',
         '7. SEMANTICS (load-bearing — an earlier run wrongly parked green PRs by conflating these): green=true means your work is committed + pushed + PR opened + your own gates pass (pre-existing noise ignored per step 5)' + (item.isGate ? ' AND the named gate test(s) now exist and pass' : '') + '. blocked=true means you genuinely could NOT finish (missing infra/credential the run cannot self-provide, or the ticket premise assumes code that does not exist in this repo) — set escalate to the exact ask then. A non-blocking observation is NEVER a blocker: put it in notes[], leave blocked=false. If green=true and blocked=false the engine sends you to review — do not put "None"/"non-blocking" text in escalate, leave escalate empty.',
+        '8. ' + P1_GUARD.replace(/<ENG-N>/g, item.eng),
       ].join('\n'),
       DOCTRINE, LNR, RETDISC,
       'Full build log -> ' + RDIR + '/' + item.eng + '-build.md.',
@@ -315,6 +331,7 @@ async function deliverItem(item, seq) {
         : [
           'Steps IN ORDER — abort (done=false + escalate) if any hard step fails:',
           '(a) Merge the PR via gh (respect branch protection; if checks are pending, wait up to 10 minutes polling gh pr checks; if a conflict: rebase the branch once, re-push, retry merge once).',
+          '(a2) ' + P1_GUARD.replace(/<ENG-N>/g, item.eng),
           '(b) Tick the DoD checkboxes on ' + item.eng + ' ONLY for the ACs the review verified (' + JSON.stringify(review.verifiedAcs || []) + '): LIVE full-body read immediately before the replace (clobber safety — the ONLY sanctioned pre-write live read) -> flip exactly those boxes -> temp-file write. NEVER blanket-tick.',
           '(b2) ' + BOXES_CLEAN,
           '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked AND boxes-clean check passed).',
