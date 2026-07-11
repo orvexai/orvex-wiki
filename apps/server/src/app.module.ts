@@ -37,6 +37,7 @@ import { OrvexPageVisualsModule } from './orvex/page-visuals/orvex-page-visuals.
 import { OrvexTransclusionSafeguardModule } from './orvex/transclusion-safeguard/orvex-transclusion-safeguard.module';
 import { OrvexEventsModule } from './orvex/events/orvex-events.module';
 import { OrvexMigratorModule } from './orvex/extensions/orvex-migrator.module';
+import { InternalApiModule } from './core/internal-api/internal-api.module';
 
 const enterpriseModules = [];
 try {
@@ -92,6 +93,13 @@ try {
     HealthModule,
     ImportModule,
     ExportModule,
+    // ENG-1957 — the engine-internal `/internal/*` HTTP surface (ACL
+    // filter / page export / page resolve / AI-search settings). Mounted
+    // unconditionally (not gated behind ORVEX_MODULES_ENABLED) — its own
+    // InternalApiAuthGuard is fail-closed by default (denies until
+    // INTERNAL_API_BEARER_TOKEN is configured), so mounting it costs
+    // nothing when unused.
+    InternalApiModule,
     StorageModule.forRootAsync({
       imports: [EnvironmentModule],
     }),

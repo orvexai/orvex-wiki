@@ -7,5 +7,9 @@ import { StorageModule } from '../storage/storage.module';
   imports: [StorageModule],
   providers: [ExportService],
   controllers: [ExportController],
+  // ENG-1957 — InternalApiModule composes ExportService for the
+  // `/internal/pages/{id}/export` route; must be exported to be injectable
+  // outside this module.
+  exports: [ExportService],
 })
 export class ExportModule {}

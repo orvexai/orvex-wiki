@@ -12,6 +12,12 @@ export const UPSTREAM_GLOBAL_PREFIX_EXCLUDE: readonly string[] = [
   // the /api prefix (own fail-closed CIDR/bearer authz, not the app's).
   // Fixed, not env-overridable, like the other upstream exclusions above.
   'metrics',
+  // 'internal/(.*)' — ENG-1957 AC5: the engine-internal ACL/export/
+  // resolve/ai-search surface stays OUTSIDE the /api prefix (own
+  // fail-closed bearer authz via InternalApiAuthGuard, never the
+  // public/tenant-facing session auth). Fixed, not env-overridable, same
+  // posture as 'metrics' above.
+  'internal/(.*)',
 ];
 
 /**
