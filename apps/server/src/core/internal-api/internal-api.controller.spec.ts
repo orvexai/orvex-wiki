@@ -5,13 +5,15 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, ValidationPipe } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { TransformHttpResponseInterceptor } from '../../common/interceptors/http-response.interceptor';
 import { KyselyModule } from 'nestjs-kysely';
 import {
   CamelCasePlugin,
@@ -32,6 +34,7 @@ import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import SpaceAbilityFactory from '../casl/abilities/space-ability.factory';
 import { PageAccessService } from '../page/page-access/page-access.service';
@@ -45,19 +48,32 @@ import { UserRole, SpaceRole } from '../../common/helpers/types/permission';
 import type { DB } from '@docmost/db/types/db';
 
 /**
- * TestInternalACLExportResolveAISearchSurface (ENG-1957 AC6) — the named
- * binary DoD gate. Full black-box HTTP contract for all four
- * `/internal/*` routes, driven through the real Nest module + a real
- * Kysely on a testcontainers Postgres, exercising the REAL
- * `PageAccessService`/`SpaceAbilityFactory`/`PagePermissionRepo`
- * authorization primitives (CS §11 ALL-REAL, §5 mock-only-true-externals —
- * nothing here is mocked; `StorageService` is a no-op double because no
- * test exercises `includeAttachments`, the one leg that would reach it).
+ * TestInternalACLExportResolveAISearchSurface (ENG-1957 AC6; ENG-1559
+ * principal-resolution) — the named binary DoD gate. Full black-box HTTP
+ * contract for all four `/internal/*` routes, driven through the real Nest
+ * module + a real Kysely on a testcontainers Postgres, exercising the REAL
+ * `PageAccessService`/`SpaceAbilityFactory`/`PagePermissionRepo` authorization
+ * primitives AND the REAL `auth_accounts` subject->user resolution (CS §11
+ * ALL-REAL, §5 mock-only-true-externals — nothing here is mocked;
+ * `StorageService` is a no-op double because no test exercises
+ * `includeAttachments`, the one leg that would reach it).
+ *
+ * RULED CONTRACT (ENG-1559, fork (a)): the wire surface is the IdP-agnostic
+ * principal — `{subject, tenant, page_ids}` on `acl/filter`, `?tenant=` on the
+ * workspace-scoped reads — resolved server-side. `subject` -> user via
+ * `auth_accounts`; `tenant` IS the workspace UUID. `export`/`resolve` are the
+ * workspace-scoped indexer plane (no per-user ACL; tenant isolation preserved).
  */
 describe('TestInternalACLExportResolveAISearchSurface', () => {
   jest.setTimeout(120_000);
 
   const BEARER_TOKEN = 'eng-1957-test-internal-bearer-token';
+
+  // IdP subjects (opaque provider `sub`), linked to users via auth_accounts.
+  const SUBJECT_MEMBER = 'idp-subject-member';
+  const SUBJECT_READER = 'idp-subject-reader';
+  const SUBJECT_OUTSIDER = 'idp-subject-outsider';
+  const SUBJECT_UNLINKED = 'idp-subject-unlinked'; // no auth_accounts row
 
   let pgContainer: StartedPostgreSqlContainer;
   let sqlClient: ReturnType<typeof postgres>;
@@ -110,6 +126,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         SpaceMemberRepo,
         GroupRepo,
         WorkspaceRepo,
+        UserRepo,
         PagePermissionRepo,
         SpaceAbilityFactory,
         PageAccessService,
@@ -133,10 +150,10 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
           provide: StorageService,
           useValue: { read: async () => Buffer.from('') },
         },
-        // ExportModule's ExportController (unused by this test, but
-        // pulled in transitively via InternalApiModule's `imports:
-        // [ExportModule]`) needs AUDIT_SERVICE — a no-op double is
-        // correct here since no test exercises that controller.
+        // ExportModule's ExportController (unused by this test, but pulled in
+        // transitively via InternalApiModule's `imports: [ExportModule]`)
+        // needs AUDIT_SERVICE — a no-op double is correct here since no test
+        // exercises that controller.
         { provide: AUDIT_SERVICE, useValue: { log: () => {} } },
       ],
       exports: [
@@ -145,6 +162,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         SpaceMemberRepo,
         GroupRepo,
         WorkspaceRepo,
+        UserRepo,
         PagePermissionRepo,
         SpaceAbilityFactory,
         PageAccessService,
@@ -175,6 +193,25 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
 
     app = built.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
+    );
+    // Mirror production's global pipe (main.ts) so the DTO contract — tenant
+    // IsUUID, subject a plain string, page_ids each UUID — is enforced here
+    // exactly as it is live (a non-UUID tenant -> 400, never a raw 500).
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        stopAtFirstError: true,
+        transform: true,
+      }),
+    );
+    // Mirror production's global response interceptor (main.ts) so the harness
+    // proves the ACTUAL wire body the consumer decodes. Every /internal/*
+    // handler must opt out of the {data,success,status} envelope via
+    // @SkipTransform — without it the consumer decodes {allowed}/{text_repr}/…
+    // off {data:{…}} and gets empty (fail-closed for the whole seam). With the
+    // interceptor live here, that regression would fail these bare-shape asserts.
+    app.useGlobalInterceptors(
+      new TransformHttpResponseInterceptor(app.get(Reflector)),
     );
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
@@ -226,6 +263,18 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       .executeTakeFirstOrThrow();
     outsiderId = outsider.id;
 
+    // Subject->user SSO linkage (the ruled engine-side resolution seam). A real
+    // Clerk/OIDC login writes exactly these rows at provisioning time; the gate
+    // seeds them so the engine can resolve the IdP subject internally.
+    await seedDb
+      .insertInto('authAccounts')
+      .values([
+        { userId: memberId, providerUserId: SUBJECT_MEMBER, workspaceId },
+        { userId: readerId, providerUserId: SUBJECT_READER, workspaceId },
+        { userId: outsiderId, providerUserId: SUBJECT_OUTSIDER, workspaceId },
+      ])
+      .execute();
+
     const space = await seedDb
       .insertInto('spaces')
       .values({ name: 'Space', slug: 'space', workspaceId })
@@ -235,8 +284,8 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
 
     // outsiderId is deliberately NOT added as a space member (AC1's
     // "not-a-space-member" leg); readerId IS a space member but holds no
-    // page-level grant on restricted pages (AC2/AC3's "authenticated
-    // space member, still forbidden by page ACL" leg).
+    // page-level grant on restricted pages (AC1's "authenticated space member,
+    // still forbidden by page ACL" leg).
     await seedDb
       .insertInto('spaceMembers')
       .values([
@@ -301,13 +350,17 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
     return pageAccess.id as string;
   }
 
-  describe('AC1 — POST /internal/acl/filter', () => {
+  describe('AC1 — POST /internal/acl/filter ({subject,tenant,page_ids} -> {allowed})', () => {
     it('denies (401) with no/invalid bearer', async () => {
       const pageId = await seedPage({ title: 'AC1 page' });
       const res = await app.inject({
         method: 'POST',
         url: '/internal/acl/filter',
-        payload: { workspaceId, userId: memberId, pageIds: [pageId] },
+        payload: {
+          subject: SUBJECT_MEMBER,
+          tenant: workspaceId,
+          page_ids: [pageId],
+        },
       });
       expect(res.statusCode).toBe(401);
 
@@ -315,32 +368,36 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         method: 'POST',
         url: '/internal/acl/filter',
         headers: authHeaders('wrong-token'),
-        payload: { workspaceId, userId: memberId, pageIds: [pageId] },
+        payload: {
+          subject: SUBJECT_MEMBER,
+          tenant: workspaceId,
+          page_ids: [pageId],
+        },
       });
       expect(resBadToken.statusCode).toBe(401);
     });
 
-    it('returns exactly the readable subset — unrestricted page readable, restricted page excluded for a non-permitted user', async () => {
+    it('resolves the subject and returns exactly the readable subset — unrestricted readable, restricted excluded for a non-permitted user', async () => {
       const openPageId = await seedPage({ title: 'AC1 open page' });
       const restrictedPageId = await seedPage({ title: 'AC1 restricted page' });
       await restrictPage(restrictedPageId);
-      // memberId has NO explicit grant on the restricted page's pageAccess
-      // row, so it is excluded even though they're a space writer.
+      // memberId has NO explicit grant on the restricted page's pageAccess row,
+      // so it is excluded even though they are a space writer.
 
       const res = await app.inject({
         method: 'POST',
         url: '/internal/acl/filter',
         headers: authHeaders(),
         payload: {
-          workspaceId,
-          userId: memberId,
-          pageIds: [openPageId, restrictedPageId],
+          subject: SUBJECT_MEMBER,
+          tenant: workspaceId,
+          page_ids: [openPageId, restrictedPageId],
         },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.pageIds).toEqual([openPageId]);
+      expect(body.allowed).toEqual([openPageId]);
     });
 
     it('excludes pages from a foreign workspace (tenant isolation)', async () => {
@@ -361,40 +418,75 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         url: '/internal/acl/filter',
         headers: authHeaders(),
         payload: {
-          workspaceId,
-          userId: memberId,
-          pageIds: [otherWsPage.id],
+          subject: SUBJECT_MEMBER,
+          tenant: workspaceId,
+          page_ids: [otherWsPage.id],
         },
       });
 
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body).pageIds).toEqual([]);
+      expect(JSON.parse(res.body).allowed).toEqual([]);
     });
 
-    it('excludes every page for a user who is not a space member', async () => {
+    it('excludes every page for a resolved user who is not a space member', async () => {
       const pageId = await seedPage({ title: 'AC1 non-member page' });
       const res = await app.inject({
         method: 'POST',
         url: '/internal/acl/filter',
         headers: authHeaders(),
-        payload: { workspaceId, userId: outsiderId, pageIds: [pageId] },
+        payload: {
+          subject: SUBJECT_OUTSIDER,
+          tenant: workspaceId,
+          page_ids: [pageId],
+        },
       });
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body).pageIds).toEqual([]);
+      expect(JSON.parse(res.body).allowed).toEqual([]);
+    });
+
+    it('fails closed (empty allow-set) for a subject with no auth_accounts linkage in the tenant', async () => {
+      const pageId = await seedPage({ title: 'AC1 unlinked-subject page' });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/acl/filter',
+        headers: authHeaders(),
+        payload: {
+          subject: SUBJECT_UNLINKED,
+          tenant: workspaceId,
+          page_ids: [pageId],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).allowed).toEqual([]);
+    });
+
+    it('rejects a non-UUID tenant (400) — tenant IS the workspace UUID', async () => {
+      const pageId = await seedPage({ title: 'AC1 bad-tenant page' });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/acl/filter',
+        headers: authHeaders(),
+        payload: {
+          subject: SUBJECT_MEMBER,
+          tenant: 'not-a-uuid',
+          page_ids: [pageId],
+        },
+      });
+      expect(res.statusCode).toBe(400);
     });
   });
 
-  describe('AC2 — GET /internal/pages/{id}/export', () => {
+  describe('AC2 — GET /internal/pages/{id}/export?tenant= -> {text_repr}', () => {
     it('denies (401) with no bearer', async () => {
       const pageId = await seedPage({ title: 'AC2 page', content: 'hello' });
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/pages/${pageId}/export?workspaceId=${workspaceId}&userId=${memberId}`,
+        url: `/internal/pages/${pageId}/export?tenant=${workspaceId}`,
       });
       expect(res.statusCode).toBe(401);
     });
 
-    it('returns canonical content with a non-text/html Content-Type for an authorized caller', async () => {
+    it('returns {text_repr} (non-text/html) with the page content for the indexer plane', async () => {
       const pageId = await seedPage({
         title: 'AC2 exported page',
         content: 'exported body text',
@@ -402,97 +494,128 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
 
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/pages/${pageId}/export?workspaceId=${workspaceId}&userId=${memberId}`,
+        url: `/internal/pages/${pageId}/export?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
 
       expect(res.statusCode).toBe(200);
       expect(res.headers['content-type']).not.toMatch(/text\/html/);
-      expect(res.body).toContain('AC2 exported page');
-      expect(res.body).toContain('exported body text');
+      const body = JSON.parse(res.body);
+      expect(typeof body.text_repr).toBe('string');
+      expect(body.text_repr).toContain('AC2 exported page');
+      expect(body.text_repr).toContain('exported body text');
+    });
+
+    it('is workspace-scoped: a restricted page still exports (per-user ACL is at query egress, not the indexer plane)', async () => {
+      const pageId = await seedPage({
+        title: 'AC2 restricted page',
+        content: 'restricted body indexed for permitted users',
+      });
+      await restrictPage(pageId);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/internal/pages/${pageId}/export?tenant=${workspaceId}`,
+        headers: authHeaders(),
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).text_repr).toContain(
+        'restricted body indexed for permitted users',
+      );
     });
 
     it('returns a typed 404 for an absent page id', async () => {
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/pages/00000000-0000-4000-8000-000000000000/export?workspaceId=${workspaceId}&userId=${memberId}`,
+        url: `/internal/pages/00000000-0000-4000-8000-000000000000/export?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
       expect(res.statusCode).toBe(404);
     });
 
-    it('returns a typed 403 for a space member with no page-level grant on a restricted page', async () => {
-      const pageId = await seedPage({ title: 'AC2 forbidden page' });
-      await restrictPage(pageId);
+    it('returns a typed 404 for a page in a foreign tenant (tenant isolation)', async () => {
+      const foreign = await seedDb
+        .insertInto('pages')
+        .values({
+          slugId: 'ac2-foreign-page',
+          title: 'AC2 foreign page',
+          spaceId,
+          workspaceId: otherWorkspaceId,
+          creatorId: memberId,
+        })
+        .returning(['id'])
+        .executeTakeFirstOrThrow();
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/pages/${pageId}/export?workspaceId=${workspaceId}&userId=${readerId}`,
+        url: `/internal/pages/${foreign.id}/export?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(404);
     });
   });
 
-  describe('AC3 — GET /internal/pages/{id}/resolve', () => {
-    it('returns page/space/tenant/ACL metadata sufficient for an admission decision', async () => {
-      const pageId = await seedPage({ title: 'AC3 page' });
+  describe('AC3 — GET /internal/pages/{id}/resolve?tenant= -> {title, content}', () => {
+    it('returns the page title + raw ProseMirror document', async () => {
+      const pageId = await seedPage({
+        title: 'AC3 page',
+        content: 'resolve body text',
+      });
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/pages/${pageId}/resolve?workspaceId=${workspaceId}&userId=${memberId}`,
+        url: `/internal/pages/${pageId}/resolve?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toEqual({
-        pageId,
-        spaceId,
-        spaceSlug: 'space',
-        workspaceId,
-        canEdit: true,
-        hasRestriction: false,
-      });
+      expect(body.title).toBe('AC3 page');
+      expect(body.content).toMatchObject({ type: 'doc' });
+      expect(JSON.stringify(body.content)).toContain('resolve body text');
     });
 
-    it('denies (403) resolving a restricted page the caller has no page-level grant on', async () => {
-      const pageId = await seedPage({ title: 'AC3 forbidden page' });
-      await restrictPage(pageId);
+    it('returns a typed 404 for a page in a foreign tenant (tenant isolation)', async () => {
+      const foreign = await seedDb
+        .insertInto('pages')
+        .values({
+          slugId: 'ac3-foreign-page',
+          title: 'AC3 foreign page',
+          spaceId,
+          workspaceId: otherWorkspaceId,
+          creatorId: memberId,
+        })
+        .returning(['id'])
+        .executeTakeFirstOrThrow();
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/pages/${pageId}/resolve?workspaceId=${workspaceId}&userId=${readerId}`,
+        url: `/internal/pages/${foreign.id}/resolve?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(404);
     });
   });
 
-  describe('AC4 — GET /internal/settings/ai-search', () => {
+  describe('AC4 — GET /internal/settings/ai-search?tenant= -> {enabled}', () => {
     it('returns the workspace AI-search opt-in flag', async () => {
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/settings/ai-search?workspaceId=${workspaceId}`,
+        url: `/internal/settings/ai-search?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
 
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body)).toEqual({
-        workspaceId,
-        aiSearchEnabled: true,
-      });
+      expect(JSON.parse(res.body)).toEqual({ enabled: true });
     });
 
     it('returns false for a workspace with no ai settings configured', async () => {
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/settings/ai-search?workspaceId=${otherWorkspaceId}`,
+        url: `/internal/settings/ai-search?tenant=${otherWorkspaceId}`,
         headers: authHeaders(),
       });
 
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.body)).toEqual({
-        workspaceId: otherWorkspaceId,
-        aiSearchEnabled: false,
-      });
+      expect(JSON.parse(res.body)).toEqual({ enabled: false });
     });
   });
 
@@ -500,12 +623,12 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
     it('the route is registered outside /api (no /api prefix applied in this harness reflects prod exclude config)', async () => {
       // Prod-parity is asserted structurally by
       // orvex-global-prefix-exclude.spec.ts's UPSTREAM_GLOBAL_PREFIX_EXCLUDE
-      // coverage of 'internal/(.*)' — this harness (no global prefix
-      // applied) confirms the routes exist at the bare `/internal/*` path
-      // this exclude pattern targets.
+      // coverage of 'internal/(.*)' — this harness (no global prefix applied)
+      // confirms the routes exist at the bare `/internal/*` path this exclude
+      // pattern targets.
       const res = await app.inject({
         method: 'GET',
-        url: `/internal/settings/ai-search?workspaceId=${workspaceId}`,
+        url: `/internal/settings/ai-search?tenant=${workspaceId}`,
         headers: authHeaders(),
       });
       expect(res.statusCode).toBe(200);
