@@ -110,7 +110,7 @@ patches:
         path: /data/ORVEX_AI_URL
         value: https://ai.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
-        path: /data/ORVEX_BILLING_URL
+        path: /data/ORVEX_BILLING_API_URL
         value: https://billing.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_MCP_URL
@@ -184,7 +184,7 @@ replacements:
           - data.ORVEX_IDENTITY_URL
           - data.ORVEX_KNOWLEDGE_URL
           - data.ORVEX_AI_URL
-          - data.ORVEX_BILLING_URL
+          - data.ORVEX_BILLING_API_URL
           - data.ORVEX_MCP_URL
           - data.ORVEX_CONSOLE_URL
           - data.ORVEX_WIKI_API_URL
