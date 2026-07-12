@@ -1,7 +1,7 @@
 import type { ExecutionContext } from '@nestjs/common';
 import { ThrottlerGuard, type ThrottlerRequest } from '@nestjs/throttler';
 import { WorkspaceThrottlerGuard } from './workspace-throttler.guard';
-import { AI_CHAT_THROTTLER, MCP_TOOL_THROTTLER } from '../orvex-throttler-names';
+import { AI_CHAT_THROTTLER } from '../orvex-throttler-names';
 
 /**
  * Narrow spy target used ONLY to type `jest.spyOn(ThrottlerGuard.prototype, ...)`
@@ -90,13 +90,13 @@ describe('WorkspaceThrottlerGuard', () => {
         .spyOn(ThrottlerGuard.prototype as unknown as SpyableGuard, 'handleRequest')
         .mockResolvedValue(true);
 
-      const req = { user: { workspace: { settings: { mcp: { throttle: { toolRpm: 5 } } } } } };
+      const req = { user: { workspace: { settings: { ai: { throttle: { chatRpm: 5 } } } } } };
       const context = fakeContext(req, { header: jest.fn() });
       const requestProps = {
         context,
-        limit: 120,
+        limit: 180,
         ttl: 60_000,
-        throttler: { name: MCP_TOOL_THROTTLER, limit: 120, ttl: 60_000 },
+        throttler: { name: AI_CHAT_THROTTLER, limit: 180, ttl: 60_000 },
         blockDuration: 60_000,
         getTracker: jest.fn(),
         generateKey: jest.fn(),

@@ -24,7 +24,6 @@ export interface IWorkspace {
   aiSearch?: boolean;
   generativeAi?: boolean;
   disablePublicSharing?: boolean;
-  mcpEnabled?: boolean;
   trashRetentionDays?: number;
   restrictApiToAdmins?: boolean;
   allowMemberTemplates?: boolean;
@@ -49,7 +48,6 @@ export interface IWorkspaceApiSettings {
 export interface IWorkspaceAiSettings {
   search?: boolean;
   generative?: boolean;
-  mcp?: boolean;
   chat?: boolean;
 }
 

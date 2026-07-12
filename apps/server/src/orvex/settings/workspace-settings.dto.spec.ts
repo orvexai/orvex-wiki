@@ -8,9 +8,9 @@ import { OrvexWorkspaceSettings } from './workspace-settings.dto';
  * ENG-1432 AC5, AC6, and the binding Linear-scrub exclusion (§1/§5c).
  */
 describe('OrvexWorkspaceSettings', () => {
-  it('AC5 — rejects a non-boolean mcp.enabled with a constraint on the property chain', async () => {
+  it('AC5 — rejects a non-boolean oidc.enabled with a constraint on the property chain', async () => {
     const dto = plainToInstance(OrvexWorkspaceSettings, {
-      mcp: { enabled: 'yes' },
+      oidc: { enabled: 'yes' },
     });
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);

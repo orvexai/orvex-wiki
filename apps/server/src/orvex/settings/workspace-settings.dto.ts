@@ -57,12 +57,6 @@ export class OrvexAiSettings {
   chatHistoryTtlDays?: 'never' | number;
 }
 
-export class OrvexMcpSettings {
-  @IsOptional()
-  @IsBoolean()
-  enabled?: boolean;
-}
-
 export class OrvexOidcSettings {
   @IsOptional()
   @IsBoolean()
@@ -94,11 +88,6 @@ export class OrvexWorkspaceSettings {
   @ValidateNested()
   @Type(() => OrvexAiSettings)
   ai?: OrvexAiSettings;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => OrvexMcpSettings)
-  mcp?: OrvexMcpSettings;
 
   @IsOptional()
   @ValidateNested()

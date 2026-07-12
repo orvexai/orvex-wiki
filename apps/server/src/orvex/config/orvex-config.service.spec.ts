@@ -135,15 +135,15 @@ describe('OrvexConfigService', () => {
   });
 
   describe('ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4)', () => {
-    it('defaults to mcp + health/orvex when unset', () => {
-      expect(svc({}).globalPrefixExclude).toEqual(['mcp', 'health/orvex']);
+    it('defaults to health/orvex when unset', () => {
+      expect(svc({}).globalPrefixExclude).toEqual(['health/orvex']);
     });
 
     it('reads a comma-separated override, trimmed', () => {
       expect(
-        svc({ ORVEX_GLOBAL_PREFIX_EXCLUDE: ' mcp, metrics ,health/orvex ' })
+        svc({ ORVEX_GLOBAL_PREFIX_EXCLUDE: ' foo, metrics ,health/orvex ' })
           .globalPrefixExclude,
-      ).toEqual(['mcp', 'metrics', 'health/orvex']);
+      ).toEqual(['foo', 'metrics', 'health/orvex']);
     });
   });
 });

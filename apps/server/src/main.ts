@@ -51,7 +51,7 @@ async function bootstrap() {
   app.useLogger(app.get(PinoLogger));
 
   // ENG-1604 AC8.4 — env-driven (ORVEX_GLOBAL_PREFIX_EXCLUDE), defaults to
-  // the upstream exclusions + mcp + health/orvex.
+  // the upstream exclusions + health/orvex.
   app.setGlobalPrefix('api', {
     exclude: resolveGlobalPrefixExclude(),
   });

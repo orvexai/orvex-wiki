@@ -1,7 +1,6 @@
 import { lookupConfig, resolveLimit } from './throttler-configs';
 import {
   AI_CHAT_THROTTLER,
-  MCP_TOOL_THROTTLER,
   USER_EXPORT_THROTTLER,
 } from '../orvex-throttler-names';
 
@@ -39,13 +38,6 @@ describe('throttler-configs', () => {
   it('AC11 — resolveLimit resolves the default when workspace settings are undefined (no throw)', () => {
     expect(() => resolveLimit(AI_CHAT_THROTTLER, undefined)).not.toThrow();
     expect(resolveLimit(AI_CHAT_THROTTLER, undefined)).toBe(180);
-  });
-
-  it('a different config resolves its own default + override path independently', () => {
-    expect(resolveLimit(MCP_TOOL_THROTTLER, null)).toBe(120);
-    expect(
-      resolveLimit(MCP_TOOL_THROTTLER, { mcp: { throttle: { toolRpm: 5 } } }),
-    ).toBe(5);
   });
 
   it('a ratified ceiling (user_export) has no override path — always the default', () => {
