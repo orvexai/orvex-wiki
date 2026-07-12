@@ -96,7 +96,7 @@ patches:
         path: /data/ORVEX_AI_URL
         value: http://orvex-studio-ai.orvex-studio-ai-dev.svc.cluster.local
       - op: replace
-        path: /data/ORVEX_BILLING_URL
+        path: /data/ORVEX_BILLING_API_URL
         value: http://orvex-studio-billing.orvex-studio-billing-dev.svc.cluster.local
       - op: replace
         path: /data/ORVEX_MCP_URL

@@ -69,7 +69,13 @@ data:
   ORVEX_IDENTITY_URL: "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local"
   ORVEX_KNOWLEDGE_URL: "http://orvex-studio-knowledge.orvex-studio-knowledge.svc.cluster.local"
   ORVEX_AI_URL: "http://orvex-studio-ai.orvex-studio-ai.svc.cluster.local"
-  ORVEX_BILLING_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
+  # Billing keys off the seam pattern deliberately: the live consumer is the
+  # EntitlementModule's HttpBillingEntitlementPort, which reads ORVEX_BILLING_API_URL
+  # (ENG-1382; environment.service.ts getBillingApiUrl) — so this base URL (billing's
+  # /v1/entitlements host) is carried under that exact key, never ..._URL. Renamed
+  # from the former dead ORVEX_BILLING_URL scaffold (no code ever read it) at the
+  # ENG-1559 M5 billing-wire close — a single live key, no fallback.
+  ORVEX_BILLING_API_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
   ORVEX_MCP_URL: "http://orvex-studio-mcp.orvex-studio-mcp.svc.cluster.local"
   ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
   ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"
