@@ -31,6 +31,16 @@ export const meta = {
 // (4) refuses Done unless boxesUnticked==0 or every remaining "- [ ]" carries a dated
 // moved/deferred/sanctioned-TBD annotation (the existing exemption class). Code-side guard now
 // also refuses a done=true whose uncheckedBoxes[] (blocking-only) is non-empty.
+// v11.3 (2026-07-12): P2-census guard over-refusal fix (marker "P2-census"). ENG-1395 hit a
+// FALSE refusal at census 43/44: the gate agent correctly listed the sole unticked box in
+// uncheckedBoxes[] as transparency/audit context even though its own entry text named it
+// dated-exempt ("5c SSE-fixture-provenance box: dated-exempt, deferred to ENG-1415
+// (2026-07-12)") — but the code-side guard counted ANY non-empty uncheckedBoxes[] as blocking,
+// refusing Done despite the box being in the sanctioned dated-exemption class the prompt
+// contract itself already recognizes. Fix: gateBlockingBoxes now excludes uncheckedBoxes[]
+// entries that carry a dated moved/deferred/sanctioned-TBD/exempt annotation (regex: an
+// ISO date plus one of those keywords, either order) — only genuinely-unannotated boxes still
+// block. The census counts/reporting are unchanged; only the refusal logic was over-strict.
 
 // ---- Constants -------------------------------------------------------------
 const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
@@ -364,7 +374,12 @@ async function deliverItem(item, seq) {
       'Gate log -> ' + RDIR + '/' + item.eng + '-gate.md.',
     ].join('\n'), { model: 'sonnet', effort: 'medium', label: '#' + seq + ':gate:' + item.eng, phase: T, schema: GATE_SCHEMA }))
 
-    const gateBlockingBoxes = (gate && Array.isArray(gate.uncheckedBoxes)) ? gate.uncheckedBoxes.length : 0
+    // P2-census: a dated moved/deferred/sanctioned-TBD/exempt annotation on an uncheckedBoxes[]
+    // entry (the sole exemption class) makes that entry NON-blocking — v11.3 fix, §ENG-1395.
+    const DATED_EXEMPT_RE = /(\d{4}-\d{2}-\d{2}).{0,80}\b(deferred|moved|exempt|sanctioned-tbd)\b|\b(deferred|moved|exempt|sanctioned-tbd)\b.{0,80}(\d{4}-\d{2}-\d{2})/i
+    const gateBlockingBoxes = (gate && Array.isArray(gate.uncheckedBoxes))
+      ? gate.uncheckedBoxes.filter((b) => !DATED_EXEMPT_RE.test(String(b))).length
+      : 0
     if (gate && gate.done && (gate.dodClean !== true || gateBlockingBoxes > 0)) {
       // Code-side Done-gate guard (§ENG-1479 fake-done + §P2-census ENG-1395 second false-Done):
       // never honor a finalize agent's done=true self-report when its OWN full-body read (dodClean)
