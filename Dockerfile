@@ -32,6 +32,8 @@ COPY --from=builder /app/packages/base-formula/dist /app/packages/base-formula/d
 COPY --from=builder /app/packages/base-formula/package.json /app/packages/base-formula/package.json
 COPY --from=builder /app/packages/@orvex/extensions/dist /app/packages/@orvex/extensions/dist
 COPY --from=builder /app/packages/@orvex/extensions/package.json /app/packages/@orvex/extensions/package.json
+COPY --from=builder /app/packages/@orvex/dfm/dist /app/packages/@orvex/dfm/dist
+COPY --from=builder /app/packages/@orvex/dfm/package.json /app/packages/@orvex/dfm/package.json
 
 # Copy root package files
 COPY --from=builder /app/package.json /app/package.json
