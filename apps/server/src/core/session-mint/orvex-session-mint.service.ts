@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { isUserDisabled } from '../../common/helpers';
-import { SessionService } from '../../core/session/session.service';
+import { SessionService } from '../session/session.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import {
   AUDIT_SERVICE,

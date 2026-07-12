@@ -4,8 +4,8 @@
 
 import { Module, Provider } from '@nestjs/common';
 
-import { OrvexConfigModule } from '../config/orvex-config.module';
-import { OrvexConfigService } from '../config/orvex-config.service';
+import { OrvexConfigModule } from '../../orvex/config/orvex-config.module';
+import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 import { OrvexSessionExchangeController } from './orvex-session-exchange.controller';
 import { OrvexSessionMintService } from './orvex-session-mint.service';
 import {

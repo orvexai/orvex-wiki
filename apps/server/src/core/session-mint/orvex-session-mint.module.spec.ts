@@ -5,7 +5,7 @@
 import { Global, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
-import { SessionService } from '../../core/session/session.service';
+import { SessionService } from '../session/session.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { OrvexSessionMintModule } from './orvex-session-mint.module';

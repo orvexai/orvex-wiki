@@ -6,9 +6,9 @@ import { Body, Controller, HttpCode, HttpStatus, Post, Res } from '@nestjs/commo
 import { FastifyReply } from 'fastify';
 
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { setAuthCookie } from '../../core/auth/auth-cookie.helper';
+import { setAuthCookie } from '../auth/auth-cookie.helper';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
-import { SessionExchangeRequestDto } from '../http/dto/session-exchange.dto';
+import { SessionExchangeRequestDto } from '../../orvex/http/dto/session-exchange.dto';
 import { OrvexSessionMintService } from './orvex-session-mint.service';
 
 /**

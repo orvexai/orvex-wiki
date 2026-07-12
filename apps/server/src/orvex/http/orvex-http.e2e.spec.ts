@@ -106,11 +106,12 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
   // FR-W6 — `orvexSessionExchange` (`POST /api/orvex/session/exchange`) is no
   // longer part of this DB-less flag-e2e harness: it stopped being a 501 stub.
   // The REAL session-mint needs `UserRepo`/`SessionService` (DB), so — the same
-  // carve-out as `orvexApplyOps` above — it moved to the DB-backed,
-  // unconditionally-mounted `OrvexSessionMintModule`. Its own DoD tests (verify
-  // → resolve → mint, all deny-by-default) live at
-  // `session-mint/orvex-session-mint.service.spec.ts` and
-  // `session-mint/identity-introspector.spec.ts`. The former ENG-1490 AC4
+  // carve-out as `orvexApplyOps` above (and the A-BOUNDARY fence forbids orvex/*
+  // importing @docmost/*) — it moved to the DB-backed, unconditionally-mounted
+  // `OrvexSessionMintModule` under core. Its own DoD tests (verify → resolve →
+  // mint, all deny-by-default) live at
+  // `core/session-mint/orvex-session-mint.service.spec.ts` and
+  // `core/session-mint/identity-introspector.spec.ts`. The former ENG-1490 AC4
   // regression (native-login guard must not touch the session-mint path) is now
   // STRUCTURALLY guaranteed rather than asserted: the mint controller lives in a
   // module that never mounts `OrvexNativeLoginGuard` (that guard is applied only
