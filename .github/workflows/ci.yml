@@ -450,6 +450,24 @@ jobs:
         run: node scripts/check-patches.mjs
 
   # ---------------------------------------------------------------------------
+  # Image-freshness / drift alarm — per-repo half (ENG-1973). Self-test runs
+  # against committed fixtures (no network/cluster). The live check needs
+  # in-cluster kubectl + Harbor read access this public runner does not carry,
+  # so the live `--live` invocation runs on a schedule from a cluster-adjacent
+  # context (not this job) — see docs note in scripts/check-image-freshness.mjs.
+  # ---------------------------------------------------------------------------
+  image-freshness-check:
+    name: Image Freshness / Drift Alarm — engine (ENG-1973)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: check-image-freshness.mjs --self-test
+        run: node scripts/check-image-freshness.mjs --self-test
+
+  # ---------------------------------------------------------------------------
   # AGPL §13 license-header gate (ENG-1491 — AC3). Static gate: every engine
   # `.ts` file under apps/server/src/orvex/ (non-spec) must carry the AGPL
   # license header (SPDX-License-Identifier: AGPL-3.0-only marker). Reads
