@@ -332,7 +332,7 @@ export class PageRepo {
         'in',
         pageIds,
       )
-      .returning(['id', 'slugId', 'workspaceId'])
+      .returning(['id', 'slugId', 'workspaceId', 'updatedAt'])
       .execute();
 
     // ENG-1383 F5 fix-pass-2: gate ONLY on the content change itself. The
@@ -355,6 +355,17 @@ export class PageRepo {
           payload: {
             pageId: row.id,
             workspaceId: row.workspaceId,
+            // ENG-1559 M5 AC8 — gen.ContentUpdatedData's actual decode shape
+            // (orvex-studio-knowledge/gen/events.go): {tenant, pageIds[],
+            // version}, additive alongside the pre-existing pageId/
+            // workspaceId keys above (never renamed — ENG-1383 F5/AC5's own
+            // integration tests assert on those verbatim). `version` is the
+            // row's OWN just-written `updated_at` epoch-ms (row data, never
+            // `Date.now()` at decision time, ❌#9) — monotonic per real
+            // write, stable across a redelivery of the SAME row.
+            tenant: row.workspaceId,
+            pageIds: [row.id],
+            version: new Date(row.updatedAt).getTime(),
             ...contentOutboxExtra,
           },
         });
@@ -458,6 +469,39 @@ export class PageRepo {
           workspaceId: row.workspaceId,
           payload: { id: row.id, workspaceId: row.workspaceId },
         });
+
+        // ENG-1559 M5 AC8 — a page created WITH initial content must be
+        // indexable immediately: the indexer's projection pipeline
+        // (orvex-studio-knowledge Orchestrator.Ingest) only actually embeds
+        // + upserts on `wiki.page.content_updated`
+        // (gen.TypeWikiPageContentUpdated) — `page.created` alone carries no
+        // content-freshness contract and is left genuinely not-implemented
+        // downstream. Mirrors `runUpdatePages`' `hasContentChange` gate
+        // below — same-tx atomicity, never a detached/post-commit emit.
+        if ('content' in insertablePage && insertablePage.content !== undefined) {
+          await this.outboxWriter.enqueue(innerTrx, {
+            type: EVT_PAGE_CONTENT_UPDATED,
+            aggregateId: row.id,
+            workspaceId: row.workspaceId,
+            payload: {
+              pageId: row.id,
+              workspaceId: row.workspaceId,
+              // gen.ContentUpdatedData (orvex-studio-knowledge/gen/events.go)
+              // — the indexer's actual `data` decode shape: {tenant,
+              // pageIds[], version}. A workspace IS the tenant boundary for
+              // wiki.* events (obligations.tenant_extension). `version` is
+              // the row's OWN `created_at` epoch-ms (row data, never
+              // `Date.now()` at decision time, ❌#9) — monotonic per real
+              // write and stable across a redelivery of the SAME row, which
+              // is exactly what the indexer's idempotency comparison
+              // (`existing.Version >= version` alongside a content_hash
+              // match) needs.
+              tenant: row.workspaceId,
+              pageIds: [row.id],
+              version: new Date(row.createdAt).getTime(),
+            },
+          });
+        }
 
         return row;
       },

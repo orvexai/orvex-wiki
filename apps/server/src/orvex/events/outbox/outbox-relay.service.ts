@@ -8,6 +8,7 @@ import { sql } from 'kysely';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { KyselyDB } from '../../../database/types/kysely.types';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
+import { OrvexConfigService } from '../../config/orvex-config.service';
 import {
   KAFKA_PUBLISHER_PORT,
   KafkaPublisherPort,
@@ -30,19 +31,57 @@ export interface OutboxTopicResolver {
 }
 
 /**
+ * Narrow seam the relay needs from `OrvexConfigService` (same dependency-
+ * inversion shape as `OutboxTopicResolver` above) — ENG-1559 M5 AC8: the
+ * CloudEvents `orvexcell` extension attribute (cell-contract rule #6),
+ * REQUIRED on every event over the real Kafka spine (pinned
+ * events/schemas/_envelope.json `required`). Tests substitute a plain
+ * object; production is satisfied structurally by `OrvexConfigService`.
+ */
+export interface OutboxCellResolver {
+  cellId: string | null;
+}
+
+/** The CloudEvents Solo-sentinel cell (cell-contract.md; dev/standalone/crew). */
+const CELL_SOLO = 'solo';
+
+/**
+ * The CloudEvents Kafka Protocol Binding structured-mode marker
+ * (matches orvex-studio-lib `pkg/events.BrokerPublisher`'s own
+ * `contentTypeStructuredCloudEvent` precedent verbatim) — without it a
+ * Knative KafkaSource bridging this topic would re-wrap the record under a
+ * generic type and lose the real catalog `type` to every downstream Trigger
+ * filter (ENG-2006 defect-3). The direct Kafka consumers this repo's own
+ * satellites run (segmentio/kafka-go `ParseEnvelope`) read the JSON body
+ * directly and do not require the header, but it costs nothing to carry.
+ */
+const CONTENT_TYPE_STRUCTURED_CLOUDEVENT = 'application/cloudevents+json';
+
+/**
  * ENG-1383 T2/AC3/AC4 — the relay: ships unrelayed outbox rows straight to
  * the Kafka studio-spine (NO Redis→Kafka bridge stage — D-S13). Liveness /
  * event-tier plumbing, no business logic (4c). Ordering is by `created_at`
  * (row data), never `Date.now()` in decision logic (❌#9).
  *
+ * ENG-1559 M5 AC8 — the wire value is a REAL CloudEvents 1.0 structured-mode
+ * envelope conforming to the pinned `events/schemas/_envelope.json`
+ * (orvex-studio-contracts, commit b70adda2): `specversion`/`id`/`source`/
+ * `type` (the outbox row's `type` under the `wiki.` catalog domain prefix —
+ * this repo is the sole `wiki.*` publisher, cell-contract.md `domains`) plus
+ * the two REQUIRED extension attributes `orvexcell` (rule #6) and
+ * `orvextenant` (obligations.tenant_extension — a workspace IS the tenant
+ * boundary for wiki.* events). This replaces the pre-AC8 raw kafkajs JSON
+ * `{type, aggregateId, workspaceId, payload}` shape a downstream consumer
+ * could never parse as a CloudEvent (ENG-2006 defect-3).
+ *
  * Delivery semantics: at-least-once from the relay's own crash-retry window
  * (a crash between a successful broker publish and the `relayed_at` stamp
  * leaves the row unrelayed and it is retried), made effectively exactly-once
- * by publishing with the outbox row id as the Kafka message key — consumers
- * (and the embedded-broker test double) dedupe by that key, per the
- * "idempotent by outbox id / dedupe key" wording in AC3 and the 4f mocking
- * strategy. This relay never mutates already-relayed rows and never
- * double-marks a row.
+ * by publishing with the outbox row id as BOTH the Kafka message key AND the
+ * CloudEvents `id` — consumers (and the embedded-broker test double) dedupe
+ * by that key/id, per the "idempotent by outbox id / dedupe key" wording in
+ * AC3 and the 4f mocking strategy. This relay never mutates already-relayed
+ * rows and never double-marks a row.
  */
 @Injectable()
 export class OutboxRelayService {
@@ -56,6 +95,10 @@ export class OutboxRelayService {
     // runtime token), typed narrowly to what this relay actually needs.
     @Inject(EnvironmentService)
     private readonly environmentService: OutboxTopicResolver,
+    // Injected by the concrete OrvexConfigService token, typed narrowly
+    // (OutboxCellResolver) — same DI shape as environmentService above.
+    @Inject(OrvexConfigService)
+    private readonly configService: OutboxCellResolver,
   ) {}
 
   /**
@@ -121,25 +164,42 @@ export class OutboxRelayService {
       );
 
       try {
+        // ENG-1559 M5 AC8 — the real CloudEvents 1.0 structured-mode
+        // envelope (pinned events/schemas/_envelope.json). `id` is the
+        // outbox row's OWN id (dedupe key, matching the Kafka message key
+        // below); `type` prefixes the catalog `wiki.` domain (this repo is
+        // the sole wiki.* publisher); `orvexcell`/`orvextenant` are the two
+        // REQUIRED extension attributes (rule #6 / obligations.tenant_
+        // extension — a workspace IS the tenant boundary for wiki.*
+        // events). `time` is the outbox row's OWN `created_at` (row data,
+        // never `Date.now()` at decision time, ❌#9). `data` carries the
+        // row's own payload plus the FR-C18 correlation id (a JSON field,
+        // not a CloudEvents attribute name — `correlation_id`'s underscore
+        // is not a valid CloudEvents attribute name, cell-contract.md).
+        const cell = this.configService.cellId || CELL_SOLO;
         await this.publisher.publish({
           topic,
           key: row.id,
+          headers: { 'content-type': CONTENT_TYPE_STRUCTURED_CLOUDEVENT },
           value: JSON.stringify({
-            type: row.type,
-            aggregateId: row.aggregateId,
-            workspaceId: row.workspaceId,
-            payload: row.payload,
+            specversion: '1.0',
+            id: row.id,
+            source: '//orvex-wiki',
+            type: `wiki.${row.type}`,
+            subject: row.aggregateId,
+            time: new Date(row.createdAt).toISOString(),
+            datacontenttype: 'application/json',
+            orvexcell: cell,
+            orvextenant: row.workspaceId,
             // ENG-1600 AC2/AC3 — the CloudEvents Distributed-Tracing
-            // extension attributes (names verbatim per the spec) plus the
-            // FR-C18 correlation id, carried on the message envelope the
-            // relay emits. Full CloudEvent envelope shaping (specversion/
-            // source/id and the `wiki.*` catalog declaration, ENG-1365) is
-            // the separate cross-repo `orvex-studio-contracts` leg (T4) —
-            // out of this repo's scope; this only adds the tracing
-            // extension fields to what the relay already publishes.
+            // extension attributes (names verbatim per the spec), carried
+            // on the envelope the relay emits.
             traceparent: producerTraceContext.traceparent,
             tracestate: producerTraceContext.tracestate,
-            correlation_id: row.correlationId,
+            data: {
+              ...(row.payload as Record<string, unknown>),
+              correlation_id: row.correlationId,
+            },
           }),
         });
 

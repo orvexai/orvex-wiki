@@ -135,6 +135,27 @@ patches:
       kind: ConfigMap
       name: orvex-wiki-env
 
+  # ── Dev studio-spine producer: point the relay at the REAL topic ─────────
+  # M5 (ENG-1559) AC8 pass. Base leaves KAFKA_OUTBOX_TOPIC unset, so
+  # EnvironmentService.getKafkaOutboxTopic() falls back to its
+  # "orvex.studio-spine.events" sentinel — a topic nothing in dev reads.
+  # orvex-studio-knowledge's own indexer + sse (KAFKA_RAW_TOPIC,
+  # deploy/kustomize/app-manifests/configmap.yaml) already dial the SAME
+  # literal "wiki-events.eu-central-1" — the live wiki-events.eu-central-1
+  # KafkaTopic CR (my-idp-apps, studio-events ns). Direct-consumer transport
+  # (no Knative Broker/KafkaSink dependency — PD-4d ruling, orvex-studio-lib
+  # pkg/events.BrokerPublisher's own doc comment: "the Knative Broker is
+  # consumer-side Trigger-delivery fork machinery this lib has no dependency
+  # on"). NOT a replacement target; `op: add` because base carries no
+  # KAFKA_OUTBOX_TOPIC key.
+  - patch: |-
+      - op: add
+        path: /data/KAFKA_OUTBOX_TOPIC
+        value: wiki-events.eu-central-1
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Single replica for the server Deployment in dev ──────────────────────
   - patch: |-
       - op: replace

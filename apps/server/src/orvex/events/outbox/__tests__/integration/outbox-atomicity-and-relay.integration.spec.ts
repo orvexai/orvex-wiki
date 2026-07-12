@@ -20,6 +20,7 @@ import { OutboxWriter } from '../../outbox-writer.service';
 import {
   OutboxRelayService,
   OutboxTopicResolver,
+  OutboxCellResolver,
 } from '../../outbox-relay.service';
 import {
   InMemoryKafkaPublisher,
@@ -55,6 +56,10 @@ import { ORVEX_CORRELATION_CONTEXT_KEY } from '../../../../obs/orvex-correlation
 
 const STUB_TOPIC_RESOLVER: OutboxTopicResolver = {
   getKafkaOutboxTopic: () => 'orvex.studio-spine.events',
+};
+
+const STUB_CELL_RESOLVER: OutboxCellResolver = {
+  cellId: 'solo',
 };
 
 /**
@@ -231,6 +236,55 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     ).toBe(workspaceId);
   });
 
+  it('ENG-1559 M5 AC8 — PageRepo.insertPage WITH initial content ALSO commits a shaped page.content_updated outbox row, same-tx, so the indexer (which only ever ingests on wiki.page.content_updated) can index a page from the moment it is created', async () => {
+    const page = await pageRepo.insertPage({
+      title: 'AC8 create-with-content page',
+      slugId: generateSlugId(),
+      spaceId,
+      workspaceId,
+      content: { type: 'doc', content: [] },
+    });
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].relayedAt).toBeNull();
+    // orvex-studio-knowledge/gen.ContentUpdatedData's actual decode shape:
+    // {tenant, pageIds[], version} — the indexer 400s ("missing
+    // tenant/pageIds") without these.
+    const payload = rows[0].payload as {
+      tenant: string;
+      pageIds: string[];
+      version: number;
+    };
+    expect(payload.tenant).toBe(workspaceId);
+    expect(payload.pageIds).toEqual([page.id]);
+    expect(typeof payload.version).toBe('number');
+  });
+
+  it('ENG-1559 M5 AC8 — PageRepo.insertPage WITHOUT content does NOT commit a page.content_updated outbox row (no fabricated freshness signal for an empty page)', async () => {
+    const page = await pageRepo.insertPage({
+      title: 'AC8 create-without-content page',
+      slugId: generateSlugId(),
+      spaceId,
+      workspaceId,
+    });
+
+    const rows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    expect(rows).toHaveLength(0);
+  });
+
   it('AC2 — a rolled-back mutation transaction leaves NO outbox row', async () => {
     let pageId: string | undefined;
 
@@ -271,7 +325,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     }
 
     const publisher = new InMemoryKafkaPublisher();
-    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER);
+    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER, STUB_CELL_RESOLVER);
 
     const result = await relay.run();
 
@@ -280,17 +334,40 @@ describe('OutboxAtomicityAndRelaySpec', () => {
 
     // The Kafka message key is the outbox row's OWN id (AC3 — "idempotent
     // by outbox id / dedupe key"), not the page id; assert via the
-    // payload's `aggregateId`, which does carry the page id.
+    // CloudEvents envelope's `subject`, which carries the page id
+    // (ENG-1559 M5 AC8 — `subject: row.aggregateId`).
     const distinct = publisher.getDistinctMessages(
       'orvex.studio-spine.events',
     );
     for (const id of pageIds) {
       expect(
         distinct.some(
-          (m) => (JSON.parse(m.value) as { aggregateId: string }).aggregateId === id,
+          (m) => (JSON.parse(m.value) as { subject: string }).subject === id,
         ),
       ).toBe(true);
     }
+
+    // ENG-1559 M5 AC8 — the wire value is a REAL CloudEvents 1.0
+    // structured-mode envelope conforming to the pinned
+    // events/schemas/_envelope.json (specversion/id/source/type +
+    // the REQUIRED orvexcell/orvextenant extensions), not the pre-AC8 raw
+    // kafkajs JSON a downstream CloudEvents consumer could never parse
+    // (ENG-2006 defect-3).
+    const first = distinct[0];
+    const envelope = JSON.parse(first.value) as {
+      specversion: string;
+      id: string;
+      source: string;
+      type: string;
+      orvexcell: string;
+      orvextenant: string;
+    };
+    expect(envelope.specversion).toBe('1.0');
+    expect(envelope.id).toBe(first.key);
+    expect(envelope.source).toBe('//orvex-wiki');
+    expect(envelope.type).toBe('wiki.page.created');
+    expect(envelope.orvexcell).toBe('solo');
+    expect(envelope.orvextenant).toBe(workspaceId);
 
     const relayedRows = await db
       .selectFrom('orvexEventOutbox')
@@ -328,7 +405,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     }
 
     const publisher = new InMemoryKafkaPublisher();
-    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER);
+    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER, STUB_CELL_RESOLVER);
 
     // Simulate a mid-batch crash: the LAST row's publish throws, so it is
     // never marked relayed.
@@ -358,7 +435,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     );
     const relevant = distinct.filter((m) =>
       pageIds.includes(
-        (JSON.parse(m.value) as { aggregateId: string }).aggregateId,
+        (JSON.parse(m.value) as { subject: string }).subject,
       ),
     );
     expect(relevant).toHaveLength(N); // distinct — no duplicates delivered
@@ -722,20 +799,20 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     expect(outboxRows[0].correlationId).toBe(correlationId);
 
     const publisher = new InMemoryKafkaPublisher();
-    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER);
+    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER, STUB_CELL_RESOLVER);
     const result = await relay.run();
     expect(result.failed).toBe(0);
     expect(result.published).toBeGreaterThanOrEqual(1);
 
     const distinct = publisher.getDistinctMessages('orvex.studio-spine.events');
     const message = distinct.find(
-      (m) => (JSON.parse(m.value) as { aggregateId: string }).aggregateId === pageId,
+      (m) => (JSON.parse(m.value) as { subject: string }).subject === pageId,
     );
     expect(message).toBeDefined();
     const body = JSON.parse(message!.value) as {
       traceparent: string;
       tracestate: string | null;
-      correlation_id: string;
+      data: { correlation_id: string };
     };
 
     // The persisted trace_id continues into the published message (one
@@ -747,7 +824,7 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     // HTTP span.
     const [, , publishedSpanId] = body.traceparent.split('-');
     expect(publishedSpanId).not.toBe(requestSpan.spanContext().spanId);
-    expect(body.correlation_id).toBe(correlationId);
+    expect(body.data.correlation_id).toBe(correlationId);
 
     // AC2 — the relay actually emitted a PRODUCER span as a CHILD of the
     // restored request trace.
