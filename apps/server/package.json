@@ -125,6 +125,7 @@
     "p-limit": "7.3.0",
     "passport-google-oauth20": "2.0.0",
     "passport-jwt": "4.0.1",
+    "pg": "8.16.3",
     "pgvector": "^0.2.1",
     "pino-http": "11.0.0",
     "pino-pretty": "13.1.3",
