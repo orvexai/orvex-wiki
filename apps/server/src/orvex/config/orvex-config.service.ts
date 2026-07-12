@@ -90,6 +90,19 @@ export class OrvexConfigService {
   }
 
   /**
+   * CELL_ID — the emitting cell (cell-contract rule #4/#6). First consumer:
+   * `OutboxRelayService` (ENG-1559 M5 AC8 — the CloudEvents `orvexcell`
+   * extension attribute stamped on every relayed event, pinned
+   * events/schemas/_envelope.json `required`). Deploy-documented default is
+   * the "solo" sentinel (dev/standalone/crew, cell-contract.md); unset here
+   * surfaces as `null` so the relay's own StampCell-equivalent applies the
+   * sentinel explicitly, never a silently-fabricated non-solo value.
+   */
+  get cellId(): string | null {
+    return this.read('CELL_ID');
+  }
+
+  /**
    * ENG-1604 AC8 — `health/orvex` dependency probes. `OrvexHealthService` is
    * mounted inside `OrvexRootModule.register()`, so (same constraint as the
    * rest of this service) these getters may ONLY read a plain env bag — no

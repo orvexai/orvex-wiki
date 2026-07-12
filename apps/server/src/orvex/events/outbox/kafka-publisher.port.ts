@@ -15,6 +15,19 @@ export interface KafkaPublishMessage {
   key: string;
   /** Serialized message value (JSON string). */
   value: string;
+  /**
+   * ENG-1559 M5 AC8 — optional Kafka record headers. Carries the CloudEvents
+   * Kafka Protocol Binding structured-mode marker
+   * (`content-type: application/cloudevents+json`, matching orvex-studio-lib
+   * `pkg/events.BrokerPublisher`'s own precedent) so a downstream bridge
+   * that DOES speak Knative KafkaSource still recognises the record as a
+   * real CloudEvent; the direct Kafka consumer this repo's own satellites
+   * use (segmentio/kafka-go `ParseEnvelope`) reads the JSON body directly
+   * and does not require it. Omitted entirely when unset (undefined, never
+   * an empty object) — the adapter only sends a `headers` array when this is
+   * present.
+   */
+  headers?: Record<string, string>;
 }
 
 export const KAFKA_PUBLISHER_PORT = Symbol('KAFKA_PUBLISHER_PORT');

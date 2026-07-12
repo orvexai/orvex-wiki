@@ -47,7 +47,13 @@ export class KafkaPublisherAdapter
     const producer = await this.getProducer();
     await producer.send({
       topic: message.topic,
-      messages: [{ key: message.key, value: message.value }],
+      messages: [
+        {
+          key: message.key,
+          value: message.value,
+          ...(message.headers ? { headers: message.headers } : {}),
+        },
+      ],
     });
   }
 

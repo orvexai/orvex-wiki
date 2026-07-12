@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 import { Module } from '@nestjs/common';
 import { EnvironmentModule } from '../../integrations/environment/environment.module';
+import { OrvexConfigModule } from '../config/orvex-config.module';
 import { OutboxRelayService } from './outbox/outbox-relay.service';
 import { KafkaPublisherAdapter } from './outbox/kafka-publisher.adapter';
 import { KAFKA_PUBLISHER_PORT } from './outbox/kafka-publisher.port';
@@ -25,7 +26,7 @@ import { KAFKA_PUBLISHER_PORT } from './outbox/kafka-publisher.port';
  * which enqueue directly, in-transaction, with no bus in between.
  */
 @Module({
-  imports: [EnvironmentModule],
+  imports: [EnvironmentModule, OrvexConfigModule],
   providers: [
     OutboxRelayService,
     { provide: KAFKA_PUBLISHER_PORT, useClass: KafkaPublisherAdapter },
