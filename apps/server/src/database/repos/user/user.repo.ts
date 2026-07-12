@@ -82,6 +82,36 @@ export class UserRepo {
       .executeTakeFirst();
   }
 
+  /**
+   * ENG-1559 — resolve an IdP subject (the opaque provider `sub`) to its
+   * internal user id, scoped to a workspace (tenant isolation). This is the
+   * READ half of the ruled engine-side principal resolution (fork (a)): the
+   * engine owns the workspace/user mapping, and the `auth_accounts`
+   * SSO-linkage table is the canonical bridge from a provider subject to an
+   * engine user. Returns `undefined` when no live linkage exists — the caller
+   * fails closed (no user -> no access). Deterministic on the (rare)
+   * multi-provider collision via `created_at` ordering.
+   */
+  async findUserIdByProviderUserId(
+    providerUserId: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<string | undefined> {
+    const db = dbOrTx(this.db, trx);
+    const row = await db
+      .selectFrom('authAccounts')
+      .innerJoin('users', 'users.id', 'authAccounts.userId')
+      .select('users.id as id')
+      .where('authAccounts.providerUserId', '=', providerUserId)
+      .where('authAccounts.workspaceId', '=', workspaceId)
+      .where('authAccounts.deletedAt', 'is', null)
+      .where('users.workspaceId', '=', workspaceId)
+      .where('users.deletedAt', 'is', null)
+      .orderBy('authAccounts.createdAt', 'asc')
+      .executeTakeFirst();
+    return row?.id;
+  }
+
   async updateUser(
     updatableUser: UpdatableUser,
     userId: string,
