@@ -26,9 +26,9 @@ import { OrvexTenantMoveController } from './orvex-tenant-move.controller';
  *
  * FR-W6 — `POST /api/orvex/session/exchange` left this module when it stopped
  * being a 501 stub: the REAL session-mint needs `UserRepo`/`SessionService`
- * (DB), so — same carve-out as `orvexApplyOps` — it moved to the DB-backed,
- * unconditionally-mounted `OrvexSessionMintModule`
- * (`orvex/session-mint/orvex-session-mint.module.ts`).
+ * (DB) — and the A-BOUNDARY fence forbids orvex/* from importing @docmost/* — so
+ * it moved to the DB-backed, unconditionally-mounted `OrvexSessionMintModule`
+ * under core (`core/session-mint/orvex-session-mint.module.ts`).
  */
 @Module({
   imports: [OrvexConfigModule],
