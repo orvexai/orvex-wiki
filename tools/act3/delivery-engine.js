@@ -19,6 +19,18 @@ export const meta = {
 // step in the build + gate stages: re-read live status, and if it flipped to Done without the
 // engine's own Done-gate making that transition, revert to In Progress ("reverting Linear
 // GitHub auto-close (pattern P1); Done is gate-owned") and continue the normal cycle.
+// v11.2 (2026-07-12): full-body box census (P2_CENSUS / marker "P2-census"). A v11.1 gate
+// agent self-reported dodTicked:14 + uncheckedBoxes:[] while live Linear showed 14 ticked /
+// 30 UNTICKED — the box audit only looked at the AC/DoD block and missed the other checklist
+// sections (T1-T10 task list, the DoD-summary block, and the appended 5b/5c test-name+CI-gate
+// list). ENG-1395 was a genuine second false-Done (proven in pass25/1395-verify.md). Fix: the
+// Done-gate prompt contract now (1) does a FRESH full-body LIVE read of the ENTIRE issue body
+// immediately before the verdict, (2) runs an explicit grep-style "- [ ]" vs "- [x]" census
+// across the WHOLE body — every checklist section, including appended DoD/S5/5b/5c blocks,
+// (3) records the census counts (boxesTotal/boxesTicked/boxesUnticked) in the gate record, and
+// (4) refuses Done unless boxesUnticked==0 or every remaining "- [ ]" carries a dated
+// moved/deferred/sanctioned-TBD annotation (the existing exemption class). Code-side guard now
+// also refuses a done=true whose uncheckedBoxes[] (blocking-only) is non-empty.
 
 // ---- Constants -------------------------------------------------------------
 const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
@@ -95,6 +107,14 @@ const RETDISC = 'RETURN DISCIPLINE (an oversized return kills the run): return O
 // sanctioned TBD (YYYY-MM-DD)") — that exception, and only that exception, does not block.
 const BOXES_CLEAN = 'BOXES-CLEAN CHECK (binding, refuse-Done gate): re-inspect the body you just wrote. If the DoD gate line OR any AC checkbox is still "- [ ]" without a dated moved/deferred/sanctioned-TBD annotation, you MUST NOT advance to Done — set done=false, dodClean=false, list the unticked boxes in uncheckedBoxes[], comment on the issue naming them, and STOP before the status-flip step. Only flip to Done (and report dodClean=true) once every required box is ticked.'
 
+// P2-census (full-body box census, marker "P2-census"). Grounded in the second false-Done:
+// a v11.1 gate agent self-reported dodTicked:14 + uncheckedBoxes:[] while the LIVE ENG-1395
+// body had 14 ticked and 30 UNTICKED — the audit only inspected the AC/DoD block and missed
+// the T1-T10 task list, the DoD-summary block, and the appended 5b/5c test-name+CI-gate list
+// (multiple checkbox sections, incl. appended ones). This census makes the per-section blind
+// spot structurally impossible: the count is over the ENTIRE freshly-read body.
+const P2_CENSUS = 'P2-census (FULL-BODY BOX CENSUS — binding, refuse-Done gate; this SUPERSEDES any per-section box glance). A prior gate self-reported dodTicked:14 / uncheckedBoxes:[] while the live ticket had 14 ticked and 30 UNTICKED because it only looked at the AC/DoD block and missed the T1-T10 task list, the DoD-summary block, and the appended 5b/5c test-name+CI-gate list. To make that blind spot impossible: (1) do a FRESH full-body LIVE read of the ENTIRE issue body immediately before the verdict — NOT the copy you wrote earlier, NOT the cache; (2) run an explicit grep-style census over the WHOLE body across EVERY checklist section (AC block, DoD summary, task list T1..Tn, appended DoD/S5/5b/5c blocks, and ANY other "- [ ]"/"- [x]" line anywhere in the body): boxesTotal = count of every "- [ ]" plus "- [x]" line; boxesTicked = count of every "- [x]" line; boxesUnticked = count of every "- [ ]" line; (3) REPORT all three counts in the gate record (boxesTotal, boxesTicked, boxesUnticked) — a Done verdict without these three census numbers is invalid; (4) you MUST NOT advance to Done unless boxesUnticked==0 OR every remaining "- [ ]" line carries a DATED moved/deferred/sanctioned-TBD annotation (the SOLE exemption class). List every BLOCKING unticked box (an unticked box lacking that dated annotation) in uncheckedBoxes[]; if uncheckedBoxes[] is non-empty you MUST set done=false, dodClean=false, comment on the issue naming them, and STOP before the status-flip step.'
+
 // P1-guard (anti-auto-close, pattern P1 in the fake-done-forensics ledger). Linear's GitHub
 // integration auto-flips a linked ticket to Done seconds after its branch/PR merges — via
 // branch-name identifier linking (e.g. eng-1405-work) on a UI-only toggle we cannot disable
@@ -143,6 +163,7 @@ const GATE_SCHEMA = {
   properties: {
     eng: { type: 'string', maxLength: 12 }, done: { type: 'boolean' }, dodClean: { type: 'boolean' },
     merged: { type: 'boolean' }, dodTicked: { type: 'integer' },
+    boxesTotal: { type: 'integer' }, boxesTicked: { type: 'integer' }, boxesUnticked: { type: 'integer' },
     uncheckedBoxes: { type: 'array', maxItems: 8, items: { type: 'string', maxLength: 80 } },
     headline: { type: 'string', maxLength: 250 }, escalate: { type: 'string', maxLength: 400 },
   },
@@ -327,14 +348,15 @@ async function deliverItem(item, seq) {
     const gate = await withRepoLock(repo, () => agent([
       'DETERMINISTIC DONE GATE for ' + item.eng + ' (repo ' + repo + '; review PASS on record: ' + (review.reportPath || '') + '; verified ACs: ' + JSON.stringify(review.verifiedAcs || []) + ').',
       (item.isGate && !gateAuthoring)
-        ? 'Gate ISSUE: no PR to merge. Steps: (a) confirm from ' + HUB + '/.cache/linear/initiative.json that every blockedBy constituent is Done/Canceled/Duplicate (cache-first; refresh-on-write keeps it current); (b) tick the DoD boxes for the checks the review VERIFIED (LIVE full-body read immediately before the replace — clobber safety — -> flip only those "- [ ]" -> temp-file write); (b2) ' + BOXES_CLEAN + ' (c) advance ' + item.eng + ' to Done via linearis (explicit) ONLY if the boxes-clean check passed; (d) refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + the ticked boxes (this is the write-verify AND what unblocks successors in both engines\' frontiers).'
+        ? 'Gate ISSUE: no PR to merge. Steps: (a) confirm from ' + HUB + '/.cache/linear/initiative.json that every blockedBy constituent is Done/Canceled/Duplicate (cache-first; refresh-on-write keeps it current); (b) tick the DoD boxes for the checks the review VERIFIED (LIVE full-body read immediately before the replace — clobber safety — -> flip only those "- [ ]" -> temp-file write); (b2) ' + BOXES_CLEAN + ' (b3) ' + P2_CENSUS + ' (c) advance ' + item.eng + ' to Done via linearis (explicit) ONLY if the boxes-clean check AND the P2-census both passed; (d) refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + the ticked boxes (this is the write-verify AND what unblocks successors in both engines\' frontiers).'
         : [
           'Steps IN ORDER — abort (done=false + escalate) if any hard step fails:',
           '(a) Merge the PR via gh (respect branch protection; if checks are pending, wait up to 10 minutes polling gh pr checks; if a conflict: rebase the branch once, re-push, retry merge once).',
           '(a2) ' + P1_GUARD.replace(/<ENG-N>/g, item.eng),
           '(b) Tick the DoD checkboxes on ' + item.eng + ' ONLY for the ACs the review verified (' + JSON.stringify(review.verifiedAcs || []) + '): LIVE full-body read immediately before the replace (clobber safety — the ONLY sanctioned pre-write live read) -> flip exactly those boxes -> temp-file write. NEVER blanket-tick.',
           '(b2) ' + BOXES_CLEAN,
-          '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked AND boxes-clean check passed).',
+          '(b3) ' + P2_CENSUS,
+          '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked AND boxes-clean check passed AND P2-census boxesUnticked==0 (modulo dated-exempt boxes)).',
           '(d) Refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + intact body + ticked boxes (write-verify; also what unblocks successors in both engines\' frontiers with zero API).',
           '(e) Cleanup (eager, mandatory): git worktree remove ' + wt + '; git branch -d (merge-checked, NEVER -D) the local branch; delete the remote branch via gh/git push --delete.',
         ].join('\n'),
@@ -342,11 +364,13 @@ async function deliverItem(item, seq) {
       'Gate log -> ' + RDIR + '/' + item.eng + '-gate.md.',
     ].join('\n'), { model: 'sonnet', effort: 'medium', label: '#' + seq + ':gate:' + item.eng, phase: T, schema: GATE_SCHEMA }))
 
-    if (gate && gate.done && gate.dodClean !== true) {
-      // Code-side Done-gate guard (§ENG-1479 fake-done): never honor a finalize agent's
-      // done=true self-report when its OWN full-body read (dodClean) does not confirm every
-      // required DoD/AC box is ticked — refuse the transition regardless of the claim.
-      escalated.push({ eng: item.eng, why: ('Done-gate guard: dodClean!=true despite done=true — refusing (' + JSON.stringify((gate.uncheckedBoxes || []).slice(0, 5)) + ' ' + (gate.escalate || '')).slice(0, 190) + ')' })
+    const gateBlockingBoxes = (gate && Array.isArray(gate.uncheckedBoxes)) ? gate.uncheckedBoxes.length : 0
+    if (gate && gate.done && (gate.dodClean !== true || gateBlockingBoxes > 0)) {
+      // Code-side Done-gate guard (§ENG-1479 fake-done + §P2-census ENG-1395 second false-Done):
+      // never honor a finalize agent's done=true self-report when its OWN full-body read (dodClean)
+      // does not confirm every required DoD/AC box is ticked, OR when its census still lists any
+      // BLOCKING unticked box in uncheckedBoxes[] — refuse the transition regardless of the claim.
+      escalated.push({ eng: item.eng, why: ('Done-gate guard: ' + (gate.dodClean !== true ? 'dodClean!=true' : 'uncheckedBoxes non-empty (' + gateBlockingBoxes + ')') + ' despite done=true — refusing (census ' + (gate.boxesTicked ?? '?') + '/' + (gate.boxesTotal ?? '?') + ' ticked; ' + JSON.stringify((gate.uncheckedBoxes || []).slice(0, 5)) + ' ' + (gate.escalate || '')).slice(0, 190) + ')' })
       await agent([
         'DONE-GATE GUARD CORRECTION for ' + item.eng + ' (repo ' + repo + '): the finalize step reported done=true but did not confirm its boxes-clean check (dodClean). Do NOT trust that Done write. LIVE full-body read the issue now; if its status currently shows Done, move it BACK to In Review via linearis and comment listing every unticked required box (DoD line + AC boxes lacking a dated moved/deferred/sanctioned-TBD annotation): ' + JSON.stringify(gate.uncheckedBoxes || []) + '. Then refresh the ticket cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '.',
         LNR, RETDISC,
