@@ -56,6 +56,31 @@ patches:
       kind: ConfigMap
       name: orvex-wiki-env
 
+  # ── Dev cell = MULTI-TENANT CLOUD: federated workspace resolution ─────────
+  # M5 (ENG-1559) / FR-W6. The dev cell is a multi-tenant CLOUD deployment
+  # (per-tenant workspace UUIDs from the registry; federated identity via the
+  # engine session-mint). In self-hosted mode DomainMiddleware clobbers every
+  # request's workspace to workspaceRepo.findFirst() (the OLDEST workspace), so a
+  # federated tenant-scoped session token whose workspaceId != that oldest
+  # workspace is rejected by JwtStrategy with 401 "Workspace does not match".
+  # CLOUD=true switches DomainMiddleware to hostname-subdomain resolution: a
+  # cluster-internal / cell host matches no workspace hostname -> req.workspaceId
+  # = null -> the token's own workspace is authoritative -> JwtStrategy passes.
+  # SUBDOMAIN_HOST is intentionally NOT set here: DomainMiddleware resolves the
+  # tenant from host.split(".")[0], never from SUBDOMAIN_HOST; the var only backs
+  # cloud cookie-domain / URL construction and, when absent, @IsOptional skips its
+  # boot-time @IsUrl check. Wiring it via the single-source cellToken chain (so it
+  # renders clean, not with the underscore-bearing PLACEHOLDER_CELL_TOKEN a
+  # staging-time replacement would leave — which would fail @IsUrl and crash boot)
+  # is a tracked follow-up, not needed for federated workspace resolution.
+  - patch: |-
+      - op: add
+        path: /data/CLOUD
+        value: "true"
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Dev siblings: prod cluster-local Services → the dev namespaces ───────
   # The dev integration env talks to dev siblings (ORVEX_<SVC>_URL seam).
   # Inert under the vanilla engine (ORVEX_MODULES_ENABLED=false); wired for the
