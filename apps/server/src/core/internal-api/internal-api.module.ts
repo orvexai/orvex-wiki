@@ -23,9 +23,10 @@ import { InternalApiAuthGuard } from './internal-api-auth.guard';
  * global, so `ExportModule` is imported explicitly for it.
  *
  * ENG-1559 write-path — `PrincipalProvisioningService` composes the same
- * `@Global()` DatabaseModule repos (`UserRepo`, `WorkspaceRepo`,
+ * `@Global()` DatabaseModule repos (`UserRepo`, `WorkspaceRepo`, `GroupRepo`,
  * `GroupUserRepo`, `OutboxWriter`) + the global `AUDIT_SERVICE`, so it needs no
- * extra module import.
+ * extra module import. `GroupRepo` (ENG-1559 R6) creates the default group of a
+ * workspace materialized at a registry-issued UUID.
  */
 @Module({
   imports: [ExportModule],

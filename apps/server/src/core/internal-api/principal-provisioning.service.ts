@@ -3,14 +3,28 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { randomBytes } from 'crypto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { KyselyDB } from '@docmost/db/types/kysely.types';
-import { executeTx } from '@docmost/db/utils';
+import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
+import {
+  acquireWorkspaceProvisionLock,
+  executeTx,
+} from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
-import { InsertableUser } from '@docmost/db/types/entity.types';
+import {
+  InsertableUser,
+  InsertableWorkspace,
+  Workspace,
+} from '@docmost/db/types/entity.types';
+import { UserRole } from '../../common/helpers/types/permission';
 import {
   AUDIT_SERVICE,
   IAuditService,
@@ -20,13 +34,23 @@ import {
   AuditResource,
 } from '../../common/events/audit-events';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
-import { EVT_WORKSPACE_MEMBER_ADDED } from '../../orvex/events/constants/orvex-event-types';
+import {
+  EVT_WORKSPACE_CREATED,
+  EVT_WORKSPACE_MEMBER_ADDED,
+} from '../../orvex/events/constants/orvex-event-types';
 
 export interface ProvisionPrincipalInput {
   subject: string;
   tenant: string;
   email: string;
   name?: string;
+  /**
+   * Registry vouch (ENG-1559 R6): when true, the engine get-or-creates the
+   * workspace at `tenant` (the identity-issued UUID) atomically with this
+   * principal, and the principal becomes its OWNER. Absent/false ⇒ an unknown
+   * workspace fails closed (404) — deny-by-default for an unregistered UUID.
+   */
+  provisionWorkspace?: boolean;
 }
 
 export interface ProvisionPrincipalResult {
@@ -34,6 +58,8 @@ export interface ProvisionPrincipalResult {
   userId: string;
   /** True iff a NEW `auth_accounts` linkage was written this call (idempotent hits return false). */
   created: boolean;
+  /** True iff the workspace `tenant` was materialized by THIS call (get-or-create; idempotent hits return false). */
+  workspaceCreated: boolean;
 }
 
 /**
@@ -62,13 +88,28 @@ export interface ProvisionPrincipalResult {
  * outbox event (ENG-1609). SSO principals never password-authenticate, so a
  * JIT-created user carries a strong random secret + `hasGeneratedPassword`
  * (the exact shape the removed native-OIDC login produced).
+ *
+ * WORKSPACE MATERIALIZATION (ENG-1559 R6): identity is the SOLE source of the
+ * engine workspace UUID (minted on first `/v1/exchange`), but nothing created
+ * the engine-side `workspaces` row for it, so a real flow 404'd here. When the
+ * registry-authorized caller vouches (`provisionWorkspace`), this service
+ * get-or-creates the workspace at the identity-issued UUID ATOMICALLY with the
+ * principal (one transaction) and makes the vouching principal its OWNER — a
+ * fresh workspace born fully formed (default "Everyone" group + `workspace.created`
+ * outbox, ENG-1609 parity). Deny-by-default is intact: without the vouch an
+ * unknown workspace is a hard 404, and the READ seam never reaches this write
+ * path (no create-on-resolve). A concurrent first-exchange race is serialized by
+ * a transaction advisory lock so the loser re-resolves the winner's workspace.
  */
 @Injectable()
 export class PrincipalProvisioningService {
+  private readonly logger = new Logger(PrincipalProvisioningService.name);
+
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     private readonly userRepo: UserRepo,
     private readonly workspaceRepo: WorkspaceRepo,
+    private readonly groupRepo: GroupRepo,
     private readonly groupUserRepo: GroupUserRepo,
     private readonly outboxWriter: OutboxWriter,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
@@ -77,31 +118,52 @@ export class PrincipalProvisioningService {
   async provision(
     input: ProvisionPrincipalInput,
   ): Promise<ProvisionPrincipalResult> {
-    const { subject, tenant, email, name } = input;
-
-    // Fail-closed: `tenant` MUST be a live workspace this engine owns. An
-    // unknown tenant is a hard 404, never a silent create-in-the-void.
-    const workspace = await this.workspaceRepo.findById(tenant);
-    if (!workspace) {
-      throw new NotFoundException('Workspace not found');
-    }
-
-    // Idempotency: an existing live linkage short-circuits with ZERO writes,
-    // returning the already-resolved user id. The read seam is the source of
-    // truth for "is this subject already provisioned in this tenant".
-    const existing = await this.userRepo.findUserIdByProviderUserId(
-      subject,
-      tenant,
-    );
-    if (existing) {
-      return { userId: existing, created: false };
-    }
+    const { subject, tenant, email, name, provisionWorkspace } = input;
 
     let auditNewUser:
       | { id: string; email: string; name: string; role: string }
       | undefined;
+    let auditNewWorkspace: { id: string; name: string | null } | undefined;
 
-    const userId = await executeTx(this.db, async (trx) => {
+    const result = await executeTx(this.db, async (trx) => {
+      // Serialize concurrent materialization of the SAME workspace up front:
+      // `findById ... FOR UPDATE` cannot lock a not-yet-existing row, so two
+      // concurrent first-exchange provisions would both race the insert. The
+      // advisory lock makes the loser block, then re-resolve on the get path.
+      await acquireWorkspaceProvisionLock(trx, tenant);
+
+      // Resolve-or-materialize the workspace, atomically with the account.
+      // Fail-closed by default: an unknown workspace is a hard 404. The engine
+      // materializes ONLY when the registry-authorized caller EXPLICITLY vouches
+      // for the identity-issued UUID (deny-by-default for an unregistered UUID;
+      // the read seam never reaches this write path, so no create-on-resolve).
+      let workspace = await this.workspaceRepo.findById(tenant, {
+        trx,
+        withLock: true,
+      });
+      let workspaceCreated = false;
+
+      if (!workspace) {
+        if (!provisionWorkspace) {
+          throw new NotFoundException('Workspace not found');
+        }
+        workspace = await this.materializeWorkspace(tenant, trx);
+        workspaceCreated = true;
+        auditNewWorkspace = { id: workspace.id, name: workspace.name };
+      }
+
+      // Idempotency: an existing live linkage short-circuits with ZERO further
+      // writes, returning the already-resolved user id. The read seam is the
+      // source of truth for "is this subject already provisioned here".
+      const existing = await this.userRepo.findUserIdByProviderUserId(
+        subject,
+        tenant,
+        trx,
+      );
+      if (existing) {
+        return { userId: existing, created: false, workspaceCreated };
+      }
+
       // Account-linking: an already workspace-invited engine user with this
       // email is LINKED (the invited-then-SSO case), never duplicated. The
       // `users_email_workspace_id_unique` constraint is the concurrency guard
@@ -114,7 +176,10 @@ export class PrincipalProvisioningService {
             email,
             name,
             workspaceId: tenant,
-            role: workspace.defaultRole,
+            // The principal that MATERIALIZES the workspace is its OWNER (parity
+            // with the signup path, WorkspaceService.create); a principal
+            // joining an existing workspace gets the workspace default role.
+            role: workspaceCreated ? UserRole.OWNER : workspace.defaultRole,
             emailVerifiedAt: new Date(),
             // SSO principals never password-authenticate (they always arrive
             // via identity/exchange-token). A strong random secret keeps the
@@ -148,12 +213,30 @@ export class PrincipalProvisioningService {
         trx,
       );
 
-      return user.id;
+      return { userId: user.id, created: true, workspaceCreated };
     });
 
-    // Audit only a genuinely NEW user (a linked pre-existing user was already
-    // audited at its own creation). `system` actor — this is a machine-driven
-    // provisioning call with no request-scoped human behind it.
+    // Audit (post-commit). A genuinely NEW workspace is an operability record
+    // that a registry-issued UUID was materialized; a genuinely NEW user gets
+    // its own USER_CREATED (a linked pre-existing user was already audited at
+    // its own creation). `system` actor — a machine-driven provisioning call
+    // with no request-scoped human behind it.
+    if (auditNewWorkspace) {
+      await this.auditService.logWithContext(
+        {
+          event: AuditEvent.WORKSPACE_CREATED,
+          resourceType: AuditResource.WORKSPACE,
+          resourceId: auditNewWorkspace.id,
+          changes: { after: { name: auditNewWorkspace.name } },
+          metadata: {
+            source: 'internal-provisioning',
+            subject,
+            registryIssued: true,
+          },
+        },
+        { workspaceId: auditNewWorkspace.id, actorType: 'system' },
+      );
+    }
     if (auditNewUser) {
       await this.auditService.logWithContext(
         {
@@ -173,6 +256,45 @@ export class PrincipalProvisioningService {
       );
     }
 
-    return { userId, created: true };
+    return result;
+  }
+
+  /**
+   * Materialize a fresh engine workspace at the identity-issued UUID (ENG-1559
+   * R6). It is born fully formed — the `workspaces` row carrying the SUPPLIED id
+   * plus the default "Everyone" group every real workspace has (so the JIT owner
+   * and every later member resolve `addUserToDefaultGroup`) — and emits
+   * `workspace.created` in the SAME transaction as the insert (ENG-1609 AC1
+   * parity). Deliberately does NOT generate a hostname or a billing trial: an
+   * identity-federated workspace is reached by its tenant-claim UUID, not by
+   * hostname, and billing is owned by the satellite, not the AGPL engine.
+   */
+  private async materializeWorkspace(
+    workspaceId: string,
+    trx: KyselyTransaction,
+  ): Promise<Workspace> {
+    const workspace = await this.workspaceRepo.insertWorkspace(
+      {
+        id: workspaceId,
+        // Deterministic, non-secret placeholder label (❌#9 — no rand/time);
+        // identity owns the human-facing org name, the engine only needs a row.
+        name: `Workspace ${workspaceId.slice(0, 8)}`,
+      } as InsertableWorkspace,
+      trx,
+    );
+
+    await this.groupRepo.createDefaultGroup(workspace.id, { trx });
+
+    await this.outboxWriter.enqueue(trx, {
+      type: EVT_WORKSPACE_CREATED,
+      aggregateId: workspace.id,
+      workspaceId: workspace.id,
+      payload: { id: workspace.id, name: workspace.name },
+    });
+
+    this.logger.log(
+      `materialized engine workspace ${workspace.id} for a registry-issued UUID (internal provisioning)`,
+    );
+    return workspace;
   }
 }
