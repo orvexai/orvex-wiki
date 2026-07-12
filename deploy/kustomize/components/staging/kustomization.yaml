@@ -111,6 +111,30 @@ patches:
       kind: ConfigMap
       name: orvex-wiki-env
 
+  # ── Dev studio-spine producer: connect the outbox relay to the live broker ──
+  # M5 (ENG-1559). The engine's outbox relay (ENG-1383 OutboxRelayService) is the
+  # first studio-spine producer: PageRepo.insertPage / OrvexPageProvenanceService
+  # enqueue a row in-transaction on every page create/content-update, and the 2s
+  # @Interval poller publishes each row to Kafka. That relay is mounted
+  # UNCONDITIONALLY in app.module.ts — it deliberately does NOT ride the
+  # ORVEX_MODULES_ENABLED gate (carve-out-(b), same as the migrator) — so the
+  # ONLY thing keeping the producer "off" in dev is the broker list: base leaves
+  # KAFKA_BROKERS unset, so EnvironmentService.getKafkaBrokers() falls back to its
+  # localhost:9092 sentinel (an unreachable broker) and dev pages never leave the
+  # outbox. Point it at the shared Strimzi bootstrap — the SAME plaintext :9092
+  # endpoint the knowledge SSE + KafkaSinks already dial (ENG-2006 canonical
+  # value) — so the producer connects and drains. Crash-safe: a broker outage
+  # never blocks a mutation (the outbox buffers, retried never dropped), so this
+  # is safe even before the studio-spine topic/bridge lands downstream. NOT a
+  # replacement target; `op: add` because base carries no KAFKA_BROKERS key.
+  - patch: |-
+      - op: add
+        path: /data/KAFKA_BROKERS
+        value: platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Single replica for the server Deployment in dev ──────────────────────
   - patch: |-
       - op: replace
