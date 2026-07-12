@@ -157,6 +157,36 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     }
   });
 
+  // ENG-1578 — POST /api/orvex/tenant-move (bare, the REAL registry
+  // cross-cell tenant-MOVE). ORVEX_IDENTITY_URL is unset in this harness
+  // (same as the rest of the suite), so the composed introspector/registry
+  // client are the fail-closed NotConfigured variants — this proves the
+  // endpoint never lets a request through when its identity dependency is
+  // unconfigured, deny-by-default even before any bearer is checked.
+  it('orvexTenantCellMove WITHOUT ORVEX_IDENTITY_URL configured -> fails closed (never a fabricated 200)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orvex/tenant-move',
+      headers: { authorization: 'Bearer svc-token' },
+      payload: {
+        tenantId: '57b13b69-33ab-49fa-8c82-c77d277e3e46',
+        sourceCellId: 'eu1',
+        targetCellId: 'eu9',
+      },
+    });
+    expect(res.statusCode).toBeGreaterThanOrEqual(500);
+  });
+
+  it('orvexTenantCellMove with a malformed body -> 400 (never forwarded to identity)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orvex/tenant-move',
+      headers: { authorization: 'Bearer svc-token' },
+      payload: { tenantId: 'not-a-uuid', sourceCellId: 'EU-CENTRAL-1' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   const tenantMoveSteps: Array<[string, string]> = [
     ['quiesce', 'orvexTenantMoveQuiesce'],
     ['export', 'orvexTenantMoveExport'],
