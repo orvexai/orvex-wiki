@@ -6,9 +6,12 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsEmail,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
 } from 'class-validator';
 
 /**
@@ -45,6 +48,44 @@ export class AclFilterDto {
   @ArrayMaxSize(500)
   @IsUUID(undefined, { each: true })
   page_ids: string[];
+}
+
+/**
+ * ProvisionPrincipalDto (ENG-1559 write-path) — the body of the explicit
+ * internal provisioning endpoint (`POST /internal/principals/provision`). This
+ * is the WRITE seam that unorphans `auth_accounts`: the real caller is
+ * orvex-studio-identity's provisioning worker, which — when it provisions /
+ * first-authenticates a wiki principal — asks the engine (the data-owner) to
+ * establish the subject->user linkage the read seam (`acl/filter`) later
+ * resolves. Provisioning is DELIBERATELY separate from resolution: the read
+ * path stays fail-closed for any not-yet-provisioned subject (a
+ * provision-on-resolve design would auto-grant unknown principals and defeat
+ * the intra-tenant restricted-bytes=0 gate).
+ *
+ *  - `subject`  — the stable IdP subject id (opaque; NOT a UUID, NOT an email).
+ *  - `tenant`   — the orvex-wiki workspace UUID (`Principal.Tenant ==
+ *                 workspaceId`). A tenant that is not a live workspace 404s
+ *                 (fail-closed); a non-UUID tenant 400s.
+ *  - `email`    — the principal's email; the account-linking key. An already
+ *                 workspace-invited user with this email is LINKED (not
+ *                 duplicated); otherwise a member user is JIT-created.
+ *  - `name`     — optional display name for a JIT-created user.
+ */
+export class ProvisionPrincipalDto {
+  @IsString()
+  @IsNotEmpty()
+  subject: string;
+
+  @IsUUID()
+  tenant: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  name?: string;
 }
 
 /**
