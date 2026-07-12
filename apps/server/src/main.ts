@@ -140,6 +140,23 @@ async function bootstrap() {
         // CLOUD mode (no host->workspace match, no bearer yet) 404s the mint
         // before it can run.
         '/api/orvex/session/exchange',
+        // ENG-1578 — the WHOLE tenant-move surface (`/api/orvex/tenant-move`
+        // bare, the real registry cross-cell relocation, M14 closing gate
+        // AC6, AND its `/quiesce`/`/export`/`/import`/`/activate` A-MOVE
+        // sub-routes) resolves its caller by bearer (introspection or the
+        // manifest's own `Idempotency-Key`-gated contract), NEVER from a
+        // host-resolved workspace — the SAME shape as the FR-W6 session-
+        // exchange exemption above, for the SAME reason. It is called over
+        // a bare cluster-internal ClusterIP URL with no tenant-specific
+        // Host header (orvex-studio-lib's M14 rehearsal harness, and any
+        // real production caller e.g. orvex-workflows' TenantMoveWorkflow),
+        // so without this exemption CLOUD mode 404s "Workspace not found"
+        // before the tenant-move service's own auth even runs (confirmed
+        // live against the deployed orvex-wiki-dev cell — the bare 200 gate
+        // is a REAL cross-tenant relocation, so leaving it host-scoped by
+        // accident is not an option: the bearer/moveId contract IS the
+        // access control here, deliberately, not Host-based routing).
+        '/api/orvex/tenant-move',
       ];
 
       if (
