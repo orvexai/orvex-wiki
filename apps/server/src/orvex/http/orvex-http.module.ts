@@ -6,7 +6,6 @@ import { Module } from '@nestjs/common';
 
 import { OrvexConfigModule } from '../config/orvex-config.module';
 import { OrvexQuotaController } from './orvex-quota.controller';
-import { OrvexSessionController } from './orvex-session.controller';
 import { OrvexSourceController } from './orvex-source.controller';
 import { OrvexTenantMoveController } from './orvex-tenant-move.controller';
 
@@ -24,12 +23,17 @@ import { OrvexTenantMoveController } from './orvex-tenant-move.controller';
  * this ticket reuses). It lives in `OrvexApplyOpsModule`
  * (`page-blocks/apply-ops.module.ts`), mounted unconditionally by
  * `PageModule`, same precedent as `OrvexLlmsModule`/`OrvexPageMetadataModule`.
+ *
+ * FR-W6 — `POST /api/orvex/session/exchange` left this module when it stopped
+ * being a 501 stub: the REAL session-mint needs `UserRepo`/`SessionService`
+ * (DB), so — same carve-out as `orvexApplyOps` — it moved to the DB-backed,
+ * unconditionally-mounted `OrvexSessionMintModule`
+ * (`orvex/session-mint/orvex-session-mint.module.ts`).
  */
 @Module({
   imports: [OrvexConfigModule],
   controllers: [
     OrvexQuotaController,
-    OrvexSessionController,
     OrvexSourceController,
     OrvexTenantMoveController,
   ],

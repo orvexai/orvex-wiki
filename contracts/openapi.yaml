@@ -286,33 +286,37 @@ paths:
       operationId: orvexSessionExchange
       summary: Consume an identity-minted exchange token, mint an engine session
       x-status: draft
-      x-classification: noop-501
+      x-classification: real
       # Deliberately public: this is the entry that ESTABLISHES the session, so it
       # cannot itself require an engine session.
       security: []
       description: >-
-        FR-W6 / A-AUTH — consume an orvex-studio-identity-minted EXCHANGE TOKEN (an
-        RS256 JWT verified against the identity issuer's JWKS) and mint an engine
-        session scoped to `sub` + `workspaceId`. Identity owns mint/policy and
-        fronts the dual-IdP spine (Clerk + Keycloak); native login is removed (D-S3).
+        FR-W6 / A-AUTH — consume an orvex-studio-identity-minted EXCHANGE TOKEN and
+        mint an engine session scoped to `sub` + `workspaceId`. Identity owns
+        mint/policy and fronts the dual-IdP spine (Clerk + Keycloak); native login
+        is removed (D-S3). REAL (no longer a 501 stub): the endpoint verifies the
+        token, resolves the already-provisioned principal, and mints the engine
+        session, delivered as the upstream Docmost `authToken` session cookie.
 
 
-        DELIBERATE NARROWING OF THE 'AUTH IS REAL FROM DAY ONE' RULE — read this.
-        The RS256/JWKS verification CORE is ALREADY BUILT AND TESTED (Foundation
-        M7, `apps/server/src/orvex/session-mint`: `exchange-token-verifier.ts`
-        verifies alg-allowlist / iss / aud / exp / claim-shape and returns typed
-        `ExchangeTokenClaims{sub,workspaceId,iss,aud,exp}` or throws a typed
-        `ExchangeTokenVerificationError{code}`). What is NOT yet in place is WIRING
-        that verified result into the upstream Docmost session flow — an A-THIN
-        allow-listed INLINE edit sequence deliberately SEQUENCED for delivery
-        fold-in, not done in the foundation run. So the generic "auth endpoints are
-        real from day one" rule is INTENTIONALLY narrowed here: the verification
-        primitive is real and proven; the HTTP endpoint that stitches it into a
-        minted cookie/session is 501 until the fold-in lands. That is why this
-        operation is classified noop-501 despite being an auth endpoint.
+        VERIFY VIA INTROSPECTION (not local RS256/JWKS). Identity's `/v1/exchange`
+        mints a SHORT-LIVED OPAQUE token (a random grant-store token id, see
+        orvex-studio-identity `internal/token/token.go`), NOT a self-describing
+        JWT. So the engine resolves it against identity's `POST /v1/introspect`
+        (the SAME seam every sister satellite — e.g. orvex-studio-knowledge — uses
+        for the opaque exchange/api-key bearer), returning the verified
+        `{subject, tenant}` principal. (The local `ExchangeTokenVerifier`
+        RS256/JWKS primitive verifies the DIFFERENT session-JWT shape and is not on
+        this endpoint's live path.)
 
 
-        TODAY: returns 501 NotImplemented (typed sentinel). The 200 shape is INTENDED.
+        THREE DENY-BY-DEFAULT GATES: (1) an inactive/unknown/malformed token yields
+        no principal → 401; (2) a `subject` with no `auth_accounts` linkage in the
+        `tenant` workspace is UNPROVISIONED → 401 (no create-on-resolve —
+        provisioning is the internal-API's explicit bearer-guarded act); (3) a
+        disabled resolved user → 401. Every read is tenant-scoped, so a token can
+        only ever mint a session in its own workspace. The exchange token and the
+        minted session token are never logged.
       requestBody:
         required: true
         content:
@@ -321,15 +325,21 @@ paths:
               $ref: '#/components/schemas/SessionExchangeRequest'
       responses:
         '200':
-          description: INTENDED — engine session minted. Delivery fills this in (the fold-in wiring).
+          description: >-
+            Engine session minted. The session rides as the upstream Docmost
+            `authToken` httpOnly session cookie (Set-Cookie) — the SAME cookie the
+            password-login path sets; the body mirrors the verified principal
+            scope. Bare shape (this operation opts out of the global
+            {data, success, status} envelope, like the other machine-facing seams).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionExchangeResult'
         '401':
           description: >-
-            INTENDED — exchange token rejected. Carries the stable verifier reason
-            (see ExchangeTokenErrorCode) once the fold-in lands. Framework Nest shape.
+            Exchange token rejected — token not active/verifiable, or its principal
+            is not provisioned in the tenant, or the resolved user is disabled.
+            Framework Nest shape (no token bytes or reason oracle leaked).
           content:
             application/json:
               schema:
@@ -337,19 +347,7 @@ paths:
               example:
                 statusCode: 401
                 error: Unauthorized
-                message: 'exchange token rejected: BAD_SIGNATURE'
-        '501':
-          description: >-
-            TODAY — the RS256/JWKS core is built+tested (M7) but the session fold-in
-            is not wired. Typed sentinel (NOT a fabricated session).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedError'
-              example:
-                code: NOT_IMPLEMENTED
-                operationId: orvexSessionExchange
-                marker: ORVEX_NOT_IMPLEMENTED
+                message: 'exchange token rejected'
 
   # ══════════════════════════════════════════════════════════════════════════
   # FR-W19 — AGPL §13 written source offer  (REAL — no 501)
@@ -891,18 +889,19 @@ components:
         exchangeToken:
           type: string
           description: >-
-            An orvex-studio-identity-minted RS256 JWT. Verified against the issuer
-            JWKS by the built+tested M7 core (alg-allowlist / iss / aud / exp /
-            claim-shape) before a session is minted.
+            An orvex-studio-identity-minted SHORT-LIVED OPAQUE exchange token
+            (from `/v1/exchange`). Resolved to its `{subject, tenant}` principal
+            via identity's `/v1/introspect` before a session is minted — never
+            trusted unverified.
 
     SessionExchangeResult:
       type: object
       additionalProperties: false
       required: [workspaceId, sub]
       description: >-
-        INTENDED — the minted session's scope. The engine session is delivered as
-        the upstream session cookie on the response (the A-THIN fold-in). Fields
-        mirror the verified ExchangeTokenClaims the M7 verifier returns.
+        The minted session's scope. The engine session itself is delivered as the
+        upstream Docmost `authToken` session cookie on the response; this body
+        mirrors the verified principal the introspection resolved.
       properties:
         sub:
           type: string
