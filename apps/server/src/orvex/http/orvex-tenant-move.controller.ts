@@ -7,11 +7,28 @@ import {
   Body,
   Controller,
   Headers,
+  HttpCode,
+  HttpStatus,
   Post,
 } from '@nestjs/common';
 
+import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 import { OrvexNotImplementedException } from '../not-implemented';
+import { TenantCellMoveRequestDto } from './dto/tenant-cell-move.dto';
 import { TenantMoveManifestDto } from './dto/tenant-move-manifest.dto';
+import {
+  OrvexTenantCellMoveService,
+  TenantCellMoveResult,
+} from './orvex-tenant-cell-move.service';
+
+/** Strips the `Bearer ` prefix; `null` when absent/blank/malformed. */
+function bearerFromHeader(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const match = /^Bearer\s+(.+)$/i.exec(value.trim());
+  return match ? match[1].trim() || null : null;
+}
 
 /** Cell-contract rule #11 — the mandatory idempotency header on every step. */
 const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
@@ -39,6 +56,37 @@ function requireIdempotencyKey(value: string | undefined): void {
  */
 @Controller('orvex/tenant-move')
 export class OrvexTenantMoveController {
+  constructor(private readonly cellMoveService: OrvexTenantCellMoveService) {}
+
+  /**
+   * `POST /api/orvex/tenant-move` (bare, no `/{step}` suffix) — the ENG-1578
+   * M14 closing-gate REGISTRY cross-cell tenant-MOVE. REAL from day one (NOT
+   * a 501 stub): delegates to identity's already-real `Registry.Move`
+   * (ENG-1507). Deliberately a DIFFERENT operation from the
+   * quiesce/export/import/activate bulk-content pipeline below — see
+   * {@link OrvexTenantCellMoveService}'s doc for the scope boundary.
+   *
+   * `Idempotency-Key` is OPTIONAL here (unlike the mandatory A-MOVE step
+   * contract below): when present it becomes the registry `moveId` (real
+   * per-caller idempotency); when absent, a fresh one is minted per call —
+   * safe because identity's `Registry.Move` is ALSO state-based idempotent
+   * (see the service doc).
+   */
+  @SkipTransform()
+  @HttpCode(HttpStatus.OK)
+  @Post()
+  async moveCell(
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() dto: TenantCellMoveRequestDto,
+  ): Promise<TenantCellMoveResult> {
+    return this.cellMoveService.moveCell(
+      bearerFromHeader(authorization),
+      dto,
+      idempotencyKey ?? null,
+    );
+  }
+
   @Post('quiesce')
   quiesce(
     @Headers('idempotency-key') idempotencyKey: string | undefined,

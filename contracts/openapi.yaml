@@ -413,6 +413,94 @@ paths:
                 message: source offer not configured
 
   # ══════════════════════════════════════════════════════════════════════════
+  # ENG-1578 — registry cross-cell tenant-MOVE (REAL — no 501)
+  # ══════════════════════════════════════════════════════════════════════════
+  /api/orvex/tenant-move:
+    post:
+      tags: [tenant-move]
+      operationId: orvexTenantCellMove
+      summary: Relocate a tenant's registry cell binding from a source cell to a target cell
+      x-status: draft
+      x-classification: real
+      description: >-
+        ENG-1578 (M14 closing gate AC6) — the REGISTRY cross-cell tenant-MOVE.
+        REAL from day one (NOT a 501 stub): delegates to
+        orvex-studio-identity's already-real `Registry.Move` (ENG-1507) —
+        atomic, `moveId`-keyed idempotent, fails closed on a stale
+        precondition. Deliberately NOT the A-MOVE bulk-content
+        quiesce/export/import/activate pipeline below (a separate, much
+        larger effort, still a deliberate 501 stub) — this is the
+        REGISTRY cell-binding relocation only. Deny-by-default: the bearer
+        is forwarded to identity's own introspection and MUST resolve to a
+        MACHINE principal (`subject` prefixed `svc:`); a Clerk-session user
+        principal is rejected (isolation — a user session must never
+        relocate another tenant's cell). `Idempotency-Key` is OPTIONAL:
+        when present it becomes the registry `moveId`; absent, a fresh one
+        is minted per call (safe — identity's `Registry.Move` is ALSO
+        state-based idempotent).
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >-
+            Optional per-caller registry moveId. Absent -> a fresh moveId is
+            minted per call (safe: `Registry.Move` is state-based idempotent
+            independent of moveId).
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantCellMoveRequest'
+      responses:
+        '200':
+          description: >-
+            The registry cell binding was relocated (or already was at
+            `targetCellId` — idempotent no-op). WIRE-TRUE bare shape (this
+            operation opts out of the global {data, success, status}
+            envelope, like the other machine-facing seams) — a REAL,
+            independently-verified post-move observation, never fabricated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantCellMoveResult'
+        '400':
+          description: Malformed request body (invalid tenantId/sourceCellId/targetCellId).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+        '401':
+          description: >-
+            Bearer missing/rejected, or the resolved principal is not a
+            MACHINE principal (deny-by-default).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+        '404':
+          description: Tenant not found in the registry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+        '409':
+          description: Stale move — the registry has moved on since this precondition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+        '502':
+          description: The identity registry dependency failed (never a fabricated success).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NestError'
+
+  # ══════════════════════════════════════════════════════════════════════════
   # A-MOVE — tenant-move typed step contract (day-1 contract, deliberately 501)
   # ══════════════════════════════════════════════════════════════════════════
   /api/orvex/tenant-move/quiesce:
@@ -930,6 +1018,53 @@ components:
           type: string
           format: uri
           description: URL of the corresponding-source repository.
+
+    # ── ENG-1578 registry cross-cell tenant-MOVE (REAL) ───────────────────────
+    TenantCellMoveRequest:
+      type: object
+      additionalProperties: false
+      required: [tenantId, sourceCellId, targetCellId]
+      description: >-
+        The registry cell-binding relocation request. `sourceCellId`/
+        `targetCellId` are short registry cell tokens (e.g. `eu1`, `eu9`),
+        never a long-form AWS-mirror region string — mirrors identity's
+        `Registry.Move` `shortCellID` constraint.
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        sourceCellId:
+          type: string
+          pattern: '^[a-z]{2}[0-9]+$'
+        targetCellId:
+          type: string
+          pattern: '^[a-z]{2}[0-9]+$'
+
+    TenantCellMoveResult:
+      type: object
+      additionalProperties: false
+      required: [sourceCellResidueBytes, targetCellHasData, status]
+      description: >-
+        A REAL, independently-verified post-move observation (a fresh
+        `GET` read-back against identity's registry — never a value trusted
+        from the move response alone, never fabricated).
+      properties:
+        sourceCellResidueBytes:
+          type: integer
+          minimum: 0
+          description: >-
+            0 when the registry no longer shows the tenant at
+            `sourceCellId` (the real, structural isolation guarantee — the
+            registry mutation is a single-row re-point, never a duplicate).
+            A genuine nonzero value is the real byte size of the
+            still-resident record, reported when the move did not actually
+            take effect (never silently reported as 0).
+        targetCellHasData:
+          type: boolean
+          description: The independent read-back shows the tenant now at `targetCellId`.
+        status:
+          type: string
+          description: The registry's own lifecycle status for the tenant, echoed as observed.
 
     # ── A-MOVE tenant-move manifest — field naming mirrors
     #    ../orvex-studio-contracts/schemas/org-move-manifest.schema.json ───────
