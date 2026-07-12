@@ -24,7 +24,7 @@ export const UPSTREAM_GLOBAL_PREFIX_EXCLUDE: readonly string[] = [
  * resolveGlobalPrefixExclude (ENG-1604 AC8.4) — the real `/api` global-prefix
  * exclude list `main.ts` passes to `setGlobalPrefix()`. Merges the hardcoded
  * upstream exclusions with `OrvexConfigService#globalPrefixExclude`
- * (env-driven, defaults to `mcp` + `health/orvex`) — deduplicated, order
+ * (env-driven, defaults to `health/orvex`) — deduplicated, order
  * preserved.
  *
  * A pure function of an env bag (constructed the same pre-DI way as

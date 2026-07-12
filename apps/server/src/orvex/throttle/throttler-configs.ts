@@ -5,7 +5,6 @@
 import {
   AI_CHAT_THROTTLER,
   AUTH_THROTTLER,
-  MCP_TOOL_THROTTLER,
   USER_EXPORT_THROTTLER,
 } from '../orvex-throttler-names';
 
@@ -44,11 +43,6 @@ const CONFIGS: readonly OrvexThrottlerConfig[] = [
     name: AI_CHAT_THROTTLER,
     defaultLimit: 180,
     settingsPath: ['ai', 'throttle', 'chatRpm'],
-  },
-  {
-    name: MCP_TOOL_THROTTLER,
-    defaultLimit: 120,
-    settingsPath: ['mcp', 'throttle', 'toolRpm'],
   },
   {
     name: USER_EXPORT_THROTTLER,

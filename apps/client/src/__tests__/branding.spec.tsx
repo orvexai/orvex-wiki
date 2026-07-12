@@ -24,8 +24,7 @@ const CLIENT_ROOT = join(__dirname, "..");
 //    license — out of scope for a product-name rebrand).
 const ALLOWLISTED_PATHS = [
   "ee/LICENSE",
-  "ee/ai/components/mcp-settings.tsx", // "Contact sales@docmost.com" — real upstream contact, not fabricated
-  "ee/ai/pages/ai-settings.tsx", // same real upstream contact
+  "ee/ai/pages/ai-settings.tsx", // "Contact sales@docmost.com" — real upstream contact, not fabricated
 ];
 
 function isAllowlisted(relPath: string): boolean {

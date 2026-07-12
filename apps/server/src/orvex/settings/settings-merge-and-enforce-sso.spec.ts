@@ -45,7 +45,7 @@ class FakeMemberLookup implements OrvexMemberLookup {
  *
  * Drives ONLY exported interfaces, crossing all four required behaviours:
  *  1. mergeWorkspaceSettings — sibling-preserve + array-replace + null-delete.
- *  2. validate(OrvexWorkspaceSettings) — rejects non-boolean mcp.enabled.
+ *  2. validate(OrvexWorkspaceSettings) — rejects non-boolean oidc.enabled.
  *  3. checkOrThrow on enforceSso:true + member — rejects SSO_REQUIRED, audits once.
  *  4. invalidateAllMemberSessions -> real EventEmitter2 -> OrvexSsoEventsListener
  *     -> UserSessionRepo.revokeByWorkspaceId(wsId) row-effect.
@@ -73,9 +73,9 @@ describe('TestSettingsMergeAndEnforceSso', () => {
     expect('issuerUrl' in result.oidc).toBe(false); // null == delete
   });
 
-  it('2. validate(OrvexWorkspaceSettings) rejects non-boolean mcp.enabled', async () => {
+  it('2. validate(OrvexWorkspaceSettings) rejects non-boolean oidc.enabled', async () => {
     const dto = plainToInstance(OrvexWorkspaceSettings, {
-      mcp: { enabled: 'yes' },
+      oidc: { enabled: 'yes' },
     });
     const errors = await validate(dto);
     expect(errors.length).toBeGreaterThan(0);

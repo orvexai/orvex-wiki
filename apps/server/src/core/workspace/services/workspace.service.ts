@@ -358,7 +358,6 @@ export class WorkspaceService {
     if (
       typeof updateWorkspaceDto.disablePublicSharing !== 'undefined' ||
       typeof updateWorkspaceDto.trashRetentionDays !== 'undefined' ||
-      typeof updateWorkspaceDto.mcpEnabled !== 'undefined' ||
       typeof updateWorkspaceDto.restrictApiToAdmins !== 'undefined' ||
       typeof updateWorkspaceDto.allowMemberTemplates !== 'undefined' ||
       typeof updateWorkspaceDto.isScimEnabled !== 'undefined' ||
@@ -372,14 +371,6 @@ export class WorkspaceService {
 
       if (!ws) {
         throw new NotFoundException('Workspace not found');
-      }
-
-      if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {
-        if (!this.licenseCheckService.hasFeature(ws.licenseKey, 'mcp', ws.plan)) {
-          throw new ForbiddenException(
-            'This feature requires a valid license',
-          );
-        }
       }
 
       if (typeof updateWorkspaceDto.isScimEnabled !== 'undefined') {
@@ -499,20 +490,6 @@ export class WorkspaceService {
         }
       }
 
-      if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {
-        const prev = settingsBefore?.ai?.mcp ?? false;
-        if (prev !== updateWorkspaceDto.mcpEnabled) {
-          before.mcpEnabled = prev;
-          after.mcpEnabled = updateWorkspaceDto.mcpEnabled;
-        }
-        await this.workspaceRepo.updateAiSettings(
-          workspaceId,
-          'mcp',
-          updateWorkspaceDto.mcpEnabled,
-          trx,
-        );
-      }
-
       if (typeof updateWorkspaceDto.allowMemberTemplates !== 'undefined') {
         const prev = settingsBefore?.templates?.allowMemberTemplates ?? false;
         if (prev !== updateWorkspaceDto.allowMemberTemplates) {
@@ -573,7 +550,6 @@ export class WorkspaceService {
       delete updateWorkspaceDto.aiSearch;
       delete updateWorkspaceDto.generativeAi;
       delete updateWorkspaceDto.disablePublicSharing;
-      delete updateWorkspaceDto.mcpEnabled;
       delete updateWorkspaceDto.allowMemberTemplates;
       delete updateWorkspaceDto.aiChat;
       delete updateWorkspaceDto.allowPersonalSpaces;

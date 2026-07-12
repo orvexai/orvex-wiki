@@ -133,15 +133,15 @@ export class OrvexConfigService {
 
   /**
    * ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4) — routes excluded from the `/api`
-   * global prefix, read by `main.ts`. Defaults to `mcp` (the only
-   * Orvex-added exclusion real at HEAD before this ticket) PLUS `health/orvex`
-   * (added to the default by this ticket, per AC8's own spec text (b) — its
-   * endpoint now exists via AC8(a)).
+   * global prefix, read by `main.ts`. Defaults to `health/orvex` (the
+   * dependency-probe endpoint). The former `mcp` default was dropped when the
+   * engine's in-fork MCP door was decommissioned at REST-gap parity (ENG-1481)
+   * — the engine advertises no `/mcp` surface, so excluding it is dead config.
    */
   get globalPrefixExclude(): string[] {
     const raw = this.read('ORVEX_GLOBAL_PREFIX_EXCLUDE');
     if (raw === null) {
-      return ['mcp', 'health/orvex'];
+      return ['health/orvex'];
     }
     return raw
       .split(',')
