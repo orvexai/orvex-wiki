@@ -38,6 +38,7 @@ import { OrvexTransclusionSafeguardModule } from './orvex/transclusion-safeguard
 import { OrvexEventsModule } from './orvex/events/orvex-events.module';
 import { OrvexMigratorModule } from './orvex/extensions/orvex-migrator.module';
 import { InternalApiModule } from './core/internal-api/internal-api.module';
+import { OrvexSessionMintModule } from './orvex/session-mint/orvex-session-mint.module';
 
 const enterpriseModules = [];
 try {
@@ -100,6 +101,14 @@ try {
     // INTERNAL_API_BEARER_TOKEN is configured), so mounting it costs
     // nothing when unused.
     InternalApiModule,
+    // FR-W6 / A-AUTH — the real `POST /api/orvex/session/exchange` session-mint
+    // (consume an identity exchange token → mint an engine session). Mounted
+    // unconditionally for the SAME reason as InternalApiModule: it is fail-closed
+    // by default (no ORVEX_IDENTITY_URL ⇒ its composed introspector rejects every
+    // mint), and it is DB-backed (UserRepo/SessionService), so it cannot live in
+    // the DB-free flag-gated OrvexRootModule e2e harness. See
+    // orvex/session-mint/orvex-session-mint.module.ts.
+    OrvexSessionMintModule,
     StorageModule.forRootAsync({
       imports: [EnvironmentModule],
     }),

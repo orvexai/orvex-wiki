@@ -49,6 +49,19 @@ export class OrvexConfigService {
   }
 
   /**
+   * ORVEX_IDENTITY_INTROSPECTION_TOKEN — the OPTIONAL bearer the FR-W6
+   * session-mint sends on its `POST {identity}/v1/introspect` call (parity with
+   * knowledge's `IDENTITY_INTROSPECTION_TOKEN`). Identity's introspect endpoint
+   * authenticates by the token in the request body, so this is optional: null
+   * when unset (the introspect call is made without an Authorization header),
+   * never a fabricated placeholder. First consumer: `OrvexSessionMintModule`'s
+   * introspector composition. NEVER logged.
+   */
+  get identityIntrospectionToken(): string | null {
+    return this.read('ORVEX_IDENTITY_INTROSPECTION_TOKEN');
+  }
+
+  /**
    * ORVEX_GIT_SHA — the exact commit the running binary was built from. Powers
    * the AGPL section 13 written-source offer (FR-W19). Null when unset (the
    * controller turns that into a LOUD 500) — never a fabricated SHA.

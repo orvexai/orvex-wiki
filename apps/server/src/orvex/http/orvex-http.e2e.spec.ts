@@ -50,8 +50,9 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     setEnv('ORVEX_MODULES_ENABLED', 'true');
     setEnv('ORVEX_GIT_SHA', GIT_SHA);
     setEnv('ORVEX_SOURCE_REPO', SOURCE_REPO);
-    // identity unset -> session-mint composes the fail-closed verifier (the
-    // exchange endpoint is 501, so the verifier is never invoked here).
+    // identity unset -> the flag-gated OrvexRootModule session-mint composition
+    // binds the fail-closed verifier. (The real FR-W6 exchange endpoint no
+    // longer lives in this DB-free harness — see the FR-W6 note below.)
     saved['ORVEX_IDENTITY_URL'] = process.env.ORVEX_IDENTITY_URL;
     delete process.env.ORVEX_IDENTITY_URL;
 
@@ -102,73 +103,18 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     expect(res.json()).toEqual(sentinel('orvexGetQuota'));
   });
 
-  it('orvexSessionExchange -> 501 typed sentinel', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/orvex/session/exchange',
-      payload: { exchangeToken: 'aaa.bbb.ccc' },
-    });
-    expect(res.statusCode).toBe(501);
-    expect(res.json()).toEqual(sentinel('orvexSessionExchange'));
-  });
-
-  it('ENG-1490 AC4 — orvexSessionExchange (the identity-spine session-mint path) is UNTOUCHED by OrvexNativeLoginGuard even when the request carries an enforced-SSO workspace', async () => {
-    // Build a second app on the same OrvexRootModule wiring, but with the
-    // `req.raw.workspace` shape OrvexNativeLoginGuard reads (mirroring
-    // `orvex-native-login.e2e.spec.ts`) attached to every request via a
-    // DomainMiddleware stand-in. This is the exact trigger condition
-    // (flag ON + enforceSso ON) that fires the guard on the native-auth
-    // routes; asserting the session-mint/exchange route's response is
-    // BYTE-IDENTICAL to its unconditioned behaviour above (still the 501
-    // sentinel, never a 403 from the native-login guard) is the honest
-    // positive proof available in this repo today that native-login
-    // disablement did not touch the identity-spine session-mint surface.
-    //
-    // NOTE: a literal "2xx" assertion on this route requires the
-    // session-mint HTTP wiring itself to land — `OrvexSessionController`
-    // is a deliberate, separately-ticketed 501 stub (see its file doc)
-    // pending that fold-in, so asserting 2xx here would fabricate success
-    // (CS §11). This regression assertion is the maximal honest AC4 proof
-    // until that wiring ticket lands.
-    const moduleRef = await Test.createTestingModule({
-      imports: [OrvexRootModule.register()],
-    }).compile();
-
-    const ssoApp = moduleRef.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
-    ssoApp.setGlobalPrefix('api');
-    ssoApp.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        transform: true,
-        stopAtFirstError: true,
-      }),
-    );
-    ssoApp.useGlobalInterceptors(
-      new TransformHttpResponseInterceptor(ssoApp.get(Reflector)),
-    );
-    ssoApp.use(
-      (req: { workspace?: unknown }, _res: unknown, next: () => void) => {
-        req.workspace = { id: 'ws-sso', enforceSso: true };
-        next();
-      },
-    );
-    await ssoApp.init();
-    await ssoApp.getHttpAdapter().getInstance().ready();
-
-    try {
-      const res = await ssoApp.inject({
-        method: 'POST',
-        url: '/api/orvex/session/exchange',
-        payload: { exchangeToken: 'aaa.bbb.ccc' },
-      });
-      expect(res.statusCode).toBe(501);
-      expect(res.json()).toEqual(sentinel('orvexSessionExchange'));
-    } finally {
-      await ssoApp.close();
-    }
-  });
+  // FR-W6 — `orvexSessionExchange` (`POST /api/orvex/session/exchange`) is no
+  // longer part of this DB-less flag-e2e harness: it stopped being a 501 stub.
+  // The REAL session-mint needs `UserRepo`/`SessionService` (DB), so — the same
+  // carve-out as `orvexApplyOps` above — it moved to the DB-backed,
+  // unconditionally-mounted `OrvexSessionMintModule`. Its own DoD tests (verify
+  // → resolve → mint, all deny-by-default) live at
+  // `session-mint/orvex-session-mint.service.spec.ts` and
+  // `session-mint/identity-introspector.spec.ts`. The former ENG-1490 AC4
+  // regression (native-login guard must not touch the session-mint path) is now
+  // STRUCTURALLY guaranteed rather than asserted: the mint controller lives in a
+  // module that never mounts `OrvexNativeLoginGuard` (that guard is applied only
+  // on `AuthController.login`), so there is no path for it to reach this route.
 
   it('orvexSourceOffer -> 200 REAL wire-true envelope {data:{sha,sourceRepo},success,status}', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/orvex/source' });
