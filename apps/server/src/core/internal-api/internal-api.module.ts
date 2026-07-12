@@ -6,6 +6,7 @@ import { Module } from '@nestjs/common';
 import { ExportModule } from '../../integrations/export/export.module';
 import { InternalApiController } from './internal-api.controller';
 import { InternalApiService } from './internal-api.service';
+import { PrincipalProvisioningService } from './principal-provisioning.service';
 import {
   INTERNAL_API_AUTH_CONFIG,
   InternalApiAuthConfig,
@@ -20,12 +21,18 @@ import { InternalApiAuthGuard } from './internal-api-auth.guard';
  * elsewhere in the app (`PageAccessModule`, the Kysely repo providers) so
  * are resolved via DI without a re-import here; `ExportService` is not
  * global, so `ExportModule` is imported explicitly for it.
+ *
+ * ENG-1559 write-path — `PrincipalProvisioningService` composes the same
+ * `@Global()` DatabaseModule repos (`UserRepo`, `WorkspaceRepo`,
+ * `GroupUserRepo`, `OutboxWriter`) + the global `AUDIT_SERVICE`, so it needs no
+ * extra module import.
  */
 @Module({
   imports: [ExportModule],
   controllers: [InternalApiController],
   providers: [
     InternalApiService,
+    PrincipalProvisioningService,
     InternalApiAuthGuard,
     {
       provide: INTERNAL_API_AUTH_CONFIG,

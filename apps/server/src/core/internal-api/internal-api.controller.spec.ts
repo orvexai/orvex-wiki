@@ -33,6 +33,7 @@ import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
+import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
@@ -43,7 +44,10 @@ import { EnvironmentService } from '../../integrations/environment/environment.s
 import { DomainService } from '../../integrations/environment/domain.service';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import { WsService } from '../../ws/ws.service';
-import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
+import {
+  AUDIT_SERVICE,
+  NoopAuditService,
+} from '../../integrations/audit/audit.service';
 import { UserRole, SpaceRole } from '../../common/helpers/types/permission';
 import type { DB } from '@docmost/db/types/db';
 
@@ -125,6 +129,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         SpaceRepo,
         SpaceMemberRepo,
         GroupRepo,
+        GroupUserRepo,
         WorkspaceRepo,
         UserRepo,
         PagePermissionRepo,
@@ -150,17 +155,19 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
           provide: StorageService,
           useValue: { read: async () => Buffer.from('') },
         },
-        // ExportModule's ExportController (unused by this test, but pulled in
-        // transitively via InternalApiModule's `imports: [ExportModule]`)
-        // needs AUDIT_SERVICE — a no-op double is correct here since no test
-        // exercises that controller.
-        { provide: AUDIT_SERVICE, useValue: { log: () => {} } },
+        // AUDIT_SERVICE is the ONE no-op double (CS §5 — the EE audit sink is a
+        // true external not loaded here). Use the REAL open-source
+        // `NoopAuditService` (exactly what prod's `NoopAuditModule` provides),
+        // not a hand-rolled stub, so every method the code-under-test calls
+        // (`log`, `logWithContext`) exists with production semantics.
+        { provide: AUDIT_SERVICE, useClass: NoopAuditService },
       ],
       exports: [
         PageRepo,
         SpaceRepo,
         SpaceMemberRepo,
         GroupRepo,
+        GroupUserRepo,
         WorkspaceRepo,
         UserRepo,
         PagePermissionRepo,
@@ -298,6 +305,15 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       .updateTable('workspaces')
       .set({ settings: { ai: { search: true } } as any })
       .where('id', '=', workspaceId)
+      .execute();
+
+    // Default group — a real workspace always has one; the provisioning
+    // write-path adds JIT-created members to it (member parity). The
+    // testcontainers workspace is seeded raw, so we materialize it here so the
+    // provisioning leg exercises the real `addUserToDefaultGroup` primitive.
+    await seedDb
+      .insertInto('groups')
+      .values({ name: 'Everyone', isDefault: true, workspaceId })
       .execute();
   });
 
@@ -632,6 +648,231 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         headers: authHeaders(),
       });
       expect(res.statusCode).toBe(200);
+    });
+  });
+
+  // ENG-1559 write-path — POST /internal/principals/provision. The WRITE seam
+  // that unorphans `auth_accounts`: it establishes the subject->user linkage the
+  // AC1 `acl/filter` read seam resolves. Every assertion is against the REAL
+  // Postgres (no mocks): a genuine `users` row, `auth_accounts` linkage, and
+  // `group_users` default-group membership are written and then read back.
+  describe('write-path — POST /internal/principals/provision ({subject,tenant,email,name?} -> {user_id, created})', () => {
+    const countLinkages = async (subject: string, tenant: string) => {
+      const rows = await seedDb
+        .selectFrom('authAccounts')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('providerUserId', '=', subject)
+        .where('workspaceId', '=', tenant)
+        .where('deletedAt', 'is', null)
+        .executeTakeFirstOrThrow();
+      return Number(rows.count);
+    };
+
+    const countUsersByEmail = async (email: string, tenant: string) => {
+      const rows = await seedDb
+        .selectFrom('users')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('email', '=', email.toLowerCase())
+        .where('workspaceId', '=', tenant)
+        .executeTakeFirstOrThrow();
+      return Number(rows.count);
+    };
+
+    it('denies (401) with no/invalid bearer', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        payload: {
+          subject: 'idp-subject-401',
+          tenant: workspaceId,
+          email: 'x401@example.com',
+        },
+      });
+      expect(res.statusCode).toBe(401);
+
+      const resBad = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders('wrong-token'),
+        payload: {
+          subject: 'idp-subject-401',
+          tenant: workspaceId,
+          email: 'x401@example.com',
+        },
+      });
+      expect(resBad.statusCode).toBe(401);
+    });
+
+    it('JIT-creates a workspace member + auth_accounts linkage, and the AC1 read seam then RESOLVES the once-unknown subject end-to-end', async () => {
+      const SUBJECT = 'idp-subject-provisioned';
+      const EMAIL = 'provisioned@example.com';
+
+      const readablePageId = await seedPage({
+        title: 'provisioned readable page',
+        content: 'body the provisioned member may read',
+      });
+
+      // BEFORE provisioning the read seam fails closed for this subject — the
+      // exact orphaned-write-path gap this endpoint closes.
+      const before = await app.inject({
+        method: 'POST',
+        url: '/internal/acl/filter',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId, page_ids: [readablePageId] },
+      });
+      expect(before.statusCode).toBe(200);
+      expect(JSON.parse(before.body).allowed).toEqual([]);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL, name: 'Provisioned User' },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.created).toBe(true);
+      expect(typeof body.user_id).toBe('string');
+      const provisionedUserId = body.user_id as string;
+
+      // A real, workspace-scoped user row was written.
+      const user = await seedDb
+        .selectFrom('users')
+        .select(['id', 'workspaceId', 'email', 'hasGeneratedPassword'])
+        .where('id', '=', provisionedUserId)
+        .executeTakeFirstOrThrow();
+      expect(user.workspaceId).toBe(workspaceId);
+      expect(user.email).toBe(EMAIL);
+      expect(user.hasGeneratedPassword).toBe(true);
+
+      // Exactly one live linkage + default-group membership (full member parity).
+      expect(await countLinkages(SUBJECT, workspaceId)).toBe(1);
+      const groupMembership = await seedDb
+        .selectFrom('groupUsers')
+        .innerJoin('groups', 'groups.id', 'groupUsers.groupId')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('groupUsers.userId', '=', provisionedUserId)
+        .where('groups.isDefault', '=', true)
+        .where('groups.workspaceId', '=', workspaceId)
+        .executeTakeFirstOrThrow();
+      expect(Number(groupMembership.count)).toBe(1);
+
+      // Grant the provisioned member space access + read the same page back
+      // through the AC1 seam — the write-path closes the loop with the read seam.
+      await seedDb
+        .insertInto('spaceMembers')
+        .values({ userId: provisionedUserId, spaceId, role: SpaceRole.READER })
+        .execute();
+
+      const after = await app.inject({
+        method: 'POST',
+        url: '/internal/acl/filter',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId, page_ids: [readablePageId] },
+      });
+      expect(after.statusCode).toBe(200);
+      expect(JSON.parse(after.body).allowed).toEqual([readablePageId]);
+    });
+
+    it('is idempotent — a repeat provision returns the same user_id with created=false and writes no duplicate rows', async () => {
+      const SUBJECT = 'idp-subject-idempotent';
+      const EMAIL = 'idempotent@example.com';
+
+      const first = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
+      });
+      expect(first.statusCode).toBe(200);
+      const firstBody = JSON.parse(first.body);
+      expect(firstBody.created).toBe(true);
+
+      const second = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
+      });
+      expect(second.statusCode).toBe(200);
+      const secondBody = JSON.parse(second.body);
+      expect(secondBody.created).toBe(false);
+      expect(secondBody.user_id).toBe(firstBody.user_id);
+
+      expect(await countLinkages(SUBJECT, workspaceId)).toBe(1);
+      expect(await countUsersByEmail(EMAIL, workspaceId)).toBe(1);
+    });
+
+    it('LINKS an already workspace-invited user by email instead of duplicating them', async () => {
+      const EMAIL = 'invited@example.com';
+      const SUBJECT = 'idp-subject-invited';
+
+      const invited = await seedDb
+        .insertInto('users')
+        .values({ email: EMAIL, workspaceId, role: UserRole.MEMBER })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.created).toBe(true);
+      expect(body.user_id).toBe(invited.id);
+
+      // No duplicate user; exactly one linkage now bridges the subject.
+      expect(await countUsersByEmail(EMAIL, workspaceId)).toBe(1);
+      expect(await countLinkages(SUBJECT, workspaceId)).toBe(1);
+    });
+
+    it('fails closed (404) for a tenant that is not a live workspace', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject: 'idp-subject-ghost',
+          tenant: '00000000-0000-4000-8000-0000000000ff',
+          email: 'ghost@example.com',
+        },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('rejects a non-UUID tenant (400)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject: 'idp-subject-badtenant',
+          tenant: 'not-a-uuid',
+          email: 'badtenant@example.com',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejects a malformed email (400) and an empty subject (400)', async () => {
+      const badEmail = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: 'idp-subject-x', tenant: workspaceId, email: 'not-an-email' },
+      });
+      expect(badEmail.statusCode).toBe(400);
+
+      const emptySubject = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: '', tenant: workspaceId, email: 'ok@example.com' },
+      });
+      expect(emptySubject.statusCode).toBe(400);
     });
   });
 });

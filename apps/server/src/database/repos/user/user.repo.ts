@@ -112,6 +112,38 @@ export class UserRepo {
     return row?.id;
   }
 
+  /**
+   * ENG-1559 write-path — establish the SSO linkage row that
+   * {@link findUserIdByProviderUserId} later reads. This is the WRITE half of
+   * the ruled engine-side principal resolution (fork (a)): the engine owns the
+   * subject->user mapping, so the linkage is written HERE — in an explicit,
+   * bearer-guarded internal provisioning act — never inferred on the read path
+   * (which stays fail-closed for any unprovisioned subject). `authProviderId`
+   * is null for identity-federated principals: the external IdP is not a
+   * workspace-configured `auth_providers` row, and the read seam matches on
+   * (`providerUserId`, `workspaceId`), not on the provider id.
+   */
+  async linkProviderAccount(
+    link: {
+      userId: string;
+      providerUserId: string;
+      workspaceId: string;
+      authProviderId?: string | null;
+    },
+    trx?: KyselyTransaction,
+  ): Promise<void> {
+    const db = dbOrTx(this.db, trx);
+    await db
+      .insertInto('authAccounts')
+      .values({
+        userId: link.userId,
+        providerUserId: link.providerUserId,
+        workspaceId: link.workspaceId,
+        authProviderId: link.authProviderId ?? null,
+      })
+      .execute();
+  }
+
   async updateUser(
     updatableUser: UpdatableUser,
     userId: string,

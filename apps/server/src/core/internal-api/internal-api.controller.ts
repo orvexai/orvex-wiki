@@ -15,7 +15,12 @@ import {
 } from '@nestjs/common';
 import { InternalApiAuthGuard } from './internal-api-auth.guard';
 import { InternalApiService } from './internal-api.service';
-import { AclFilterDto, TenantQueryDto } from './dto/internal-api.dto';
+import { PrincipalProvisioningService } from './principal-provisioning.service';
+import {
+  AclFilterDto,
+  ProvisionPrincipalDto,
+  TenantQueryDto,
+} from './dto/internal-api.dto';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 
 /**
@@ -53,7 +58,32 @@ import { SkipTransform } from '../../common/decorators/skip-transform.decorator'
 @UseGuards(InternalApiAuthGuard)
 @Controller('internal')
 export class InternalApiController {
-  constructor(private readonly internalApiService: InternalApiService) {}
+  constructor(
+    private readonly internalApiService: InternalApiService,
+    private readonly principalProvisioningService: PrincipalProvisioningService,
+  ) {}
+
+  /**
+   * ENG-1559 write-path — POST /internal/principals/provision —
+   * `{subject, tenant, email, name?}` -> `{user_id, created}`. Establishes the
+   * `auth_accounts` subject->user linkage the `acl/filter` read seam resolves.
+   * The real caller is orvex-studio-identity's provisioning worker. Idempotent;
+   * fail-closed on an unknown workspace (404). The read path is untouched and
+   * still fails closed for any not-yet-provisioned subject.
+   */
+  @SkipTransform()
+  @HttpCode(HttpStatus.OK)
+  @Post('principals/provision')
+  async provisionPrincipal(@Body() dto: ProvisionPrincipalDto) {
+    const { userId, created } =
+      await this.principalProvisioningService.provision({
+        subject: dto.subject,
+        tenant: dto.tenant,
+        email: dto.email,
+        name: dto.name,
+      });
+    return { user_id: userId, created };
+  }
 
   /** AC1 — POST /internal/acl/filter — `{subject, tenant, page_ids}` -> `{allowed}` */
   @SkipTransform()
