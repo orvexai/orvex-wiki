@@ -65,24 +65,28 @@ export class InternalApiController {
 
   /**
    * ENG-1559 write-path — POST /internal/principals/provision —
-   * `{subject, tenant, email, name?}` -> `{user_id, created}`. Establishes the
-   * `auth_accounts` subject->user linkage the `acl/filter` read seam resolves.
-   * The real caller is orvex-studio-identity's provisioning worker. Idempotent;
-   * fail-closed on an unknown workspace (404). The read path is untouched and
+   * `{subject, tenant, email, name?, provision_workspace?}` ->
+   * `{user_id, created, workspace_created}`. Establishes the `auth_accounts`
+   * subject->user linkage the `acl/filter` read seam resolves. The real caller
+   * is orvex-studio-identity's provisioning worker. Idempotent. Fail-closed on
+   * an unknown workspace (404) UNLESS `provision_workspace` vouches for the
+   * identity-issued UUID, in which case the workspace is get-or-created
+   * atomically with this principal (ENG-1559 R6). The read path is untouched and
    * still fails closed for any not-yet-provisioned subject.
    */
   @SkipTransform()
   @HttpCode(HttpStatus.OK)
   @Post('principals/provision')
   async provisionPrincipal(@Body() dto: ProvisionPrincipalDto) {
-    const { userId, created } =
+    const { userId, created, workspaceCreated } =
       await this.principalProvisioningService.provision({
         subject: dto.subject,
         tenant: dto.tenant,
         email: dto.email,
         name: dto.name,
+        provisionWorkspace: dto.provision_workspace,
       });
-    return { user_id: userId, created };
+    return { user_id: userId, created, workspace_created: workspaceCreated };
   }
 
   /** AC1 — POST /internal/acl/filter — `{subject, tenant, page_ids}` -> `{allowed}` */

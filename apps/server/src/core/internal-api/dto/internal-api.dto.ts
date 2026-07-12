@@ -6,6 +6,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsOptional,
@@ -62,14 +63,32 @@ export class AclFilterDto {
  * provision-on-resolve design would auto-grant unknown principals and defeat
  * the intra-tenant restricted-bytes=0 gate).
  *
+ * WORKSPACE MATERIALIZATION (ENG-1559 R6 — engine as the ruled data-owner):
+ * identity is the SOLE source of the engine workspace UUID (it mints it on the
+ * first `/v1/exchange` — `registry_org_workspaces`), but nothing created the
+ * engine-side `workspaces` row for that UUID, so provisioning 404'd
+ * ("Workspace not found") on every real flow. `provision_workspace` closes that
+ * gap: when the registry-authorized caller sets it, the engine get-or-creates
+ * the workspace with the identity-issued UUID ATOMICALLY with this principal
+ * (one transaction), and the vouching principal becomes its OWNER. It is a
+ * deliberate OPT-IN vouch, NOT a default: with it absent, an unknown workspace
+ * stays a hard fail-closed 404 (deny-by-default for a UUID the registry does not
+ * vouch for) — the read seam never reaches this write path, so there is no
+ * create-on-resolve.
+ *
  *  - `subject`  — the stable IdP subject id (opaque; NOT a UUID, NOT an email).
  *  - `tenant`   — the orvex-wiki workspace UUID (`Principal.Tenant ==
  *                 workspaceId`). A tenant that is not a live workspace 404s
- *                 (fail-closed); a non-UUID tenant 400s.
+ *                 (fail-closed) UNLESS `provision_workspace` vouches for it; a
+ *                 non-UUID tenant 400s.
  *  - `email`    — the principal's email; the account-linking key. An already
  *                 workspace-invited user with this email is LINKED (not
  *                 duplicated); otherwise a member user is JIT-created.
  *  - `name`     — optional display name for a JIT-created user.
+ *  - `provision_workspace` — optional registry vouch. `true` ⇒ the engine
+ *                 get-or-creates the workspace at `tenant` (idempotent) and the
+ *                 provisioned principal is its OWNER; absent/`false` ⇒ unknown
+ *                 `tenant` fails closed (404).
  */
 export class ProvisionPrincipalDto {
   @IsString()
@@ -86,6 +105,10 @@ export class ProvisionPrincipalDto {
   @IsString()
   @MaxLength(255)
   name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  provision_workspace?: boolean;
 }
 
 /**

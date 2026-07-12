@@ -875,4 +875,219 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       expect(emptySubject.statusCode).toBe(400);
     });
   });
+
+  // ENG-1559 R6 — engine workspace materialization. identity is the SOLE source
+  // of the engine workspace UUID (minted on first /v1/exchange), but nothing
+  // created the engine-side `workspaces` row, so a real flow 404'd at provision.
+  // A registry vouch (`provision_workspace`) makes the engine get-or-create the
+  // workspace at the identity-issued UUID ATOMICALLY with the principal, and the
+  // vouching principal becomes its OWNER. Deny-by-default is intact: NO vouch ⇒
+  // an unknown workspace is a hard fail-closed 404 (the read seam never creates).
+  describe('write-path R6 — workspace materialization ({provision_workspace} get-or-create at the identity-issued UUID)', () => {
+    const W_MAT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01';
+    const W_DENY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02';
+
+    const countWorkspaces = async (id: string) => {
+      const r = await seedDb
+        .selectFrom('workspaces')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('id', '=', id)
+        .executeTakeFirstOrThrow();
+      return Number(r.count);
+    };
+
+    const countDefaultGroups = async (id: string) => {
+      const r = await seedDb
+        .selectFrom('groups')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('workspaceId', '=', id)
+        .where('isDefault', '=', true)
+        .executeTakeFirstOrThrow();
+      return Number(r.count);
+    };
+
+    it('deny-by-default: an unknown workspace UUID WITHOUT the vouch fails closed (404) and creates no workspace row', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject: 'r6-deny',
+          tenant: W_DENY,
+          email: 'deny@example.com',
+          provision_workspace: false,
+        },
+      });
+      expect(res.statusCode).toBe(404);
+      // The explicitly-false vouch is the same fail-closed path as an absent one
+      // (the existing 404 test covers absent) — no workspace is fabricated.
+      expect(await countWorkspaces(W_DENY)).toBe(0);
+    });
+
+    it('materializes the workspace at the SUPPLIED identity-issued UUID, makes the vouching principal its OWNER, and creates the default group + auth_accounts linkage', async () => {
+      const SUBJECT = 'r6-owner';
+      const EMAIL = 'r6-owner@example.com';
+
+      // The workspace does not exist before the vouched provision.
+      expect(await countWorkspaces(W_MAT)).toBe(0);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject: SUBJECT,
+          tenant: W_MAT,
+          email: EMAIL,
+          name: 'R6 Owner',
+          provision_workspace: true,
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.workspace_created).toBe(true);
+      expect(body.created).toBe(true);
+      const ownerId = body.user_id as string;
+
+      // The workspace row carries the SUPPLIED UUID itself (identity-as-source —
+      // NOT a fresh gen_uuid_v7; that is the load-bearing alignment convention).
+      expect(await countWorkspaces(W_MAT)).toBe(1);
+      // A real workspace always carries its default "Everyone" group.
+      expect(await countDefaultGroups(W_MAT)).toBe(1);
+
+      const owner = await seedDb
+        .selectFrom('users')
+        .select(['role', 'workspaceId', 'hasGeneratedPassword'])
+        .where('id', '=', ownerId)
+        .executeTakeFirstOrThrow();
+      expect(owner.role).toBe(UserRole.OWNER);
+      expect(owner.workspaceId).toBe(W_MAT);
+      expect(owner.hasGeneratedPassword).toBe(true);
+
+      const inDefault = await seedDb
+        .selectFrom('groupUsers')
+        .innerJoin('groups', 'groups.id', 'groupUsers.groupId')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('groupUsers.userId', '=', ownerId)
+        .where('groups.isDefault', '=', true)
+        .where('groups.workspaceId', '=', W_MAT)
+        .executeTakeFirstOrThrow();
+      expect(Number(inDefault.count)).toBe(1);
+
+      const link = await seedDb
+        .selectFrom('authAccounts')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('providerUserId', '=', SUBJECT)
+        .where('workspaceId', '=', W_MAT)
+        .where('deletedAt', 'is', null)
+        .executeTakeFirstOrThrow();
+      expect(Number(link.count)).toBe(1);
+    });
+
+    it('is idempotent + only the CREATOR is owner — a repeat vouch returns workspace_created=false, and a second distinct principal joins as a NON-owner member with no second workspace/default-group', async () => {
+      // Repeat the SAME owner principal: get-or-create is idempotent.
+      const repeat = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject: 'r6-owner',
+          tenant: W_MAT,
+          email: 'r6-owner@example.com',
+          provision_workspace: true,
+        },
+      });
+      expect(repeat.statusCode).toBe(200);
+      const repeatBody = JSON.parse(repeat.body);
+      expect(repeatBody.workspace_created).toBe(false);
+      expect(repeatBody.created).toBe(false);
+
+      // A SECOND distinct principal into the SAME (already materialized)
+      // workspace: it joins as a member, NOT an owner, and no second workspace
+      // or default group is created.
+      const second = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject: 'r6-member',
+          tenant: W_MAT,
+          email: 'r6-member@example.com',
+          provision_workspace: true,
+        },
+      });
+      expect(second.statusCode).toBe(200);
+      const secondBody = JSON.parse(second.body);
+      expect(secondBody.workspace_created).toBe(false);
+      expect(secondBody.created).toBe(true);
+
+      const member = await seedDb
+        .selectFrom('users')
+        .select(['role'])
+        .where('id', '=', secondBody.user_id as string)
+        .executeTakeFirstOrThrow();
+      expect(member.role).not.toBe(UserRole.OWNER);
+
+      expect(await countWorkspaces(W_MAT)).toBe(1);
+      expect(await countDefaultGroups(W_MAT)).toBe(1);
+    });
+
+    it('the acl/filter read seam RESOLVES the materialized owner end-to-end — a page in the freshly-created workspace round-trips', async () => {
+      // Seed a space + open page in the materialized workspace and grant the
+      // owner space access, then resolve through the REAL read seam — proving
+      // the materialized workspace is a functional tenant, not just a bare row.
+      const space = await seedDb
+        .insertInto('spaces')
+        .values({ name: 'R6 Space', slug: 'r6-space', workspaceId: W_MAT })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      const owner = await seedDb
+        .selectFrom('authAccounts')
+        .select(['userId'])
+        .where('providerUserId', '=', 'r6-owner')
+        .where('workspaceId', '=', W_MAT)
+        .executeTakeFirstOrThrow();
+
+      await seedDb
+        .insertInto('spaceMembers')
+        .values({
+          userId: owner.userId as string,
+          spaceId: space.id,
+          role: SpaceRole.READER,
+        })
+        .execute();
+
+      const page = await seedDb
+        .insertInto('pages')
+        .values({
+          slugId: Math.random().toString(36).slice(2),
+          title: 'R6 page',
+          spaceId: space.id,
+          workspaceId: W_MAT,
+          creatorId: owner.userId as string,
+          content: {
+            type: 'doc',
+            content: [
+              { type: 'paragraph', content: [{ type: 'text', text: 'body' }] },
+            ],
+          } as any,
+        })
+        .returning(['id'])
+        .executeTakeFirstOrThrow();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/acl/filter',
+        headers: authHeaders(),
+        payload: {
+          subject: 'r6-owner',
+          tenant: W_MAT,
+          page_ids: [page.id as string],
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).allowed).toEqual([page.id]);
+    });
+  });
 });

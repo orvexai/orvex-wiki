@@ -56,3 +56,24 @@ export async function acquireWorkspaceQuotaLock(
     trx,
   );
 }
+
+/**
+ * ENG-1559 R6 — serializes concurrent engine-workspace materialization
+ * (`get-or-create` at a registry-issued UUID) per workspace id. `findById ...
+ * FOR UPDATE` cannot serialize a create because the row does not exist yet, so
+ * two concurrent first-exchange provisions would both race the workspace
+ * insert and the loser would hit the PK constraint. This transaction-scoped
+ * advisory lock, taken as the FIRST statement of the provisioning transaction,
+ * makes the loser block until the winner commits, then re-resolve the winner's
+ * workspace on the get path. Same idiom as {@link acquireWorkspaceQuotaLock};
+ * `hashtext` collapses the key to the bigint the lock expects (a collision only
+ * over-serializes, never misses).
+ */
+export async function acquireWorkspaceProvisionLock(
+  trx: KyselyTransaction,
+  workspaceId: string,
+): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtext(${`workspace-provision:${workspaceId}`}))`.execute(
+    trx,
+  );
+}
