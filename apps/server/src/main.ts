@@ -132,6 +132,14 @@ async function bootstrap() {
         '/api/workspace/create',
         '/api/workspace/joined',
         '/api/workspace/find-by-email',
+        // ENG-1559 FR-W6 — the public engine session-mint ESTABLISHES the
+        // session from the identity exchange token carried in the request body;
+        // it resolves the tenant by introspecting that token, never from a
+        // host-resolved workspace, so (like /api/auth/setup + /api/workspace/*
+        // above) it must not require a pre-resolved workspaceId. Without this,
+        // CLOUD mode (no host->workspace match, no bearer yet) 404s the mint
+        // before it can run.
+        '/api/orvex/session/exchange',
       ];
 
       if (
