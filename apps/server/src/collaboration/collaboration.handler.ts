@@ -166,20 +166,63 @@ export class CollaborationHandler {
     };
   }
 
+  // Bounded defense-in-depth (engine-side connection resolution fix) — the
+  // real, root-caused hang was a same-row transaction self-deadlock (fixed
+  // by the caller ordering in `PageService.update`), but nothing about
+  // `openDirectConnection`/`transact` on a live collaboration subsystem
+  // guarantees they always resolve promptly (Redis hiccup, a stuck
+  // `onStoreDocument` hook, etc). Without a bound, ANY such stall wedges the
+  // REST edit path open indefinitely with zero server-side signal. Capping
+  // it turns a silent infinite hang into a fast, loud, typed failure the
+  // caller can retry or surface — never a fallback that silently drops the
+  // edit.
+  private static readonly DIRECT_CONNECTION_TIMEOUT_MS = 15_000;
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    documentName: string,
+    step: string,
+  ): Promise<T> {
+    let timer: NodeJS.Timeout;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error(
+            `Collab ${step} timed out after ${CollaborationHandler.DIRECT_CONNECTION_TIMEOUT_MS}ms for ${documentName}`,
+          ),
+        );
+      }, CollaborationHandler.DIRECT_CONNECTION_TIMEOUT_MS);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async withYdocConnection(
     hocuspocus: Hocuspocus,
     documentName: string,
     context: any = {},
     fn: (doc: Document) => void,
   ): Promise<void> {
-    const connection = await hocuspocus.openDirectConnection(
+    const connection = await this.withTimeout(
+      hocuspocus.openDirectConnection(documentName, context),
       documentName,
-      context,
+      'openDirectConnection',
     );
     try {
-      await connection.transact(fn);
+      await this.withTimeout(
+        connection.transact(fn),
+        documentName,
+        'transact',
+      );
     } finally {
-      await connection.disconnect();
+      await this.withTimeout(
+        connection.disconnect(),
+        documentName,
+        'disconnect',
+      );
     }
   }
 }

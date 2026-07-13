@@ -572,6 +572,44 @@ export class PageService {
       }
     }
 
+    // Cold-page edit self-deadlock fix (ENG engine-side connection
+    // resolution, 2026-07-13) — `updatePageContent` below routes through the
+    // collaboration/Hocuspocus layer, whose persist step
+    // (`PersistenceExtension.onStoreDocument`) ALWAYS runs in its own brand
+    // new DB transaction (`executeTx` is never handed this method's `trx`),
+    // and takes a `SELECT ... FOR UPDATE` on this exact page row. If the
+    // plain-field `pageRepo.updatePage` below (title/icon/etc, same row) ran
+    // FIRST inside the caller's still-open `trx`, that FOR UPDATE would
+    // block on the row lock this outer transaction is holding — a lock the
+    // outer transaction can never release because it is itself awaiting
+    // THIS call to finish. Postgres never sees that as a deadlock (the outer
+    // transaction isn't blocked on anything from the DB's point of view —
+    // it's idle-in-transaction), so its deadlock detector never fires and
+    // the collab layer's connection hangs indefinitely (previously
+    // misdiagnosed as `openDirectConnection` never resolving for a cold
+    // page — in fact the whole `withYdocConnection` await, including its
+    // internal store step, never returns). Running the content update FIRST
+    // — before the outer `trx` has touched this row at all — lets the
+    // collab layer's independent transaction acquire and release its own
+    // lock cleanly; the metadata write further down then proceeds against
+    // an already-committed row with no contender. The content write was
+    // never atomic with the metadata write to begin with (it always ran in
+    // its own separate transaction), so reordering loses no existing
+    // guarantee.
+    if (
+      updatePageDto.content &&
+      updatePageDto.operation &&
+      updatePageDto.format
+    ) {
+      await this.updatePageContent(
+        page.id,
+        updatePageDto.content,
+        updatePageDto.operation,
+        updatePageDto.format,
+        user,
+      );
+    }
+
     await this.pageRepo.updatePage(
       {
         title: updatePageDto.title,
@@ -594,20 +632,6 @@ export class PageService {
       .catch((err) =>
         this.logger.warn(`Failed to queue add-page-watchers: ${err.message}`),
       );
-
-    if (
-      updatePageDto.content &&
-      updatePageDto.operation &&
-      updatePageDto.format
-    ) {
-      await this.updatePageContent(
-        page.id,
-        updatePageDto.content,
-        updatePageDto.operation,
-        updatePageDto.format,
-        user,
-      );
-    }
 
     const result = await this.pageRepo.findById(page.id, {
       includeSpace: true,
