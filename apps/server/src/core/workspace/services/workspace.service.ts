@@ -39,7 +39,6 @@ import {
   generateRandomSuffixNumbers,
   diffAuditTrackedFields,
 } from '../../../common/helpers';
-import { isPageEmbeddingsTableExists } from '@docmost/db/helpers/helpers';
 import { CursorPaginationResult } from '@docmost/db/pagination/cursor-pagination';
 import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 import { WatcherRepo } from '@docmost/db/repos/watcher/watcher.repo';
@@ -415,14 +414,17 @@ export class WorkspaceService {
       }
     }
 
-    if (updateWorkspaceDto.aiSearch) {
-      const tableExists = await isPageEmbeddingsTableExists(this.db);
-      if (!tableExists) {
-        throw new BadRequestException(
-          'Failed to activate. Make sure pgvector postgres extension is installed.',
-        );
-      }
-    }
+    // DRIFT-2 (ENG-1559 §8b): this used to gate `aiSearch` on a local
+    // `page_embeddings` pgvector table. That table/extension was never
+    // provisioned in this fork and, per ratified ADR-0014, never will be —
+    // Turbopuffer is the family's sole ANN/vector store, and this workspace
+    // flag has since been repurposed (ENG-1475/ENG-1476, AC4) as the
+    // per-tenant opt-in the knowledge indexer reads via
+    // `GET /internal/settings/ai-search`
+    // (see InternalApiService#getAiSearchEnabled). Gating it on a pgvector
+    // table that must not exist made the flag permanently un-activatable.
+    // No replacement precondition: activation has no local-store
+    // dependency to check.
 
     const workspaceBefore = await this.workspaceRepo.findById(workspaceId);
     const settingsBefore = (workspaceBefore?.settings ?? {}) as Record<
