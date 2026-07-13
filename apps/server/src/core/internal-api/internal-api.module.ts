@@ -4,6 +4,7 @@
 
 import { Module } from '@nestjs/common';
 import { ExportModule } from '../../integrations/export/export.module';
+import { SpaceModule } from '../space/space.module';
 import { InternalApiController } from './internal-api.controller';
 import { InternalApiService } from './internal-api.service';
 import { PrincipalProvisioningService } from './principal-provisioning.service';
@@ -29,7 +30,7 @@ import { InternalApiAuthGuard } from './internal-api-auth.guard';
  * workspace materialized at a registry-issued UUID.
  */
 @Module({
-  imports: [ExportModule],
+  imports: [ExportModule, SpaceModule],
   controllers: [InternalApiController],
   providers: [
     InternalApiService,

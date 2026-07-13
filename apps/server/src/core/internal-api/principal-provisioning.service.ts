@@ -24,7 +24,10 @@ import {
   InsertableWorkspace,
   Workspace,
 } from '@docmost/db/types/entity.types';
-import { UserRole } from '../../common/helpers/types/permission';
+import { SpaceRole, UserRole } from '../../common/helpers/types/permission';
+import { SpaceService } from '../space/services/space.service';
+import { SpaceMemberService } from '../space/services/space-member.service';
+import { CreateSpaceDto } from '../space/dto/create-space.dto';
 import {
   AUDIT_SERVICE,
   IAuditService,
@@ -111,6 +114,8 @@ export class PrincipalProvisioningService {
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly groupRepo: GroupRepo,
     private readonly groupUserRepo: GroupUserRepo,
+    private readonly spaceService: SpaceService,
+    private readonly spaceMemberService: SpaceMemberService,
     private readonly outboxWriter: OutboxWriter,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
@@ -212,6 +217,49 @@ export class PrincipalProvisioningService {
         { userId: user.id, providerUserId: subject, workspaceId: tenant },
         trx,
       );
+
+      // Default "General" space (ENG-1559 R6 completion — signup parity):
+      // a workspace materialized at a registry-issued UUID is born with a
+      // default space so its OWNER can create pages IMMEDIATELY. Without it a
+      // provisioned principal resolves a session but has no space to write into
+      // — every `/v1` page create 404s PAGE_NOT_FOUND, and the host-gated
+      // `/api` space-create path is unreachable for an identity-federated
+      // tenant (reached by tenant-claim UUID, not hostname). Only on a
+      // genuinely NEW workspace (`workspaceCreated`); a principal joining an
+      // existing workspace inherits its spaces. Mirrors
+      // WorkspaceService.create's default-space block exactly (owner ADMIN +
+      // default "Everyone" group WRITER + workspace.defaultSpaceId), atomic in
+      // this same transaction.
+      if (workspaceCreated) {
+        const defaultGroup = await this.groupRepo.getDefaultGroup(tenant, trx);
+        const space = await this.spaceService.create(
+          user.id,
+          tenant,
+          { name: 'General', slug: 'general' } as CreateSpaceDto,
+          trx,
+        );
+        await this.spaceMemberService.addUserToSpace(
+          user.id,
+          space.id,
+          SpaceRole.ADMIN,
+          tenant,
+          trx,
+        );
+        if (defaultGroup?.id) {
+          await this.spaceMemberService.addGroupToSpace(
+            defaultGroup.id,
+            space.id,
+            SpaceRole.WRITER,
+            tenant,
+            trx,
+          );
+        }
+        await this.workspaceRepo.updateWorkspace(
+          { defaultSpaceId: space.id },
+          tenant,
+          trx,
+        );
+      }
 
       return { userId: user.id, created: true, workspaceCreated };
     });
