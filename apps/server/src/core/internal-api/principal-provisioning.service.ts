@@ -327,6 +327,28 @@ export class PrincipalProvisioningService {
         // Deterministic, non-secret placeholder label (❌#9 — no rand/time);
         // identity owns the human-facing org name, the engine only needs a row.
         name: `Workspace ${workspaceId.slice(0, 8)}`,
+        // fix13 (2026-07-13, search-freshness gap): a workspace materialized
+        // via THIS path is, by construction, an identity-`/v1/exchange`
+        // auto-provisioned fresh tenant — the same moment fix10's
+        // grantBaselineEntitlements already stamps `search:read` onto the
+        // token so search "just works" with zero manual admin steps. That
+        // promise was only half-kept: `search:read` is a TOKEN scope, but
+        // knowledge's `/v1/query` (and wiki-api's `/v1/search`, which forwards
+        // to it) additionally fast-paths to an honest-but-silent empty result
+        // whenever THIS workspace's `settings.ai.search` is falsy
+        // (orvex-studio-knowledge workflow.go Search, AC7) — and a materialized
+        // workspace with no explicit settings defaults that to false. RAG's
+        // `/v1/retrieve` has no such gate, so it worked while query/search
+        // never did for any fresh, zero-manual user (accept4/knowledge-sync.md,
+        // wiki-api.md). Setting it true here, at the SAME materialization site
+        // that already establishes the workspace row, is the explicit default
+        // this auto-provisioning path was missing — not a read-path fallback
+        // (CS — no fallbacks): the value is a real, persisted column write, not
+        // an "assume enabled if unset" guess in getAiSearchEnabled. The
+        // general signup path (WorkspaceService.create) is untouched — its
+        // existing default-off posture for a human-chosen workspace is a
+        // separate, deliberate business decision this fix does not revisit.
+        settings: { ai: { search: true } },
       } as InsertableWorkspace,
       trx,
     );
