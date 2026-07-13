@@ -152,8 +152,24 @@ export class ApplyOpsService {
       throw err;
     }
 
+    // ENG-1652 residue fix (2026-07-13, PM content-corruption root-cause):
+    // `jsonToNode` alone is NOT a genuine content-model validator — it
+    // resolves to ProseMirror's unchecked `Node.fromJSON`, which happily
+    // constructs a Node tree with content that doesn't fit its own type's
+    // content expression (e.g. a `paragraph` nested inside another
+    // `paragraph`) and returns successfully. That invalid tree then sailed
+    // through to `stampBlockIds` below, uncaught, where a REAL PM
+    // operation (`addUniqueIdsToDoc`'s `tr.setNodeAttribute`) finally hit
+    // the schema's content check and threw an unhandled
+    // `TransformError: Invalid content for node …` — a crash, not a 4xx,
+    // and AFTER the batch/section-edit translation had already decided the
+    // shape (AC2 promises "any op failure throws here, before a single row
+    // has been touched" — this restores that for content-model failures,
+    // not just "unknown node type"). `.check()` performs the SAME
+    // recursive content/attrs/marks validation ProseMirror itself runs
+    // internally, so this is a real check, not a stricter reimplementation.
     try {
-      jsonToNode(workingDoc as JSONContent);
+      jsonToNode(workingDoc as JSONContent).check();
     } catch {
       throw new BadRequestException({ code: 'INVALID_CONTENT_FORMAT' });
     }

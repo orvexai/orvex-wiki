@@ -170,6 +170,75 @@ describe('applyOpsBatch', () => {
     expect(result.content![0].content[0].text).toBe('new section');
   });
 
+  // 2026-07-13 PM content-corruption root-cause fix (residue closed): a
+  // real caller (wiki-api's applySectionEdit) translates a doc-wrapped
+  // edit body into `op.node.content` by taking the wrapper's own top-level
+  // children — this is exactly right for a CONTAINER target, but when the
+  // target is a leaf/inline-content node (`paragraph`) and the wrapper's
+  // sole child re-states the target itself, splicing that block node in
+  // as the paragraph's own content used to sail through unvalidated here
+  // and crash uncaught, much later, inside `stampBlockIds`
+  // (`TransformError: Invalid content for node paragraph`) — never
+  // reaching this test file's own contract (AC2: fail loud BEFORE any
+  // mutation, never a crash).
+  it('section-edit unwraps a doc-wrapped same-type node instead of nesting it as invalid content', () => {
+    const result = applyOpsBatch(doc(paragraph('a', 'old')), [
+      {
+        type: 'section-edit',
+        blockId: 'a',
+        node: {
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'edited via doc wrapper' }],
+            },
+          ],
+        },
+      },
+    ]);
+    // The target's own id/attrs are preserved (edited in place, not
+    // replaced) and its content is the unwrapped grandchild — never a
+    // paragraph nested inside a paragraph.
+    expect(result.content![0].attrs.id).toBe('a');
+    expect(result.content![0].type).toBe('paragraph');
+    expect(result.content![0].content).toHaveLength(1);
+    expect(result.content![0].content[0].type).toBe('text');
+    expect(result.content![0].content[0].text).toBe('edited via doc wrapper');
+  });
+
+  it('section-edit still accepts container-valid children verbatim (multi-node case unaffected)', () => {
+    const result = applyOpsBatch(doc(paragraph('a', 'old')), [
+      {
+        type: 'section-edit',
+        blockId: 'a',
+        node: {
+          content: [
+            { type: 'text', text: 'one ' },
+            { type: 'text', text: 'two' },
+          ],
+        },
+      },
+    ]);
+    expect(result.content![0].content.map((n: JSONContent) => n.text)).toEqual(
+      ['one ', 'two'],
+    );
+  });
+
+  it('section-edit rejects content that fits neither interpretation with INVALID_CONTENT_FORMAT (never a crash)', () => {
+    try {
+      applyOpsBatch(doc(paragraph('a', 'old')), [
+        {
+          type: 'section-edit',
+          blockId: 'a',
+          node: { content: [{ type: 'table' }] },
+        },
+      ]);
+      fail('expected throw');
+    } catch (err) {
+      expect((err as ApplyOpsError).code).toBe('INVALID_CONTENT_FORMAT');
+    }
+  });
+
   it('rejects an unknown node type with UNKNOWN_BLOCK_TYPE', () => {
     try {
       applyOpsBatch(doc(paragraph('a', '1')), [

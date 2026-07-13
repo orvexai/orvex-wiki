@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { getSchema, JSONContent } from '@tiptap/core';
+import { Fragment } from '@tiptap/pm/model';
 import { tiptapExtensions } from '../../collaboration/collaboration.util';
 import { ApplyOpsError } from './apply-ops.errors';
 
@@ -31,6 +32,29 @@ function schema() {
     cachedSchema = getSchema(tiptapExtensions);
   }
   return cachedSchema;
+}
+
+/**
+ * ENG-1652 residue fix (2026-07-13, PM content-corruption root-cause) —
+ * checks whether `content` is a schema-valid child fragment for a node of
+ * type `nodeType`, using the REAL ProseMirror content-match machinery
+ * (`Fragment.fromJSON` + `ContentMatch.matchFragment`), not a hand-rolled
+ * approximation. Returns `false` (never throws) on any malformed input —
+ * callers treat "doesn't fit" as one candidate interpretation to reject,
+ * not a crash.
+ */
+function contentFitsNode(
+  nodeType: string | undefined,
+  content: JSONContent[] | undefined,
+): boolean {
+  const type = nodeType ? schema().nodes[nodeType] : undefined;
+  if (!type) return false;
+  try {
+    const fragment = Fragment.fromJSON(schema(), content ?? []);
+    return !!type.contentMatch.matchFragment(fragment);
+  } catch {
+    return false;
+  }
 }
 
 function assertKnownNodeType(node: JSONContent | undefined): asserts node is JSONContent {
@@ -265,7 +289,48 @@ export function applyOpsBatch(
           'MISSING_REF_BLOCK_ID',
           'section-edit blockId',
         );
-        loc.siblings[loc.index].content = op.node?.content ?? [];
+        const target = loc.siblings[loc.index];
+        const newContent = op.node?.content ?? [];
+
+        // ENG-1652 residue fix (2026-07-13, PM content-corruption
+        // root-cause): callers (wiki-api's applySectionEdit) translate a
+        // doc-shaped edit body into `op.node.content` by taking the
+        // wrapper doc's own top-level children — correct when the target
+        // is a CONTAINER whose content model accepts those children
+        // verbatim (e.g. `details`, `column`), but wrong when the target
+        // is a leaf/inline-content node (`paragraph`, `heading`, …) and
+        // the wrapper's one child re-states the target itself (e.g.
+        // editing a paragraph via `{type:'doc',content:[{type:'paragraph',
+        // content:[...]}]}`) — splicing a block node in as a paragraph's
+        // own content is invalid-by-construction and, before this fix,
+        // sailed past the unchecked `jsonToNode`/`Node.fromJSON` "gate"
+        // to crash uncaught deep inside `stampBlockIds`
+        // (`TransformError: Invalid content for node paragraph`) instead
+        // of failing loud here, before any mutation (AC2/AC4).
+        //
+        // Real `ContentMatch`-based validation (never a hand-rolled
+        // guess) picks between the two legitimate interpretations, and
+        // only THEN mutates `target` — first try wins, so a container
+        // target that genuinely receives valid children takes that path
+        // unchanged from before this fix:
+        if (contentFitsNode(target.type, newContent)) {
+          target.content = newContent;
+        } else if (
+          newContent.length === 1 &&
+          newContent[0]?.type === target.type &&
+          contentFitsNode(target.type, newContent[0]?.content)
+        ) {
+          // The wrapper's single child re-states the target block itself
+          // (same node type) — unwrap one level and adopt ITS children,
+          // preserving the target's own id/attrs (ENG-1397 block-id
+          // stability: the block is edited in place, not replaced).
+          target.content = newContent[0].content ?? [];
+        } else {
+          throw new ApplyOpsError(
+            'INVALID_CONTENT_FORMAT',
+            `content is not valid for block type ${JSON.stringify(target.type)} (blockId ${JSON.stringify(op.blockId)})`,
+          );
+        }
         break;
       }
 
