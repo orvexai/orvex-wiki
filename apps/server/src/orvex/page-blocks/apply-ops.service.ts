@@ -97,7 +97,7 @@ export class ApplyOpsService {
     pageId: string,
     workspaceId: string,
     userId: string,
-    dto: { ifVersion: number; ops: PmOpInput[] },
+    dto: { ifVersion?: number; ops: PmOpInput[] },
     idempotencyKey?: string,
   ): Promise<ApplyOpsSettledEnvelope> {
     const page = await this.pageRepo.findById(pageId, { includeContent: true });

@@ -434,6 +434,54 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
     expect(body.message?.code ?? body.code).toBe('VERSION_MISMATCH');
   });
 
+  it(
+    '2026-07-13 root-fix — an OMITTED ifVersion (the unconstrained/first-edit ' +
+      'convention every real caller, incl. wiki-api\'s Engine.ApplyOps, uses) ' +
+      'succeeds instead of 400 INVALID_IF_VERSION',
+    async () => {
+      const pageId = await createPage({ type: 'doc', content: [] });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orvex/pages/${pageId}/apply-ops`,
+        payload: {
+          // ifVersion deliberately absent — the DTO must accept this as
+          // "unconstrained" (ApplyOpsRequestDto.ifVersion is now @IsOptional()).
+          ops: [{ type: 'append', node: { type: 'paragraph', attrs: { id: 'no-if-version' } } }],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      const envelope = body.data ?? body;
+      expect(envelope).toMatchObject({ version: 2 });
+    },
+  );
+
+  it(
+    '2026-07-13 root-fix — a literal ifVersion:0 (wiki-api\'s own established ' +
+      'zero-sentinel, in case a caller ever sends it on the wire despite the ' +
+      'client-side omitempty fix) does NOT 400 INVALID_IF_VERSION — 0 fails ' +
+      'isIntegerVersion (>=1) so it falls through exactly like "absent"',
+    async () => {
+      const pageId = await createPage({ type: 'doc', content: [] });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orvex/pages/${pageId}/apply-ops`,
+        payload: {
+          ifVersion: 0,
+          ops: [{ type: 'append', node: { type: 'paragraph', attrs: { id: 'zero-if-version' } } }],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      const envelope = body.data ?? body;
+      expect(envelope).toMatchObject({ version: 2 });
+    },
+  );
+
   it('AC4 — each typed error path never returns a 200-with-no-change', async () => {
     const pageId = await createPage({
       type: 'doc',

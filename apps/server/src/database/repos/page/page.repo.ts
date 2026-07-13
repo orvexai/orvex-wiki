@@ -655,6 +655,8 @@ export class PageRepo {
       .selectFrom('pages')
       .select(this.baseFields)
       .select((eb) => this.withSpace(eb))
+      .select((eb) => this.withMetaVersion(eb))
+      .select((eb) => this.withMetaStatus(eb))
       .where('spaceId', '=', spaceId)
       .where('deletedAt', 'is', null);
     query = this.excludeSupersededUnless(query, includeSuperseded);
@@ -683,6 +685,8 @@ export class PageRepo {
       .selectFrom('pages')
       .select(this.baseFields)
       .select((eb) => this.withSpace(eb))
+      .select((eb) => this.withMetaVersion(eb))
+      .select((eb) => this.withMetaStatus(eb))
       .where('spaceId', 'in', this.spaceMemberRepo.getUserSpaceIdsQuery(userId))
       .where('deletedAt', 'is', null);
     query = this.excludeSupersededUnless(query, includeSuperseded);
@@ -804,6 +808,43 @@ export class PageRepo {
         .select(['spaces.id', 'spaces.name', 'spaces.slug'])
         .whereRef('spaces.id', '=', 'pages.spaceId'),
     ).as('space');
+  }
+
+  /**
+   * 2026-07-13 root-fix (wiki-engine lane) — the `orvex_page_meta` side-table
+   * CAS version, as a flat correlated scalar subquery (same pattern as
+   * `withSpace` above, just unwrapped from `jsonObjectFrom` since a single
+   * scalar column needs no object envelope). Used by `getRecentPages`/
+   * `getRecentSpacePages` so the `POST /api/pages/recent` primitive can
+   * honestly report each page's real integer version instead of wiki-api's
+   * facade defaulting every page to a fabricated constant. A page with no
+   * meta row yet (never apply-ops'd) has no real version row — `null`,
+   * never silently coerced to a guessed number here; callers apply the SAME
+   * `meta?.version ?? 1` default `ApplyOpsService` itself uses (CS §11 —
+   * one honest default, defined once, not re-guessed ad hoc downstream).
+   */
+  withMetaVersion(eb: ExpressionBuilder<DB, 'pages'>) {
+    return eb
+      .selectFrom('orvexPageMeta')
+      .select('orvexPageMeta.version')
+      .whereRef('orvexPageMeta.pageId', '=', 'pages.id')
+      .as('metaVersion');
+  }
+
+  /**
+   * 2026-07-13 root-fix (wiki-engine lane) — the `orvex_page_meta` side-table
+   * lifecycle status (draft/canonical/deprecated/archived/superseded), same
+   * correlated-scalar-subquery posture as `withMetaVersion` above. `null`
+   * when the page has no meta row yet (never explicitly stamped) — callers
+   * treat that as the engine's own documented default, `canonical`
+   * (`PageStatus.CANONICAL`), never a fabricated distinct value.
+   */
+  withMetaStatus(eb: ExpressionBuilder<DB, 'pages'>) {
+    return eb
+      .selectFrom('orvexPageMeta')
+      .select('orvexPageMeta.status')
+      .whereRef('orvexPageMeta.pageId', '=', 'pages.id')
+      .as('metaStatus');
   }
 
   withCreator(eb: ExpressionBuilder<DB, 'pages'>) {
