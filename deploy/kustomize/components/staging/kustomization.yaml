@@ -199,6 +199,45 @@ patches:
       kind: Deployment
       name: orvex-wiki
 
+  # ── Dev-cell headroom + probe tolerance ───────────────────────────────────
+  # 2026-07-13, engine-health night-mode lane
+  # (scratchpad/night/engine-health/engine.md). Root-caused LIVE: the single
+  # dev-cell replica repeatedly went Unready then was liveness-killed
+  # (kubelet "Unhealthy"/"Killing" events recurring roughly every 15-20min
+  # under concurrent night-mode load) while CPU/memory stayed low at rest —
+  # i.e. genuine event-loop stalls under concurrent collaboration/persist
+  # load (PATCH .../blocks/patch-string -> updatePageContent ->
+  # CollaborationGateway.handleYjsEvent), not a hung dependency (DB/Redis
+  # pinged fine every time the pod WAS responsive). A `kubectl delete pod`
+  # restart only bought ~15-20min before the same hang recurred — not a fix,
+  # confirmed by reproducing the hang live a second time in the same
+  # session. Two independent, additive, dev-only mitigations (base/prod
+  # untouched):
+  #   1. Double the CPU/memory ceiling so the single Node process has
+  #      headroom to ride out a concurrent-edit burst instead of being
+  #      throttled into an unresponsive event loop.
+  #   2. Raise the readiness/liveness probe timeout from the Kubernetes
+  #      default of 1s to 5s, so a brief GC/CPU-contention blip doesn't
+  #      itself trigger the very outage it's meant to detect.
+  #      failureThreshold is untouched — a genuine multi-minute hang is
+  #      still caught and restarted just as before.
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 2000m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 2Gi
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe/timeoutSeconds
+        value: 5
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+        value: 5
+    target:
+      kind: Deployment
+      name: orvex-wiki
+
   # ── Neutralize the PDB in dev: a 1-replica pod must stay freely disruptable ──
   # Base (prod/main) ships a minAvailable:1 PDB. In dev the Deployment runs at
   # replicas:1, so a minAvailable:1 PDB would block node drains/rollouts (the
