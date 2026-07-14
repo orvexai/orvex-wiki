@@ -169,23 +169,27 @@ patches:
       kind: ConfigMap
       name: orvex-wiki-env
 
-  # ── Dev studio-spine producer: point the relay at the REAL topic ─────────
-  # M5 (ENG-1559) AC8 pass. Base leaves KAFKA_OUTBOX_TOPIC unset, so
-  # EnvironmentService.getKafkaOutboxTopic() falls back to its
-  # "orvex.studio-spine.events" sentinel — a topic nothing in dev reads.
-  # orvex-studio-knowledge's own indexer + sse (KAFKA_RAW_TOPIC,
-  # deploy/kustomize/app-manifests/configmap.yaml) already dial the SAME
-  # literal "wiki-events.eu-central-1" — the live wiki-events.eu-central-1
-  # KafkaTopic CR (my-idp-apps, studio-events ns). Direct-consumer transport
-  # (no Knative Broker/KafkaSink dependency — PD-4d ruling, orvex-studio-lib
-  # pkg/events.BrokerPublisher's own doc comment: "the Knative Broker is
-  # consumer-side Trigger-delivery fork machinery this lib has no dependency
-  # on"). NOT a replacement target; `op: add` because base carries no
-  # KAFKA_OUTBOX_TOPIC key.
+  # ── Dev studio-spine producer: point the relay at the DEV-scoped topic ────
+  # Cross-cell Kafka isolation (knowledge-isolation). Base leaves
+  # KAFKA_OUTBOX_TOPIC unset, so EnvironmentService.getKafkaOutboxTopic() falls
+  # back to its "orvex.studio-spine.events" sentinel — a topic nothing reads.
+  # This dev overlay MUST produce onto a DEV-scoped topic, NOT the prod
+  # `wiki-events.eu-central-1`: the dev + prod cells previously produced+
+  # consumed that one topic under a single consumer group, so the group
+  # coordinator handed prod's only partition to the DEV indexer, which
+  # dead-lettered every prod event (it resolved prod page bodies against the
+  # DEV engine → 404, prod documents table stayed 0). The dev indexer's
+  # KAFKA_RAW_TOPIC (orvex-studio-knowledge components/staging) is repointed to
+  # this SAME dev topic, so dev keeps indexing on its own spine while prod owns
+  # `wiki-events.eu-central-1` partition 0 uncontested. The dev
+  # `wiki-events.dev.eu-central-1` KafkaTopic CR is declared in my-idp-apps
+  # studio-events (auto.create.topics.enable=false). Direct-consumer transport
+  # (no Knative Broker/KafkaSink dependency — PD-4d ruling). NOT a replacement
+  # target; `op: add` because base carries no KAFKA_OUTBOX_TOPIC key.
   - patch: |-
       - op: add
         path: /data/KAFKA_OUTBOX_TOPIC
-        value: wiki-events.eu-central-1
+        value: wiki-events.dev.eu-central-1
     target:
       kind: ConfigMap
       name: orvex-wiki-env
