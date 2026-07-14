@@ -3,11 +3,13 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
   Inject,
   NotFoundException,
+  Param,
   Post,
   UseGuards,
   UseInterceptors,
@@ -103,6 +105,12 @@ export class PageController {
 
     const permissions = { canEdit, hasRestriction };
 
+    // Expose the INTEGER `orvex_page_meta.version` (the value the apply-ops /
+    // If-Match CAS compares), NOT the `updatedAt` timestamp — so a client can
+    // read a page then feed this straight back as an ifVersion CAS token
+    // (wiki-api's edit path ParseInts it). Defaults to 1 for a meta-less page.
+    const version = await this.pageRepo.getMetaVersion(page.id);
+
     if (dto.format && dto.format !== 'json' && page.content) {
       const contentOutput =
         dto.format === 'markdown'
@@ -111,11 +119,60 @@ export class PageController {
       return {
         ...page,
         content: contentOutput,
+        version,
         permissions,
       };
     }
 
-    return { ...page, permissions };
+    return { ...page, version, permissions };
+  }
+
+  /**
+   * Per-page authz seam for sibling services (the orvex-studio-ai chokepoint,
+   * ENG-1455/ENG-2052 `WikiAPI.CanEdit`): a lightweight JSON permission probe
+   * the AI runs BEFORE any model call, under the caller's own token
+   * (pass-through). Returns `{ canEdit }` on 200; a caller who may edit sees
+   * `true`, a viewer who may not sees `false`.
+   *
+   * No-leak denial (R4): a missing page — or one the caller may not even view
+   * (`validateCanViewWithPermissions` throws `ForbiddenException`) — surfaces
+   * as 404/403, NOT a body revealing existence; the AI client maps 404/403/401
+   * to a clean cannot-edit (fail-closed), never an upstream error. This is the
+   * GET twin of the `POST /info` permissions block, minus the page payload.
+   */
+  @Get(':pageId/can-edit')
+  async canEditPage(
+    @Param('pageId') pageId: string,
+    @AuthUser() user: User,
+  ): Promise<{ canEdit: boolean }> {
+    const page = await this.pageRepo.findById(pageId);
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+    const { canEdit } =
+      await this.pageAccessService.validateCanViewWithPermissions(page, user);
+    return { canEdit };
+  }
+
+  /**
+   * Per-page VIEW authz probe — the CanView twin of {@link canEditPage}
+   * (ENG-1450 `WikiAPI.CanView`: every chat-context page is permission-checked
+   * before inclusion). A 200 always means viewable (`{ canView: true }`);
+   * `validateCanView` throws `ForbiddenException` for a non-viewer, so a
+   * non-viewer/absent page surfaces as 403/404 — the same no-leak fail-closed
+   * denial the AI client treats as cannot-view.
+   */
+  @Get(':pageId/can-view')
+  async canViewPage(
+    @Param('pageId') pageId: string,
+    @AuthUser() user: User,
+  ): Promise<{ canView: boolean }> {
+    const page = await this.pageRepo.findById(pageId);
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+    await this.pageAccessService.validateCanView(page, user);
+    return { canView: true };
   }
 
   @HttpCode(HttpStatus.OK)
@@ -282,6 +339,12 @@ export class PageController {
 
     const permissions = { canEdit, hasRestriction };
 
+    // Same integer-version exposure as `/info`: return the CAS-comparable
+    // `orvex_page_meta.version` (a just-created page has no meta row yet, so
+    // this is the baseline 1) so the caller can round-trip create -> If-Match
+    // edit without guessing the version.
+    const version = await this.pageRepo.getMetaVersion(page.id);
+
     this.auditService.log({
       event: AuditEvent.PAGE_CREATED,
       resourceType: AuditResource.PAGE,
@@ -304,10 +367,10 @@ export class PageController {
         createPageDto.format === 'markdown'
           ? jsonToMarkdown(page.content)
           : jsonToHtml(page.content);
-      return { ...page, content: contentOutput, permissions };
+      return { ...page, content: contentOutput, version, permissions };
     }
 
-    return { ...page, permissions };
+    return { ...page, version, permissions };
   }
 
   /**
