@@ -36,8 +36,11 @@ data:
   # ORVEX_MODULES_ENABLED=true (OrvexRootModule.register, off by default).
   # ═══════════════════════════════════════════════════════════════════════
 
-  # Orvex module master switch — OFF so runtime stays vanilla Docmost v0.95.
-  ORVEX_MODULES_ENABLED: "false"
+  # Orvex module master switch — ON: modules cutover 2026-07-14 (PO Daniel).
+  # Prod satellites deployed + seam URLs wired; dev cell verified 5/6 surfaces green
+  # (rag/knowledge-sync/cross-cutting/api/ai-inline PASS; mcp modify-existing tool bug
+  # + cited-ask entitlement-grant tracked separately). Revert = set back to "false".
+  ORVEX_MODULES_ENABLED: "true"
 
   # Cell contract (A-CELL rule #4) — /healthz echoes CELL_ID + CLUSTER_NAME.
   # Filled by the root replacements from cluster-config.cellId / clusterName;
