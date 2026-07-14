@@ -13,6 +13,7 @@ import {
   SpaceCaslSubject,
 } from '../interfaces/space-ability.type';
 import { findHighestUserSpaceRole } from '@docmost/db/repos/space/utils';
+import { intersectWithTokenScope } from '../scope-intersection';
 
 @Injectable()
 export default class SpaceAbilityFactory {
@@ -25,16 +26,26 @@ export default class SpaceAbilityFactory {
 
     const userSpaceRole = findHighestUserSpaceRole(userSpaceRoles);
 
+    let creatorAbility;
     switch (userSpaceRole) {
       case SpaceRole.ADMIN:
-        return buildSpaceAdminAbility();
+        creatorAbility = buildSpaceAdminAbility();
+        break;
       case SpaceRole.WRITER:
-        return buildSpaceWriterAbility();
+        creatorAbility = buildSpaceWriterAbility();
+        break;
       case SpaceRole.READER:
-        return buildSpaceReaderAbility();
+        creatorAbility = buildSpaceReaderAbility();
+        break;
       default:
         throw new NotFoundException('Space permissions not found');
     }
+
+    // ENG-1454 (C3/C4 wiring) — the single choke point every space-scoped
+    // controller resolves its ability through. Floors `creatorAbility` to
+    // whatever token-scope grant (if any) was stamped onto `user` at the
+    // auth seam (`JwtStrategy.validateApiKey`) — never wider.
+    return intersectWithTokenScope(creatorAbility, spaceId, user);
   }
 }
 

@@ -37,7 +37,7 @@ import { userAtom } from "@/features/user/atoms/current-user-atom";
 import { FixedToolbar } from "@/features/editor/components/fixed-toolbar/fixed-toolbar";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
 import { EditorBubbleMenu } from "@/features/editor/components/bubble-menu/bubble-menu";
-import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
+import { AiPalette } from "@/features/editor/components/ai-palette/ai-palette";
 import TableMenu from "@/features/editor/components/table/table-menu.tsx";
 import { TableHandlesLayer } from "@/features/editor/components/table/handle/table-handles-layer";
 import CalloutMenu from "@/features/editor/components/callout/callout-menu.tsx";
@@ -401,7 +401,7 @@ export default function TemplateEditor() {
         <EditorContent editor={editor} />
         {editor && (
           <>
-            <EditorAiMenu editor={editor} />
+            <AiPalette editor={editor} />
             <EditorBubbleMenu editor={editor} templateMode />
             <EditorLinkMenu editor={editor} />
             <TableMenu editor={editor} />

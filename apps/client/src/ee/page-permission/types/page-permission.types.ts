@@ -3,17 +3,22 @@ export enum PagePermissionRole {
   WRITER = "writer",
 }
 
+// ENG-1375 fix pass 1: singular principal per call — matches the shipped
+// `AddPagePermissionDto`/`RemovePagePermissionDto` (apps/server/src/core/
+// permissions/dto/page-permission.dto.ts), which take exactly one of
+// `userId`/`groupId` and reject arrays. Multi-select grants issue one
+// request per selected principal (see `handleAddMembers`).
 export type IAddPagePermission = {
   pageId: string;
   role: PagePermissionRole;
-  userIds?: string[];
-  groupIds?: string[];
+  userId?: string;
+  groupId?: string;
 };
 
 export type IRemovePagePermission = {
   pageId: string;
-  userIds?: string[];
-  groupIds?: string[];
+  userId?: string;
+  groupId?: string;
 };
 
 export type IUpdatePagePermissionRole = {

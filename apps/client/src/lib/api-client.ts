@@ -1,6 +1,9 @@
 import axios, { AxiosInstance } from "axios";
+import { getDefaultStore } from "jotai";
 import APP_ROUTE from "@/lib/app-route.ts";
-import { isCloud } from "@/lib/config.ts";
+import { isClerkTenancy, isCloud } from "@/lib/config.ts";
+import { workspaceAtom } from "@/features/user/atoms/current-user-atom";
+import { reresolveCellOnMismatch } from "@/features/cell-discovery/use-cell-discovery.ts";
 
 const api: AxiosInstance = axios.create({
   baseURL: "/api",
@@ -40,6 +43,16 @@ api.interceptors.response.use(
         case 403:
           // Handle forbidden error
           break;
+        case 421: {
+          // AC4 — cell-mismatch (ruling 12/13): the tenant moved and its
+          // cell_epoch was bumped server-side; the pin is stale. Clear it
+          // and re-resolve so the client redirects to the new cell host.
+          const workspace = getDefaultStore().get(workspaceAtom);
+          if (workspace?.id) {
+            void reresolveCellOnMismatch(workspace.id);
+          }
+          break;
+        }
         case 404:
           // Handle not found error
           if (
@@ -67,9 +80,10 @@ api.interceptors.response.use(
   },
 );
 
-function redirectToLogin() {
+export function redirectToLogin() {
   const exemptPaths = [
     APP_ROUTE.AUTH.LOGIN,
+    APP_ROUTE.AUTH.CLERK_LOGIN,
     APP_ROUTE.AUTH.SIGNUP,
     APP_ROUTE.AUTH.FORGOT_PASSWORD,
     APP_ROUTE.AUTH.PASSWORD_RESET,
@@ -78,12 +92,18 @@ function redirectToLogin() {
     "/invites",
   ];
   if (!exemptPaths.some((path) => window.location.pathname.startsWith(path))) {
+    // Under Clerk tenancy, identity is delegated to Clerk — the login
+    // surface is /clerk, never the local-credentials /login page (CS §6
+    // client-shallow: this reads the flag, decides nothing about tenancy).
+    const loginRoute = isClerkTenancy()
+      ? APP_ROUTE.AUTH.CLERK_LOGIN
+      : APP_ROUTE.AUTH.LOGIN;
     const redirectTo = window.location.pathname;
     if (redirectTo === APP_ROUTE.HOME) {
-      window.location.href = APP_ROUTE.AUTH.LOGIN;
+      window.location.href = loginRoute;
     } else {
       const params = new URLSearchParams({ redirect: redirectTo });
-      window.location.href = `${APP_ROUTE.AUTH.LOGIN}?${params.toString()}`;
+      window.location.href = `${loginRoute}?${params.toString()}`;
     }
   }
 }

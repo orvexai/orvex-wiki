@@ -61,6 +61,14 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 
+/**
+ * ENG-1433 AC9 (forward-compat, leg-boundary ruling 10): this controller is
+ * the engine's SINGLE binary attachment read/write chokepoint (source of
+ * record). Programmatic/page-scoped access to attachment binaries is fronted
+ * by the wiki-api leg's page-access surface, which calls back into these
+ * routes rather than duplicating storage I/O — do not add a second binary
+ * up/download path anywhere else in the engine.
+ */
 @Controller()
 export class AttachmentController {
   private readonly logger = new Logger(AttachmentController.name);

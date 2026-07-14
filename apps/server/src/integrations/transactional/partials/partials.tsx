@@ -81,7 +81,7 @@ export function MailFooter() {
     <Section style={footer}>
       <Row>
         <Text style={{ textAlign: 'center', color: '#706a7b' }}>
-          © {new Date().getFullYear()} Docmost, All Rights Reserved <br />
+          © {new Date().getFullYear()} Orvex Wiki, All Rights Reserved <br />
         </Text>
       </Row>
     </Section>

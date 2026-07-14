@@ -72,6 +72,21 @@ export class UserSessionRepo {
       .execute();
   }
 
+  /**
+   * Revokes every currently-active session in a workspace, regardless of
+   * user. Used by the enforce-SSO toggle (ENG-1432 AC9): when `enforceSso`
+   * flips on, non-exempt members must lose their existing sessions
+   * immediately rather than riding them out to natural TTL expiry.
+   */
+  async revokeByWorkspaceId(workspaceId: string): Promise<void> {
+    await this.db
+      .updateTable('userSessions')
+      .set({ revokedAt: new Date() })
+      .where('workspaceId', '=', workspaceId)
+      .where('revokedAt', 'is', null)
+      .execute();
+  }
+
   async revokeAllExceptCurrent(
     currentSessionId: string,
     userId: string,

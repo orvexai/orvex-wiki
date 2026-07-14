@@ -14,6 +14,13 @@ export type JwtPayload = {
   workspaceId: string;
   type: 'access';
   sessionId?: string;
+  /**
+   * Identity-verified token-scope marker (ENG-1380 / B.4). Read-only input
+   * here: this leg never mints or catalogs scope values, it only consumes
+   * the claim as authored by the (future) identity-owned session mint.
+   * Absent = full-privilege (today's default, unchanged behaviour).
+   */
+  scope?: 'restricted';
 };
 
 export type JwtCollabPayload = {
@@ -46,6 +53,8 @@ export type JwtApiKeyPayload = {
   workspaceId: string;
   apiKeyId: string;
   type: 'api_key';
+  /** See {@link JwtPayload.scope}. */
+  scope?: 'restricted';
 };
 
 export type JwtPdfRenderPayload = {

@@ -55,6 +55,10 @@ export default [
       'docs/**',
       'apps/client/public/**',
       'tests/**',
+      // tools/act3/delivery-engine.js is a Claude Workflow DSL script (top-level
+      // await/return outside a function by design) — not a normal ESM module,
+      // so it is not eslint-parseable and is out of scope for the boundary fence.
+      'tools/act3/**',
     ],
   },
   {

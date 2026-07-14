@@ -1,0 +1,18 @@
+/*
+ * ENG-1460 — the "AI wash" highlight for AI-authored content.
+ *
+ * The `AiAuthored` mark (`packages/editor-ext/src/lib/ai-authored`) renders
+ * a global `class="ai-authored-wash"` span. This must be a global rule (not
+ * a CSS-module class) so it actually matches the mark's literal rendered
+ * class — see review finding F2 on ENG-1460.
+ */
+
+.ProseMirror {
+  span.ai-authored-wash {
+    background-color: light-dark(
+      rgba(121, 80, 242, 0.12),
+      rgba(121, 80, 242, 0.22)
+    );
+    border-radius: 2px;
+  }
+}

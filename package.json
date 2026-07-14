@@ -17,6 +17,7 @@
     "email:dev": "nx run server:email:dev",
     "dev": "pnpm concurrently -n \"frontend,backend\" -c \"cyan,green\" \"pnpm run client:dev\" \"pnpm run server:dev\"",
     "lint:boundary": "eslint . --quiet",
+    "check:patches": "node scripts/check-patches.mjs",
     "clean": "rm -rf apps/*/dist packages/*/dist apps/client/node_modules/.vite"
   },
   "dependencies": {
@@ -73,6 +74,7 @@
     "marked": "17.0.5",
     "ms": "3.0.0-canary.1",
     "qrcode": "1.5.4",
+    "recharts": "3.9.2",
     "rfc6902": "5.2.0",
     "uuid": "14.0.0",
     "y-indexeddb": "9.0.12",
@@ -137,7 +139,7 @@
       "axios": "1.16.0",
       "langsmith": "0.7.0",
       "follow-redirects": "1.16.0",
-      "protobufjs": "7.5.8",
+      "protobufjs": "7.6.5",
       "ip-address": "10.1.1",
       "fast-uri": "3.1.2",
       "form-data@4": "4.0.6",

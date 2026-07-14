@@ -1,0 +1,6 @@
+data: {"content":"The "}
+data: {"content":"quick "}
+data: {"content":"brown "}
+data: {"content":"fox "}
+data: {"content":"jumps."}
+data: [DONE]

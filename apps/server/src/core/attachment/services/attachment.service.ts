@@ -19,14 +19,21 @@ import { AttachmentType, validImageExtensions } from '../attachment.constants';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { Attachment, User, Workspace } from '@docmost/db/types/entity.types';
 import { InjectKysely } from 'nestjs-kysely';
-import { executeTx } from '@docmost/db/utils';
+import { executeTx, acquireWorkspaceQuotaLock } from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { InjectQueue } from '@nestjs/bullmq';
-import { QueueJob, QueueName } from '../../../integrations/queue/constants';
+import { QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_ATTACHMENT_CREATED,
+  EVT_ATTACHMENT_DELETED,
+} from '../../../orvex/events/constants/orvex-event-types';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
+import { QuotaExceededException } from '../../../orvex/entitlement/quota.exception';
 
 @Injectable()
 export class AttachmentService {
@@ -39,7 +46,30 @@ export class AttachmentService {
     private readonly spaceRepo: SpaceRepo,
     @InjectKysely() private readonly db: KyselyDB,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
+    private readonly outboxWriter: OutboxWriter,
+    private readonly entitlementService: EntitlementService,
   ) {}
+
+  /**
+   * ENG-1609 AC5 — attachment.deleted, atomic with the DB delete of the
+   * attachment row (the storage-file delete is a true external IO side
+   * effect and stays outside the DB transaction, matching every other
+   * caller in this service).
+   */
+  private async deleteAttachmentRow(
+    attachment: { id: string; workspaceId: string },
+  ): Promise<void> {
+    await executeTx(this.db, async (trx) => {
+      await this.attachmentRepo.deleteAttachmentById(attachment.id, trx);
+
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_ATTACHMENT_DELETED,
+        aggregateId: attachment.id,
+        workspaceId: attachment.workspaceId,
+        payload: { id: attachment.id, workspaceId: attachment.workspaceId },
+      });
+    });
+  }
 
   async uploadFile(opts: {
     filePromise: Promise<MultipartFile>;
@@ -82,6 +112,34 @@ export class AttachmentService {
       attachmentId = uuid7();
     }
 
+    // ENG-1382 (AC4/AC6) — F-QUOTA write chokepoint, fast pre-check: reject a
+    // workspace already at its file-count or storage-aggregate cap BEFORE
+    // streaming any bytes to the storage driver, so an already-full
+    // workspace never pays the upload cost. Cap VALUE from billing, never
+    // hard-coded (❌#10). This is NOT the authoritative check — the real
+    // file size is unknown until the stream is fully consumed, so it cannot
+    // alone stop an under-cap upload whose actual size crosses the
+    // aggregate, nor a concurrent-upload race (ENG-1382 fix pass 1, F1/F3).
+    // The authoritative, race-safe recheck happens after streaming,
+    // immediately before the attachment row is written, below.
+    if (!isUpdate) {
+      const currentFileCount =
+        await this.attachmentRepo.countByWorkspaceId(workspaceId);
+      await this.entitlementService.assertWithinQuota(
+        workspaceId,
+        'files',
+        currentFileCount,
+      );
+
+      const currentStorageBytes =
+        await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
+      await this.entitlementService.assertWithinQuota(
+        workspaceId,
+        'storage',
+        currentStorageBytes,
+      );
+    }
+
     const filePath = `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${preparedFile.fileName}`;
 
     const { stream, getBytesRead } = createByteCountingStream(
@@ -104,35 +162,75 @@ export class AttachmentService {
           attachmentId,
         );
       } else {
-        attachment = await this.saveAttachment({
-          attachmentId,
-          preparedFile,
-          filePath,
-          type: AttachmentType.File,
-          userId,
-          spaceId,
-          workspaceId,
-          pageId,
+        // ENG-1382 fix pass 1 (F1/F3) — the authoritative chokepoint: the
+        // advisory lock is the FIRST statement in this transaction so a
+        // concurrent upload for the same workspace blocks until this one
+        // commits/rolls back and then re-reads the now-current count/
+        // aggregate (F1 — no cap-bypass race). `assertIncrementWithinQuota`
+        // checks `currentAggregate + thisFile.fileSize > cap` — AC4's
+        // literal "an upload would exceed it" — not merely
+        // "already at cap", closing the semantic gap where an under-cap
+        // workspace could upload an oversized file (F3). The per-file
+        // `wiki_max_file_bytes` cap is enforced the same way with a
+        // baseline of 0.
+        attachment = await executeTx(this.db, async (trx) => {
+          await acquireWorkspaceQuotaLock(trx, 'storage', workspaceId);
+
+          const currentFileCount = await this.attachmentRepo.countByWorkspaceId(
+            workspaceId,
+            trx,
+          );
+          await this.entitlementService.assertWithinQuota(
+            workspaceId,
+            'files',
+            currentFileCount,
+          );
+
+          const currentStorageBytes =
+            await this.attachmentRepo.sumFileSizeByWorkspaceId(
+              workspaceId,
+              trx,
+            );
+          await this.entitlementService.assertIncrementWithinQuota(
+            workspaceId,
+            'storage',
+            currentStorageBytes,
+            preparedFile.fileSize,
+          );
+          await this.entitlementService.assertIncrementWithinQuota(
+            workspaceId,
+            'file_bytes',
+            0,
+            preparedFile.fileSize,
+          );
+
+          return this.saveAttachment({
+            attachmentId,
+            preparedFile,
+            filePath,
+            type: AttachmentType.File,
+            userId,
+            spaceId,
+            workspaceId,
+            pageId,
+            trx,
+          });
         });
       }
 
-      // Only index PDFs and DOCX files
-      if (['.pdf', '.docx'].includes(attachment.fileExt.toLowerCase())) {
-        await this.attachmentQueue.add(
-          QueueJob.ATTACHMENT_INDEX_CONTENT,
-          {
-            attachmentId: attachmentId,
-          },
-          {
-            attempts: 2,
-            backoff: {
-              type: 'exponential',
-              delay: 10000,
-            },
-          },
-        );
-      }
+      // ENG-1437 — engine-local FTS-index enqueue REMOVED. Extraction is
+      // owned solely by orvex-studio-knowledge (ENG-1480), which consumes
+      // the `attachment.created` outbox event written atomically by
+      // `saveAttachment` (below) — that delegation is preserved.
     } catch (err) {
+      if (err instanceof QuotaExceededException) {
+        // The bytes were already streamed to storage (skipBuffer means the
+        // real size is only known after the fact) before this authoritative
+        // recheck rejected it — clean up the orphaned object so it never
+        // lands in a future aggregate/count read, then surface the real 402.
+        await this.storageService.delete(filePath).catch(() => undefined);
+        throw err;
+      }
       // delete uploaded file on error
       this.logger.error(err);
     }
@@ -271,19 +369,39 @@ export class AttachmentService {
       spaceId,
       trx,
     } = opts;
-    return this.attachmentRepo.insertAttachment(
-      {
-        id: attachmentId,
-        type: type,
-        filePath: filePath,
-        fileName: preparedFile.fileName,
-        fileSize: preparedFile.fileSize,
-        mimeType: preparedFile.mimeType,
-        fileExt: preparedFile.fileExtension,
-        creatorId: userId,
-        workspaceId: workspaceId,
-        pageId: pageId,
-        spaceId: spaceId,
+
+    // ENG-1609 AC5 — attachment.created, atomic with the insert. `saveAttachment`
+    // is the single production insert point shared by `uploadFile` (no caller
+    // trx) and `uploadImage` (caller-managed trx) — `executeTx` opens its own
+    // transaction only when the caller didn't already give it one.
+    return executeTx(
+      this.db,
+      async (innerTrx) => {
+        const attachment = await this.attachmentRepo.insertAttachment(
+          {
+            id: attachmentId,
+            type: type,
+            filePath: filePath,
+            fileName: preparedFile.fileName,
+            fileSize: preparedFile.fileSize,
+            mimeType: preparedFile.mimeType,
+            fileExt: preparedFile.fileExtension,
+            creatorId: userId,
+            workspaceId: workspaceId,
+            pageId: pageId,
+            spaceId: spaceId,
+          },
+          innerTrx,
+        );
+
+        await this.outboxWriter.enqueue(innerTrx, {
+          type: EVT_ATTACHMENT_CREATED,
+          aggregateId: attachment.id,
+          workspaceId,
+          payload: { id: attachment.id, workspaceId, type },
+        });
+
+        return attachment;
       },
       trx,
     );
@@ -300,7 +418,7 @@ export class AttachmentService {
         attachments.map(async (attachment) => {
           try {
             await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             this.logger.log(
               `DeleteAiChatAttachments: failed to delete attachment ${attachment.id}:`,
@@ -327,7 +445,7 @@ export class AttachmentService {
         attachments.map(async (attachment) => {
           try {
             await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             failedDeletions.push(attachment.id);
             this.logger.log(
@@ -352,7 +470,7 @@ export class AttachmentService {
     try {
       const userAvatars = await this.db
         .selectFrom('attachments')
-        .select(['id', 'filePath'])
+        .select(['id', 'filePath', 'workspaceId'])
         .where('creatorId', '=', userId)
         .where('type', '=', AttachmentType.Avatar)
         .execute();
@@ -365,7 +483,7 @@ export class AttachmentService {
         userAvatars.map(async (attachment) => {
           try {
             await this.storageService.delete(attachment.filePath);
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             this.logger.log(
               `DeleteUserAvatar: failed to delete user avatar ${attachment.id}:`,
@@ -384,7 +502,7 @@ export class AttachmentService {
       // Fetch attachments for this page from database
       const attachments = await this.db
         .selectFrom('attachments')
-        .select(['id', 'filePath'])
+        .select(['id', 'filePath', 'workspaceId'])
         .where('pageId', '=', pageId)
         .execute();
 
@@ -399,8 +517,8 @@ export class AttachmentService {
           try {
             // Delete from storage
             await this.storageService.delete(attachment.filePath);
-            // Delete from database
-            await this.attachmentRepo.deleteAttachmentById(attachment.id);
+            // Delete from database (+ ENG-1609 outbox row, atomic)
+            await this.deleteAttachmentRow(attachment);
           } catch (err) {
             failedDeletions.push(attachment.id);
             this.logger.error(

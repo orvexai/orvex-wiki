@@ -6,7 +6,7 @@ import {
 } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import { CalloutType, getValidCalloutType } from "./utils";
+import { CalloutType, getValidCalloutType, TLDR_ROLE } from "./utils";
 
 export interface CalloutOptions {
   HTMLAttributes: Record<string, any>;
@@ -22,6 +22,13 @@ export interface CalloutAttributes {
    * The custom icon name for the callout.
    */
   icon?: string;
+  /**
+   * Orvex deterministic role anchor (e.g. "tldr"). Rendered as a
+   * `data-orvex-role` attribute so amend/drift writes can reliably locate
+   * the lead block via the server "find block by role" helper + applyBlock
+   * replace-at. See CONTRACTS.md §0.5.
+   */
+  role?: string;
 }
 
 declare module "@tiptap/core" {
@@ -32,6 +39,11 @@ declare module "@tiptap/core" {
       toggleCallout: (attributes?: CalloutAttributes) => ReturnType;
       updateCalloutType: (type: CalloutType) => ReturnType;
       updateCalloutIcon: (icon: string) => ReturnType;
+      /**
+       * ENG-1377 (AC4) — insert the role-anchored "tldr" lead callout
+       * (`data-orvex-role="tldr"`).
+       */
+      setTldrCallout: () => ReturnType;
     };
   }
 }
@@ -70,6 +82,14 @@ export const Callout = Node.create<CalloutOptions>({
         renderHTML: (attributes) => ({
           "data-callout-icon": attributes.icon,
         }),
+      },
+      // Orvex role anchor — only emitted when set, so ordinary callouts are
+      // unchanged. The `tldr` lead callout carries role="tldr". See §0.5.
+      role: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-orvex-role"),
+        renderHTML: (attributes) =>
+          attributes.role ? { "data-orvex-role": attributes.role } : {},
       },
     };
   },
@@ -126,6 +146,18 @@ export const Callout = Node.create<CalloutOptions>({
         ({ commands }) =>
           commands.updateAttributes("callout", {
             icon: icon || null,
+          }),
+
+      setTldrCallout:
+        () =>
+        ({ commands }) =>
+          // `callout` has `content: "block+"`, so — like `toggleCallout` —
+          // this must wrap the current block(s) rather than `setNode`,
+          // which only supports text-block-to-text-block conversion.
+          commands.toggleWrap(this.name, {
+            type: "info",
+            icon: "💡",
+            role: TLDR_ROLE,
           }),
     };
   },

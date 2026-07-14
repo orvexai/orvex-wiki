@@ -26,6 +26,15 @@ export class PageHistoryIdDto {
   historyId: string;
 }
 
+// ENG-1369: pageId is required (not just derived from the history row) so
+// the controller/service can guard against a historyId that belongs to a
+// DIFFERENT page/workspace (AC4 — INVALID_PAGE_HISTORY_REF).
+export class RestorePageFromHistoryDto extends PageHistoryIdDto {
+  @IsString()
+  @IsNotEmpty()
+  pageId: string;
+}
+
 export class PageInfoDto extends PageIdDto {
   @IsOptional()
   @IsBoolean()

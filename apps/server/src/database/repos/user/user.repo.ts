@@ -82,6 +82,68 @@ export class UserRepo {
       .executeTakeFirst();
   }
 
+  /**
+   * ENG-1559 — resolve an IdP subject (the opaque provider `sub`) to its
+   * internal user id, scoped to a workspace (tenant isolation). This is the
+   * READ half of the ruled engine-side principal resolution (fork (a)): the
+   * engine owns the workspace/user mapping, and the `auth_accounts`
+   * SSO-linkage table is the canonical bridge from a provider subject to an
+   * engine user. Returns `undefined` when no live linkage exists — the caller
+   * fails closed (no user -> no access). Deterministic on the (rare)
+   * multi-provider collision via `created_at` ordering.
+   */
+  async findUserIdByProviderUserId(
+    providerUserId: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<string | undefined> {
+    const db = dbOrTx(this.db, trx);
+    const row = await db
+      .selectFrom('authAccounts')
+      .innerJoin('users', 'users.id', 'authAccounts.userId')
+      .select('users.id as id')
+      .where('authAccounts.providerUserId', '=', providerUserId)
+      .where('authAccounts.workspaceId', '=', workspaceId)
+      .where('authAccounts.deletedAt', 'is', null)
+      .where('users.workspaceId', '=', workspaceId)
+      .where('users.deletedAt', 'is', null)
+      .orderBy('authAccounts.createdAt', 'asc')
+      .executeTakeFirst();
+    return row?.id;
+  }
+
+  /**
+   * ENG-1559 write-path — establish the SSO linkage row that
+   * {@link findUserIdByProviderUserId} later reads. This is the WRITE half of
+   * the ruled engine-side principal resolution (fork (a)): the engine owns the
+   * subject->user mapping, so the linkage is written HERE — in an explicit,
+   * bearer-guarded internal provisioning act — never inferred on the read path
+   * (which stays fail-closed for any unprovisioned subject). `authProviderId`
+   * is null for identity-federated principals: the external IdP is not a
+   * workspace-configured `auth_providers` row, and the read seam matches on
+   * (`providerUserId`, `workspaceId`), not on the provider id.
+   */
+  async linkProviderAccount(
+    link: {
+      userId: string;
+      providerUserId: string;
+      workspaceId: string;
+      authProviderId?: string | null;
+    },
+    trx?: KyselyTransaction,
+  ): Promise<void> {
+    const db = dbOrTx(this.db, trx);
+    await db
+      .insertInto('authAccounts')
+      .values({
+        userId: link.userId,
+        providerUserId: link.providerUserId,
+        workspaceId: link.workspaceId,
+        authProviderId: link.authProviderId ?? null,
+      })
+      .execute();
+  }
+
   async updateUser(
     updatableUser: UpdatableUser,
     userId: string,
@@ -140,6 +202,21 @@ export class UserRepo {
       })
       .returning(this.baseFields)
       .executeTakeFirst();
+  }
+
+  /** ENG-1382 (AC3) — F-QUOTA `members` usage count for a workspace. */
+  async countByWorkspaceId(
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<number> {
+    const result = await dbOrTx(this.db, trx)
+      .selectFrom('users')
+      .select((eb) => eb.fn.countAll().as('count'))
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+
+    return Number(result?.count ?? 0);
   }
 
   async roleCountByWorkspaceId(

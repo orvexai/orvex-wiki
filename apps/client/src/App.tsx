@@ -47,17 +47,37 @@ import FavoritesPage from "@/pages/favorites/favorites-page";
 import AiChat from "@/ee/ai-chat/pages/ai-chat.tsx";
 import VerifyEmail from "@/ee/pages/verify-email.tsx";
 import LabelPage from "@/pages/label/label-page";
+import ClerkLoginPage from "@/pages/auth/clerk-login.tsx";
+import { isClerkTenancy } from "@/lib/config.ts";
+import { ClerkAppProvider } from "@/features/clerk/clerk-app-provider.tsx";
+import { useCellDiscovery } from "@/features/cell-discovery/use-cell-discovery.ts";
+import { CellDiscoveryErrorBanner } from "@/features/cell-discovery/cell-discovery-error-banner.tsx";
 
 export default function App() {
   const { t } = useTranslation();
+  const { error: cellDiscoveryError, retry: retryCellDiscovery } =
+    useCellDiscovery();
   useRedirectToCloudSelect();
   useTrackOrigin();
 
   return (
     <>
+      {cellDiscoveryError && (
+        <CellDiscoveryErrorBanner onRetry={retryCellDiscovery} />
+      )}
       <Routes>
         <Route index element={<Navigate to="/home" />} />
         <Route path={"/login"} element={<LoginPage />} />
+        {isClerkTenancy() && (
+          <Route
+            path={"/clerk"}
+            element={
+              <ClerkAppProvider>
+                <ClerkLoginPage />
+              </ClerkAppProvider>
+            }
+          />
+        )}
         <Route path={"/invites/:invitationId"} element={<InviteSignup />} />
         <Route path={"/forgot-password"} element={<ForgotPassword />} />
         <Route path={"/password-reset"} element={<PasswordReset />} />
@@ -125,7 +145,6 @@ export default function App() {
             <Route path={"sharing"} element={<Shares />} />
             <Route path={"security"} element={<Security />} />
             <Route path={"ai"} element={<AiSettings />} />
-            <Route path={"ai/mcp"} element={<AiSettings />} />
             <Route path={"audit"} element={<AuditLogs />} />
             <Route path={"verifications"} element={<VerifiedPages />} />
             {!isCloud() && <Route path={"license"} element={<License />} />}

@@ -14,7 +14,11 @@ export const pagePermissionRoleData: IRoleData[] = [
   },
 ];
 
-export function getPagePermissionRoleLabel(value: string): string | undefined {
+// AC8 (forward-compat): an unrecognised role from the engine must degrade
+// gracefully — render the raw role value as its own label rather than
+// `undefined` (which would render as the literal string "undefined" via
+// i18next's `t()`), and must never throw.
+export function getPagePermissionRoleLabel(value: string): string {
   const role = pagePermissionRoleData.find((item) => item.value === value);
-  return role ? role.label : undefined;
+  return role ? role.label : value;
 }

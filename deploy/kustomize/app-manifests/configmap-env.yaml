@@ -45,6 +45,15 @@ data:
   CELL_ID: "PLACEHOLDER_CELL_ID"
   CLUSTER_NAME: "PLACEHOLDER_CLUSTER_NAME"
 
+  # Public short cell token (ENG-1505 fix-pass single source: cluster-config
+  # data.cellToken). Not consumed by the engine itself — this ConfigMap is
+  # the relay that carries the token PAST the base build (cluster-config.yaml
+  # is local-config: true and is pruned from the render) so that
+  # components/staging's own `replacements` can re-derive the dev HTTPRoute's
+  # host/annotation/sectionName from the SAME single source instead of
+  # re-typing the literal.
+  CELL_TOKEN: "PLACEHOLDER_CELL_TOKEN"
+
   # Event-spine crew-scoping (A-CELL rule #5). The engine is the first
   # studio-spine producer; topics are {domain}-events.{suffix}. Base = the
   # sentinel cell "solo"; components/crew patches to crew-{name} so a crew's
@@ -60,7 +69,22 @@ data:
   ORVEX_IDENTITY_URL: "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local"
   ORVEX_KNOWLEDGE_URL: "http://orvex-studio-knowledge.orvex-studio-knowledge.svc.cluster.local"
   ORVEX_AI_URL: "http://orvex-studio-ai.orvex-studio-ai.svc.cluster.local"
-  ORVEX_BILLING_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
+  # Billing keys off the seam pattern deliberately: the live consumer is the
+  # EntitlementModule's HttpBillingEntitlementPort, which reads ORVEX_BILLING_API_URL
+  # (ENG-1382; environment.service.ts getBillingApiUrl) — so this base URL (billing's
+  # /v1/entitlements host) is carried under that exact key, never ..._URL. Renamed
+  # from the former dead ORVEX_BILLING_URL scaffold (no code ever read it) at the
+  # ENG-1559 M5 billing-wire close — a single live key, no fallback.
+  ORVEX_BILLING_API_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
   ORVEX_MCP_URL: "http://orvex-studio-mcp.orvex-studio-mcp.svc.cluster.local"
   ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
   ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"
+
+  # ENG-1599 — OTel trace export (A-OBSERVE "OTel to LGTM (console)"). A
+  # configured URL, never a credential (A-PORTABLE); read ONLY by
+  # `initOrvexTracing`, itself gated on ORVEX_MODULES_ENABLED==='true' (off
+  # above, so this key is inert here — VANILLA BYTE-PARITY DOCTRINE). Base =
+  # the prod cluster-local OTLP/HTTP collector; components/staging → dev;
+  # components/crew → the crew's own collector, same crew → crew seam as the
+  # ORVEX_*_URL block above.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.orvex-studio-console.svc.cluster.local:4318"

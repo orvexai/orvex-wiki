@@ -200,11 +200,15 @@ replacements:
         options:
           delimiter: "/"
           index: 2
-      # NOTE: the HTTPRoute host is NOT injected here — it's hardcoded in the
-      # base manifest (prod wiki.eu1.orvex.ai) and patched to the dev
-      # host by components/staging. Injecting wikiHost here overwrote the
-      # staging hostname patch (leaving prod host + dev sectionName → route
-      # Accepted=False).
+      # NOTE: the HTTPRoute host is NOT injected via wikiHost here — it's a
+      # CELLTOKEN placeholder in the base manifest, patched to the dev domain
+      # suffix by components/staging, and gets its literal token value from
+      # the dedicated cellToken replacements below instead (see "Cell token"
+      # section). A whole-host wikiHost injection here previously overwrote
+      # the staging hostname patch (leaving prod host + dev sectionName →
+      # route Accepted=False) — the token-only replacement avoids that by
+      # only ever touching the single CELLTOKEN segment, on both prod (base)
+      # and dev (components/staging) independently.
   - source:
       kind: ConfigMap
       name: cluster-config
@@ -241,3 +245,43 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.CLUSTER_NAME
+
+  # ─── Cell token (ENG-1505 fix-pass — single source) ─────────────────────
+  # cluster-config.cellToken is the ONLY place the literal short cell token
+  # is typed. Two hops:
+  #   1. Relay it onto orvex-wiki-env's CELL_TOKEN field. cluster-config.yaml
+  #      is local-config:true (pruned from the render), so without this hop
+  #      the token would be unreachable once components/staging runs (a
+  #      Component only sees resources already emitted by the base build).
+  #   2. Substitute it into the base (prod) HTTPRoute's CELLTOKEN placeholder
+  #      segments. components/staging repeats step 2 against its own
+  #      dev-domain CELLTOKEN placeholders, sourcing the SAME
+  #      orvex-wiki-env.CELL_TOKEN relayed here — so prod and dev both derive
+  #      the token from cluster-config.cellToken alone.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellToken
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.CELL_TOKEN
+      - select:
+          kind: HTTPRoute
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+          - spec.hostnames.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HTTPRoute
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
+        fieldPaths:
+          - spec.parentRefs.0.sectionName
+        options:
+          delimiter: "-"
+          index: 1

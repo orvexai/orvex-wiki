@@ -45,6 +45,7 @@ import {
   TransclusionSource,
   TransclusionReference,
   BaseEmbed,
+  AiAuthored,
 } from '@docmost/editor-ext';
 import { generateText, getSchema, JSONContent } from '@tiptap/core';
 import { generateHTML, generateJSON } from '../common/helpers/prosemirror/html';
@@ -55,6 +56,10 @@ import { generateHTML, generateJSON } from '../common/helpers/prosemirror/html';
 import { Node, Schema } from '@tiptap/pm/model';
 import * as Y from 'yjs';
 import { Logger } from '@nestjs/common';
+import {
+  BLOCK_ID_TYPES,
+  backfillPageContent,
+} from './backfill-block-ids.util';
 
 export const tiptapExtensions = [
   StarterKit.configure({
@@ -65,7 +70,9 @@ export const tiptapExtensions = [
   }),
   Heading,
   UniqueID.configure({
-    types: ['heading', 'paragraph', 'transclusionSource'],
+    // ENG-1397 AC1 — widened block-ID coverage (was just heading/paragraph/
+    // transclusionSource); single source of truth in `BLOCK_ID_TYPES`.
+    types: BLOCK_ID_TYPES,
   }),
   Comment,
   TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -110,7 +117,8 @@ export const tiptapExtensions = [
   Status,
   TransclusionSource,
   TransclusionReference,
-  BaseEmbed
+  BaseEmbed,
+  AiAuthored,
 ] as any;
 
 export function jsonToHtml(tiptapJson: any) {
@@ -147,6 +155,17 @@ export function jsonToNode(tiptapJson: JSONContent) {
     }
     throw error;
   }
+}
+
+/**
+ * ENG-1397 AC2 — the block-ID stamping step used at the `PageService` write
+ * chokepoint (`parseProsemirrorContent`) and by the legacy backfill
+ * migration (AC4). Wraps `backfillPageContent` with this module's own
+ * widened `tiptapExtensions` (single schema instance for the whole write
+ * path).
+ */
+export function stampBlockIds(pmJson: JSONContent) {
+  return backfillPageContent(pmJson, tiptapExtensions);
 }
 
 export function getPageId(documentName: string) {

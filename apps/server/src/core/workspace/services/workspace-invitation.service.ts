@@ -11,7 +11,7 @@ import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 import { sql } from 'kysely';
-import { executeTx } from '@docmost/db/utils';
+import { executeTx, acquireWorkspaceQuotaLock } from '@docmost/db/utils';
 import {
   Group,
   User,
@@ -45,6 +45,8 @@ import {
   getWorkspaceDefaultPageEditMode,
   isAdminActingOnOwner,
 } from '../workspace.util';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
+import { QuotaExceededException } from '../../../orvex/entitlement/quota.exception';
 
 @Injectable()
 export class WorkspaceInvitationService {
@@ -60,6 +62,7 @@ export class WorkspaceInvitationService {
     @InjectQueue(QueueName.BILLING_QUEUE) private billingQueue: Queue,
     private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async getInvitations(workspaceId: string, pagination: PaginationOptions) {
@@ -249,6 +252,28 @@ export class WorkspaceInvitationService {
 
     try {
       await executeTx(this.db, async (trx) => {
+        // ENG-1382 fix pass 1 (F1) — count -> assert -> insert MUST be one
+        // atomic critical section: two concurrent acceptInvitation() calls
+        // for the same workspace both reading `cap - 1` would both pass the
+        // check and both insert, exceeding the member cap (the T6 attack).
+        // The advisory xact lock is the FIRST statement inside this same
+        // transaction, so a second concurrent acceptance blocks until this
+        // one commits/rolls back, then re-reads the now-current count.
+        //
+        // (AC3/AC6) — a member is actually added to the workspace here (the
+        // invite itself doesn't consume the cap, only acceptance does). Cap
+        // VALUE from billing, never hard-coded.
+        await acquireWorkspaceQuotaLock(trx, 'members', workspace.id);
+        const currentMemberCount = await this.userRepo.countByWorkspaceId(
+          workspace.id,
+          trx,
+        );
+        await this.entitlementService.assertWithinQuota(
+          workspace.id,
+          'members',
+          currentMemberCount,
+        );
+
         newUser = await this.userRepo.insertUser(
           {
             name: dto.name,
@@ -301,6 +326,13 @@ export class WorkspaceInvitationService {
           .execute();
       });
     } catch (err: any) {
+      // ENG-1382 (AC3) — the quota chokepoint now runs inside this same
+      // try/catch (it moved into the transaction for F1); a
+      // QuotaExceededException must surface as its real 402, never get
+      // rewrapped into the generic 400 below.
+      if (err instanceof QuotaExceededException) {
+        throw err;
+      }
       this.logger.error(`acceptInvitation - ${err}`);
       if (err.message.includes('unique constraint')) {
         throw new BadRequestException('Invitation already accepted');
@@ -328,7 +360,7 @@ export class WorkspaceInvitationService {
 
       await this.mailService.sendToQueue({
         to: invitedByUser.email,
-        subject: `${newUser.name} has accepted your Docmost invite`,
+        subject: `${newUser.name} has accepted your Orvex Wiki invite`,
         template: emailTemplate,
       });
     }
@@ -477,7 +509,7 @@ export class WorkspaceInvitationService {
 
     await this.mailService.sendToQueue({
       to: inviteeEmail,
-      subject: `${invitedByName} invited you to Docmost`,
+      subject: `${invitedByName} invited you to Orvex Wiki`,
       template: emailTemplate,
     });
   }

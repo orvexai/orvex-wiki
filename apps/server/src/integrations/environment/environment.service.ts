@@ -79,6 +79,26 @@ export class EnvironmentService {
     return this.configService.get<string>('GOTENBERG_URL');
   }
 
+  /**
+   * ENG-1383 — Kafka studio-spine broker list for the outbox relay
+   * (`KafkaPublisherPort`). Comma-separated `host:port` list. Ruling 3 —
+   * broker creds/endpoints come from env, never inline in a domain fn.
+   */
+  getKafkaBrokers(): string[] {
+    return this.configService
+      .get<string>('KAFKA_BROKERS', 'localhost:9092')
+      .split(',')
+      .map((b) => b.trim())
+      .filter(Boolean);
+  }
+
+  getKafkaOutboxTopic(): string {
+    return this.configService.get<string>(
+      'KAFKA_OUTBOX_TOPIC',
+      'orvex.studio-spine.events',
+    );
+  }
+
   getStorageDriver(): string {
     return this.configService.get<string>('STORAGE_DRIVER', 'local');
   }
@@ -151,7 +171,7 @@ export class EnvironmentService {
   }
 
   getMailFromName(): string {
-    return this.configService.get<string>('MAIL_FROM_NAME', 'Docmost');
+    return this.configService.get<string>('MAIL_FROM_NAME', 'Orvex Wiki');
   }
 
   getMailBlockedRecipientDomains(): string[] {
@@ -216,6 +236,13 @@ export class EnvironmentService {
 
   getStripePublishableKey(): string {
     return this.configService.get<string>('STRIPE_PUBLISHABLE_KEY');
+  }
+
+  // ENG-1382 — base URL of the `orvex-studio-billing` entitlement seam
+  // (`GET /v1/entitlements/{principal_type}/{principal_id}`). Billing owns
+  // cap VALUES + Stripe (❌#8/❌#10); the engine only reads this endpoint.
+  getBillingApiUrl(): string {
+    return this.configService.get<string>('ORVEX_BILLING_API_URL');
   }
 
   getStripeSecretKey(): string {

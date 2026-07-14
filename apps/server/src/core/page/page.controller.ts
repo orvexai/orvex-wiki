@@ -3,17 +3,20 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Headers,
   HttpCode,
   HttpStatus,
   Inject,
   NotFoundException,
   Post,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { PageService } from './services/page.service';
 import { BacklinkService } from './services/backlink.service';
 import { PageAccessService } from './page-access/page-access.service';
 import { CreatePageDto } from './dto/create-page.dto';
+import { UpsertPageDto } from './dto/upsert-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
 import { MovePageDto, MovePageToSpaceDto } from './dto/move-page.dto';
 import {
@@ -21,10 +24,13 @@ import {
   PageHistoryIdDto,
   PageIdDto,
   PageInfoDto,
+  RestorePageFromHistoryDto,
 } from './dto/page.dto';
+import { BulkDeletePagesDto } from './dto/bulk-delete-page.dto';
 import { PageHistoryService } from './services/page-history.service';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
+import { AuthMethod } from '../../common/decorators/auth-method.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { Page, User, Workspace } from '@docmost/db/types/entity.types';
@@ -52,6 +58,11 @@ import {
   IAuditService,
 } from '../../integrations/audit/audit.service';
 import { getPageTitle } from '../../common/helpers';
+import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
+import { OrvexMarkdownInterceptor } from '../../orvex/page-metadata/markdown/orvex-markdown.interceptor';
+import { ConfirmTokenService } from '../../orvex/page-metadata/confirm-token.service';
+import { InjectKysely } from 'nestjs-kysely';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -65,6 +76,10 @@ export class PageController {
     private readonly backlinkService: BacklinkService,
     private readonly labelService: LabelService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    private readonly provenanceService: OrvexPageProvenanceService,
+    @InjectKysely() private readonly db: KyselyDB,
+    // ENG-1445 AC4 (review1 F2) — the real bulk-delete confirm-token gate.
+    private readonly confirmTokenService: ConfirmTokenService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -197,12 +212,18 @@ export class PageController {
     );
   }
 
+  // ENG-1371 (AC8, review1 F1) — parses/strips markdown frontmatter into
+  // `orvex_page_meta` at the request edge, before `PageService.create`
+  // converts markdown -> ProseMirror JSON. No-op for non-markdown /
+  // frontmatter-less requests (see interceptor doc comment).
+  @UseInterceptors(OrvexMarkdownInterceptor)
   @HttpCode(HttpStatus.OK)
   @Post('create')
   async create(
     @Body() createPageDto: CreatePageDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
   ) {
     if (createPageDto.parentPageId) {
       // Creating under a parent page - check edit permission on parent
@@ -228,11 +249,33 @@ export class PageController {
       }
     }
 
-    const page = await this.pageService.create(
-      user.id,
-      workspace.id,
-      createPageDto,
-    );
+    // ENG-1447 F1 fix — the REST create write and its ai_produced provenance
+    // stamp (AC5) run in the SAME db transaction, so there is no committed
+    // window where the page row exists with provenance_status = null
+    // (NFR-freshness / Dev-Context §4e "no lag window").
+    const page = await this.db.transaction().execute(async (trx) => {
+      const created = await this.pageService.create(
+        user.id,
+        workspace.id,
+        createPageDto,
+        trx,
+      );
+
+      if (authMethod === 'api_key') {
+        await this.provenanceService.markAiCreated(
+          created.id,
+          {
+            userId: null,
+            workspaceId: workspace.id,
+            spaceId: created.spaceId,
+            isHuman: false,
+          },
+          trx,
+        );
+      }
+
+      return created;
+    });
 
     const { canEdit, hasRestriction } =
       await this.pageAccessService.validateCanViewWithPermissions(page, user);
@@ -267,9 +310,103 @@ export class PageController {
     return { ...page, permissions };
   }
 
+  /**
+   * ENG-1471 — thin idempotent-write handler. The auth pre-flight lookup
+   * (edit-vs-create guard, closing the D2 externalId IDOR) happens HERE;
+   * every resolution/no-op/tx/retry decision lives in `PageService.upsert`.
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('upsert')
+  async upsert(
+    @Body() upsertPageDto: UpsertPageDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    let existing: Page | undefined;
+    if (upsertPageDto.slugId) {
+      existing = await this.pageRepo.findById(upsertPageDto.slugId);
+      if (existing?.workspaceId !== workspace.id) existing = undefined;
+    }
+    if (!existing && upsertPageDto.externalId) {
+      existing = await this.pageRepo.findByExternalId(
+        upsertPageDto.externalId,
+        workspace.id,
+      );
+    }
+    if (!existing && upsertPageDto.spaceId && upsertPageDto.title) {
+      existing = await this.pageRepo.findBySpaceParentTitle(
+        upsertPageDto.spaceId,
+        upsertPageDto.parentPageId,
+        upsertPageDto.title,
+      );
+    }
+
+    if (existing) {
+      // Edit branch — closes the D2 externalId IDOR: a caller with Create on
+      // space A cannot update a page in an inaccessible space B merely by
+      // supplying a matching externalId.
+      await this.pageAccessService.validateCanEdit(existing, user);
+    } else {
+      if (!upsertPageDto.spaceId) {
+        throw new BadRequestException({ error: 'SPACE_ID_REQUIRED' });
+      }
+      if (upsertPageDto.parentPageId) {
+        const parentPage = await this.pageRepo.findById(
+          upsertPageDto.parentPageId,
+        );
+        if (
+          !parentPage ||
+          parentPage.deletedAt ||
+          parentPage.spaceId !== upsertPageDto.spaceId
+        ) {
+          throw new NotFoundException('Parent page not found');
+        }
+        await this.pageAccessService.validateCanEdit(parentPage, user);
+      } else {
+        const ability = await this.spaceAbility.createForUser(
+          user,
+          upsertPageDto.spaceId,
+        );
+        if (ability.cannot(SpaceCaslAction.Create, SpaceCaslSubject.Page)) {
+          throw new ForbiddenException();
+        }
+      }
+    }
+
+    const { page, upserted } = await this.pageService.upsert(
+      upsertPageDto,
+      user.id,
+      workspace.id,
+    );
+
+    if (upserted === 'created') {
+      this.auditService.log({
+        event: AuditEvent.PAGE_CREATED,
+        resourceType: AuditResource.PAGE,
+        resourceId: page.id,
+        spaceId: page.spaceId,
+        changes: {
+          after: { title: getPageTitle(page.title), spaceId: page.spaceId },
+        },
+      });
+    }
+
+    return { ...page, upserted };
+  }
+
+  // ENG-1371 (AC8, review1 F1) — see the `create` handler's comment above.
+  @UseInterceptors(OrvexMarkdownInterceptor)
   @HttpCode(HttpStatus.OK)
   @Post('update')
-  async update(@Body() updatePageDto: UpdatePageDto, @AuthUser() user: User) {
+  async update(
+    @Body() updatePageDto: UpdatePageDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
+    // ENG-1413 (AC3) — the `idempotency-key` HEADER takes precedence over
+    // the body field when both are supplied.
+    @Headers('idempotency-key') idempotencyKeyHeader?: string,
+  ) {
     const page = await this.pageRepo.findById(updatePageDto.pageId);
 
     if (!page) {
@@ -281,11 +418,37 @@ export class PageController {
       user,
     );
 
-    const updatedPage = await this.pageService.update(
-      page,
-      updatePageDto,
-      user,
-    );
+    // ENG-1447 F1 fix — the REST update write and its ai_produced provenance
+    // stamp (AC5) run in the SAME db transaction, so there is no committed
+    // window where the page row is updated with provenance_status = null
+    // (NFR-freshness / Dev-Context §4e "no lag window").
+    const updatedPage = await this.db.transaction().execute(async (trx) => {
+      const result = await this.pageService.update(
+        page,
+        updatePageDto,
+        user,
+        {
+          ifVersion: updatePageDto.ifVersion,
+          idempotencyKey: idempotencyKeyHeader ?? updatePageDto.idempotencyKey,
+        },
+        trx,
+      );
+
+      if (authMethod === 'api_key') {
+        await this.provenanceService.markAiCreated(
+          result.id,
+          {
+            userId: null,
+            workspaceId: workspace.id,
+            spaceId: result.spaceId,
+            isHuman: false,
+          },
+          trx,
+        );
+      }
+
+      return result;
+    });
 
     const permissions = { canEdit: true, hasRestriction };
 
@@ -369,6 +532,77 @@ export class PageController {
     }
   }
 
+  /**
+   * ENG-1445 AC4 (review1 F2) — the real bulk-delete chokepoint. An
+   * `api_key` (agent) caller MUST present a `confirmToken` that
+   * `ConfirmTokenService.verify()` accepts for `action: 'bulk_delete'` and
+   * the exact `scopeId` presented — a missing/tampered/wrong-scope/
+   * wrong-action token is refused (403), never silently allowed. A human
+   * caller is not gated here (already trusted via the per-page Manage
+   * ability check below, same posture as `delete`'s `permanentlyDelete`).
+   */
+  @HttpCode(HttpStatus.OK)
+  @Post('bulk-delete')
+  async bulkDelete(
+    @Body() dto: BulkDeletePagesDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @AuthMethod() authMethod: 'api_key' | undefined,
+  ): Promise<{ deletedIds: string[] }> {
+    if (authMethod === 'api_key') {
+      const result = this.confirmTokenService.verify(dto.confirmToken, {
+        expectWorkspaceId: workspace.id,
+        expectAction: 'bulk_delete',
+        expectScopeId: dto.scopeId,
+      });
+      if (result.ok === false) {
+        throw new ForbiddenException({
+          error: 'CONFIRM_TOKEN_REQUIRED',
+          reason: result.reason,
+        });
+      }
+    }
+
+    const deletedIds: string[] = [];
+    for (const pageId of dto.pageIds) {
+      const page = await this.pageRepo.findById(pageId);
+      if (!page || page.workspaceId !== workspace.id) {
+        continue;
+      }
+
+      const ability = await this.spaceAbility.createForUser(
+        user,
+        page.spaceId,
+      );
+      if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
+        throw new ForbiddenException(
+          'Only space admins can bulk-delete pages',
+        );
+      }
+
+      await this.pageService.forceDelete(pageId, workspace.id);
+
+      this.auditService.log({
+        event: AuditEvent.PAGE_DELETED,
+        resourceType: AuditResource.PAGE,
+        resourceId: page.id,
+        spaceId: page.spaceId,
+        changes: {
+          before: {
+            pageId: page.id,
+            slugId: page.slugId,
+            title: getPageTitle(page.title),
+            spaceId: page.spaceId,
+          },
+        },
+      });
+
+      deletedIds.push(pageId);
+    }
+
+    return { deletedIds };
+  }
+
   @HttpCode(HttpStatus.OK)
   @Post('restore')
   async restore(
@@ -432,10 +666,15 @@ export class PageController {
         recentPageDto.spaceId,
         user.id,
         pagination,
+        recentPageDto.includeSuperseded,
       );
     }
 
-    return this.pageService.getRecentPages(user.id, pagination);
+    return this.pageService.getRecentPages(
+      user.id,
+      pagination,
+      recentPageDto.includeSuperseded,
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -526,6 +765,30 @@ export class PageController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @Post('/history/restore')
+  async restorePageFromHistory(
+    @Body() dto: RestorePageFromHistoryDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const page = await this.pageRepo.findById(dto.pageId);
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    await this.pageAccessService.validateCanEdit(page, user);
+
+    // ENG-1369 (AC1-AC5): collab-safe content write + transactional audit,
+    // guarded against a historyId belonging to a different page/workspace.
+    return this.pageHistoryService.restoreFromHistory(
+      dto.pageId,
+      dto.historyId,
+      user,
+      workspace.id,
+    );
+  }
+
+  @HttpCode(HttpStatus.OK)
   @Post('/sidebar-pages')
   async getSidebarPages(
     @Body() dto: SidebarPageDto,
@@ -564,6 +827,7 @@ export class PageController {
       dto.pageId,
       user.id,
       spaceCanEdit,
+      dto.includeSuperseded,
     );
   }
 

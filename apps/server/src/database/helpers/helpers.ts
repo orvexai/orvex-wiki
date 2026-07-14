@@ -1,10 +1,6 @@
 import { sql } from 'kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 
-export async function isPageEmbeddingsTableExists(db: KyselyDB) {
-  return tableExists({ db, tableName: 'page_embeddings' });
-}
-
 export async function tableExists(opts: {
   db: KyselyDB;
   tableName: string;

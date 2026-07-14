@@ -1,0 +1,12 @@
+{
+  "pinnedUpstreamSha": "0000000000000000000000000000000000000000",
+  "entries": [
+    {
+      "path": "fixture/drifted-file.ts",
+      "reason": "self-test fixture: context has moved out of the fork's tracked window and must be DRIFTED",
+      "anchorBefore": ["line 3", "line 4"],
+      "anchorAfter": ["line 5", "line 6"],
+      "offset": 2
+    }
+  ]
+}

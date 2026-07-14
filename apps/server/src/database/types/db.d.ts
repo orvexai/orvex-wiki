@@ -35,11 +35,16 @@ export interface ApiKeys {
   deletedAt: Timestamp | null;
   expiresAt: Timestamp | null;
   id: Generated<string>;
+  keyHash: string | null;
   lastUsedAt: Timestamp | null;
   name: string | null;
   updatedAt: Generated<Timestamp>;
   creatorId: string;
   workspaceId: string;
+  /** ENG-1454 — space-allowlist for the scope-intersection guard; native jsonb array, null = unrestricted. */
+  scopes: Json | null;
+  /** ENG-1454 — read-only mode for the scope-intersection guard. */
+  readOnly: Generated<boolean>;
 }
 
 export interface Attachments {
@@ -56,7 +61,6 @@ export interface Attachments {
   pageId: string | null;
   spaceId: string | null;
   textContent: string | null;
-  tsv: string | null;
   type: string | null;
   updatedAt: Generated<Timestamp>;
   workspaceId: string;
@@ -66,6 +70,7 @@ export interface Audit {
   actorId: string | null;
   actorType: Generated<string>;
   changes: Json | null;
+  clientId: string | null;
   createdAt: Generated<Timestamp>;
   event: string;
   id: Generated<string>;
@@ -329,10 +334,47 @@ export interface Pages {
   spaceId: string;
   textContent: string | null;
   title: string | null;
-  tsv: string | null;
   updatedAt: Generated<Timestamp>;
   workspaceId: string;
   ydoc: Buffer | null;
+}
+
+export interface OrvexEventOutbox {
+  aggregateId: string;
+  correlationId: string | null;
+  createdAt: Generated<Timestamp>;
+  id: Generated<string>;
+  payload: Json;
+  relayedAt: Timestamp | null;
+  traceparent: string | null;
+  tracestate: string | null;
+  type: string;
+  workspaceId: string;
+}
+
+export interface OrvexPageMeta {
+  archiveReason: string | null;
+  contentHash: string | null;
+  createdAt: Generated<Timestamp>;
+  docType: string | null;
+  externalId: string | null;
+  lastReviewedAt: Timestamp | null;
+  ownerId: string | null;
+  pageId: string;
+  provenanceStatus: string | null;
+  provenanceChangedAt: Timestamp | null;
+  provenanceChangedById: string | null;
+  redirectFrom: string | null;
+  specConfirmed: Generated<boolean>;
+  status: Generated<string>;
+  supersededBy: string | null;
+  supersedes: Json | null;
+  unknownFrontmatter: string | null;
+  updatedAt: Generated<Timestamp>;
+  verifiedAgainst: string | null;
+  verifiedAt: Timestamp | null;
+  version: Generated<number>;
+  workspaceId: string;
 }
 
 export interface Shares {
@@ -511,6 +553,7 @@ export interface Labels {
   name: string;
   type: Generated<string>;
   workspaceId: string;
+  spaceId: string | null;
   createdAt: Generated<Timestamp>;
   updatedAt: Generated<Timestamp>;
 }
@@ -656,6 +699,7 @@ export interface DB {
   groupUsers: GroupUsers;
   labels: Labels;
   notifications: Notifications;
+  orvexEventOutbox: OrvexEventOutbox;
   pageAccess: PageAccess;
   pageTransclusionReferences: PageTransclusionReferences;
   pageTransclusions: PageTransclusions;
@@ -665,6 +709,7 @@ export interface DB {
   pageVerifications: PageVerifications;
   pageVerifiers: PageVerifiers;
   pages: Pages;
+  orvexPageMeta: OrvexPageMeta;
   scimTokens: ScimTokens;
   shares: Shares;
   spaceMembers: SpaceMembers;

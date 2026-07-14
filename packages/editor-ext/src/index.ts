@@ -28,6 +28,7 @@ export * from "./lib/heading/heading";
 export * from "./lib/unique-id";
 export * from "./lib/shared-storage";
 export * from "./lib/recreate-transform";
+export * from "./lib/ai-authored";
 export * from "./lib/columns";
 export * from "./lib/status";
 export * from "./lib/pdf";
@@ -38,3 +39,8 @@ export {
   type DocxImageResolver,
 } from "./lib/prosemirror-docx";
 export * from "./lib/base-embed";
+export * from "./lib/changelog";
+export * from "./lib/freshness-ribbon";
+export * from "./lib/chart";
+export * from "./lib/ai-inline-handler";
+export * from "./lib/ai-bubble-handler";

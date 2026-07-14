@@ -39,7 +39,6 @@ import {
   generateRandomSuffixNumbers,
   diffAuditTrackedFields,
 } from '../../../common/helpers';
-import { isPageEmbeddingsTableExists } from '@docmost/db/helpers/helpers';
 import { CursorPaginationResult } from '@docmost/db/pagination/cursor-pagination';
 import { ShareRepo } from '@docmost/db/repos/share/share.repo';
 import { WatcherRepo } from '@docmost/db/repos/watcher/watcher.repo';
@@ -49,6 +48,15 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../integrations/audit/audit.service';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import {
+  EVT_WORKSPACE_CREATED,
+  EVT_WORKSPACE_UPDATED,
+  EVT_WORKSPACE_MEMBER_ADDED,
+  EVT_WORKSPACE_MEMBER_ROLE_CHANGED,
+  EVT_WORKSPACE_MEMBER_DEACTIVATED,
+  EVT_WORKSPACE_MEMBER_DELETED,
+} from '../../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
 export class WorkspaceService {
@@ -73,6 +81,7 @@ export class WorkspaceService {
     @InjectQueue(QueueName.AI_QUEUE) private aiQueue: Queue,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private userSessionRepo: UserSessionRepo,
+    private readonly outboxWriter: OutboxWriter,
   ) {}
 
   async findById(workspaceId: string) {
@@ -229,6 +238,16 @@ export class WorkspaceService {
           trx,
         );
 
+        // ENG-1609 AC1 — workspace.created lands atomically in the SAME
+        // transaction as the workspace insert (commit ⇒ 1 row; rollback ⇒
+        // 0 rows, since this whole block is one `executeTx`).
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_WORKSPACE_CREATED,
+          aggregateId: workspace.id,
+          workspaceId: workspace.id,
+          payload: { id: workspace.id, name: workspace.name },
+        });
+
         return workspace;
       },
       trx,
@@ -284,6 +303,14 @@ export class WorkspaceService {
           })
           .where('id', '=', userId)
           .execute();
+
+        // ENG-1609 AC2 — workspace.member_added, atomic in the same tx.
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_WORKSPACE_MEMBER_ADDED,
+          aggregateId: userId,
+          workspaceId: workspace.id,
+          payload: { userId, workspaceId: workspace.id },
+        });
       },
       trx,
     );
@@ -330,7 +357,6 @@ export class WorkspaceService {
     if (
       typeof updateWorkspaceDto.disablePublicSharing !== 'undefined' ||
       typeof updateWorkspaceDto.trashRetentionDays !== 'undefined' ||
-      typeof updateWorkspaceDto.mcpEnabled !== 'undefined' ||
       typeof updateWorkspaceDto.restrictApiToAdmins !== 'undefined' ||
       typeof updateWorkspaceDto.allowMemberTemplates !== 'undefined' ||
       typeof updateWorkspaceDto.isScimEnabled !== 'undefined' ||
@@ -344,14 +370,6 @@ export class WorkspaceService {
 
       if (!ws) {
         throw new NotFoundException('Workspace not found');
-      }
-
-      if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {
-        if (!this.licenseCheckService.hasFeature(ws.licenseKey, 'mcp', ws.plan)) {
-          throw new ForbiddenException(
-            'This feature requires a valid license',
-          );
-        }
       }
 
       if (typeof updateWorkspaceDto.isScimEnabled !== 'undefined') {
@@ -396,14 +414,17 @@ export class WorkspaceService {
       }
     }
 
-    if (updateWorkspaceDto.aiSearch) {
-      const tableExists = await isPageEmbeddingsTableExists(this.db);
-      if (!tableExists) {
-        throw new BadRequestException(
-          'Failed to activate. Make sure pgvector postgres extension is installed.',
-        );
-      }
-    }
+    // DRIFT-2 (ENG-1559 §8b): this used to gate `aiSearch` on a local
+    // `page_embeddings` pgvector table. That table/extension was never
+    // provisioned in this fork and, per ratified ADR-0014, never will be —
+    // Turbopuffer is the family's sole ANN/vector store, and this workspace
+    // flag has since been repurposed (ENG-1475/ENG-1476, AC4) as the
+    // per-tenant opt-in the knowledge indexer reads via
+    // `GET /internal/settings/ai-search`
+    // (see InternalApiService#getAiSearchEnabled). Gating it on a pgvector
+    // table that must not exist made the flag permanently un-activatable.
+    // No replacement precondition: activation has no local-store
+    // dependency to check.
 
     const workspaceBefore = await this.workspaceRepo.findById(workspaceId);
     const settingsBefore = (workspaceBefore?.settings ?? {}) as Record<
@@ -471,20 +492,6 @@ export class WorkspaceService {
         }
       }
 
-      if (typeof updateWorkspaceDto.mcpEnabled !== 'undefined') {
-        const prev = settingsBefore?.ai?.mcp ?? false;
-        if (prev !== updateWorkspaceDto.mcpEnabled) {
-          before.mcpEnabled = prev;
-          after.mcpEnabled = updateWorkspaceDto.mcpEnabled;
-        }
-        await this.workspaceRepo.updateAiSettings(
-          workspaceId,
-          'mcp',
-          updateWorkspaceDto.mcpEnabled,
-          trx,
-        );
-      }
-
       if (typeof updateWorkspaceDto.allowMemberTemplates !== 'undefined') {
         const prev = settingsBefore?.templates?.allowMemberTemplates ?? false;
         if (prev !== updateWorkspaceDto.allowMemberTemplates) {
@@ -545,7 +552,6 @@ export class WorkspaceService {
       delete updateWorkspaceDto.aiSearch;
       delete updateWorkspaceDto.generativeAi;
       delete updateWorkspaceDto.disablePublicSharing;
-      delete updateWorkspaceDto.mcpEnabled;
       delete updateWorkspaceDto.allowMemberTemplates;
       delete updateWorkspaceDto.aiChat;
       delete updateWorkspaceDto.allowPersonalSpaces;
@@ -556,6 +562,16 @@ export class WorkspaceService {
         workspaceId,
         trx,
       );
+
+      // ENG-1609 AC1 — workspace.updated, atomic in the same tx as the
+      // update above (this block always performs the update write, even
+      // when every optional field is undefined, so it is a real mutation).
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_UPDATED,
+        aggregateId: workspaceId,
+        workspaceId,
+        payload: { id: workspaceId },
+      });
     });
 
     if (after.aiSearch === true) {
@@ -655,13 +671,24 @@ export class WorkspaceService {
       );
     }
 
-    await this.userRepo.updateUser(
-      {
-        role: newRole,
-      },
-      user.id,
-      workspaceId,
-    );
+    await executeTx(this.db, async (trx) => {
+      await this.userRepo.updateUser(
+        {
+          role: newRole,
+        },
+        user.id,
+        workspaceId,
+        trx,
+      );
+
+      // ENG-1609 AC2 — workspace.member_role_changed, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_ROLE_CHANGED,
+        aggregateId: user.id,
+        workspaceId,
+        payload: { userId: user.id, workspaceId, before: user.role, after: newRole },
+      });
+    });
 
     this.auditService.log({
       event: AuditEvent.USER_ROLE_CHANGED,
@@ -766,6 +793,14 @@ export class WorkspaceService {
         trx,
       );
       await this.userSessionRepo.revokeByUserId(userId, workspaceId, trx);
+
+      // ENG-1609 AC2 — workspace.member_deactivated, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_DEACTIVATED,
+        aggregateId: userId,
+        workspaceId,
+        payload: { userId, workspaceId },
+      });
     });
 
     this.auditService.log({
@@ -886,6 +921,14 @@ export class WorkspaceService {
       });
 
       await this.userSessionRepo.revokeByUserId(userId, workspaceId, trx);
+
+      // ENG-1609 AC2 — workspace.member_deleted, atomic in the same tx.
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_DELETED,
+        aggregateId: userId,
+        workspaceId,
+        payload: { userId, workspaceId },
+      });
     });
 
     this.auditService.log({

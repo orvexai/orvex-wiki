@@ -29,9 +29,14 @@ SPEC="$REPO_ROOT/contracts/openapi.yaml"
 CHECKLIST="$REPO_ROOT/docs/delivery-checklist.md"
 MARKER='ORVEX_NOT_IMPLEMENTED: '
 
-# The deliberate REAL operation (FR-W19), committed here as the dependency-light
-# cross-check against the contract's `x-classification: real` set.
-REAL_SET_COMMITTED="orvexSourceOffer"
+# The deliberate REAL operations, committed here as the dependency-light
+# cross-check against the contract's `x-classification: real` set (comma-joined
+# in contract path order): the FR-W6 session-mint (`orvexSessionExchange`, wired
+# to the real introspect→resolve→mint path), the FR-W19 written-source offer
+# (`orvexSourceOffer`), and the ENG-1578 registry cross-cell tenant-MOVE
+# (`orvexTenantCellMove`, wired to identity's real `Registry.Move` — distinct
+# from the still-501 A-MOVE quiesce/export/import/activate bulk-content steps).
+REAL_SET_COMMITTED="orvexSessionExchange,orvexSourceOffer,orvexTenantCellMove"
 
 MODE="${1:-check}"
 

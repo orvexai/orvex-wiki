@@ -2,15 +2,21 @@
 # Staging component — the standing dev environment (branch: dev).
 # Appended by the CMP plugin when RESOURCE_PROFILE=staging.
 #
-# Owns the dev hostname (wiki.eu1.orvex.dev) and a single replica for the
-# server Deployment.
+# Owns the dev hostname (wiki.<cell-token>.orvex.dev) and a single replica
+# for the server Deployment.
 #
 # Dev lives on the orvex.dev zone (NOT a dev-* subdomain of orvex.ai): prod =
-# wiki.orvex.ai, dev = wiki.eu1.orvex.dev. The orvex.dev zone (external-dns filter
-# + *.orvex.dev Cloudflare Origin cert + platform-gateway orvex-dev-https
-# listener) is wired in the my-idp platform repo and is LIVE.
+# wiki.orvex.ai, dev = wiki.<cell-token>.orvex.dev. The orvex.dev zone
+# (external-dns filter + *.orvex.dev Cloudflare Origin cert +
+# platform-gateway orvex-dev-https listener) is wired in the my-idp platform
+# repo and is LIVE.
 # Cell TOKEN ruling (final form 2026-07-05): the public host carries the short
-# cell token (eu1); the AWS-AZ cell id (eu-central-1a) is internal-only.
+# cell token; the AWS-AZ cell id (eu-central-1a) is internal-only.
+# The CELLTOKEN placeholder in the patches below is NOT the literal — the
+# `replacements` block at the end of this file overwrites it from
+# cluster-config.yaml's single-source `cellToken` field, relayed via
+# orvex-wiki-env's CELL_TOKEN (see root kustomization.yaml for why the relay
+# hop is needed) (ENG-1505 fix-pass).
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
@@ -20,21 +26,23 @@ labels:
     includeSelectors: false
 
 patches:
-  # ── Dev hostname: wiki.orvex.ai → wiki.eu1.orvex.dev ─────────────────────────
-  # Also re-pin the Gateway listener: the base attaches to the orvex-eu1-https
-  # listener (*.eu1.orvex.ai); the dev host wiki.eu1.orvex.dev only
-  # intersects the orvex-eu1-dev-https listener (*.eu1.orvex.dev), so
-  # the sectionName MUST switch too or the route is Accepted=False (hostname/listener mismatch).
+  # ── Dev hostname: wiki.orvex.ai → wiki.CELLTOKEN.orvex.dev ───────────────
+  # Also re-pin the Gateway listener: the base attaches to the
+  # orvex-CELLTOKEN-https listener; the dev host only intersects the
+  # orvex-CELLTOKEN-dev-https listener, so the sectionName MUST switch too or
+  # the route is Accepted=False (hostname/listener mismatch). CELLTOKEN is a
+  # placeholder — see the `replacements` block below for the single-source
+  # substitution.
   - patch: |-
       - op: replace
         path: /spec/hostnames/0
-        value: wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+        value: wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
-        value: wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+        value: wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
       - op: replace
         path: /spec/parentRefs/0/sectionName
-        value: orvex-eu1-dev-https
+        value: orvex-CELLTOKEN-dev-https
     target:
       kind: HTTPRoute
       name: orvex-wiki
@@ -43,7 +51,66 @@ patches:
   - patch: |-
       - op: replace
         path: /data/APP_URL
-        value: https://wiki.eu1.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+        value: https://wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
+  # ── Dev cell = MULTI-TENANT CLOUD: federated workspace resolution ─────────
+  # M5 (ENG-1559) / FR-W6. The dev cell is a multi-tenant CLOUD deployment
+  # (per-tenant workspace UUIDs from the registry; federated identity via the
+  # engine session-mint). In self-hosted mode DomainMiddleware clobbers every
+  # request's workspace to workspaceRepo.findFirst() (the OLDEST workspace), so a
+  # federated tenant-scoped session token whose workspaceId != that oldest
+  # workspace is rejected by JwtStrategy with 401 "Workspace does not match".
+  # CLOUD=true switches DomainMiddleware to hostname-subdomain resolution: a
+  # cluster-internal / cell host matches no workspace hostname -> req.workspaceId
+  # = null -> the token's own workspace is authoritative -> JwtStrategy passes.
+  # SUBDOMAIN_HOST is intentionally NOT set here: DomainMiddleware resolves the
+  # tenant from host.split(".")[0], never from SUBDOMAIN_HOST; the var only backs
+  # cloud cookie-domain / URL construction and, when absent, @IsOptional skips its
+  # boot-time @IsUrl check. Wiring it via the single-source cellToken chain (so it
+  # renders clean, not with the underscore-bearing PLACEHOLDER_CELL_TOKEN a
+  # staging-time replacement would leave — which would fail @IsUrl and crash boot)
+  # is a tracked follow-up, not needed for federated workspace resolution.
+  - patch: |-
+      - op: add
+        path: /data/CLOUD
+        value: "true"
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
+  # ── Dev cell only: ORVEX_MODULES_ENABLED=true ────────────────────────────
+  # WAVE-3 engine-verbs fixer (2026-07-13, scratchpad/night/fix3/
+  # engine-verbs.md). Base (app-manifests/configmap-env.yaml) pins this
+  # "false" for a reason that stays true for prod/main: VANILLA BYTE-PARITY
+  # DOCTRINE (AC6) — main is a clean docmost/docmost@v0.95.0 deploy with zero
+  # orvex/* surface. That doctrine was never meant to apply to the standing
+  # dev cell too; dev is where the orvex/* tree (OrvexRootModule.register(),
+  # apps/server/src/orvex/orvex-root.module.ts) is supposed to be exercised
+  # live. Flipping this here (dev-only `op: replace` patch, base untouched,
+  # main/prod still renders "false") unblocks the request-edge
+  # OrvexModulesEnabledGuard 404 that has been silently gating
+  # OrvexApplyOpsController's `POST /orvex/pages/:pageId/apply-ops` (ENG-1652
+  # — the wiki-api Edit primitive's real target once wiki-api's own
+  # ENGINE_URL points at this cell) and the rest of OrvexRootModule's
+  # register()-only tree (OrvexHttpModule, OrvexPageBlocksModule's schema
+  # catalog, OrvexEnforceSsoModule, OrvexTracingModule, OrvexHealthModule,
+  # OrvexMetricsModule) — NOT `OrvexLlmsModule`/`OrvexApplyOpsModule`
+  # themselves, which mount unconditionally via PageModule regardless of this
+  # flag; only their own per-route `OrvexModulesEnabledGuard` check reads it.
+  # Disclosed limit (see scratchpad/night/fix3/engine-verbs.md): this flag
+  # does NOT create routes this repo never registers at all — MCP's
+  # `POST /api/ai/search`, `POST /api/orvex/ai/related`,
+  # `GET /api/pages/:id/blocks/outline`, `GET /api/pages/changes-since` have
+  # no controller anywhere in apps/server/src on either build, flag on or
+  # off; those 404s are a missing-route gap, not a flag gate, and are
+  # unaffected by this change.
+  - patch: |-
+      - op: replace
+        path: /data/ORVEX_MODULES_ENABLED
+        value: "true"
     target:
       kind: ConfigMap
       name: orvex-wiki-env
@@ -63,7 +130,7 @@ patches:
         path: /data/ORVEX_AI_URL
         value: http://orvex-studio-ai.orvex-studio-ai-dev.svc.cluster.local
       - op: replace
-        path: /data/ORVEX_BILLING_URL
+        path: /data/ORVEX_BILLING_API_URL
         value: http://orvex-studio-billing.orvex-studio-billing-dev.svc.cluster.local
       - op: replace
         path: /data/ORVEX_MCP_URL
@@ -78,11 +145,95 @@ patches:
       kind: ConfigMap
       name: orvex-wiki-env
 
+  # ── Dev studio-spine producer: connect the outbox relay to the live broker ──
+  # M5 (ENG-1559). The engine's outbox relay (ENG-1383 OutboxRelayService) is the
+  # first studio-spine producer: PageRepo.insertPage / OrvexPageProvenanceService
+  # enqueue a row in-transaction on every page create/content-update, and the 2s
+  # @Interval poller publishes each row to Kafka. That relay is mounted
+  # UNCONDITIONALLY in app.module.ts — it deliberately does NOT ride the
+  # ORVEX_MODULES_ENABLED gate (carve-out-(b), same as the migrator) — so the
+  # ONLY thing keeping the producer "off" in dev is the broker list: base leaves
+  # KAFKA_BROKERS unset, so EnvironmentService.getKafkaBrokers() falls back to its
+  # localhost:9092 sentinel (an unreachable broker) and dev pages never leave the
+  # outbox. Point it at the shared Strimzi bootstrap — the SAME plaintext :9092
+  # endpoint the knowledge SSE + KafkaSinks already dial (ENG-2006 canonical
+  # value) — so the producer connects and drains. Crash-safe: a broker outage
+  # never blocks a mutation (the outbox buffers, retried never dropped), so this
+  # is safe even before the studio-spine topic/bridge lands downstream. NOT a
+  # replacement target; `op: add` because base carries no KAFKA_BROKERS key.
+  - patch: |-
+      - op: add
+        path: /data/KAFKA_BROKERS
+        value: platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
+  # ── Dev studio-spine producer: point the relay at the REAL topic ─────────
+  # M5 (ENG-1559) AC8 pass. Base leaves KAFKA_OUTBOX_TOPIC unset, so
+  # EnvironmentService.getKafkaOutboxTopic() falls back to its
+  # "orvex.studio-spine.events" sentinel — a topic nothing in dev reads.
+  # orvex-studio-knowledge's own indexer + sse (KAFKA_RAW_TOPIC,
+  # deploy/kustomize/app-manifests/configmap.yaml) already dial the SAME
+  # literal "wiki-events.eu-central-1" — the live wiki-events.eu-central-1
+  # KafkaTopic CR (my-idp-apps, studio-events ns). Direct-consumer transport
+  # (no Knative Broker/KafkaSink dependency — PD-4d ruling, orvex-studio-lib
+  # pkg/events.BrokerPublisher's own doc comment: "the Knative Broker is
+  # consumer-side Trigger-delivery fork machinery this lib has no dependency
+  # on"). NOT a replacement target; `op: add` because base carries no
+  # KAFKA_OUTBOX_TOPIC key.
+  - patch: |-
+      - op: add
+        path: /data/KAFKA_OUTBOX_TOPIC
+        value: wiki-events.eu-central-1
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Single replica for the server Deployment in dev ──────────────────────
   - patch: |-
       - op: replace
         path: /spec/replicas
         value: 1
+    target:
+      kind: Deployment
+      name: orvex-wiki
+
+  # ── Dev-cell headroom + probe tolerance ───────────────────────────────────
+  # 2026-07-13, engine-health night-mode lane
+  # (scratchpad/night/engine-health/engine.md). Root-caused LIVE: the single
+  # dev-cell replica repeatedly went Unready then was liveness-killed
+  # (kubelet "Unhealthy"/"Killing" events recurring roughly every 15-20min
+  # under concurrent night-mode load) while CPU/memory stayed low at rest —
+  # i.e. genuine event-loop stalls under concurrent collaboration/persist
+  # load (PATCH .../blocks/patch-string -> updatePageContent ->
+  # CollaborationGateway.handleYjsEvent), not a hung dependency (DB/Redis
+  # pinged fine every time the pod WAS responsive). A `kubectl delete pod`
+  # restart only bought ~15-20min before the same hang recurred — not a fix,
+  # confirmed by reproducing the hang live a second time in the same
+  # session. Two independent, additive, dev-only mitigations (base/prod
+  # untouched):
+  #   1. Double the CPU/memory ceiling so the single Node process has
+  #      headroom to ride out a concurrent-edit burst instead of being
+  #      throttled into an unresponsive event loop.
+  #   2. Raise the readiness/liveness probe timeout from the Kubernetes
+  #      default of 1s to 5s, so a brief GC/CPU-contention blip doesn't
+  #      itself trigger the very outage it's meant to detect.
+  #      failureThreshold is untouched — a genuine multi-minute hang is
+  #      still caught and restarted just as before.
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 2000m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 2Gi
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe/timeoutSeconds
+        value: 5
+      - op: add
+        path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+        value: 5
     target:
       kind: Deployment
       name: orvex-wiki
@@ -99,3 +250,43 @@ patches:
     target:
       kind: PodDisruptionBudget
       name: orvex-wiki
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Cell token (ENG-1505 fix-pass — single source). Substitutes the CELLTOKEN
+# placeholders set by the patches above from orvex-wiki-env's CELL_TOKEN
+# field, which the root kustomization.yaml relays from cluster-config.yaml's
+# `cellToken` — the ONE place the literal short cell token is typed. This is
+# the dev-overlay half of the same single-source chain the base
+# app-manifests/httproute.yaml replacement uses for prod.
+# ═══════════════════════════════════════════════════════════════════════════
+replacements:
+  - source:
+      kind: ConfigMap
+      name: orvex-wiki-env
+      fieldPath: data.CELL_TOKEN
+    targets:
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+          - spec.hostnames.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki
+        fieldPaths:
+          - spec.parentRefs.0.sectionName
+        options:
+          delimiter: "-"
+          index: 1
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.APP_URL
+        options:
+          delimiter: "."
+          index: 1

@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreatePageDto, ContentFormat } from '../dto/create-page.dto';
 import { ContentOperation, UpdatePageDto } from '../dto/update-page.dto';
+import { UpsertPageDto } from '../dto/upsert-page.dto';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
 import { InsertablePage, Page, User } from '@docmost/db/types/entity.types';
@@ -20,7 +22,7 @@ import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { MovePageDto } from '../dto/move-page.dto';
 import { generateSlugId } from '../../../common/helpers';
 import { getPageTitle } from '../../../common/helpers';
-import { executeTx } from '@docmost/db/utils';
+import { executeTx, acquireWorkspaceQuotaLock } from '@docmost/db/utils';
 import { AttachmentRepo } from '@docmost/db/repos/attachment/attachment.repo';
 import { v7 as uuid7 } from 'uuid';
 import {
@@ -31,10 +33,11 @@ import {
   removeMarkTypeFromDoc,
 } from '../../../common/helpers/prosemirror/utils';
 import {
-  htmlToJson,
   jsonToNode,
   jsonToText,
+  stampBlockIds,
 } from 'src/collaboration/collaboration.util';
+import { computeContentHash as sharedComputeContentHash } from '../../../common/helpers/content-hash';
 import {
   CopyPageMapEntry,
   ICopyPageAttachment,
@@ -51,10 +54,16 @@ import {
   INTERNAL_LINK_REGEX,
   extractPageSlugId,
 } from '../../../integrations/export/utils';
-import { markdownToHtml } from '@docmost/editor-ext';
 import { WatcherService } from '../../watcher/watcher.service';
 import { sql } from 'kysely';
 import { TransclusionService } from '../transclusion/transclusion.service';
+import { IdempotencyStore } from '../../../integrations/redis/idempotency-store.service';
+import {
+  assertIfVersionMatches,
+  isIntegerVersion,
+  toIntegerVersion,
+} from '../if-version.util';
+import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
 
 @Injectable()
 export class PageService {
@@ -73,6 +82,8 @@ export class PageService {
     private collaborationGateway: CollaborationGateway,
     private readonly watcherService: WatcherService,
     private readonly transclusionService: TransclusionService,
+    private readonly idempotencyStore: IdempotencyStore,
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async findById(
@@ -129,24 +140,89 @@ export class PageService {
       ydoc = createYdocFromJson(prosemirrorJson);
     }
 
-    const page = await this.pageRepo.insertPage({
-      slugId: generateSlugId(),
-      title: createPageDto.title,
-      position: await this.nextPagePosition(
-        createPageDto.spaceId,
-        parentPageId,
-      ),
-      icon: createPageDto.icon,
-      parentPageId: parentPageId,
-      spaceId: createPageDto.spaceId,
-      creatorId: userId,
-      workspaceId: workspaceId,
-      lastUpdatedById: userId,
-      isBase,
-      content,
-      textContent,
-      ydoc,
-    }, trx);
+    const position = await this.nextPagePosition(
+      createPageDto.spaceId,
+      parentPageId,
+    );
+
+    let page: Page;
+    try {
+      // ENG-1382 fix pass 1 (F1) — count -> assert -> insert MUST be one
+      // atomic critical section, not three separate awaits: two concurrent
+      // requests both reading `cap - 1` would both pass the check and both
+      // insert, exceeding the cap (the T6 attack). `acquireWorkspaceQuotaLock`
+      // takes a Postgres advisory xact lock as the FIRST statement of this
+      // transaction, so a second concurrent create() for the same workspace
+      // blocks until this transaction commits or rolls back and then
+      // re-reads the now-current count — never racing past the cap.
+      //
+      // (AC1/AC2/AC6) — the cap VALUE is read from billing via
+      // EntitlementService — never hard-coded here (❌#10). Throws
+      // `QuotaExceededException` (402) at-cap; a no-op under cap.
+      page = await executeTx(
+        this.db,
+        async (quotaTrx) => {
+          await acquireWorkspaceQuotaLock(quotaTrx, 'pages', workspaceId);
+
+          const currentPageCount = await this.pageRepo.countByWorkspaceId(
+            workspaceId,
+            quotaTrx,
+          );
+          await this.entitlementService.assertWithinQuota(
+            workspaceId,
+            'pages',
+            currentPageCount,
+          );
+
+          return this.pageRepo.insertPage(
+            {
+              slugId: generateSlugId(),
+              title: createPageDto.title,
+              position,
+              icon: createPageDto.icon,
+              parentPageId: parentPageId,
+              spaceId: createPageDto.spaceId,
+              creatorId: userId,
+              workspaceId: workspaceId,
+              lastUpdatedById: userId,
+              isBase,
+              content,
+              textContent,
+              ydoc,
+            },
+            quotaTrx,
+          );
+        },
+        trx,
+      );
+    } catch (err: any) {
+      // pages_unique_title_per_parent (ENG-1471) — a sibling with the same
+      // title already exists at this location.
+      if (err?.code === '23505') {
+        throw new ConflictException(
+          `A page named "${createPageDto.title}" already exists at this location`,
+        );
+      }
+      throw err;
+    }
+
+    // ENG-1413 — every page gets an `orvex_page_meta` row (ruling 4) from
+    // creation, seeded at version 1, so the CAS/idempotency primitive on
+    // `POST /pages/update` always has a baseline version to check against
+    // (not just pages that went through `upsert`). Content is already
+    // parsed above (`content`) — hash it directly, no re-parse.
+    const initialContentHash =
+      content !== undefined ? this.computeContentHash(content) : null;
+    await (trx ?? this.db)
+      .insertInto('orvexPageMeta')
+      .values({
+        pageId: page.id,
+        externalId: null,
+        contentHash: initialContentHash,
+        version: 1,
+        workspaceId,
+      })
+      .execute();
 
     if (trx) {
       // Add the watcher inside the caller's transaction so the async worker
@@ -172,6 +248,201 @@ export class PageService {
     }
 
     return page;
+  }
+
+  /**
+   * ENG-1397 AC8/AC9 — the single content_hash accessor. Delegates to the
+   * shared `computeContentHash` helper (F-B) so this write chokepoint and
+   * the AC4 backfill migration can never silently drift apart on how a
+   * content hash is derived.
+   */
+  private computeContentHash(prosemirrorJson: unknown): string {
+    return sharedComputeContentHash(prosemirrorJson);
+  }
+
+  /**
+   * ENG-1471 — idempotent page write.
+   *
+   * Three-tier lookup (slugId -> externalId -> (spaceId,parentPageId,title));
+   * a keyless retry with byte-identical `replace` content is a true no-op
+   * (content-hash short-circuit); `ifVersion` is a CAS guard on the update
+   * branch; the create branch requires `spaceId` and persists `externalId`
+   * (side table, ruling 4) for future dimension-2 lookups.
+   */
+  async upsert(
+    dto: UpsertPageDto,
+    userId: string,
+    workspaceId: string,
+  ): Promise<{ page: Page; upserted: 'created' | 'updated' }> {
+    let existing: Page | undefined;
+
+    if (dto.slugId) {
+      const bySlug = await this.pageRepo.findById(dto.slugId);
+      if (bySlug && !bySlug.deletedAt && bySlug.workspaceId === workspaceId) {
+        existing = bySlug;
+      }
+    }
+
+    if (!existing && dto.externalId) {
+      existing = await this.pageRepo.findByExternalId(
+        dto.externalId,
+        workspaceId,
+      );
+    }
+
+    if (!existing && dto.spaceId && dto.title) {
+      existing = await this.pageRepo.findBySpaceParentTitle(
+        dto.spaceId,
+        dto.parentPageId,
+        dto.title,
+      );
+    }
+
+    if (!existing) {
+      if (!dto.spaceId) {
+        throw new BadRequestException({ error: 'SPACE_ID_REQUIRED' });
+      }
+
+      // ENG-1397 — parse (+ block-ID stamp) ONCE and reuse the SAME
+      // resulting json for both the actual page insert and the hash. The
+      // chokepoint now mints fresh ids for previously-missing nodes; parsing
+      // the raw `dto.content` independently a second time (the old
+      // create-then-reparse-for-hash shape) would mint a DIFFERENT set of
+      // random ids each time, and the stored `contentHash` would silently
+      // stop matching the persisted content. Re-parsing the ALREADY-stamped
+      // `preparedContent` inside `create()` below is safe/idempotent: no
+      // ids are missing anymore, so `stampBlockIds` is a true no-op there.
+      let preparedContent: string | object | undefined = dto.content;
+      let contentHash: string | null = null;
+      if (dto.content !== undefined) {
+        preparedContent = await this.parseProsemirrorContent(
+          dto.content,
+          dto.format ?? 'json',
+        );
+        contentHash = this.computeContentHash(preparedContent);
+      }
+
+      const created = await this.create(userId, workspaceId, {
+        title: dto.title,
+        icon: dto.icon,
+        parentPageId: dto.parentPageId,
+        spaceId: dto.spaceId,
+        content: preparedContent,
+        format: preparedContent !== undefined ? 'json' : undefined,
+      } as CreatePageDto);
+
+      // ENG-1413 — `create()` above already seeded the `orvex_page_meta`
+      // row at version 1 (every page gets one now, not just `upsert`'d
+      // ones); this just layers the externalId on top via upsert — never
+      // a second INSERT (that would 23505 on the pageId primary key).
+      await this.db
+        .insertInto('orvexPageMeta')
+        .values({
+          pageId: created.id,
+          externalId: dto.externalId ?? null,
+          contentHash,
+          version: 1,
+          workspaceId,
+        })
+        .onConflict((oc) =>
+          oc.column('pageId').doUpdateSet({
+            externalId: dto.externalId ?? null,
+          }),
+        )
+        .execute();
+
+      return { page: created, upserted: 'created' };
+    }
+
+    // --- update branch ---
+    const meta = await this.db
+      .selectFrom('orvexPageMeta')
+      .selectAll()
+      .where('pageId', '=', existing.id)
+      .executeTakeFirst();
+
+    const operation = dto.operation ?? 'replace';
+    // ENG-1397 — same single-parse-then-reuse rationale as the create
+    // branch above: hash the SAME stamped json that actually gets written.
+    let preparedContent: string | object | undefined = dto.content;
+    let inboundHash: string | undefined;
+    if (dto.content !== undefined) {
+      preparedContent = await this.parseProsemirrorContent(
+        dto.content,
+        dto.format ?? 'json',
+      );
+      inboundHash = this.computeContentHash(preparedContent);
+    }
+
+    // The safe no-op case: a keyless `replace` retry with byte-identical
+    // content, no ifVersion/title/icon change — everything else (append,
+    // prepend, an explicit ifVersion, a title/icon change) falls through to
+    // a real write.
+    const noOpEligible =
+      operation === 'replace' &&
+      dto.ifVersion === undefined &&
+      dto.content !== undefined &&
+      dto.title === undefined &&
+      dto.icon === undefined;
+
+    if (
+      noOpEligible &&
+      meta?.contentHash &&
+      inboundHash !== undefined &&
+      inboundHash === meta.contentHash
+    ) {
+      const full = await this.pageRepo.findById(existing.id, {
+        includeContent: true,
+        includeSpace: true,
+      });
+      return { page: full, upserted: 'updated' };
+    }
+
+    if (
+      dto.ifVersion !== undefined &&
+      meta &&
+      dto.ifVersion !== meta.version
+    ) {
+      throw new ConflictException({ error: 'VERSION_MISMATCH' });
+    }
+
+    const updated = await this.update(
+      existing,
+      {
+        pageId: existing.id,
+        title: dto.title,
+        icon: dto.icon,
+        content: preparedContent,
+        operation: dto.operation,
+        format: dto.format,
+      } as UpdatePageDto,
+      { id: userId } as User,
+    );
+
+    const nextVersion = (meta?.version ?? 0) + 1;
+    const nextHash = inboundHash ?? meta?.contentHash ?? null;
+    const nextExternalId = dto.externalId ?? meta?.externalId ?? null;
+
+    await this.db
+      .insertInto('orvexPageMeta')
+      .values({
+        pageId: existing.id,
+        externalId: nextExternalId,
+        contentHash: nextHash,
+        version: nextVersion,
+        workspaceId,
+      })
+      .onConflict((oc) =>
+        oc.column('pageId').doUpdateSet({
+          externalId: nextExternalId,
+          contentHash: nextHash,
+          version: nextVersion,
+          updatedAt: new Date(),
+        }),
+      )
+      .execute();
+
+    return { page: updated, upserted: 'updated' };
   }
 
   async nextPagePosition(spaceId: string, parentPageId?: string) {
@@ -219,33 +490,113 @@ export class PageService {
     page: Page,
     updatePageDto: UpdatePageDto,
     user: User,
+    casOpts?: { ifVersion?: number | string; idempotencyKey?: string },
+    trx?: KyselyTransaction,
   ): Promise<Page> {
+    // ENG-1413 — atomic integer CAS + cross-replica idempotency, gated on
+    // the caller explicitly opting in via `casOpts` (the `/pages/update`
+    // HTTP path). `upsert()`'s internal call into `update()` does NOT pass
+    // `casOpts` — it manages the side-table meta row itself (ENG-1471,
+    // AC7) — so this block never double-bumps `orvex_page_meta.version`.
+    let meta: { version: number } | undefined;
+    if (casOpts) {
+      meta = await this.pageRepo.getPageMeta(page.id);
+
+      // AC5: the CAS precondition is asserted BEFORE any idempotency slot
+      // is claimed — a stale `ifVersion` 409s here, leaving the slot free.
+      assertIfVersionMatches(page.updatedAt, casOpts.ifVersion, meta?.version);
+
+      if (casOpts.idempotencyKey) {
+        const claim = await this.idempotencyStore.claim<Page>(
+          'page-update',
+          page.id,
+          user.id,
+          casOpts.idempotencyKey,
+        );
+
+        if (!claim.claimed) {
+          // AC3: the loser does not re-apply — return the winner's result
+          // (or, if it hasn't been recorded yet, the page's current state).
+          return (
+            claim.result ??
+            (await this.pageRepo.findById(page.id, {
+              includeSpace: true,
+              includeContent: true,
+              includeCreator: true,
+              includeLastUpdatedBy: true,
+              includeContributors: true,
+            }))
+          );
+        }
+      }
+    }
+
     const contributors = new Set<string>(page.contributorIds);
     contributors.add(user.id);
     const contributorIds = Array.from(contributors);
 
-    await this.pageRepo.updatePage(
-      {
-        title: updatePageDto.title,
-        icon: updatePageDto.icon,
-        lastUpdatedById: user.id,
-        updatedAt: new Date(),
-        contributorIds: contributorIds,
-      },
-      page.id,
-    );
-
-    this.generalQueue
-      .add(QueueJob.ADD_PAGE_WATCHERS, {
-        userIds: [user.id],
-        pageId: page.id,
-        spaceId: page.spaceId,
-        workspaceId: page.workspaceId,
-      })
-      .catch((err) =>
-        this.logger.warn(`Failed to queue add-page-watchers: ${err.message}`),
+    let nextContentHash: string | null | undefined;
+    if (updatePageDto.content !== undefined && updatePageDto.format) {
+      const parsed = await this.parseProsemirrorContent(
+        updatePageDto.content,
+        updatePageDto.format,
       );
+      nextContentHash = this.computeContentHash(parsed);
+    }
 
+    if (casOpts) {
+      // AC1/AC6: fold the precondition into the atomic store-tier UPDATE —
+      // zero-rowcount means the version drifted between the pre-check above
+      // and here (a genuine cross-replica race), and THAT is the real,
+      // race-proof guard (no read-then-write TOCTOU on the write decision).
+      if (isIntegerVersion(casOpts.ifVersion)) {
+        const expectedVersion = toIntegerVersion(casOpts.ifVersion);
+
+        const casResult = await this.pageRepo.casIncrementMeta(
+          page.id,
+          expectedVersion,
+          { contentHash: nextContentHash },
+          page.workspaceId,
+        );
+
+        if (!casResult) {
+          const current = await this.pageRepo.getPageMeta(page.id);
+          throw new ConflictException({
+            code: 'VERSION_MISMATCH',
+            serverVersion: current?.version,
+          });
+        }
+      } else {
+        await this.pageRepo.bumpMeta(page.id, page.workspaceId, {
+          contentHash: nextContentHash,
+        });
+      }
+    }
+
+    // Cold-page edit self-deadlock fix (ENG engine-side connection
+    // resolution, 2026-07-13) — `updatePageContent` below routes through the
+    // collaboration/Hocuspocus layer, whose persist step
+    // (`PersistenceExtension.onStoreDocument`) ALWAYS runs in its own brand
+    // new DB transaction (`executeTx` is never handed this method's `trx`),
+    // and takes a `SELECT ... FOR UPDATE` on this exact page row. If the
+    // plain-field `pageRepo.updatePage` below (title/icon/etc, same row) ran
+    // FIRST inside the caller's still-open `trx`, that FOR UPDATE would
+    // block on the row lock this outer transaction is holding — a lock the
+    // outer transaction can never release because it is itself awaiting
+    // THIS call to finish. Postgres never sees that as a deadlock (the outer
+    // transaction isn't blocked on anything from the DB's point of view —
+    // it's idle-in-transaction), so its deadlock detector never fires and
+    // the collab layer's connection hangs indefinitely (previously
+    // misdiagnosed as `openDirectConnection` never resolving for a cold
+    // page — in fact the whole `withYdocConnection` await, including its
+    // internal store step, never returns). Running the content update FIRST
+    // — before the outer `trx` has touched this row at all — lets the
+    // collab layer's independent transaction acquire and release its own
+    // lock cleanly; the metadata write further down then proceeds against
+    // an already-committed row with no contender. The content write was
+    // never atomic with the metadata write to begin with (it always ran in
+    // its own separate transaction), so reordering loses no existing
+    // guarantee.
     if (
       updatePageDto.content &&
       updatePageDto.operation &&
@@ -260,13 +611,51 @@ export class PageService {
       );
     }
 
-    return await this.pageRepo.findById(page.id, {
+    await this.pageRepo.updatePage(
+      {
+        title: updatePageDto.title,
+        icon: updatePageDto.icon,
+        lastUpdatedById: user.id,
+        updatedAt: new Date(),
+        contributorIds: contributorIds,
+      },
+      page.id,
+      trx,
+    );
+
+    this.generalQueue
+      .add(QueueJob.ADD_PAGE_WATCHERS, {
+        userIds: [user.id],
+        pageId: page.id,
+        spaceId: page.spaceId,
+        workspaceId: page.workspaceId,
+      })
+      .catch((err) =>
+        this.logger.warn(`Failed to queue add-page-watchers: ${err.message}`),
+      );
+
+    const result = await this.pageRepo.findById(page.id, {
       includeSpace: true,
       includeContent: true,
       includeCreator: true,
       includeLastUpdatedBy: true,
       includeContributors: true,
+      trx,
     });
+
+    if (casOpts?.idempotencyKey) {
+      // Best-effort — losers polling this key see the winner's result.
+      // Never blocks/fails the response (IdempotencyStore never throws).
+      await this.idempotencyStore.record(
+        'page-update',
+        page.id,
+        user.id,
+        casOpts.idempotencyKey,
+        result,
+      );
+    }
+
+    return result;
   }
 
   async updatePageContent(
@@ -292,6 +681,7 @@ export class PageService {
     pageId?: string,
     userId?: string,
     spaceCanEdit?: boolean,
+    includeSuperseded?: boolean,
   ): Promise<CursorPaginationResult<Partial<Page> & { hasChildren: boolean }>> {
     let query = this.db
       .selectFrom('pages')
@@ -310,6 +700,9 @@ export class PageService {
       .select((eb) => this.pageRepo.withHasChildren(eb))
       .where('deletedAt', 'is', null)
       .where('spaceId', '=', spaceId);
+    // ENG-1434 AC11 — a superseded page is excluded from the sidebar tree
+    // by default (opt-in reveal).
+    query = this.pageRepo.excludeSupersededUnless(query, includeSuperseded);
 
     if (pageId) {
       query = query.where('parentPageId', '=', pageId);
@@ -506,6 +899,47 @@ export class PageService {
     return { childPageIds };
   }
 
+  /**
+   * ENG-1471 — bumps (or appends) the " (N)" copy-title suffix, e.g.
+   * `"Copy of Foo"` -> `"Copy of Foo (2)"` -> `"Copy of Foo (3)"`. Falls back
+   * to a `Date.now()` suffix only as a last resort after 100 numbered
+   * attempts would collide (never reached in the tested path).
+   */
+  private incrementCopyTitle(title: string): string {
+    const match = title.match(/^(.*) \((\d+)\)$/);
+    if (match) {
+      const n = parseInt(match[2], 10);
+      if (n < 100) {
+        return `${match[1]} (${n + 1})`;
+      }
+      return `${match[1]} (${Date.now()})`;
+    }
+    return `${title} (2)`;
+  }
+
+  /**
+   * ENG-1471 — best-effort pre-flight pick of a non-colliding copy title
+   * before the first insert attempt (the 23505 retry loop in
+   * `duplicatePage` is the actual correctness guarantee under concurrency).
+   */
+  private async resolveUniqueCopyTitle(
+    spaceId: string,
+    parentPageId: string | null | undefined,
+    baseTitle: string,
+  ): Promise<string> {
+    let candidate = baseTitle;
+    for (let i = 0; i < 100; i++) {
+      const existing = await this.pageRepo.findBySpaceParentTitle(
+        spaceId,
+        parentPageId,
+        candidate,
+      );
+      if (!existing) return candidate;
+      candidate = this.incrementCopyTitle(candidate);
+    }
+    return `${baseTitle} (${Date.now()})`;
+  }
+
   async duplicatePage(
     rootPage: Page,
     targetSpaceId: string | undefined,
@@ -658,7 +1092,14 @@ export class PageService {
         let title = page.title;
         if (isDuplicateInSameSpace && page.id === rootPage.id) {
           const originalTitle = getPageTitle(page.title);
-          title = `Copy of ${originalTitle}`;
+          const baseTitle = `Copy of ${originalTitle}`;
+          // Best-effort pre-flight (ENG-1471); the 23505 retry loop around
+          // the insert is what actually guarantees uniqueness under a race.
+          title = await this.resolveUniqueCopyTitle(
+            spaceId,
+            rootPage.parentPageId,
+            baseTitle,
+          );
         }
 
         return {
@@ -686,39 +1127,56 @@ export class PageService {
       }),
     );
 
-    await this.db.insertInto('pages').values(insertablePages).execute();
+    // ENG-1471 AC6/AC7 — the subtree insert + transclusion rows commit in
+    // ONE transaction (rollback leaves no partial subtree); a duplicate-title
+    // collision on `pages_unique_title_per_parent` (23505) bumps the root
+    // page's copy-title suffix and retries, bounded at 10 attempts, so a
+    // storm of concurrent duplicates degrades to distinct titles rather than
+    // a 500.
+    const newRootId = pageMap.get(rootPage.id).newPageId;
+    const rootEntry = insertablePages.find((p) => p.id === newRootId);
 
-    // Extract transclusions from every duplicated page and persist them in
-    // one statement. Duplication bypasses Yjs onStoreDocument; brand-new
-    // pages never have prior rows so we can skip the diff and just bulk-insert.
-    try {
-      await this.transclusionService.insertTransclusionsForPages(
-        insertablePages.map((p) => ({
-          id: p.id,
-          workspaceId: p.workspaceId,
-          content: p.content,
-        })),
-      );
-    } catch (err) {
-      this.logger.error(
-        'Failed to insert transclusions for duplicated pages',
-        err,
-      );
-    }
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await executeTx(this.db, async (trx) => {
+          await trx.insertInto('pages').values(insertablePages).execute();
 
-    try {
-      await this.transclusionService.insertReferencesForPages(
-        insertablePages.map((p) => ({
-          id: p.id,
-          workspaceId: p.workspaceId,
-          content: p.content,
-        })),
-      );
-    } catch (err) {
-      this.logger.error(
-        'Failed to insert transclusion references for duplicated pages',
-        err,
-      );
+          // Extract transclusions from every duplicated page and persist
+          // them in one statement. Duplication bypasses Yjs
+          // onStoreDocument; brand-new pages never have prior rows so we
+          // can skip the diff and just bulk-insert.
+          await this.transclusionService.insertTransclusionsForPages(
+            insertablePages.map((p) => ({
+              id: p.id,
+              workspaceId: p.workspaceId,
+              content: p.content,
+            })),
+            trx,
+          );
+
+          await this.transclusionService.insertReferencesForPages(
+            insertablePages.map((p) => ({
+              id: p.id,
+              workspaceId: p.workspaceId,
+              content: p.content,
+            })),
+            trx,
+          );
+        });
+        break;
+      } catch (err: any) {
+        if (err?.code === '23505' && rootEntry && attempt < 10) {
+          rootEntry.title = this.incrementCopyTitle(
+            rootEntry.title as string,
+          );
+          continue;
+        }
+        this.logger.error(
+          'Failed to insert duplicated page subtree/transclusions',
+          err,
+        );
+        throw err;
+      }
     }
 
     const insertedPageIds = insertablePages.map((page) => page.id);
@@ -802,17 +1260,96 @@ export class PageService {
     };
   }
 
-  async movePage(dto: MovePageDto, movedPage: Page) {
-    // validate position value by attempting to generate a key
+  /**
+   * ENG-889 / ENG-1372 (AC1, AC2, AC8): resolve a movePage `position` value —
+   * either a keyword form (`child`, `before:<id>`, `after:<id>`) or an
+   * already-concrete fractional-index key — into a real, persistable
+   * fractional-index key.
+   *
+   * This is real branching over the sibling set (not a pass-through): the
+   * keyword forms look up the actual neighbour(s) in `targetParentPageId`'s
+   * children and call `generateJitteredKeyBetween` between them. Unknown
+   * keyword forms (anything containing `:` that isn't `before:`/`after:`)
+   * are rejected with a typed error rather than silently coerced (AC8).
+   */
+  async resolvePositionKey(
+    position: string,
+    spaceId: string,
+    targetParentPageId: string | null,
+    excludePageId?: string,
+  ): Promise<string> {
+    if (position.includes(':')) {
+      const match = /^(before|after):(.+)$/.exec(position);
+      if (!match) {
+        throw new BadRequestException(
+          `Unsupported move position keyword: ${position}`,
+        );
+      }
+      const [, keyword, refId] = match;
+
+      if (refId === excludePageId) {
+        throw new BadRequestException('Invalid move position');
+      }
+
+      const refPage = await this.pageRepo.findById(refId);
+      if (
+        !refPage ||
+        refPage.deletedAt ||
+        refPage.spaceId !== spaceId ||
+        (refPage.parentPageId ?? null) !== targetParentPageId
+      ) {
+        // AC6: reference id not resolvable in the caller's tree — reject,
+        // mutate nothing.
+        throw new BadRequestException('Invalid move position');
+      }
+
+      const siblings = await this.db
+        .selectFrom('pages')
+        .select(['id', 'position'])
+        .where('spaceId', '=', spaceId)
+        .where('deletedAt', 'is', null)
+        .where(
+          targetParentPageId ? 'parentPageId' : 'parentPageId',
+          targetParentPageId ? '=' : 'is',
+          targetParentPageId,
+        )
+        .orderBy('position', (ob) => ob.collate('C').asc())
+        .execute();
+
+      const idx = siblings.findIndex((s) => s.id === refPage.id);
+
+      if (keyword === 'before') {
+        const lower = idx > 0 ? siblings[idx - 1].position : null;
+        const upper = refPage.position;
+        return generateJitteredKeyBetween(lower, upper);
+      }
+
+      const lower = refPage.position;
+      const upper =
+        idx < siblings.length - 1 ? siblings[idx + 1].position : null;
+      return generateJitteredKeyBetween(lower, upper);
+    }
+
+    if (position === 'child') {
+      return this.nextPagePosition(spaceId, targetParentPageId ?? undefined);
+    }
+
+    // Not a keyword form — must already be a concrete, parseable key (AC2).
     try {
-      generateJitteredKeyBetween(dto.position, null);
+      generateJitteredKeyBetween(position, null);
     } catch (err) {
       throw new BadRequestException('Invalid move position');
     }
+    return position;
+  }
 
-    let parentPageId = null;
+  async movePage(dto: MovePageDto, movedPage: Page) {
+    let parentPageId: string | null | undefined = null;
+    let targetParentPageId: string | null = movedPage.parentPageId ?? null;
+
     if (movedPage.parentPageId === dto.parentPageId) {
       parentPageId = undefined;
+      targetParentPageId = movedPage.parentPageId ?? null;
     } else {
       // changing the page's parent
       if (dto.parentPageId) {
@@ -824,17 +1361,87 @@ export class PageService {
         ) {
           throw new NotFoundException('Parent page not found');
         }
+
+        // ENG-1471 AC8 — reject moving a page under one of its own
+        // descendants (would corrupt the tree into a cycle).
+        if (dto.parentPageId === movedPage.id) {
+          throw new BadRequestException(
+            'Cannot move a page under one of its own descendants',
+          );
+        }
+        const isDescendant = await this.isPageDescendantOf(
+          dto.parentPageId,
+          movedPage.id,
+        );
+        if (isDescendant) {
+          throw new BadRequestException(
+            'Cannot move a page under one of its own descendants',
+          );
+        }
+
         parentPageId = parentPage.id;
+        targetParentPageId = parentPage.id;
+      } else {
+        parentPageId = null;
+        targetParentPageId = null;
       }
     }
 
+    const beforePosition = movedPage.position;
+    const resolvedPosition = await this.resolvePositionKey(
+      dto.position,
+      movedPage.spaceId,
+      targetParentPageId,
+      movedPage.id,
+    );
+
+    // AC3: exactly one PAGE_UPDATED emit for the move, carrying before/after
+    // position so search/AI reindex stay fresh (never-stale ruling).
     await this.pageRepo.updatePage(
       {
-        position: dto.position,
+        position: resolvedPosition,
         parentPageId: parentPageId,
       },
       dto.pageId,
+      undefined,
+      { before: beforePosition, after: resolvedPosition },
     );
+  }
+
+  /**
+   * ENG-1471 — true if `candidateId` is a descendant of `rootId` (used by
+   * `movePage`'s cycle guard: the recursive CTE walks down from the moved
+   * page and checks whether the proposed new parent shows up).
+   */
+  private async isPageDescendantOf(
+    candidateId: string,
+    rootId: string,
+  ): Promise<boolean> {
+    if (candidateId === rootId) return true;
+
+    const descendants = await this.db
+      .withRecursive('page_descendants', (db) =>
+        db
+          .selectFrom('pages')
+          .select(['id'])
+          .where('id', '=', rootId)
+          .unionAll((exp) =>
+            exp
+              .selectFrom('pages as p')
+              .select(['p.id'])
+              .innerJoin(
+                'page_descendants as pd',
+                'pd.id',
+                'p.parentPageId',
+              ),
+          ),
+      )
+      .selectFrom('page_descendants')
+      .select('id')
+      .where('id', '=', candidateId)
+      .executeTakeFirst();
+
+    return !!descendants;
   }
 
   async getPageBreadCrumbs(childPageId: string) {
@@ -895,10 +1502,12 @@ export class PageService {
     spaceId: string,
     userId: string,
     pagination: PaginationOptions,
+    includeSuperseded?: boolean,
   ): Promise<CursorPaginationResult<Page>> {
     const result = await this.pageRepo.getRecentPagesInSpace(
       spaceId,
       pagination,
+      includeSuperseded,
     );
 
     if (result.items.length > 0) {
@@ -919,8 +1528,13 @@ export class PageService {
   async getRecentPages(
     userId: string,
     pagination: PaginationOptions,
+    includeSuperseded?: boolean,
   ): Promise<CursorPaginationResult<Page>> {
-    const result = await this.pageRepo.getRecentPages(userId, pagination);
+    const result = await this.pageRepo.getRecentPages(
+      userId,
+      pagination,
+      includeSuperseded,
+    );
 
     if (result.items.length > 0) {
       const pageIds = result.items.map((p) => p.id);
@@ -1044,36 +1658,61 @@ export class PageService {
     await this.pageRepo.removePage(pageId, userId, workspaceId);
   }
 
+  /**
+   * ENG-1397 — the single block-ID-native write chokepoint.
+   *
+   * AC5/AC6: lossy write formats (markdown/html) and un-resolved dfm are
+   * rejected up front with typed codes — this chokepoint only accepts
+   * ProseMirror json, so no diagram/callout/column block-id is ever
+   * silently dropped by a lossy round-trip.
+   * AC7: malformed ProseMirror json is rejected (`INVALID_CONTENT_FORMAT`).
+   * AC2: every configured block-level node is guaranteed an `id` — missing
+   * ids are minted, existing ids are NEVER regenerated (`stampBlockIds` /
+   * `backfillPageContent` only touch nodes that lack one), which is what
+   * keeps re-stamping already-id'd content a true no-op (idempotent).
+   */
   private async parseProsemirrorContent(
     content: string | object,
     format: ContentFormat,
   ): Promise<any> {
-    let prosemirrorJson: any;
-
     switch (format) {
-      case 'markdown': {
-        const html = await markdownToHtml(content as string);
-        prosemirrorJson = htmlToJson(html as string);
-        break;
-      }
-      case 'html': {
-        prosemirrorJson = htmlToJson(content as string);
-        break;
-      }
+      case 'dfm':
+        // AC6 — a server-bug guard: DfM content must be resolved to
+        // ProseMirror json upstream (the `dfm-contracts-ts-serializer` leg,
+        // blocked-by) before it ever reaches this chokepoint.
+        throw new BadRequestException({
+          code: 'DFM_NOT_PRE_RESOLVED',
+          message:
+            'DfM content must be resolved to ProseMirror json before reaching the write chokepoint',
+        });
+      case 'markdown':
+      case 'html':
+        // AC5 — lossy write formats are rejected: writes must be
+        // block-ID-native ProseMirror json.
+        throw new BadRequestException({
+          code: 'LOSSY_WRITE_FORMAT_REJECTED',
+          message: `Writing content as '${format}' is not supported; submit ProseMirror json instead`,
+        });
       case 'json':
-      default: {
-        prosemirrorJson = content;
+      default:
         break;
-      }
     }
+
+    const prosemirrorJson: any = content;
 
     try {
       jsonToNode(prosemirrorJson);
     } catch (err) {
-      throw new BadRequestException('Invalid content format');
+      // AC7
+      throw new BadRequestException({
+        code: 'INVALID_CONTENT_FORMAT',
+        message: 'Invalid content format',
+      });
     }
 
-    return prosemirrorJson;
+    // AC2 — stamp missing block ids at the chokepoint.
+    const { content: stamped } = stampBlockIds(prosemirrorJson);
+    return stamped;
   }
 
   /**

@@ -50,8 +50,9 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     setEnv('ORVEX_MODULES_ENABLED', 'true');
     setEnv('ORVEX_GIT_SHA', GIT_SHA);
     setEnv('ORVEX_SOURCE_REPO', SOURCE_REPO);
-    // identity unset -> session-mint composes the fail-closed verifier (the
-    // exchange endpoint is 501, so the verifier is never invoked here).
+    // identity unset -> the flag-gated OrvexRootModule session-mint composition
+    // binds the fail-closed verifier. (The real FR-W6 exchange endpoint no
+    // longer lives in this DB-free harness — see the FR-W6 note below.)
     saved['ORVEX_IDENTITY_URL'] = process.env.ORVEX_IDENTITY_URL;
     delete process.env.ORVEX_IDENTITY_URL;
 
@@ -89,15 +90,12 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     }
   });
 
-  it('orvexApplyOps -> 501 typed sentinel', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/orvex/pages/9b2e4f6a-1c3d-4e5f-8a7b-0c1d2e3f4a5b/apply-ops',
-      payload: { ifVersion: 7, ops: [{ type: 'replaceBlock' }] },
-    });
-    expect(res.statusCode).toBe(501);
-    expect(res.json()).toEqual(sentinel('orvexApplyOps'));
-  });
+  // ENG-1652 — `orvexApplyOps` is no longer part of this DB-less flag-e2e
+  // harness: the real orchestrator needs `PageRepo`/`@InjectKysely()`, so
+  // the controller moved to `OrvexApplyOpsModule` (mounted unconditionally
+  // by `PageModule`, its real DB-aware home) — see that module's docstring
+  // and `OrvexHttpModule`'s. Its own DoD e2e (testcontainers Postgres) lives
+  // at `page-blocks/orvex-apply-ops.controller.e2e.spec.ts`.
 
   it('orvexGetQuota -> 501 typed sentinel', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/orvex/quota' });
@@ -105,15 +103,19 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     expect(res.json()).toEqual(sentinel('orvexGetQuota'));
   });
 
-  it('orvexSessionExchange -> 501 typed sentinel', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/orvex/session/exchange',
-      payload: { exchangeToken: 'aaa.bbb.ccc' },
-    });
-    expect(res.statusCode).toBe(501);
-    expect(res.json()).toEqual(sentinel('orvexSessionExchange'));
-  });
+  // FR-W6 — `orvexSessionExchange` (`POST /api/orvex/session/exchange`) is no
+  // longer part of this DB-less flag-e2e harness: it stopped being a 501 stub.
+  // The REAL session-mint needs `UserRepo`/`SessionService` (DB), so — the same
+  // carve-out as `orvexApplyOps` above (and the A-BOUNDARY fence forbids orvex/*
+  // importing @docmost/*) — it moved to the DB-backed, unconditionally-mounted
+  // `OrvexSessionMintModule` under core. Its own DoD tests (verify → resolve →
+  // mint, all deny-by-default) live at
+  // `core/session-mint/orvex-session-mint.service.spec.ts` and
+  // `core/session-mint/identity-introspector.spec.ts`. The former ENG-1490 AC4
+  // regression (native-login guard must not touch the session-mint path) is now
+  // STRUCTURALLY guaranteed rather than asserted: the mint controller lives in a
+  // module that never mounts `OrvexNativeLoginGuard` (that guard is applied only
+  // on `AuthController.login`), so there is no path for it to reach this route.
 
   it('orvexSourceOffer -> 200 REAL wire-true envelope {data:{sha,sourceRepo},success,status}', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/orvex/source' });
@@ -153,6 +155,36 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
       if (savedSha !== undefined) process.env.ORVEX_GIT_SHA = savedSha;
       if (savedRepo !== undefined) process.env.ORVEX_SOURCE_REPO = savedRepo;
     }
+  });
+
+  // ENG-1578 — POST /api/orvex/tenant-move (bare, the REAL registry
+  // cross-cell tenant-MOVE). ORVEX_IDENTITY_URL is unset in this harness
+  // (same as the rest of the suite), so the composed introspector/registry
+  // client are the fail-closed NotConfigured variants — this proves the
+  // endpoint never lets a request through when its identity dependency is
+  // unconfigured, deny-by-default even before any bearer is checked.
+  it('orvexTenantCellMove WITHOUT ORVEX_IDENTITY_URL configured -> fails closed (never a fabricated 200)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orvex/tenant-move',
+      headers: { authorization: 'Bearer svc-token' },
+      payload: {
+        tenantId: '57b13b69-33ab-49fa-8c82-c77d277e3e46',
+        sourceCellId: 'eu1',
+        targetCellId: 'eu9',
+      },
+    });
+    expect(res.statusCode).toBeGreaterThanOrEqual(500);
+  });
+
+  it('orvexTenantCellMove with a malformed body -> 400 (never forwarded to identity)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orvex/tenant-move',
+      headers: { authorization: 'Bearer svc-token' },
+      payload: { tenantId: 'not-a-uuid', sourceCellId: 'EU-CENTRAL-1' },
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   const tenantMoveSteps: Array<[string, string]> = [

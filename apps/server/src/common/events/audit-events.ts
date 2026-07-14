@@ -22,6 +22,10 @@ export const AuditEvent = {
   API_KEY_CREATED: 'api_key.created',
   API_KEY_UPDATED: 'api_key.updated',
   API_KEY_DELETED: 'api_key.deleted',
+  API_KEY_REVOKED: 'api_key.revoked',
+
+  // Auth (ENG-1380)
+  AUTH_FAILED: 'auth.failed',
 
   // SCIM Tokens
   SCIM_TOKEN_CREATED: 'scim_token.created',
@@ -57,6 +61,9 @@ export const AuditEvent = {
   PAGE_TRASHED: 'page.trashed',
   PAGE_DELETED: 'page.deleted',
   PAGE_RESTORED: 'page.restored',
+  // ENG-1369: page-history restore (distinct from PAGE_RESTORED above,
+  // which is the trash-restore event).
+  PAGE_HISTORY_RESTORED: 'page.history_restored',
   PAGE_MOVED_TO_SPACE: 'page.moved_to_space',
   PAGE_DUPLICATED: 'page.duplicated',
   // Page permission
@@ -64,6 +71,7 @@ export const AuditEvent = {
   PAGE_RESTRICTION_REMOVED: 'page.restriction_removed',
   PAGE_PERMISSION_ADDED: 'page.permission_added',
   PAGE_PERMISSION_REMOVED: 'page.permission_removed',
+  PAGE_PERMISSION_ROLE_UPDATED: 'page.permission_role_updated',
   // Page verification
   PAGE_VERIFICATION_CREATED: 'page.verification_created',
   PAGE_VERIFICATION_UPDATED: 'page.verification_updated',
@@ -72,6 +80,8 @@ export const AuditEvent = {
   PAGE_APPROVAL_REQUESTED: 'page.approval_requested',
   PAGE_APPROVAL_REJECTED: 'page.approval_rejected',
   PAGE_MARKED_OBSOLETE: 'page.marked_obsolete',
+  // AI provenance (ENG-1447)
+  PAGE_PROVENANCE_CHANGED: 'page.provenance_changed',
 
   // Share
   SHARE_CREATED: 'share.created',
@@ -99,6 +109,24 @@ export const AuditEvent = {
   // Attachment
   ATTACHMENT_UPLOADED: 'attachment.uploaded',
   // ATTACHMENT_DELETED: 'attachment.deleted',
+
+  // Enforce-SSO (ENG-1432)
+  OIDC_LOGIN_BLOCKED_BY_ENFORCE_SSO: 'oidc.login_blocked_by_enforce_sso',
+  OIDC_ENFORCE_SSO_TOGGLED: 'oidc.enforce_sso_toggled',
+
+  // Ratify gate (ENG-1445)
+  RATIFY_GATE_SETTING_UPDATED: 'ratify_gate.setting_updated',
+  RATIFY_GATE_FORCE_SELF_RATIFY: 'ratify_gate.force_self_ratify',
+
+  // Supersede lifecycle + forced-supersede break-glass (ENG-1434)
+  PAGE_SUPERSEDED: 'page.superseded',
+  PAGE_UNSUPERSEDED: 'page.unsuperseded',
+  SUPERSEDE_FORCED_BYPASS: 'page.supersede_forced_bypass',
+  FORCE_SUPERSEDE_SETTING_UPDATED: 'force_supersede.setting_updated',
+
+  // Transclusion write-block safeguard (ENG-1470)
+  TRANSCLUSION_REFERENCE_UNSYNCED: 'transclusion.reference_unsynced',
+  TRANSCLUSION_FORCE_DELETE: 'transclusion.force_delete',
 } as const;
 
 export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];
@@ -134,7 +162,10 @@ export const AuditResource = {
 export type AuditResourceType =
   (typeof AuditResource)[keyof typeof AuditResource];
 
-export type ActorType = 'user' | 'system' | 'api_key';
+// ENG-1396 (AC6): `external_agent` classifies an API-key-authenticated
+// caller (distinct from `api_key`, which is unused by any call site and
+// kept only for back-compat of the exported union).
+export type ActorType = 'user' | 'system' | 'api_key' | 'external_agent';
 
 export interface AuditLogPayload {
   event: AuditEventType;
@@ -146,6 +177,15 @@ export interface AuditLogPayload {
     after?: Record<string, any>;
   };
   metadata?: Record<string, any>;
+  // ENG-1396 (AC1/AC2): selects the durability mode of `logAndCommit` — a
+  // critical event joins the caller's transaction (fails/rolls back
+  // together); a non-critical event (the default, falsy) is deferred via
+  // `setImmediate` to run after the caller's transaction settles, so a
+  // caller-tx rollback never takes the audit row with it (H-30). This is
+  // not a sibling DB transaction — it's a same-connection deferral chosen
+  // to avoid a documented kysely deadlock when opening a second
+  // transaction concurrently on the same connection.
+  critical?: boolean;
 }
 
 export interface AuditLogData extends AuditLogPayload {
@@ -154,4 +194,7 @@ export interface AuditLogData extends AuditLogPayload {
   actorType: ActorType;
   ipAddress?: string;
   userAgent?: string;
+  // ENG-1396 (AC7): the API-key UUID for an `external_agent` actor. Never
+  // set for `user`/`system` rows.
+  clientId?: string;
 }

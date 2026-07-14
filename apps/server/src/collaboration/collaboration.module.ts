@@ -1,4 +1,10 @@
-import { Logger, Module, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Logger,
+  Module,
+  OnModuleDestroy,
+  OnModuleInit,
+  forwardRef,
+} from '@nestjs/common';
 import { AuthenticationExtension } from './extensions/authentication.extension';
 import { PersistenceExtension } from './extensions/persistence.extension';
 import { CollaborationGateway } from './collaboration.gateway';
@@ -16,6 +22,7 @@ import { TransclusionService } from '../core/page/transclusion/transclusion.serv
 import { TransclusionModule } from '../core/page/transclusion/transclusion.module';
 import { StorageModule } from '../integrations/storage/storage.module';
 import { EnvironmentModule } from '../integrations/environment/environment.module';
+import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-provenance.module';
 
 @Module({
   providers: [
@@ -36,6 +43,11 @@ import { EnvironmentModule } from '../integrations/environment/environment.modul
       imports: [EnvironmentModule],
     }),
     TransclusionModule,
+    // ENG-1603 (AC4) — PersistenceExtension needs OrvexPageProvenanceService
+    // to stamp collab AI-authored edits in the same transaction as the
+    // content write. forwardRef: PageModule (which OrvexPageProvenanceModule
+    // forwardRefs) imports CollaborationModule, closing a module cycle.
+    forwardRef(() => OrvexPageProvenanceModule),
   ],
 })
 export class CollaborationModule implements OnModuleInit, OnModuleDestroy {

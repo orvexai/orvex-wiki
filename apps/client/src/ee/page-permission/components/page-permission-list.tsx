@@ -80,9 +80,7 @@ export function PagePermissionList({
       onConfirm: async () => {
         await removeMutation.mutateAsync({
           pageId,
-          ...(type === "user"
-            ? { userIds: [memberId] }
-            : { groupIds: [memberId] }),
+          ...(type === "user" ? { userId: memberId } : { groupId: memberId }),
         });
       },
     });

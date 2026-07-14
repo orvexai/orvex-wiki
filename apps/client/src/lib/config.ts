@@ -10,7 +10,7 @@ declare global {
 }
 
 export function getAppName(): string {
-  return "Docmost";
+  return "Orvex Wiki";
 }
 
 export function getAppUrl(): string {
@@ -41,6 +41,14 @@ export function getSubdomainHost(): string {
 
 export function isCloud(): boolean {
   return castToBoolean(getConfigValue("CLOUD"));
+}
+
+// getGlobalEndpoint is the SOLE flag-read surface for the multi-region cell
+// discovery front door (CS §6 client-shallow — no tenancy/cell-authority
+// decision here, just a config read; the discovery boot hook in
+// apps/client/src/features/cell-discovery/ consumes it, per ENG-1378).
+export function getGlobalEndpoint(): string {
+  return getConfigValue("GLOBAL_ENDPOINT");
 }
 
 export function getAvatarUrl(
@@ -98,6 +106,18 @@ export function isPostHogEnabled(): boolean {
 
 export function getPostHogKey() {
   return getConfigValue("POSTHOG_KEY");
+}
+
+// isClerkTenancy / getClerkPublishableKey are the SOLE flag-read surface for
+// Clerk tenancy (CS §6 client-shallow — no tenancy/authority decision here,
+// just a config read). Tenancy is ON only when both the flag is truthy AND a
+// publishable key is present; a flag with no key can never enable Clerk UI.
+export function isClerkTenancy(): boolean {
+  return castToBoolean(getConfigValue("CLERK_TENANCY")) && Boolean(getClerkPublishableKey());
+}
+
+export function getClerkPublishableKey(): string {
+  return getConfigValue("CLERK_PUBLISHABLE_KEY");
 }
 
 function getConfigValue(key: string, defaultValue: string = undefined): string {

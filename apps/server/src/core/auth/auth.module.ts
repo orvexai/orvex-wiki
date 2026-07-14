@@ -5,9 +5,16 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { WorkspaceModule } from '../workspace/workspace.module';
 import { SignupService } from './services/signup.service';
 import { TokenModule } from './token.module';
+import { ApiKeyModule } from '../api-key/api-key.module';
+import { OrvexEnforceSsoModule } from '../../orvex/enforce-sso/orvex-enforce-sso.module';
 
 @Module({
-  imports: [TokenModule, WorkspaceModule],
+  imports: [
+    TokenModule,
+    WorkspaceModule,
+    ApiKeyModule,
+    OrvexEnforceSsoModule,
+  ],
   controllers: [AuthController],
   providers: [AuthService, SignupService, JwtStrategy],
   exports: [SignupService],

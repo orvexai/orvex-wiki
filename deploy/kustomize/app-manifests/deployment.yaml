@@ -78,6 +78,15 @@ spec:
             - secretRef:
                 name: orvex-wiki-app-secret
                 optional: true
+            # Fail-closed shared bearer for the /internal/* knowledge seam
+            # (ENG-1957 guard / ENG-1559 M5): INTERNAL_API_BEARER_TOKEN.
+            # optional:true mirrors the other credential refs — while the
+            # ExternalSecret is still reconciling the guard denies by design
+            # (deny-by-default); the reloader annotation restarts the pod when
+            # the secret lands so the token is picked up without a manual bump.
+            - secretRef:
+                name: orvex-wiki-internal-api
+                optional: true
           env:
             # S3 credentials + bucket name sourced directly from the
             # OBC-generated secret/configmap. The ObjectStorageClaim

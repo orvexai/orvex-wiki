@@ -1,4 +1,4 @@
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -25,6 +25,7 @@ import { IPage } from "@/features/page/types/page.types.ts";
 import { extractPageSlugId } from "@/lib";
 import { DocTree } from "./doc-tree";
 import { SpaceTreeRow } from "./space-tree-row";
+import { showSupersededAtom } from "@/features/page/atoms/show-superseded-atom";
 
 interface SpaceTreeProps {
   spaceId: string;
@@ -33,15 +34,22 @@ interface SpaceTreeProps {
 
 export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
   const { t } = useTranslation();
-  const { pageSlug } = useParams();
+  const { pageSlug, spaceSlug } = useParams();
   const [data, setData] = useAtom(treeDataAtom);
   const { handleMove } = useTreeMutation(spaceId);
+  // ENG-1440 (AC7 fix) — wire the per-space toggle into the actual sidebar
+  // query so superseded pages really appear/disappear, not just a pure
+  // helper nothing calls.
+  const showSuperseded = useAtomValue(showSupersededAtom(spaceSlug));
   const {
     data: pagesData,
     hasNextPage,
     fetchNextPage,
     isFetching,
-  } = useGetRootSidebarPagesQuery({ spaceId });
+  } = useGetRootSidebarPagesQuery({
+    spaceId,
+    includeSuperseded: showSuperseded,
+  });
   const [openTreeNodes, setOpenTreeNodes] = useAtom(openTreeNodesAtom);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const spaceIdRef = useRef(spaceId);

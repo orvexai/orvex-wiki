@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
+// See the LICENSE file at the repository root for the full license text.
+
 import { Injectable, Optional } from '@nestjs/common';
 
 /**
@@ -45,6 +49,19 @@ export class OrvexConfigService {
   }
 
   /**
+   * ORVEX_IDENTITY_INTROSPECTION_TOKEN — the OPTIONAL bearer the FR-W6
+   * session-mint sends on its `POST {identity}/v1/introspect` call (parity with
+   * knowledge's `IDENTITY_INTROSPECTION_TOKEN`). Identity's introspect endpoint
+   * authenticates by the token in the request body, so this is optional: null
+   * when unset (the introspect call is made without an Authorization header),
+   * never a fabricated placeholder. First consumer: `OrvexSessionMintModule`'s
+   * introspector composition. NEVER logged.
+   */
+  get identityIntrospectionToken(): string | null {
+    return this.read('ORVEX_IDENTITY_INTROSPECTION_TOKEN');
+  }
+
+  /**
    * ORVEX_GIT_SHA — the exact commit the running binary was built from. Powers
    * the AGPL section 13 written-source offer (FR-W19). Null when unset (the
    * controller turns that into a LOUD 500) — never a fabricated SHA.
@@ -56,5 +73,105 @@ export class OrvexConfigService {
   /** ORVEX_SOURCE_REPO — the corresponding-source repository URL (AGPL section 13). */
   get sourceRepo(): string | null {
     return this.read('ORVEX_SOURCE_REPO');
+  }
+
+  /**
+   * OTEL_EXPORTER_OTLP_ENDPOINT — the OTLP collector base URL (A-PORTABLE
+   * configured-URL env surface). First consumer: `initOrvexTracing`
+   * (ENG-1599 `orvex-tracing.bootstrap.ts`), which constructs this service
+   * directly from the pre-DI env bag (the SDK must init before Nest DI
+   * exists, same pattern as `OrvexRootModule.register()`'s
+   * `new OrvexConfigService()`). A configured URL, never a credential;
+   * blank/unset -> `null`, never a fabricated default endpoint (CS
+   * §3.4/§10, ❌#8).
+   */
+  get otelExporterOtlpEndpoint(): string | null {
+    return this.read('OTEL_EXPORTER_OTLP_ENDPOINT');
+  }
+
+  /**
+   * CELL_ID — the emitting cell (cell-contract rule #4/#6). First consumer:
+   * `OutboxRelayService` (ENG-1559 M5 AC8 — the CloudEvents `orvexcell`
+   * extension attribute stamped on every relayed event, pinned
+   * events/schemas/_envelope.json `required`). Deploy-documented default is
+   * the "solo" sentinel (dev/standalone/crew, cell-contract.md); unset here
+   * surfaces as `null` so the relay's own StampCell-equivalent applies the
+   * sentinel explicitly, never a silently-fabricated non-solo value.
+   */
+  get cellId(): string | null {
+    return this.read('CELL_ID');
+  }
+
+  /**
+   * ENG-1604 AC8 — `health/orvex` dependency probes. `OrvexHealthService` is
+   * mounted inside `OrvexRootModule.register()`, so (same constraint as the
+   * rest of this service) these getters may ONLY read a plain env bag — no
+   * `EnvironmentModule`/`ConfigService` DI, no `DatabaseModule`/`@InjectKysely()` —
+   * the DB-free `orvex-http.e2e.spec.ts` harness boots `register()` without
+   * either (AC8.6).
+   */
+
+  /** DATABASE_URL — the postgres probe's connection string. Null when unset (never fabricated). */
+  get databaseUrl(): string | null {
+    return this.read('DATABASE_URL');
+  }
+
+  /** REDIS_URL — mirrors `EnvironmentService.getRedisUrl()`'s default. */
+  get redisUrl(): string {
+    return this.read('REDIS_URL') ?? 'redis://localhost:6379';
+  }
+
+  /** STORAGE_DRIVER — mirrors `EnvironmentService.getStorageDriver()`'s default. */
+  get storageDriver(): string {
+    return this.read('STORAGE_DRIVER') ?? 'local';
+  }
+
+  get awsS3Region(): string | null {
+    return this.read('AWS_S3_REGION');
+  }
+
+  get awsS3Bucket(): string | null {
+    return this.read('AWS_S3_BUCKET');
+  }
+
+  get awsS3Endpoint(): string | null {
+    return this.read('AWS_S3_ENDPOINT');
+  }
+
+  get awsS3ForcePathStyle(): boolean {
+    return this.read('AWS_S3_FORCE_PATH_STYLE')?.toLowerCase() === 'true';
+  }
+
+  /** KAFKA_BROKERS presence — the FAMILY-HEALTH-RULING "wired" signal (AC8.2). */
+  get kafkaBrokersConfigured(): boolean {
+    return this.read('KAFKA_BROKERS') !== null;
+  }
+
+  get kafkaBrokers(): string[] {
+    const raw = this.read('KAFKA_BROKERS');
+    return raw === null
+      ? []
+      : raw
+          .split(',')
+          .map((b) => b.trim())
+          .filter(Boolean);
+  }
+
+  /**
+   * ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4) — routes excluded from the `/api`
+   * global prefix, read by `main.ts`. Defaults to `health/orvex` (the
+   * dependency-probe endpoint). The former `mcp` default was dropped when the
+   * engine's in-fork MCP door was decommissioned at REST-gap parity (ENG-1481)
+   * — the engine advertises no `/mcp` surface, so excluding it is dead config.
+   */
+  get globalPrefixExclude(): string[] {
+    const raw = this.read('ORVEX_GLOBAL_PREFIX_EXCLUDE');
+    if (raw === null) {
+      return ['health/orvex'];
+    }
+    return raw
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
   }
 }

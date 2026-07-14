@@ -8,6 +8,7 @@ import {
 import { useTranslation } from "react-i18next";
 import ChatInput from "./chat-input";
 import type { ChatAttachment, PageMention } from "../types/ai-chat.types";
+import { getAppName } from "@/lib/config";
 import classes from "../styles/ai-chat.module.css";
 
 type Suggestion = {
@@ -53,9 +54,11 @@ export default function ChatEmptyState({ isStreaming, onSend, onStop }: Props) {
   };
 
   return (
-    <div className={classes.emptyState}>
+    <div className={classes.emptyState} data-testid="chat-empty-state">
       <IconSparkles size={48} stroke={1.5} className={classes.emptyStateIcon} />
-      <div className={classes.emptyStateBrand}>{t("Docmost AI")}</div>
+      <div className={classes.emptyStateBrand}>
+        {t("{{name}} AI", { name: getAppName() })}
+      </div>
       <h1 className={classes.emptyStateTitle}>
         {t("What can I help you with?")}
       </h1>
