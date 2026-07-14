@@ -42,6 +42,23 @@ data:
   # + cited-ask entitlement-grant tracked separately). Revert = set back to "false".
   ORVEX_MODULES_ENABLED: "true"
 
+  # Multi-tenant CLOUD cell — federated per-tenant workspace resolution
+  # (ENG-1559 / FR-W6), matching the dev overlay (components/staging). In
+  # self-hosted mode (CLOUD unset/false) DomainMiddleware clobbers every
+  # request's workspace to workspaceRepo.findFirst() (the OLDEST workspace),
+  # so a federated tenant-scoped session token whose workspaceId != that
+  # oldest workspace is rejected by JwtStrategy with 401 "Workspace does not
+  # match" — blocking ALL multi-tenant writes/reads via api/mcp/ai/rag on
+  # prod. CLOUD=true switches DomainMiddleware to hostname-subdomain
+  # resolution: the public cell host and the in-cluster host both match no
+  # workspace hostname (all prod workspaces have hostname=null) ->
+  # req.workspaceId falls through to the request's own signature-verified
+  # session/api_key token -> the token's own workspace is authoritative ->
+  # JwtStrategy passes with real per-tenant isolation. SUBDOMAIN_HOST is
+  # intentionally NOT set (DomainMiddleware resolves the tenant from
+  # host.split(".")[0], never from SUBDOMAIN_HOST). Revert = remove this key.
+  CLOUD: "true"
+
   # Cell contract (A-CELL rule #4) — /healthz echoes CELL_ID + CLUSTER_NAME.
   # Filled by the root replacements from cluster-config.cellId / clusterName;
   # base = the sentinel "solo" (dev/crew/standalone run cell-enforcement-free).
