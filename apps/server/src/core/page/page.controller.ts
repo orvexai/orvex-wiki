@@ -103,6 +103,12 @@ export class PageController {
 
     const permissions = { canEdit, hasRestriction };
 
+    // Expose the INTEGER `orvex_page_meta.version` (the value the apply-ops /
+    // If-Match CAS compares), NOT the `updatedAt` timestamp — so a client can
+    // read a page then feed this straight back as an ifVersion CAS token
+    // (wiki-api's edit path ParseInts it). Defaults to 1 for a meta-less page.
+    const version = await this.pageRepo.getMetaVersion(page.id);
+
     if (dto.format && dto.format !== 'json' && page.content) {
       const contentOutput =
         dto.format === 'markdown'
@@ -111,11 +117,12 @@ export class PageController {
       return {
         ...page,
         content: contentOutput,
+        version,
         permissions,
       };
     }
 
-    return { ...page, permissions };
+    return { ...page, version, permissions };
   }
 
   @HttpCode(HttpStatus.OK)
@@ -282,6 +289,12 @@ export class PageController {
 
     const permissions = { canEdit, hasRestriction };
 
+    // Same integer-version exposure as `/info`: return the CAS-comparable
+    // `orvex_page_meta.version` (a just-created page has no meta row yet, so
+    // this is the baseline 1) so the caller can round-trip create -> If-Match
+    // edit without guessing the version.
+    const version = await this.pageRepo.getMetaVersion(page.id);
+
     this.auditService.log({
       event: AuditEvent.PAGE_CREATED,
       resourceType: AuditResource.PAGE,
@@ -304,10 +317,10 @@ export class PageController {
         createPageDto.format === 'markdown'
           ? jsonToMarkdown(page.content)
           : jsonToHtml(page.content);
-      return { ...page, content: contentOutput, permissions };
+      return { ...page, content: contentOutput, version, permissions };
     }
 
-    return { ...page, permissions };
+    return { ...page, version, permissions };
   }
 
   /**

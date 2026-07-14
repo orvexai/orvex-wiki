@@ -164,6 +164,27 @@ export class PageRepo {
   }
 
   /**
+   * The page's integer CAS version, exactly as the rest of the engine reports
+   * it: the `orvex_page_meta.version` when a meta row exists, else the
+   * documented baseline `1`. This is the SAME `meta?.version ?? 1` default
+   * `ApplyOpsService.readSettledEnvelope` and the `withMetaVersion` callers
+   * apply (CS §11 — one honest default, defined once, not re-guessed ad hoc).
+   *
+   * It exists so the read/create surfaces (`POST /api/pages/info`,
+   * `POST /api/pages/create`) can hand the caller the INTEGER a subsequent
+   * If-Match / ifVersion CAS (`apply-ops`, `casIncrementMeta`) actually
+   * compares — never the `updatedAt` timestamp, which `strconv.ParseInt` on
+   * the wiki-api edit path rejects. A freshly-created page (no meta row yet)
+   * reads as `1`; its first `ifVersion:1` apply-ops CAS then seeds meta at
+   * `2` (the ENG-2041 D2 seed-on-missing branch), so read-then-CAS-edit
+   * round-trips on a brand-new page without a 409.
+   */
+  async getMetaVersion(pageId: string, trx?: KyselyTransaction): Promise<number> {
+    const meta = await this.getPageMeta(pageId, trx);
+    return meta?.version ?? 1;
+  }
+
+  /**
    * ENG-1413 (AC1, AC6) — the atomic integer-CAS store-tier primitive. Folds
    * the precondition into `UPDATE … WHERE page_id = ? AND version = ?`; a
    * zero-rowcount result (`undefined` return) means either `expectedVersion`
