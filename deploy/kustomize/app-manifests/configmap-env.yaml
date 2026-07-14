@@ -63,6 +63,27 @@ data:
   # Kafka spine is its own. NOT a replacement target (a crew patch survives).
   EVENT_TOPIC_SUFFIX: "solo"
 
+  # ── Studio-spine producer: broker + topic (prod parity) ──────────────────
+  # The OutboxRelayService (ENG-1383) is mounted UNCONDITIONALLY (carve-out-b,
+  # like the migrator) — it does NOT ride the ORVEX_MODULES_ENABLED gate — so
+  # the ONLY thing that connects the producer is these two keys. Base
+  # previously left both unset, so on prod EnvironmentService.getKafkaBrokers()
+  # fell back to its localhost:9092 sentinel (unreachable → the relay logged
+  # KafkaJSNumberOfRetriesExceeded and buffered every row) and
+  # getKafkaOutboxTopic() fell back to the "orvex.studio-spine.events" sentinel
+  # (a topic nothing reads). These values were only ever set on the dev overlay
+  # (components/staging); this promotes them to the base so PROD publishes too.
+  #   - KAFKA_BROKERS: the shared Strimzi plaintext bootstrap (:9092), the SAME
+  #     endpoint the knowledge indexer/SSE + KafkaSinks dial (ENG-2006).
+  #   - KAFKA_OUTBOX_TOPIC: wiki-events.eu-central-1 — the live KafkaTopic the
+  #     knowledge INDEXER consumes; must match or nothing indexes.
+  # Crash-safe: a broker outage never blocks a mutation (the outbox buffers,
+  # retried never dropped). components/staging keeps its identical `op: add`
+  # patches (harmless override to the same values on dev); components/crew
+  # isolates its own spine via EVENT_TOPIC_SUFFIX.
+  KAFKA_BROKERS: "platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  KAFKA_OUTBOX_TOPIC: "wiki-events.eu-central-1"
+
   # ── Product-family-agnostic sibling seam (A-PORTABLE) — every platform
   # dependency is a CONFIGURED URL, never a hard-coded Studio host. A
   # standalone/embedded wiki points these at its OWN instances. Base = prod
