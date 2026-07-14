@@ -50,8 +50,8 @@ data:
   # oldest workspace is rejected by JwtStrategy with 401 "Workspace does not
   # match" — blocking ALL multi-tenant writes/reads via api/mcp/ai/rag on
   # prod. CLOUD=true switches DomainMiddleware to hostname-subdomain
-  # resolution: the cell host (wiki.eu1.orvex.ai) and the in-cluster host
-  # match no workspace hostname (all prod workspaces have hostname=null) ->
+  # resolution: the public cell host and the in-cluster host both match no
+  # workspace hostname (all prod workspaces have hostname=null) ->
   # req.workspaceId falls through to the request's own signature-verified
   # session/api_key token -> the token's own workspace is authoritative ->
   # JwtStrategy passes with real per-tenant isolation. SUBDOMAIN_HOST is
