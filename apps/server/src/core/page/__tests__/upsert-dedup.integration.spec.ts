@@ -360,4 +360,69 @@ describe('IdempotencyStore + if-version CAS — integration', () => {
 
     expect(result.title).toBe('Still Applies');
   });
+
+  it('ENG-2041 (D2): a meta-LESS page (no orvex_page_meta row — legacy / imported / never-apply-ops-ed) reports as v1, so its ifVersion:1 CAS write PERSISTS and SEEDS the row at v2 instead of a permanent serverVersion:0 409', async () => {
+    const page = await createPage('Meta-less Legacy Page');
+    const serviceA = buildService(redisClientA);
+
+    // Simulate a page that predates the create-time meta seed (or was
+    // imported): delete its side-table row entirely. The engine still
+    // reports such a page as version 1 (meta?.version ?? 1), so an honest
+    // ifVersion:1 edit MUST succeed — before the fix it 409'd forever
+    // because the bare `UPDATE … WHERE version = 1` matched zero rows.
+    await db
+      .deleteFrom('orvexPageMeta')
+      .where('pageId', '=', page.id)
+      .execute();
+
+    const metaGone = await db
+      .selectFrom('orvexPageMeta')
+      .selectAll()
+      .where('pageId', '=', page.id)
+      .executeTakeFirst();
+    expect(metaGone).toBeUndefined();
+
+    const result = await serviceA.update(
+      page,
+      { pageId: page.id, title: 'Now Editable' } as any,
+      authUser,
+      { ifVersion: 1 },
+    );
+    expect(result.title).toBe('Now Editable');
+
+    // The row was seeded and advanced to the honest 1 -> 2 version.
+    const meta = await db
+      .selectFrom('orvexPageMeta')
+      .selectAll()
+      .where('pageId', '=', page.id)
+      .executeTakeFirstOrThrow();
+    expect(meta.version).toBe(2);
+  });
+
+  it('ENG-2041 (D2): the seed-on-missing CAS is NOT a blanket bypass — a meta-less page still 409s a non-baseline ifVersion (5), seeding no row', async () => {
+    const page = await createPage('Meta-less Non-baseline Page');
+    const serviceA = buildService(redisClientA);
+
+    await db
+      .deleteFrom('orvexPageMeta')
+      .where('pageId', '=', page.id)
+      .execute();
+
+    await expect(
+      serviceA.update(
+        page,
+        { pageId: page.id, title: 'Should 409' } as any,
+        authUser,
+        { ifVersion: 5 },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    // The rejected write must not have seeded a row.
+    const meta = await db
+      .selectFrom('orvexPageMeta')
+      .selectAll()
+      .where('pageId', '=', page.id)
+      .executeTakeFirst();
+    expect(meta).toBeUndefined();
+  });
 });

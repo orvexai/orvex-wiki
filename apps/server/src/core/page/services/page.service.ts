@@ -556,6 +556,7 @@ export class PageService {
           page.id,
           expectedVersion,
           { contentHash: nextContentHash },
+          page.workspaceId,
         );
 
         if (!casResult) {

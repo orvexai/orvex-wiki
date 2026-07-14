@@ -209,6 +209,7 @@ export class ApplyOpsService {
           pageId,
           expectedVersion,
           { contentHash },
+          page.workspaceId,
           trx,
         );
         if (!cas) {

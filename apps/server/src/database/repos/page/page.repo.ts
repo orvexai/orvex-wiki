@@ -166,18 +166,40 @@ export class PageRepo {
   /**
    * ENG-1413 (AC1, AC6) — the atomic integer-CAS store-tier primitive. Folds
    * the precondition into `UPDATE … WHERE page_id = ? AND version = ?`; a
-   * zero-rowcount result (`undefined` return) means either the meta row
-   * does not exist yet or `expectedVersion` has drifted — the caller 409s.
+   * zero-rowcount result (`undefined` return) means either `expectedVersion`
+   * has drifted OR the meta row does not exist yet — the caller 409s.
    * There is NO separate read-then-write step here — this IS the check.
+   *
+   * ENG-2041 (D2) seed-on-missing — a page that has never been apply-ops'd
+   * (legacy / imported / any row whose create did not seed the side table)
+   * has NO `orvex_page_meta` row, yet the whole engine reports such a page as
+   * version 1 (`meta?.version ?? 1` — `withMetaVersion`, `ApplyOpsService`,
+   * `PageService.update`). Without this branch the bare `UPDATE … WHERE
+   * version = ?` matches ZERO rows for ANY `expectedVersion`, so an honest
+   * `ifVersion:1` CAS on such a page can NEVER succeed — `edit`/apply-ops and
+   * the integer-CAS `/pages/update` path were permanently bricked for it
+   * (the recorded serverVersion:0 "CAS reads the wrong current version"
+   * symptom). So when the CAS UPDATE touched nothing AND `expectedVersion`
+   * equals that documented baseline (1) AND a `workspaceId` is available, we
+   * SEED the row race-safely: `INSERT … ON CONFLICT (page_id) DO NOTHING` at
+   * version 2 (the honest 1→2 bump). ON CONFLICT DO NOTHING makes this a true
+   * CAS still — a concurrent seeder or a row that actually already exists at
+   * a drifted version loses the insert (returns `undefined` → caller 409s),
+   * never a double-apply and never masking real drift. Any
+   * `expectedVersion ≠ 1` on a missing row stays a genuine mismatch (the page
+   * is logically at version 1, the caller claimed otherwise). No schema
+   * change and no backfill — each meta-less page self-heals on its first CAS
+   * write.
    */
   async casIncrementMeta(
     pageId: string,
     expectedVersion: number,
     patch: { contentHash?: string | null; externalId?: string | null },
+    workspaceId?: string,
     trx?: KyselyTransaction,
   ): Promise<{ pageId: string; version: number } | undefined> {
     const db = dbOrTx(this.db, trx);
-    return db
+    const updated = await db
       .updateTable('orvexPageMeta')
       .set({
         version: sql`version + 1`,
@@ -191,6 +213,31 @@ export class PageRepo {
       })
       .where('pageId', '=', pageId)
       .where('version', '=', expectedVersion)
+      .returning(['pageId', 'version'])
+      .executeTakeFirst();
+
+    if (updated) {
+      return updated;
+    }
+
+    // The CAS UPDATE matched nothing. Only the documented baseline
+    // (expectedVersion === 1, i.e. a page the engine reports as v1 precisely
+    // because it has no meta row yet) is eligible for the seed; every other
+    // expected value on a missing row is genuine drift.
+    if (expectedVersion !== 1 || !workspaceId) {
+      return undefined;
+    }
+
+    return db
+      .insertInto('orvexPageMeta')
+      .values({
+        pageId,
+        workspaceId,
+        externalId: patch.externalId ?? null,
+        contentHash: patch.contentHash ?? null,
+        version: 2,
+      })
+      .onConflict((oc) => oc.column('pageId').doNothing())
       .returning(['pageId', 'version'])
       .executeTakeFirst();
   }
