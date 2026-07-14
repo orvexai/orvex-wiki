@@ -293,6 +293,10 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
       'integrations/import/services/file-import-task.service.ts',
       'integrations/import/services/import.service.ts',
       'core/page/services/page.service.ts',
+      // Sanctioned in-process ingest exercise (#109): drives markdownToHtml
+      // to roundtrip DfM table-cell code spans — not a relocated public
+      // convert/fidelity surface, which is what this guard forbids.
+      'collaboration/__tests__/markdown-ingest-roundtrip.spec.ts',
     ]);
     for (const importer of markdownToHtmlImporters) {
       expect(knownAllowlist.has(importer)).toBe(true);

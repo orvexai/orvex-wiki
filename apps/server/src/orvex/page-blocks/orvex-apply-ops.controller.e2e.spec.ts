@@ -459,10 +459,11 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
   );
 
   it(
-    '2026-07-13 root-fix — a literal ifVersion:0 (wiki-api\'s own established ' +
-      'zero-sentinel, in case a caller ever sends it on the wire despite the ' +
-      'client-side omitempty fix) does NOT 400 INVALID_IF_VERSION — 0 fails ' +
-      'isIntegerVersion (>=1) so it falls through exactly like "absent"',
+    'a literal on-wire ifVersion:0 is REJECTED as INVALID_IF_VERSION (400), ' +
+      'not treated as absent — 0 is a legitimate version value elsewhere and ' +
+      'must never be silently coerced to "unconstrained" by the engine; that ' +
+      'decision belongs to the caller at the wire level. 0 fails isIntegerVersion ' +
+      '(>=1) and is not an ISO string, so it falls through to the typed 400.',
     async () => {
       const pageId = await createPage({ type: 'doc', content: [] });
 
@@ -475,10 +476,8 @@ describe('OrvexApplyOpsController — e2e (ENG-1652 DoD)', () => {
         },
       });
 
-      expect(res.statusCode).toBe(200);
-      const body = res.json();
-      const envelope = body.data ?? body;
-      expect(envelope).toMatchObject({ version: 2 });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message?.code ?? res.json().code).toBe('INVALID_IF_VERSION');
     },
   );
 

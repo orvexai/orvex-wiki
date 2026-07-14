@@ -13,7 +13,8 @@ import (
 // gateM6ScanTopicOnce takes one real pass over every partition of topic
 // (earliest -> the partition's offset at call time — a bounded window, never
 // an indefinite tail) on the REAL broker set, looking for a message whose
-// JSON value decodes with `aggregateId == wantAggregateID`. It never mocks
+// JSON value decodes with `subject == wantAggregateID` (the CloudEvents 1.0
+// envelope carries the aggregate id on `subject`). It never mocks
 // or substitutes an in-memory broker (CS §5 — Kafka here is remote-but-owned
 // infra, not this repo's own package); AC2 exists precisely to prove the
 // real relay->real broker leg, so the double the unit-level
@@ -67,7 +68,7 @@ func gateM6ScanTopicOnce(
 // gateM6ScanPartition reads partition [firstOffset, lastOffsetAtCallTime)
 // once — a bounded, terminating window, not an indefinite tail — decoding
 // each message value as JSON and returning the first one whose
-// `aggregateId` field matches.
+// `subject` field (CloudEvents 1.0 envelope) matches.
 func gateM6ScanPartition(
 	dialer *kafka.Dialer,
 	broker, topic string,
@@ -111,7 +112,11 @@ func gateM6ScanPartition(
 		if json.Unmarshal(msg.Value, &decoded) != nil {
 			continue // a non-JSON message on this topic is not this test's concern.
 		}
-		if aggID, ok := decoded["aggregateId"].(string); ok && aggID == wantAggregateID {
+		// The relay emits a CloudEvents 1.0 structured-mode envelope
+		// (outbox-relay.service.ts): the aggregate id is carried on the
+		// top-level `subject` attribute (the old raw top-level `aggregateId`
+		// field no longer exists on the wire).
+		if subject, ok := decoded["subject"].(string); ok && subject == wantAggregateID {
 			return decoded, nil
 		}
 	}

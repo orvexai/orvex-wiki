@@ -257,7 +257,8 @@ func gateM6Do(t *testing.T, client *http.Client, method, url, bearer string, bod
 // topic literal from `KAFKA_OUTBOX_TOPIC` or the
 // `orvex.studio-spine.events` default per `environment.service.ts
 // getKafkaOutboxTopic()`) from the beginning of every partition, looking for
-// a message whose JSON body's `aggregateId` matches wantAggregateID. It
+// a message whose CloudEvents 1.0 `subject` attribute matches
+// wantAggregateID. It
 // polls for up to opTimeout*2 (the relay ticks every 2s —
 // `OutboxRelayService.poll`) and FAILS loudly (never t.Skip, matching this
 // suite's FAIL-never-SKIP doctrine) naming the exact broker address if the
@@ -289,7 +290,7 @@ func gateM6ConsumeStudioSpine(
 		)
 	}
 	t.Fatalf(
-		"gate-m6: no message with aggregateId=%s observed on Kafka topic %q within 30s of the outbox relay's poll interval (relay not publishing / event never enqueued)",
+		"gate-m6: no message with subject=%s observed on Kafka topic %q within 30s of the outbox relay's poll interval (relay not publishing / event never enqueued)",
 		wantAggregateID, topic,
 	)
 	return nil

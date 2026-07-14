@@ -201,17 +201,16 @@ func testGateM6AC2(t *testing.T, conn *pgx.Conn, pageID, workspaceID string) {
 	msg := gateM6ConsumeStudioSpine(t, brokers, topic, pageID)
 
 	// Field-level assertions on what the relay ACTUALLY emits today
-	// (outbox-relay.service.ts `run()`): {type, aggregateId, workspaceId,
-	// payload, traceparent, tracestate, correlation_id}. NOT asserted:
-	// literal CloudEvents `specversion`/`ce-id`/`ce-type`/`ce-source` — the
-	// envelope-shaping catalog leg is cross-repo scope
-	// (orvex-studio-contracts, ENG-1365) and does not exist in this repo's
-	// message shape yet (see outbox-writer.service.ts / kafka-publisher.port.ts
-	// doc comments); asserting those literal field names here would be a
-	// fabricated pass.
-	require.Equal(t, "page.created", msg["type"], "gate-m6 AC2: Kafka message has the wrong type")
-	require.Equal(t, pageID, msg["aggregateId"], "gate-m6 AC2: Kafka message has the wrong aggregateId")
-	require.Equal(t, workspaceID, msg["workspaceId"], "gate-m6 AC2: Kafka message has the wrong workspaceId")
+	// (outbox-relay.service.ts `run()`): a CloudEvents 1.0 structured-mode
+	// envelope (ENG-1559 M5 AC8, commit bd93cd76) — the aggregate id is on
+	// the top-level `subject` attribute, the tenant/workspace is on the
+	// `orvextenant` extension attribute, the `type` carries the `wiki.`
+	// catalog domain prefix (`wiki.page.created`), and the outbox row's own
+	// payload is nested under `data`. This replaces the pre-AC8 raw
+	// `{type, aggregateId, workspaceId, payload}` shape.
+	require.Equal(t, "wiki.page.created", msg["type"], "gate-m6 AC2: Kafka message has the wrong type")
+	require.Equal(t, pageID, msg["subject"], "gate-m6 AC2: Kafka message has the wrong subject (aggregate id)")
+	require.Equal(t, workspaceID, msg["orvextenant"], "gate-m6 AC2: Kafka message has the wrong orvextenant (workspace id)")
 
 	// traceparent/correlation_id are PRESENT-IF-TRACING-IS-ON, never
 	// hard-required: `captureOutboxTraceContext` (orvex-outbox-trace-context.util.ts)

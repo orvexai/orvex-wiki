@@ -29,6 +29,7 @@ import {
 } from '@testcontainers/postgresql';
 
 import { InternalApiModule } from './internal-api.module';
+import { getQueueToken } from '@nestjs/bullmq';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
@@ -37,7 +38,13 @@ import { GroupUserRepo } from '@docmost/db/repos/group/group-user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
+import { ShareRepo } from '@docmost/db/repos/share/share.repo';
+import { WatcherRepo } from '@docmost/db/repos/watcher/watcher.repo';
+import { FavoriteRepo } from '@docmost/db/repos/favorite/favorite.repo';
+import { LicenseCheckService } from '../../integrations/environment/license-check.service';
+import { QueueName } from '../../integrations/queue/constants/queue.constants';
 import SpaceAbilityFactory from '../casl/abilities/space-ability.factory';
+import WorkspaceAbilityFactory from '../casl/abilities/workspace-ability.factory';
 import { PageAccessService } from '../page/page-access/page-access.service';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
@@ -133,7 +140,26 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         WorkspaceRepo,
         UserRepo,
         PagePermissionRepo,
+        // fc5a8caf (ENG-1559 R6) made InternalApiModule import SpaceModule so a
+        // JIT-provisioned workspace gets a default space. That pulls the real
+        // SpaceService + SpaceMemberService into this test graph, whose full
+        // dep chain must be satisfiable by this @Global() stand-in: ShareRepo
+        // (SpaceService), WatcherRepo + FavoriteRepo (SpaceMemberService),
+        // LicenseCheckService (SpaceService), and the ATTACHMENT_QUEUE Bull
+        // queue (SpaceService @InjectQueue). All are real repos over the same
+        // Kysely; only the queue is a no-op double (a true external — CS §5).
+        ShareRepo,
+        WatcherRepo,
+        FavoriteRepo,
+        LicenseCheckService,
+        {
+          provide: getQueueToken(QueueName.ATTACHMENT_QUEUE),
+          useValue: { add: async () => undefined },
+        },
         SpaceAbilityFactory,
+        // SpaceModule (imported by InternalApiModule per fc5a8caf) also
+        // registers SpaceController, whose ctor needs WorkspaceAbilityFactory.
+        WorkspaceAbilityFactory,
         PageAccessService,
         OutboxWriter,
         WsService,
@@ -171,7 +197,13 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         WorkspaceRepo,
         UserRepo,
         PagePermissionRepo,
+        ShareRepo,
+        WatcherRepo,
+        FavoriteRepo,
+        LicenseCheckService,
+        getQueueToken(QueueName.ATTACHMENT_QUEUE),
         SpaceAbilityFactory,
+        WorkspaceAbilityFactory,
         PageAccessService,
         OutboxWriter,
         WsService,
