@@ -552,8 +552,15 @@ jobs:
           cache-dependency-path: tests/smoke/go.sum
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: pnpm audit (high+)
-        run: pnpm audit --audit-level=high
+      # Supply-chain audit of the npm dependency tree (high+). NOT `pnpm audit`:
+      # pnpm's audit hits npm's /-/npm/v1/security/audits endpoint, which npm
+      # RETIRED (HTTP 410 Gone — "use the bulk advisory endpoint instead"), so
+      # `pnpm audit` is broken for every pnpm version. We scan the same
+      # pnpm-lock.yaml-resolved tree with osv-scanner (OSV.dev) instead and gate
+      # on HIGH/CRITICAL only, reproducing the prior --audit-level=high
+      # threshold. No bypass: all findings are reported. See scripts/ci/audit-osv.sh.
+      - name: Dependency audit (osv-scanner, high+)
+        run: bash scripts/ci/audit-osv.sh pnpm-lock.yaml
       - name: govulncheck (smoke module)
         working-directory: tests/smoke
         run: |
