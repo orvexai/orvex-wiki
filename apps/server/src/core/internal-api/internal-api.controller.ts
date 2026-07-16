@@ -102,16 +102,20 @@ export class InternalApiController {
     return { allowed };
   }
 
-  /** AC2 — GET /internal/pages/{id}/export?tenant= -> `{text_repr}` (workspace-scoped) */
+  /**
+   * AC2 — GET /internal/pages/{id}/export?tenant= (workspace-scoped) ->
+   * `{text_repr, title, space, slug_id}`. `text_repr` is unchanged (existing
+   * decoders read it off the top level); the additive `title`/`space`/`slug_id`
+   * are the addressing fields the indexer stamps onto each projected document so
+   * a knowledge hit is chainable back to its page (addressable-hits).
+   */
   @SkipTransform()
   @HttpCode(HttpStatus.OK)
   @Get('pages/:id/export')
   async exportPage(@Param('id') pageId: string, @Query() query: TenantQueryDto) {
-    const text_repr = await this.internalApiService.exportPage(
-      query.tenant,
-      pageId,
-    );
-    return { text_repr };
+    const { textRepr, title, space, slugId } =
+      await this.internalApiService.exportPage(query.tenant, pageId);
+    return { text_repr: textRepr, title, space, slug_id: slugId };
   }
 
   /** AC3 — GET /internal/pages/{id}/resolve?tenant= -> `{title, content}` (workspace-scoped) */

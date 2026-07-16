@@ -552,6 +552,14 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       expect(typeof body.text_repr).toBe('string');
       expect(body.text_repr).toContain('AC2 exported page');
       expect(body.text_repr).toContain('exported body text');
+      // addressable-hits: the export now also carries the addressing fields the
+      // indexer stamps so a knowledge hit is chainable back to its page — the
+      // page title, the space SLUG (not the internal UUID), and the page slug id
+      // the citation URL /s/{space}/p/{slug_id} is built from.
+      expect(body.title).toBe('AC2 exported page');
+      expect(body.space).toBe('space');
+      expect(typeof body.slug_id).toBe('string');
+      expect(body.slug_id.length).toBeGreaterThan(0);
     });
 
     it('is workspace-scoped: a restricted page still exports (per-user ACL is at query egress, not the indexer plane)', async () => {

@@ -5,6 +5,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
+import { SpaceRepo } from '@docmost/db/repos/space/space.repo';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import SpaceAbilityFactory from '../casl/abilities/space-ability.factory';
@@ -19,6 +20,24 @@ import { Page, User } from '@docmost/db/types/entity.types';
 export interface ResolvedPage {
   title: string | null;
   content: unknown;
+}
+
+/**
+ * ExportedPage (addressable-hits, 2026-07-16) — the enriched `/export` reply.
+ * `text_repr` is the FR-18/38 embed-resolved Markdown the indexer embeds; the
+ * ADDRESSING fields (`title`, `space`, `slug_id`) are what make a knowledge hit
+ * chainable back to a page: `title` labels the hit, `space` (the space SLUG,
+ * not the internal UUID) + `slug_id` build the deep-linkable citation URL
+ * `/s/{space}/p/{slug_id}`. Before this the indexer only received `text_repr`,
+ * so every projected hit carried an empty title/space and no citation URL was
+ * derivable. Workspace-scoped (indexer plane) — same tenant-isolation guard as
+ * the bare export.
+ */
+export interface ExportedPage {
+  textRepr: string;
+  title: string | null;
+  space: string | null;
+  slugId: string | null;
 }
 
 /**
@@ -51,6 +70,7 @@ export class InternalApiService {
     private readonly pageRepo: PageRepo,
     private readonly pagePermissionRepo: PagePermissionRepo,
     private readonly spaceAbility: SpaceAbilityFactory,
+    private readonly spaceRepo: SpaceRepo,
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly userRepo: UserRepo,
     private readonly exportService: ExportService,
@@ -129,15 +149,23 @@ export class InternalApiService {
 
   /**
    * AC2 — the FR-18/38 `text_repr` export for the indexer body fetch:
-   * a page's canonical content flattened to Markdown. Workspace-scoped (no
+   * a page's canonical content flattened to Markdown, plus the ADDRESSING
+   * metadata (title + space slug + page slug id) that makes a knowledge hit
+   * chainable back to the page (addressable-hits). Workspace-scoped (no
    * per-user ACL — the indexer plane); tenant isolation enforced by
-   * `loadPageInWorkspace` (a page outside `tenant` is a typed 404). Returns the
-   * Markdown string the consumer decodes into `{text_repr}`.
+   * `loadPageInWorkspace` (a page outside `tenant` is a typed 404).
+   *
+   * The space is resolved to its SLUG (not the internal space UUID) — the
+   * citation URL the consumer builds is `/s/{space}/p/{slug_id}`, which is
+   * keyed by the human-facing slug. A page whose space cannot be resolved
+   * yields a null space (honest — the consumer then emits no citation URL for
+   * that hit rather than a broken one), never a fabricated slug.
    */
-  async exportPage(tenant: string, pageId: string): Promise<string> {
+  async exportPage(tenant: string, pageId: string): Promise<ExportedPage> {
     // Tenant-isolation guard BEFORE the export (ExportService fetches by id
     // without a workspace scope) — a foreign-workspace id must 404, never leak.
-    await this.loadPageInWorkspace(tenant, pageId);
+    // The loaded page is reused for the addressing fields (one read, not two).
+    const page = await this.loadPageInWorkspace(tenant, pageId);
 
     const result = await this.exportService.exportPages(
       pageId,
@@ -154,7 +182,21 @@ export class InternalApiService {
       throw new NotFoundException('Page not found');
     }
 
-    return result.content as string;
+    // Resolve the space SLUG for the citation URL. A missing space id or an
+    // unresolvable space degrades to a null slug (no fabricated citation) —
+    // never an error that would fail-close the whole body export.
+    let spaceSlug: string | null = null;
+    if (page.spaceId) {
+      const space = await this.spaceRepo.findById(page.spaceId, tenant);
+      spaceSlug = space?.slug ?? null;
+    }
+
+    return {
+      textRepr: result.content as string,
+      title: page.title ?? null,
+      space: spaceSlug,
+      slugId: page.slugId ?? null,
+    };
   }
 
   /**
