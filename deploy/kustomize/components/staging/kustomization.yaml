@@ -47,6 +47,69 @@ patches:
       kind: HTTPRoute
       name: orvex-wiki
 
+  # ── Dev-only single-host fan-out: /mcp + /api/ai on the engine host ───────
+  # seam3 fix (phase0/seam3). Cell-tenancy-contract JGAUQRsw2g Rule 9
+  # (canonical 2026-07-12): "flat services expose no public HTTPRoute
+  # post-migration" — the satellites' separate public subdomains
+  # (ai.orvex.dev / mcp.orvex.dev) are the PRE-migration transitional layout.
+  # SINGLE-HOST-FANOUT means the wiki host (wiki.<cell-token>.orvex.dev) is the
+  # one public entry point and peers are reached by PATH, not by subdomain.
+  # Today the engine host owns exactly one rule (PathPrefix / → orvex-wiki:3000,
+  # the engine), so probes to /mcp and /api/ai fall through to the engine
+  # catch-all and 404 (seam3 FAIL). Add higher-precedence path rules so those
+  # prefixes route to the satellite Services instead. In Gateway API a longer
+  # PathPrefix always out-matches "/" regardless of rule order, but we prepend
+  # them anyway (op: add at index 0) to keep intent obvious. DEV-ONLY: base
+  # (app-manifests/httproute.yaml) carries the prod host and is untouched, so
+  # main/prod still renders the single catch-all rule.
+  #
+  # Cross-namespace backendRefs: orvex-studio-mcp lives in ns
+  # orvex-studio-mcp-dev and orvex-studio-ai in ns orvex-studio-ai-dev, so each
+  # backendRef sets an explicit namespace. Gateway API requires a ReferenceGrant
+  # in EACH target namespace permitting HTTPRoute(orvex-wiki-dev)→Service; those
+  # grants live in the separate orvex-studio-ai / orvex-studio-mcp repos and are
+  # STAGED (see scratchpad/phase0/seam3/staged/). Until they land, these two
+  # backendRefs resolve ResolvedRefs=False and Traefik 404s /mcp+/api/ai just as
+  # today — the catch-all "/" → engine rule is unaffected, so this is safe to
+  # apply ahead of the grants.
+  #
+  # NB (P2-11 unpinned): the edge MECHANISM (Traefik HTTPRoute path-split vs a
+  # Cloudflare Worker vs the orvex-wiki-api Go reverse-proxy) is not yet ruled.
+  # The live edge is the Traefik Gateway API, so an HTTPRoute path-split is the
+  # minimal reversible form — but it pre-empts P2-11, which should be pinned.
+  - patch: |-
+      - op: add
+        path: /spec/rules/0
+        value:
+          matches:
+            - path:
+                type: PathPrefix
+                value: /mcp
+          backendRefs:
+            - group: ""
+              kind: Service
+              name: orvex-studio-mcp
+              namespace: orvex-studio-mcp-dev
+              port: 8787
+              weight: 1
+      - op: add
+        path: /spec/rules/1
+        value:
+          matches:
+            - path:
+                type: PathPrefix
+                value: /api/ai
+          backendRefs:
+            - group: ""
+              kind: Service
+              name: orvex-studio-ai
+              namespace: orvex-studio-ai-dev
+              port: 80
+              weight: 1
+    target:
+      kind: HTTPRoute
+      name: orvex-wiki
+
   # ── Dev APP_URL: prod host → the dev host ────────────────────────────────
   - patch: |-
       - op: replace
