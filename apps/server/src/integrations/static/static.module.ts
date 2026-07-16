@@ -70,6 +70,26 @@ export class StaticModule implements OnModuleInit {
       });
 
       app.get(RENDER_PATH, (req: any, res: any) => {
+        // An unmatched request under the global `/api` prefix must NEVER fall
+        // through to the SPA shell. Serving index.html (HTTP 200 text/html) for
+        // a missing/misrouted API GET masks a route that no controller claims as
+        // a valid response: JSON clients (the MCP backstage wrapper, the CLI)
+        // then parse the HTML as the expected body and fail with an opaque
+        // "unexpected shape from block GET" instead of an honest 404. A GET under
+        // `/api` that reaches this catch-all matched no NestJS route — that is a
+        // genuine 404 and must say so, loudly, in JSON (no-fallbacks: a silent
+        // HTML-200 is exactly the kind of masked failure we forbid). Only true
+        // SPA / client-routing paths get the index.html shell.
+        const rawPath = String(req.raw?.url ?? req.url ?? '').split('?')[0];
+        if (rawPath === '/api' || rawPath.startsWith('/api/')) {
+          res.status(404).type('application/json').send({
+            statusCode: 404,
+            error: 'Not Found',
+            message: 'Not Found',
+          });
+          return;
+        }
+
         const stream = fs.createReadStream(indexFilePath);
         res
           .header('Cache-Control', 'no-cache, no-store, must-revalidate')
