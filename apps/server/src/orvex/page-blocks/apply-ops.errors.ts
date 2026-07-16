@@ -23,7 +23,17 @@ export type ApplyOpsErrorCode =
   | 'MOVE_SOURCE_MISSING'
   | 'UNKNOWN_BLOCK_TYPE'
   | 'UNSUPPORTED_OP'
-  | 'INVALID_CONTENT_FORMAT';
+  | 'INVALID_CONTENT_FORMAT'
+  // amazing-MCP block string-replace ambiguity guard (`string-replace` op).
+  // Distinct from the legacy `patch-string`'s single-`STRING_NOT_FOUND` /
+  // replace-first semantics: the verified string-replace refuses to guess.
+  //   NO_REPLACEMENT — `find` occurs ZERO times in the target block.
+  //   AMBIGUOUS_OLD  — `find` occurs MORE THAN ONCE and `replaceAll` was not
+  //                    set, so which occurrence to change is ambiguous; the
+  //                    caller must disambiguate (unique `find`) or opt into
+  //                    `replaceAll`. Never a silent first-match replace.
+  | 'NO_REPLACEMENT'
+  | 'AMBIGUOUS_OLD';
 
 /**
  * Thrown by `applyOpsBatch` (apply-ops-batch.util.ts) the moment ANY op in

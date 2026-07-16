@@ -21,6 +21,8 @@ describe('PageController — integer meta.version exposure (read-then-CAS round-
     findById?: jest.Mock;
     getMetaVersion?: jest.Mock;
     create?: jest.Mock;
+    update?: jest.Mock;
+    upsert?: jest.Mock;
   }) {
     const pageRepo = {
       findById: opts.findById ?? jest.fn(),
@@ -28,12 +30,15 @@ describe('PageController — integer meta.version exposure (read-then-CAS round-
     };
     const pageService = {
       create: opts.create ?? jest.fn(),
+      update: opts.update ?? jest.fn(),
+      upsert: opts.upsert ?? jest.fn(),
     };
     const pageAccessService = {
       validateCanViewWithPermissions: jest.fn(async () => ({
         canEdit: true,
         hasRestriction: false,
       })),
+      validateCanEdit: jest.fn(async () => ({ hasRestriction: false })),
     };
     const spaceAbility = {
       createForUser: jest.fn(async () => ({ cannot: () => false })),
@@ -125,5 +130,63 @@ describe('PageController — integer meta.version exposure (read-then-CAS round-
     expect(getMetaVersion).toHaveBeenCalledWith('page-new');
     expect(typeof res.version).toBe('number');
     expect(res.version).toBe(1);
+  });
+
+  it('/update returns the INTEGER meta.version as `version` (write receipt CAS round-trip)', async () => {
+    const page = {
+      id: 'page-1',
+      slugId: 'slug-1',
+      title: 'Doc',
+      spaceId: 'space-1',
+      parentPageId: null,
+      updatedAt: new Date('2026-07-16T10:00:00.000Z'),
+      content: null,
+    };
+    const { controller } = makeController({
+      findById: jest.fn(async () => page),
+      update: jest.fn(async () => ({ ...page, content: null })),
+      getMetaVersion: jest.fn(async () => 6),
+    });
+
+    const res: any = await controller.update(
+      { pageId: 'page-1' } as any,
+      USER,
+      WORKSPACE,
+      undefined,
+      undefined,
+    );
+
+    expect(typeof res.version).toBe('number');
+    expect(res.version).toBe(6);
+    // NOT the updatedAt timestamp surrogate.
+    expect(res.version).not.toBe(page.updatedAt);
+  });
+
+  it('/upsert returns the INTEGER meta.version as `version` alongside the upserted verb', async () => {
+    const page = {
+      id: 'page-up',
+      slugId: 'slug-up',
+      title: 'Up',
+      spaceId: 'space-1',
+      parentPageId: null,
+      updatedAt: new Date('2026-07-16T11:00:00.000Z'),
+      content: null,
+    };
+    const { controller } = makeController({
+      // upsert's edit-branch pre-flight lookup: found existing in workspace.
+      findById: jest.fn(async () => ({ ...page, workspaceId: 'ws-1' })),
+      upsert: jest.fn(async () => ({ page, upserted: 'updated' })),
+      getMetaVersion: jest.fn(async () => 9),
+    });
+
+    const res: any = await controller.upsert(
+      { slugId: 'slug-up', title: 'Up', spaceId: 'space-1' } as any,
+      USER,
+      WORKSPACE,
+    );
+
+    expect(typeof res.version).toBe('number');
+    expect(res.version).toBe(9);
+    expect(res.upserted).toBe('updated');
   });
 });

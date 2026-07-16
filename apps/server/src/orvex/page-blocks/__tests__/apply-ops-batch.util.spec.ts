@@ -159,6 +159,72 @@ describe('applyOpsBatch', () => {
     }
   });
 
+  // amazing-MCP server-side block string-replace with the ambiguity guard —
+  // the verified sibling of `patch-string` (which replace-firsts silently and
+  // only throws STRING_NOT_FOUND). Block-scoped old→new that refuses to guess.
+  it('string-replace replaces a unique substring in the target block', () => {
+    const result = applyOpsBatch(doc(paragraph('a', 'hello world')), [
+      { type: 'string-replace', blockId: 'a', find: 'world', replace: 'there' },
+    ]);
+    expect(result.content![0].content[0].text).toBe('hello there');
+  });
+
+  it('string-replace throws NO_REPLACEMENT when the substring is absent (0 matches)', () => {
+    try {
+      applyOpsBatch(doc(paragraph('a', 'hello world')), [
+        { type: 'string-replace', blockId: 'a', find: 'nope', replace: 'x' },
+      ]);
+      fail('expected throw');
+    } catch (err) {
+      expect((err as ApplyOpsError).code).toBe('NO_REPLACEMENT');
+    }
+  });
+
+  it('string-replace throws AMBIGUOUS_OLD on >1 match without replaceAll (no silent first-match)', () => {
+    try {
+      applyOpsBatch(doc(paragraph('a', 'na na na')), [
+        { type: 'string-replace', blockId: 'a', find: 'na', replace: 'yo' },
+      ]);
+      fail('expected throw');
+    } catch (err) {
+      expect((err as ApplyOpsError).code).toBe('AMBIGUOUS_OLD');
+    }
+  });
+
+  it('string-replace with replaceAll replaces every occurrence', () => {
+    const result = applyOpsBatch(doc(paragraph('a', 'na na na')), [
+      {
+        type: 'string-replace',
+        blockId: 'a',
+        find: 'na',
+        replace: 'yo',
+        replaceAll: true,
+      },
+    ]);
+    expect(result.content![0].content[0].text).toBe('yo yo yo');
+  });
+
+  it('string-replace is block-scoped — an unknown block throws MISSING_REF_BLOCK_ID (never a whole-page replace)', () => {
+    try {
+      applyOpsBatch(doc(paragraph('a', 'x')), [
+        { type: 'string-replace', blockId: 'ghost', find: 'x', replace: 'y' },
+      ]);
+      fail('expected throw');
+    } catch (err) {
+      expect((err as ApplyOpsError).code).toBe('MISSING_REF_BLOCK_ID');
+    }
+  });
+
+  it('string-replace does not touch OTHER blocks that also contain the substring', () => {
+    const result = applyOpsBatch(
+      doc(paragraph('a', 'match here'), paragraph('b', 'match there')),
+      [{ type: 'string-replace', blockId: 'a', find: 'match', replace: 'HIT' }],
+    );
+    expect(result.content![0].content[0].text).toBe('HIT here');
+    // Sibling with the same substring is untouched (block-scoped, not page-wide).
+    expect(result.content![1].content[0].text).toBe('match there');
+  });
+
   it('section-edit replaces the content of the target block', () => {
     const result = applyOpsBatch(doc(paragraph('a', 'old')), [
       {
