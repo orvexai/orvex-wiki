@@ -16,6 +16,7 @@ import { OrvexPageSupersedeController } from './orvex-page-supersede.controller'
 import { WsPageLifecycleBroadcaster } from './ws-page-lifecycle-broadcaster';
 import { PAGE_LIFECYCLE_BROADCASTER } from './supersede.types';
 import { PageMetaVerificationService } from './page-meta-verification.service';
+import { OrvexPageMetaDriftController } from './orvex-page-meta-drift.controller';
 
 /**
  * ENG-1371 — the page-metadata domain module. `WorkspaceRepo`/`KyselyDB` are
@@ -64,6 +65,7 @@ import { PageMetaVerificationService } from './page-meta-verification.service';
     OrvexPagePromoteController,
     ForceSupersedeSettingsController,
     OrvexPageSupersedeController,
+    OrvexPageMetaDriftController,
   ],
   providers: [
     OrvexPageMetadataService,

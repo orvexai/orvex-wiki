@@ -26,7 +26,10 @@ import {
   SpaceCaslSubject,
 } from '../../core/casl/interfaces/space-ability.type';
 import { OrvexModulesEnabledGuard } from '../llms/orvex-modules-enabled.guard';
-import { ApplyOpsRequestDto } from '../http/dto/apply-ops.dto';
+import {
+  ApplyDocumentRequestDto,
+  ApplyOpsRequestDto,
+} from '../http/dto/apply-ops.dto';
 import {
   ApplyOpsService,
   ApplyOpsSettledEnvelope,
@@ -81,6 +84,48 @@ export class OrvexApplyOpsController {
       workspace.id,
       user.id,
       dto,
+      idempotencyKey,
+    );
+  }
+
+  /**
+   * amazing-MCP whole-doc apply-ops-on-an-existing-document primitive — the
+   * engine leg wiki-api's `PUT /v1/wiki/{loc}` (save_page update/upsert)
+   * composes over. Same thin authn/z posture as `applyOps` above (CASL Edit +
+   * workspace scope); the replace/append/prepend merge, CAS/idempotency, and
+   * settled-envelope logic all live in `ApplyOpsService.applyDocument`.
+   */
+  @Post(':pageId/apply-doc')
+  @HttpCode(HttpStatus.OK)
+  async applyDocument(
+    @Param('pageId') pageId: string,
+    @Body() dto: ApplyDocumentRequestDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<ApplyOpsSettledEnvelope> {
+    const page = await this.pageRepo.findById(pageId);
+    if (!page || page.deletedAt || page.workspaceId !== workspace.id) {
+      throw new NotFoundException({ code: 'PAGE_NOT_FOUND' });
+    }
+
+    const ability = await this.spaceAbilityFactory.createForUser(
+      user,
+      page.spaceId,
+    );
+    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+      throw new ForbiddenException();
+    }
+
+    return this.applyOpsService.applyDocument(
+      pageId,
+      workspace.id,
+      user.id,
+      {
+        ifVersion: dto.ifVersion,
+        document: dto.document as never,
+        writeOperation: dto.writeOperation,
+      },
       idempotencyKey,
     );
   }

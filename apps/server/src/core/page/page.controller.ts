@@ -454,7 +454,13 @@ export class PageController {
       });
     }
 
-    return { ...page, upserted };
+    // Version-semantics unification (amazing-MCP): the upsert receipt carries
+    // the integer `version` CAS token too, so a `save_page upsert` round-trips
+    // straight into an `ifVersion` edit without a second read (same channel as
+    // create/update/info/apply-ops).
+    const version = await this.pageRepo.getMetaVersion(page.id);
+
+    return { ...page, version, upserted };
   }
 
   // ENG-1371 (AC8, review1 F1) — see the `create` handler's comment above.
@@ -515,6 +521,15 @@ export class PageController {
 
     const permissions = { canEdit: true, hasRestriction };
 
+    // Version-semantics unification (amazing-MCP): every /v1 write receipt
+    // carries the SAME integer channel the read/create surfaces already
+    // expose (`getMetaVersion` — the `orvex_page_meta.version` CAS token),
+    // NOT the `updatedAt` timestamp. So the `version` an agent reads off a
+    // page IS the `ifVersion` it feeds straight back into the next write CAS,
+    // one integer channel end-to-end. `updatedAt` stays on the page row as
+    // the separate freshness field wiki-api surfaces as `updated_at`.
+    const version = await this.pageRepo.getMetaVersion(updatedPage.id);
+
     if (
       updatePageDto.format &&
       updatePageDto.format !== 'json' &&
@@ -524,10 +539,10 @@ export class PageController {
         updatePageDto.format === 'markdown'
           ? jsonToMarkdown(updatedPage.content)
           : jsonToHtml(updatedPage.content);
-      return { ...updatedPage, content: contentOutput, permissions };
+      return { ...updatedPage, content: contentOutput, version, permissions };
     }
 
-    return { ...updatedPage, permissions };
+    return { ...updatedPage, version, permissions };
   }
 
   @HttpCode(HttpStatus.OK)

@@ -6,6 +6,8 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -60,10 +62,18 @@ export class PmOpDto {
   @IsString()
   find?: string;
 
-  /** patch-string: the replacement text. */
+  /** patch-string / string-replace: the replacement text. */
   @IsOptional()
   @IsString()
   replace?: string;
+
+  /**
+   * string-replace: replace EVERY occurrence of `find` in the block. Absent
+   * with a >1-occurrence `find` triggers the AMBIGUOUS_OLD guard.
+   */
+  @IsOptional()
+  @IsBoolean()
+  replaceAll?: boolean;
 }
 
 /**
@@ -106,4 +116,27 @@ export class ApplyOpsRequestDto {
   @ValidateNested({ each: true })
   @Type(() => PmOpDto)
   ops!: PmOpDto[];
+}
+
+/**
+ * amazing-MCP whole-doc apply-ops-on-an-existing-document request — the engine
+ * leg wiki-api's `PUT /v1/wiki/{loc}` (save_page update/upsert) composes over.
+ * `document` is a full ProseMirror-JSON doc (wiki-api converts DfM/Markdown →
+ * PM server-side first); `writeOperation` replaces / appends / prepends it
+ * against the existing root doc under the SAME integer CAS + idempotency as the
+ * block-batch path. `ifVersion` optional (absent = unconstrained, same
+ * convention as `ApplyOpsRequestDto`).
+ */
+export class ApplyDocumentRequestDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  ifVersion?: number;
+
+  @IsObject()
+  document!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsIn(['replace', 'append', 'prepend'])
+  writeOperation?: 'replace' | 'append' | 'prepend';
 }
