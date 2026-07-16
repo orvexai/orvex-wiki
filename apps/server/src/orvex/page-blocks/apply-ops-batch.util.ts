@@ -22,6 +22,12 @@ export type PmOpInput = {
   patch?: Record<string, unknown>;
   find?: string;
   replace?: string;
+  /**
+   * `string-replace` only — opt into replacing EVERY occurrence of `find` in
+   * the target block. Absent/false + a >1-occurrence `find` is the
+   * `AMBIGUOUS_OLD` guard (never a silent first-match replace).
+   */
+  replaceAll?: boolean;
 };
 
 // Lazily built — `getSchema` walks every registered tiptap extension, which
@@ -128,6 +134,47 @@ function replaceTextInNode(
     if (replaceTextInNode(child, find, replace)) return true;
   }
   return false;
+}
+
+/**
+ * Counts NON-overlapping occurrences of `find` across every text node in a
+ * block's subtree — the denominator the `string-replace` ambiguity guard
+ * decides on (0 → NO_REPLACEMENT, >1 & !replaceAll → AMBIGUOUS_OLD). Counted
+ * per text node (the same granularity replacement operates on), so the count
+ * always reflects exactly what a replace would touch. `find === ''` counts as
+ * zero (an empty needle is never a legitimate replacement target).
+ */
+function countOccurrencesInNode(node: JSONContent, find: string): number {
+  if (find === '') return 0;
+  let total = 0;
+  const walk = (n: JSONContent) => {
+    if (n.type === 'text' && typeof n.text === 'string') {
+      total += n.text.split(find).length - 1;
+    }
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  walk(node);
+  return total;
+}
+
+/**
+ * Replaces EVERY occurrence of `find` with `replace` across all text nodes in
+ * a block's subtree (the `replaceAll` / disambiguated-single path). Unlike
+ * `replaceTextInNode` (legacy `patch-string`, which stops at the first text
+ * node), this mutates all nodes so a count-then-replace pair is consistent.
+ */
+function replaceAllTextInNode(
+  node: JSONContent,
+  find: string,
+  replace: string,
+): void {
+  const walk = (n: JSONContent) => {
+    if (n.type === 'text' && typeof n.text === 'string' && n.text.includes(find)) {
+      n.text = n.text.split(find).join(replace);
+    }
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  walk(node);
 }
 
 function requireLocation(
@@ -279,6 +326,47 @@ export function applyOpsBatch(
           );
         }
         replaceTextInNode(target, op.find, op.replace ?? '');
+        break;
+      }
+
+      case 'string-replace': {
+        // amazing-MCP server-side block string-replace with the ambiguity
+        // guard — the verified sibling of the legacy `patch-string`
+        // (which throws STRING_NOT_FOUND on 0 and silently replaces only the
+        // FIRST match). This op refuses to guess: block-scoped `old → new`,
+        // rejecting an ambiguous or absent target under the same atomic CAS
+        // batch. Deliberately NOT a whole-page find/replace — it is always
+        // block-scoped (a `blockId` is required), so the footgun of a
+        // document-wide blind replace is structurally impossible.
+        const loc = requireLocation(
+          working,
+          op.blockId,
+          'MISSING_REF_BLOCK_ID',
+          'string-replace blockId',
+        );
+        const target = loc.siblings[loc.index];
+        if (typeof op.find !== 'string') {
+          throw new ApplyOpsError(
+            'NO_REPLACEMENT',
+            `string-replace requires a string 'find' for block ${JSON.stringify(op.blockId)}`,
+          );
+        }
+        const occurrences = countOccurrencesInNode(target, op.find);
+        if (occurrences === 0) {
+          throw new ApplyOpsError(
+            'NO_REPLACEMENT',
+            `String ${JSON.stringify(op.find)} not found in block ${JSON.stringify(op.blockId)}`,
+          );
+        }
+        if (occurrences > 1 && !op.replaceAll) {
+          throw new ApplyOpsError(
+            'AMBIGUOUS_OLD',
+            `String ${JSON.stringify(op.find)} occurs ${occurrences} times in block ${JSON.stringify(op.blockId)}; pass replaceAll or a unique 'find'`,
+          );
+        }
+        // Exactly one occurrence, or replaceAll opted in — replace them all
+        // (a single occurrence "all" is that one occurrence).
+        replaceAllTextInNode(target, op.find, op.replace ?? '');
         break;
       }
 

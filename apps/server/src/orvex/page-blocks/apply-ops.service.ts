@@ -152,24 +152,134 @@ export class ApplyOpsService {
       throw err;
     }
 
-    // ENG-1652 residue fix (2026-07-13, PM content-corruption root-cause):
+    return this.commitWorkingDoc(
+      page,
+      workingDoc as JSONContent,
+      dto.ifVersion,
+      meta,
+      'apply-ops',
+      idempotencyKey,
+      userId,
+    );
+  }
+
+  /**
+   * Whole-doc apply-ops-on-an-EXISTING-document (amazing-MCP primitive #1) —
+   * the engine leg wiki-api's `PUT /v1/wiki/{loc}` (save_page update/upsert)
+   * composes over. The block-patch chokepoint above edits INDIVIDUAL blocks;
+   * this replaces / appends / prepends the page's WHOLE root document in one
+   * shot, under the SAME integer CAS (`ifVersion` → `orvex_page_meta.version`)
+   * + idempotency + read-after-write settled-envelope machinery
+   * (`commitWorkingDoc`) — never the collaboration/Yjs live-editor path, and
+   * never a second write primitive. The incoming `document` is a full
+   * ProseMirror-JSON doc (wiki-api converts DfM/Markdown → PM server-side
+   * before calling); `writeOperation` picks the merge:
+   *   - `replace` — the incoming doc becomes the page's whole body;
+   *   - `append`  — the incoming doc's top-level blocks are appended after the
+   *                 existing body;
+   *   - `prepend` — …prepended before it.
+   * The merged doc runs the exact same `.check()` content-model validation +
+   * `stampBlockIds` chokepoint as a block batch, so an invalid whole-doc write
+   * 400s before any row is touched (never a crash, never a partial write).
+   */
+  async applyDocument(
+    pageId: string,
+    workspaceId: string,
+    userId: string,
+    dto: {
+      ifVersion?: number;
+      document: JSONContent;
+      writeOperation?: 'replace' | 'append' | 'prepend';
+    },
+    idempotencyKey?: string,
+  ): Promise<ApplyOpsSettledEnvelope> {
+    const page = await this.pageRepo.findById(pageId, { includeContent: true });
+    if (!page || page.deletedAt || page.workspaceId !== workspaceId) {
+      throw new NotFoundException({ code: 'PAGE_NOT_FOUND' });
+    }
+
+    // Settled-replay lookup BEFORE the CAS precheck — a keyed retry that
+    // arrives after the winner committed replays the same receipt instead of
+    // 409ing at the (now-advanced) version. Mirrors `applyOps` exactly (fix
+    // pass 3), under a DISTINCT idempotency namespace so a whole-doc write and
+    // a block batch reusing the same key never cross-replay.
+    if (idempotencyKey) {
+      const hit = await this.idempotencyStore.lookup<ApplyOpsSettledEnvelope>(
+        'apply-doc',
+        pageId,
+        userId,
+        idempotencyKey,
+      );
+      if (hit.recorded) {
+        return hit.result!;
+      }
+    }
+
+    const meta = await this.pageRepo.getPageMeta(pageId);
+    assertIfVersionMatches(page.updatedAt, dto.ifVersion, meta?.version);
+
+    const operation = dto.writeOperation ?? 'replace';
+    const incoming = dto.document ?? {};
+    const incomingBlocks = Array.isArray(incoming.content)
+      ? incoming.content
+      : [];
+
+    let workingDoc: JSONContent;
+    if (operation === 'replace') {
+      workingDoc = incoming;
+    } else {
+      const existing = getProsemirrorContent(page.content) as JSONContent;
+      const existingBlocks = Array.isArray(existing?.content)
+        ? existing.content
+        : [];
+      workingDoc = {
+        ...(existing ?? { type: 'doc' }),
+        content:
+          operation === 'append'
+            ? [...existingBlocks, ...incomingBlocks]
+            : [...incomingBlocks, ...existingBlocks],
+      };
+    }
+
+    return this.commitWorkingDoc(
+      page,
+      workingDoc,
+      dto.ifVersion,
+      meta,
+      'apply-doc',
+      idempotencyKey,
+      userId,
+    );
+  }
+
+  /**
+   * The shared commit tail for BOTH the block-batch (`applyOps`) and the
+   * whole-doc (`applyDocument`) primitives (CS §7 one-adapter): schema
+   * validation, block-id stamping, the idempotency claim, the single atomic
+   * CAS-guarded chokepoint write, slot-release-on-failure, and the settled
+   * read-after-write envelope — one place, so the two write shapes can never
+   * drift in their CAS/idempotency/persistence semantics.
+   */
+  private async commitWorkingDoc(
+    page: { id: string; workspaceId: string },
+    workingDoc: JSONContent,
+    ifVersion: number | undefined,
+    meta: { version: number } | undefined,
+    namespace: 'apply-ops' | 'apply-doc',
+    idempotencyKey: string | undefined,
+    userId: string,
+  ): Promise<ApplyOpsSettledEnvelope> {
+    const pageId = page.id;
+
     // `jsonToNode` alone is NOT a genuine content-model validator — it
     // resolves to ProseMirror's unchecked `Node.fromJSON`, which happily
-    // constructs a Node tree with content that doesn't fit its own type's
-    // content expression (e.g. a `paragraph` nested inside another
-    // `paragraph`) and returns successfully. That invalid tree then sailed
-    // through to `stampBlockIds` below, uncaught, where a REAL PM
-    // operation (`addUniqueIdsToDoc`'s `tr.setNodeAttribute`) finally hit
-    // the schema's content check and threw an unhandled
-    // `TransformError: Invalid content for node …` — a crash, not a 4xx,
-    // and AFTER the batch/section-edit translation had already decided the
-    // shape (AC2 promises "any op failure throws here, before a single row
-    // has been touched" — this restores that for content-model failures,
-    // not just "unknown node type"). `.check()` performs the SAME
-    // recursive content/attrs/marks validation ProseMirror itself runs
-    // internally, so this is a real check, not a stricter reimplementation.
+    // constructs a tree whose content doesn't fit its own type's content
+    // expression and returns successfully; that invalid tree would then crash
+    // uncaught deep inside `stampBlockIds`. `.check()` runs the SAME recursive
+    // content/attrs/marks validation ProseMirror itself runs internally, so a
+    // malformed doc 400s HERE, before a single row is touched.
     try {
-      jsonToNode(workingDoc as JSONContent).check();
+      jsonToNode(workingDoc).check();
     } catch {
       throw new BadRequestException({ code: 'INVALID_CONTENT_FORMAT' });
     }
@@ -177,7 +287,7 @@ export class ApplyOpsService {
     // ENG-1397 chokepoint semantics — stamp any missing block ids (existing
     // ids are never regenerated, so this is a no-op for already-stamped
     // content).
-    const { content: stamped } = stampBlockIds(workingDoc as JSONContent);
+    const { content: stamped } = stampBlockIds(workingDoc);
     const textContent = jsonToText(stamped);
     const ydoc = createYdocFromJson(stamped);
     const contentHash = computeContentHash(stamped);
@@ -185,26 +295,26 @@ export class ApplyOpsService {
     let claimedSlot = false;
     if (idempotencyKey) {
       const claim = await this.idempotencyStore.claim<ApplyOpsSettledEnvelope>(
-        'apply-ops',
+        namespace,
         pageId,
         userId,
         idempotencyKey,
       );
       if (!claim.claimed) {
-        // AC3: the loser does not re-apply — return the winner's recorded
-        // envelope (or, if it hasn't landed yet, the page's current state).
+        // The loser does not re-apply — return the winner's recorded envelope
+        // (or, if it hasn't landed yet, the page's current state).
         return claim.result ?? (await this.readSettledEnvelope(pageId));
       }
       claimedSlot = true;
     }
 
-    const expectedVersion = isIntegerVersion(dto.ifVersion)
-      ? toIntegerVersion(dto.ifVersion)
+    const expectedVersion = isIntegerVersion(ifVersion)
+      ? toIntegerVersion(ifVersion)
       : (meta?.version ?? 1);
 
     try {
       await executeTx(this.db, async (trx) => {
-        // AC2: exactly ONE CAS guard for the whole batch.
+        // Exactly ONE CAS guard for the whole write.
         const cas = await this.pageRepo.casIncrementMeta(
           pageId,
           expectedVersion,
@@ -216,9 +326,9 @@ export class ApplyOpsService {
           throw new ConflictException({ code: 'VERSION_MISMATCH' });
         }
 
-        // AC2: exactly ONE chokepoint write for the whole batch — content,
-        // textContent and ydoc all land in the SAME transaction/statement as
-        // the CAS guard above (never a partial write on rollback).
+        // Exactly ONE chokepoint write — content, textContent and ydoc all
+        // land in the SAME transaction as the CAS guard (never a partial
+        // write on rollback).
         await this.pageRepo.updatePage(
           {
             content: stamped as unknown as Json,
@@ -231,20 +341,12 @@ export class ApplyOpsService {
         );
       });
     } catch (err) {
-      // ENG-1652 fix pass 2 (AC3 poisoning): a claimed slot that never
-      // reaches `record()` — e.g. because a concurrent writer bumped the
-      // version between the line-85 precheck and this CAS, so the atomic
-      // guard 409s AFTER the slot was already taken — must be released here.
-      // Otherwise the slot sits pinned to `{pending:true}` for the full TTL
-      // and a same-key retry polls out to `claim.result === undefined`,
-      // falling through to `readSettledEnvelope` (line ~128 above) and
-      // returning the CONCURRENT WRITER's state as a fabricated 200
-      // false-success — silently dropping this request's ops (ruling-5,
-      // AC6). Releasing lets the retry claim the (now-free) slot afresh and
-      // genuinely re-attempt the write instead of replaying a stale ghost.
+      // A claimed slot that never reaches `record()` (e.g. the CAS 409s after
+      // the slot was taken) must be released, or a same-key retry polls out to
+      // a fabricated false-success from the concurrent writer's state.
       if (claimedSlot && idempotencyKey) {
         await this.idempotencyStore.release(
-          'apply-ops',
+          namespace,
           pageId,
           userId,
           idempotencyKey,
@@ -253,7 +355,13 @@ export class ApplyOpsService {
       throw err;
     }
 
-    return this.readSettledEnvelope(pageId, contentHash, idempotencyKey, userId);
+    return this.readSettledEnvelope(
+      pageId,
+      contentHash,
+      idempotencyKey,
+      userId,
+      namespace,
+    );
   }
 
   /**
@@ -269,6 +377,7 @@ export class ApplyOpsService {
     knownContentHash?: string,
     idempotencyKey?: string,
     userId?: string,
+    namespace: 'apply-ops' | 'apply-doc' = 'apply-ops',
   ): Promise<ApplyOpsSettledEnvelope> {
     const [fresh, page] = await Promise.all([
       this.pageRepo.getPageMeta(pageId),
@@ -282,7 +391,7 @@ export class ApplyOpsService {
 
     if (idempotencyKey && userId) {
       await this.idempotencyStore.record(
-        'apply-ops',
+        namespace,
         pageId,
         userId,
         idempotencyKey,
