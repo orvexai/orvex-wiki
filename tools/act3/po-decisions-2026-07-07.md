@@ -1478,3 +1478,41 @@ The console design is folded in. Sequence: adversarial 4-lens review (1 P0 + 13 
 ## 2026-07-17 — Console P1 discharge complete + MR-C4 gap ticketed
 
 All 5 dispatch-time P1s discharged and opus-verified (read-audit+tenant-scope ACs on ENG-2591/2593; breaker built-not-worded-down on ENG-2596 ← ENG-2584; audit-or-fail hard-cut on ENG-2588 with the interim-posture test formally SUPERSEDED; contract-pin edges; GA gates ENG-2840 Tier-5 human acceptance + ENG-2841 UI quality gate). MR-C4 backlog gap closed: ENG-2842 filed ([identity] operator-lifecycle admin surface pin) blocking-wise wired to ENG-2599/2600. P1-11 (web/marketing analytics in the operator console) PENDING AT THE UBA-WAVE GATE by design — all UBA stories blocked until then; rule it when the wave arms.
+
+## 2026-07-19 — AI-Surfaces re-baseline: full-family design + delivery (PO decision session, R28–R44)
+
+Fold-in of the 2026-07-17 AI-surfaces re-baseline session (full detail + the PO-Q/PO-D IDs in `po-decisions/2026-07-17.md`). Scope: redo the wiki AI surfaces — orvex-wiki-api `/v1`, the wiki domain of orvex-studio-mcp, orvex-cli — plus the dependencies the release requires (contracts, audit, staging, identity, ai, engine, studio-api, knowledge), as ONE full-scope release. Executed to the wiki (10 PRD/arch pages amended + ratified; research `orvexstudioarch/vSol4mzPym`) and Linear (~150 ops, full Issue-Authoring standard, SE-Architect-gated, every ticket doc-referenced; ~80 blocked-by edges). Process directives carried the run: PO-D6 (per-project execution sequence), PO-D7 (ticket-authoring standards + wiki refs), PO-D9 (ratify-all + strip re-baseline headers, done), PO-D12 (full autonomy). The substantive rulings:
+
+**R28 (PO-D1) MCP ⊇ CLI** — every CLI capability must be reachable through the MCP surface, behind progressive disclosure or a token-gated governance verb; governance parity = transport parity (engine mints the ratify/confirm token, surfaces carry it; absent a token → `needs_human_publish`). "AI never self-promotes" (P6) preserved server-side.
+
+**R29 (PO-D2) Challenge everything** — the fork + docmost-cli parity inventory is an input to challenge (adopt / adopt-reshaped / rethink / drop from first principles), never a transcription; the live dev spine is challenged on equal terms. The constitution (human ratification, layering through `/v1`, audit seams, quota/tenancy) holds unless explicitly superseded.
+
+**R30 (PO-D3) Wiki-domain focus** — the 2026-07-17 general-MCP WDS re-baseline governs the platform framework (verb-naming, envelope, error taxonomy, write governance, disclosure, golden-tape KPI) as a convention donor; the WIKI DOMAIN depth is this program's greenfield.
+
+**R31 (PO-D4) Compose the family** — search/related/RAG → knowledge, ask → ai, authn → identity, audit events → audit (emit-only, R25), entitlements → billing. The AGPL engine is SoR for document writes + collab and is NEVER the AI compute path nor the default agent read path.
+
+**R32 (PO-Q1) Codegen from a pinned contracts v0.1.4 tag** as the single shared client spine for wiki-api / MCP / CLI / studio-api; the served-openapi-diff drift gate flips to blocking; ADR-0035's per-repo codegen bridge is EXTENDED to Go consumers. Recorded as ADR-0041 (the ADR-0008 reshaping-lane gate; ENG-2974). Highest-leverage single decision.
+
+**R33 (PO-Q2) One monotonic integer version** across the read receipt, write-CAS `If-Match`, and the CloudEvent `version_field`; the breaking read-shape change ships inside v0.1.4 with a deprecation window.
+
+**R34 (PO-Q3) Rich error envelope** — one table-driven vocabulary (`error_code`/`message`/`hint`/`matches`/`next`) served as `application/problem+json` with a stable `type` URI; wiki-api's four divergent mappers collapse to one.
+
+**R35 (PO-Q4) Idempotency-Key on all `/v1` writes**, bounded replay window, in the codegen tag.
+
+**R36 (PO-Q5 + Q15 + Q16) Two-lane reads + knowledge-is-the-cache** — discovery (search/snippets/related/RAG/ask-citations/outline) serves from knowledge; the authoritative lane (full content, version receipts, anything feeding an edit) serves from the engine via wiki-api. Knowledge formally becomes the family's optimized read/cache tier (event-evicted); the CLI is stateless/thin (no daemon, no local mirror). Knowledge also owns a CODE CORPUS (repos ingested, symbol→page mappings, family drift detection).
+
+**R37 (PO-Q6 + Q7) Sub-resources + full spaces** — comments/labels/attachments as sub-resources under the page locator (`/v1/wiki/{loc}/…`); spaces a full first-class `/v1/spaces` resource (list/tree/read for all agents; create/member/settings governed).
+
+**R38 (PO-Q8) Edge auth wired NOW** — the real `CallerVerifier` + issuer/JWKS + scoped authz at wiki-api's edge is an immediate P0 defect fix (the verifiers are `notImplemented` today, `/v1/audit` unusable), scheduled ahead of the PRDs (ENG-2514).
+
+**R39 (PO-Q9 + Q10 + Q11) MCP surface** — MCP becomes the 8th audit producer (emit-only; ADR-0037 amended); hero-13 confirmed as THE surface (R21's 19-verb language superseded, its streaming requirement re-scoped to the ask/edit verb classes, ADR-0038 reconciled); ALL 13 heroes REAL is a first-release GATE (memory D11 lane + staging apply path + workgraph legs become launch-blocking; ENG-2940).
+
+**R40 (PO-Q12 + Q13 + Q17) API grammar additions** — cursor-paginated changes feed + webhooks off the CloudEvents envelope; the support-issue relay is KEPT but renamed `/support` (Linear vocabulary severed from customer-facing surfaces, backend swappable); an async submit→poll batch-job endpoint ships in-program.
+
+**R41 (PO-Q14) Code-execution-with-MCP built in this program** — sandboxed execution against the generated client ships alongside the tool surface (security/sandbox workstream named), NOT deferred.
+
+**R42 (PO-Q18 + Q19 + Q20) Governance & safety** — delimited untrusted-content framing + a security-pack workstream for prompt-injection; agentic-eval + drift gates are REQUIRED-blocking CI on every surface; write lanes are decided per-tenant by the Tenant Governance Profile (applied-or-staged, one uniform contract), superseding FR-STG25's blanket 403-and-redirect (the staging cut becomes a profile preset).
+
+**R43 (PO-Q21 + D5 + D8 + D10) Full-scope single release** — HOLD THE LINE, one release with everything; done = works end-to-end via every surface (not gates-green). studio-api and knowledge are folded into the codegen/consistency program. Untrustworthy `Done` tickets moved back to In Progress (don't-trust: ENG-2294/2295/2028); stale/duplicate/superseded tickets cancelled.
+
+**R44 (PO-D11) Ticket rigor** — every delivery ticket is authored to the full Issue-Authoring standard (`9VUHxAcoXw`, 9 sections, H1–H17, tickable) and passes the SE-Architect Review Agent audit tail (`8sYi523i4t`, PASS-before-create); reviewer ≠ author. Tickets land in their per-service project under the "Orvex Studio" initiative.
