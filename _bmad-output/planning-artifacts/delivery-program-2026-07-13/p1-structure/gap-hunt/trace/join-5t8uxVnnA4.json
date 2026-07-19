@@ -1,0 +1,71 @@
+{
+  "slug": "5t8uxVnnA4",
+  "total": 13,
+  "results": [
+    {
+      "id": "FR-BC1",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "coverage-index key -> ['extsweep'] only, no real ticket. gap-hunt/ext-sweep/prd.json gap 'FR-BC1 + FR-BC2 + FR-BC5' verdict CONFIRMED: delivery-transaction discipline (resolve->verify-writable->native-setter+InputEvent->read-back->4-class branch) has no owning story; E3-S1/S2/S3 build injection framework/selectors but not this. Only a proposed_issue exists, not a filed/built story. plan.json 'covers' grep across all breakdown/*/plan.json: zero hits."
+    },
+    {
+      "id": "FR-BC2",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Same ext-sweep prd.json gap as FR-BC1 (bundled requirement 'FR-BC1 + FR-BC2 + FR-BC5'), verdict CONFIRMED — read-back assertion within ~250ms is unowned. No plan.json covers hit."
+    },
+    {
+      "id": "FR-BC3",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Not a standalone gap-hunt requirement but bundled AC4 of the FR-BC1/BC2/BC5 CONFIRMED gap ('nothing-visible-on-abort' hands off per FR-BC1, FR-BC3) and separately cited in addendum.json gap 1 ('aligns with FR-BC3 abort-before-write'). No independent story owns it; no plan.json covers hit."
+    },
+    {
+      "id": "FR-BC5",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Same ext-sweep prd.json gap as FR-BC1/BC2 (bundled requirement), verdict CONFIRMED — four-class failure branch (NOTFOUND/NOTWRITABLE/AMBIGUOUS/VERIFY) each alerted separately is unowned; E3-S2 has only one failure mode. No plan.json covers hit."
+    },
+    {
+      "id": "FR-BC6",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "gap-hunt/ext-sweep/prd.json's own FR-BC6 entry verdict REFUTED only because it duplicates addendum.json gap 0 ('Versioned per-provider selector manifest... locale/A-B-tolerant', verdict CONFIRMED, covers FR-BC6/BC7) — i.e. still an unbuilt proposed_issue, just consolidated. E5-S2 fixture canary exists but has no multi-candidate/locale-invariant manifest. No plan.json covers hit."
+    },
+    {
+      "id": "FR-BC7",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "gap-hunt/ext-sweep/prd.json's own FR-BC7 entry verdict REFUTED as duplicate of the same addendum.json gap 0 CONFIRMED ticket (remote signed/versioned selector-data channel with <=24h SLA). E5-S2 ships only bundled fixtures (store-review latency), not the remote-fetch channel FR-BC7/NFR-8 require. Consolidated but still not built. No plan.json covers hit."
+    },
+    {
+      "id": "FR-BC8",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "gap-hunt/ext-sweep/prd.json 'FR-BC8 (with NFR-10 injection focus)' verdict CONFIRMED (also independently confirmed again in addendum.json gap 1): no story preserves an in-progress user draft before injection nor guards against silent focus-steal; E3 adapters simply overwrite, E6-S3 covers popup a11y only. No plan.json covers hit."
+    },
+    {
+      "id": "FR-PA1",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Not a standalone gap-hunt requirement; cited only as context inside the FR-PA3 CONFIRMED gap's AC2 ('conservative default' fail-closed-to-DEGRADE). No story implements config-driven tier resolution at all (E3-S4 posture matrix is static code), so the conservative-default behavior FR-PA1 requires has no owner either. No plan.json covers hit, no feature-map.txt hit."
+    },
+    {
+      "id": "FR-PA3",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "gap-hunt/ext-sweep/prd.json 'FR-PA3' verdict CONFIRMED: no story makes a provider's GO/DEGRADE tier changeable-by-config over the remote-JSON channel (E3-S4 posture matrix is static code, src/registry/posture). Only a proposed_issue with a dedupe note (merge channel-plumbing into verdict.json's ticket, keep only registry/consumption logic) exists — nothing built. No plan.json covers hit."
+    },
+    {
+      "id": "FR-PA4",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Not a standalone gap-hunt requirement; cited only as context inside the FR-PA3 CONFIRMED gap's AC3 (shipping default-off-until-cleared gate for GO providers). No story implements the tier-config mechanism this rides on, so the shipping gate FR-PA4 requires has no owner. No plan.json covers hit, no feature-map.txt hit."
+    },
+    {
+      "id": "FR-PA5",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "gap-hunt/ext-sweep/prd.json 'FR-PA5 (fallback distribution + store-listing framing)' verdict CONFIRMED: E6-S1 packages CWS+AMO but no story builds the self-host/enterprise sideload fallback channel or the 'user-initiated own-session assistance' store-listing framing artifact. Only a proposed_issue exists. No plan.json covers hit."
+    },
+    {
+      "id": "FR-PA6",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "gap-hunt/ext-sweep/prd.json 'FR-PA6' verdict CONFIRMED: no story owns the shipped runtime closed-shadow-DOM detection that permanently demotes a provider to DEGRADE (E3-S3 Gemini adapter treats it as a transient miss). addendum.json gap 4 REFUTED a related pre-build live-DOM validation prototype as duplicate/covered elsewhere, but that is a distinct one-time spike gate, not this runtime guard — the runtime guard remains unbuilt. No plan.json covers hit."
+    },
+    {
+      "id": "AD-6",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index key -> [ENG-2211, ENG-2214, ENG-2448, identity-corpus]; confirmed by direct 'covers': [\"AD-6\"] hit in breakdown/identity/plan.json (line 503) and a corroborating hit in feature-map.txt (line 546). Genuine ticket-backed coverage, not an extsweep placeholder."
+    }
+  ]
+}

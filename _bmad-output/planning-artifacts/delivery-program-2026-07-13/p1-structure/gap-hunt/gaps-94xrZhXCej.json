@@ -1,0 +1,14 @@
+{
+  "slug": "94xrZhXCej",
+  "title": "ADR-0009: Auth-flow / exchange-token contract — dual-IdP exchange → session mint",
+  "verdict_summary": "Canonical (ratified 2026-07-07) decision record that ratifies the exchange-token → session-mint contract AS IMPLEMENTED, Clerk-first. It is not a fresh spec: it owns no new FR-*/NFR-* of its own and re-homes FR-15 mint ENGINE-side (ENG-1409). Every build obligation it names — engine opaque exchange-consume→mint (exchange-token-verifier.ts with alg:none/HS256 rejection), IdP-agnostic principal via orvex-studio-lib/auth, Clerk exchange (ENG-1446), Keycloak OIDC RP (ENG-1443) + SCIM, jti replay defence, fail-closed no-grace introspection with hard staleness bound, and push-revocation → satellite deny-list — maps to existing covered stories in the feature-map (POST /v1/exchange, Exchange-token session-mint consume → createSessionAndToken + native login removed fully, pkg/auth dual-IdP JWKS verify, RequireFresh no-grace introspection, push-revocation deny-list handler, Kafka revocation consumer, Keycloak OIDC-RP + SCIM relocation). FR-15 and FR-I11 are both present in covers-union. The Keycloak live-E2E is explicitly PARKED by PO 2026-07-07 as a tracked follow-up (not launch-gating), so its absence is a deliberate deferral, not a gap. Zero uncovered build obligations.",
+  "gaps": [],
+  "components": [
+    {"name": "apps/server/src/orvex/session-mint/exchange-token-verifier.ts (engine exchange-consume → session-mint; RS256/JWKS, alg:none/HS256 key-confusion rejected)", "quote": "the engine verifies the exchange token (RS256/JWKS; already built in `apps/server/src/orvex/session-mint/exchange-token-verifier.ts`, with `alg:none`/HS256 key-confusion rejected) and mints its own session"},
+    {"name": "orvex-studio-lib/auth (IdP-agnostic principal verifier, deny-by-default, scope derived server-side)", "quote": "IdP-agnostic `{idp, subject, tenant, org_or_realm, roles, token_scope}`, verified identically everywhere via `orvex-studio-lib/auth`; claims frozen at mint; scope derived server-side, deny-by-default"},
+    {"name": "orvex-studio-identity — OIDC RP (Keycloak path) + SCIM 2.0 (ENG-1443)", "quote": "OIDC RP + SCIM 2.0 live in identity (the Keycloak path)"},
+    {"name": "Clerk exchange / tenancy lane (ENG-1446, dev instance reused from orvex-prompt-studio-poc)", "quote": "OIDC RP (ENG-1443) and Clerk tenancy (ENG-1446) end at the engine mint"},
+    {"name": "Exchange token (short-lived, single-use, audience-bound, jti replay defence)", "quote": "The exchange token is a new high-value secret in flight: single-use, short-TTL, audience-bound to the engine; replay (jti) defence is required."},
+    {"name": "Push-revocation via event spine → satellite deny-list", "quote": "push-revocation via the event spine → satellite deny-list; never fail-open"}
+  ]
+}

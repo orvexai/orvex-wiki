@@ -1,0 +1,31 @@
+{
+  "space": "orvexstudio",
+  "pages": [
+    {"slug": "3z78laG6dB", "title": "Addendum — Product Brief: Orvex Studio", "doc_type": "product-brief", "status": "canonical", "requirement_bearing": true, "already_read": false},
+    {"slug": "iiCcKhGptV", "title": "Architecture Spine: Orvex Memory — Gap Closure", "doc_type": "architecture", "status": "canonical", "requirement_bearing": true, "already_read": true},
+    {"slug": "Ud8PKLNJ1I", "title": "Blue Ocean Strategy Canvas — Orvex Studio", "doc_type": "product-brief", "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "8CYo2CtJRq", "title": "Blue Ocean Strategy Canvas — Prompt Kit", "doc_type": "brainstorm", "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "t1lizeJLTy", "title": "Factors of Competition — How Orvex Compares", "doc_type": "research", "status": "draft", "requirement_bearing": true, "already_read": false},
+    {"slug": "XqxC4ayK4v", "title": "Family Map", "doc_type": "project-overview", "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "UBBkjzVojm", "title": "Market & Research", "doc_type": null, "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "FC23qWA8n3", "title": "Memory Feature Gap — Orvex vs the Field", "doc_type": "research", "status": "canonical", "requirement_bearing": true, "already_read": false},
+    {"slug": "vBvVDFklZo", "title": "Memory Gap-Closure — Fold-in Map", "doc_type": "technical-spec", "status": "canonical", "requirement_bearing": true, "already_read": false},
+    {"slug": "axvs1ZzxGn", "title": "Onboarding & Demo-Data Design Patterns — Research Digest", "doc_type": "research", "status": "draft", "requirement_bearing": true, "already_read": false},
+    {"slug": "2f8Q3oXBmw", "title": "Orvex Studio", "doc_type": "project-overview", "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "g9vWbSYplh", "title": "PRD: Orvex Memory — Gap Closure", "doc_type": "prd", "status": "canonical", "requirement_bearing": true, "already_read": true},
+    {"slug": "5wfaUiGmKI", "title": "Persona Discovery — Laura Pendleton (Year 9 English Teacher)", "doc_type": "persona", "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "XvX8ak8y5q", "title": "Personas", "doc_type": null, "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "4e7RWRxyEP", "title": "Pricing & Business", "doc_type": null, "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "VkmKm95soX", "title": "Product & Vision", "doc_type": null, "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "rgBOQh31p3", "title": "Product Brief: Orvex Studio", "doc_type": "product-brief", "status": "canonical", "requirement_bearing": true, "already_read": false},
+    {"slug": "fr7YaPq8Tl", "title": "Product Brief: The Librarian", "doc_type": "product-brief", "status": "canonical", "requirement_bearing": true, "already_read": false},
+    {"slug": "nmIMlwFvHM", "title": "Product Ideas, Pricing & Decisions — Session Capture", "doc_type": "product-brief", "status": "draft", "requirement_bearing": true, "already_read": false},
+    {"slug": "t34ohaxVps", "title": "Readiness Assessment — Orvex Studio (Diffusion of Innovations)", "doc_type": "research", "status": "draft", "requirement_bearing": true, "already_read": false},
+    {"slug": "O78H0DBQaw", "title": "Research — Landing Page & Onboarding Tour: Winning Attention Within Seconds", "doc_type": "research", "status": "draft", "requirement_bearing": true, "already_read": false},
+    {"slug": "3c6K999A8d", "title": "Research — Messaging & Positioning: The Fletch Framework in Context", "doc_type": "research", "status": "draft", "requirement_bearing": true, "already_read": false},
+    {"slug": "c0FDYIkAOK", "title": "Strategy & GTM", "doc_type": null, "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "YAQ1327roa", "title": "Target Groups & Personas — Orvex Studio", "doc_type": "persona", "status": "canonical", "requirement_bearing": false, "already_read": false},
+    {"slug": "MGeTtSyGtb", "title": "Value Proposition — Orvex Studio (Workshop Output)", "doc_type": "product-brief", "status": "draft", "requirement_bearing": false, "already_read": false},
+    {"slug": "CSqjqciAX9", "title": "Vision — Knowledge & Prompt Management for AI (for everyone)", "doc_type": "product-brief", "status": "canonical", "requirement_bearing": true, "already_read": false}
+  ]
+}

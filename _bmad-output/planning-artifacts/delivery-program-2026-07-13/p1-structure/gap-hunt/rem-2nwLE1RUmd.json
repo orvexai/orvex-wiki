@@ -1,0 +1,6 @@
+{
+  "slug": "2nwLE1RUmd",
+  "title": "PostHog",
+  "classification": "reference/explanation (Systems Architecture › Technology Stack) — no formal requirement IDs or MUST-mandated build obligations on this page itself; the actual build requirements live in and are covered by FR-CT-UBA-1..12 / NFR-CT-UBA-1..5 (PRD Addendum: User-Behavior Analytics, page TYWAtnvliD, linked from this page as \"the full design\") and the orvex-studio-console feature map (User-Behavior Analytics pane, 8 stories: analytics BFF, authz/credential confinement, session-replay embed, web/marketing analytics embed, privacy/erasure fronting)",
+  "gaps": []
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "94xrZhXCej",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0009",
+      "verdict": "COVERED",
+      "owner_or_reason": "ADR-0009 is a ratified decision record, not an FR/NFR-owning spec; it names no new build obligation of its own. Its named obligations map to already-covered feature-map stories under other ids: POST /v1/exchange — Clerk verify → exchange-token → engine session mint (FR-15); Exchange-token session-mint consume (RS256/JWKS) → createSessionAndToken; pkg/auth dual-IdP multi-issuer JWKS verify → canonical principal (deny-by-default); pkg/auth push-revocation deny-list handler; pkg/auth RequireFresh no-grace introspection; Raw in-process Kafka revocation consumer → deny-list apply (ADR-0013); SCIM 2.0 relocation (Users/Groups + SCIM tokens); OIDC RP (identity.yaml issuer-registry/JWKS-mirror). Keycloak live-E2E is PO-parked (deliberate deferral, not a gap)."
+    }
+  ]
+}

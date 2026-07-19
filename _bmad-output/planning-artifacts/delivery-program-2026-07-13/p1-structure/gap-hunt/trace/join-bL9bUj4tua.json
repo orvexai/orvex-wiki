@@ -1,0 +1,11 @@
+{
+  "slug": "bL9bUj4tua",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0014",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a coverage-index key (ADR is a decision record, not a build-tracked id), but its mandated build obligations are covered by concept alias under orvex-studio-knowledge stories: feature-map.txt:354 'Turbopuffer adapter, namespace-per-tenant hybrid store' (sole-engine + namespace-per-tenant) and feature-map.txt:365 'Isolation probes: cross-tenant + intra-tenant-restricted zero-byte + count-oracle in CI & per-deploy' (FR-K31b cross-tenant isolation gate). No 'ADR-0014' or '0014' string appears in coverage-index.json or any breakdown/*/plan.json covers array, but the ADR's decision content is fully realized by these stories."
+    }
+  ]
+}

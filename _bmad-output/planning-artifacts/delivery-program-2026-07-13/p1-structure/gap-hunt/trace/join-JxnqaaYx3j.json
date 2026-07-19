@@ -1,0 +1,11 @@
+{
+  "slug": "JxnqaaYx3j",
+  "total": 1,
+  "results": [
+    {
+      "id": "A-CELL",
+      "verdict": "COVERED",
+      "owner_or_reason": "Direct key in coverage-index.json, owned by ENG-2296, ENG-2496, ENG-2510, wiki-corpus — the umbrella cell-contract decision from this audit (freezes cell/cell_epoch in pkg/auth, orvexcell envelope stamp in pkg/events, cell-guard middleware, CELL_ID healthz echo) is tracked by story work."
+    }
+  ]
+}

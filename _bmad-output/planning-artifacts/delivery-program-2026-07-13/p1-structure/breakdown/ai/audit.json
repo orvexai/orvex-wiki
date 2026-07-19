@@ -1,0 +1,451 @@
+{
+  "repo": "orvex-studio-ai",
+  "audited_ref": "origin/main",
+  "head": "6c761ba 2026-07-14 20:47:20 +0200",
+  "branches_note": "Audited origin/main @6c761ba, which just merged origin/dev via PR #41 (origin/dev is level, ahead=0). Two unmerged branches sit 1 commit ahead of main: origin/fix/inline-canedit-404-clean-deny (b0c6b77 - treat can-edit/can-view 404 as a clean deny, ENG-2052/D13) and origin/crew/daniel (663b11a - scale studio-ai-metering to 0 until the Kafka client is wired). Neither changes any story's merged status materially. The user's local checkout is on fix/ai-canedit-envelope-unwrap (dc8930e), NOT audited. ENG-2069 hazard: minor fixes live on ahead branches but the substantive corpus is on main.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/chat/service.go:88 RunChat spine",
+        "internal/stream/sse.go",
+        "internal/server/server.go:255-262 chatHandler",
+        "internal/server/chat_route_test.go",
+        "internal/chat/service_test.go",
+        "internal/stream/sse_test.go"
+      ],
+      "note": "SSE data-stream chat turn is real end-to-end."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/chat/branch.go Fork",
+        "internal/store/postgres/chat_repo.go:170-210 branch ops",
+        "internal/chat/branch_test.go",
+        "internal/store/postgres/chat_repo_integration_test.go"
+      ],
+      "note": "Branch/fork + message lifecycle present; session list + full-text search absent."
+    },
+    "E1-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/retention/retention.go TTL",
+        "internal/store/postgres/chat_reconcile_integration_test.go",
+        "internal/jobs/orphan_sweep.go"
+      ],
+      "note": "TTL expiry + reconciler present; async auto-titling + cost-backfill absent."
+    },
+    "E1-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/chat/service.go:46-62 MemoryProvider recall seam",
+        "internal/memory/service.go RenderSection"
+      ],
+      "note": "Memory recall wired into chat; DfM page-context + RAG-citation assembly not wired on the chat path."
+    },
+    "E1-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/store/postgres/chat_repo.go:78 SaveMessage ledger",
+        "internal/store/postgres/chat_reconcile_integration_test.go",
+        "internal/jobs/orphan_sweep.go"
+      ],
+      "note": "Incremental turn ledger + reconciler heal path present with integration test."
+    },
+    "E2-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/chat/service.go:16-17,182-209 bounded loop (DefaultMaxSteps=8)"
+      ],
+      "note": "Bounded in-request loop present; data-driven tool registry + tool execution + output validation NOT built."
+    },
+    "E2-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/clients/clients.go:440,499 ApplyBlocksAt/ApplyBlocks chokepoint (principal-scoped)",
+        "internal/diagram/chokepoint.go NewWikiChokepoint"
+      ],
+      "note": "Block-chokepoint client present + used by diagram bake; page-edit as an LLM-callable tool not wired (blocked on E2-S1)."
+    },
+    "E2-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/budget/budget.go:41-59 DeniedError/ErrBudgetExceeded",
+        "internal/server/quota_preflight_test.go",
+        "internal/inline/errors.go",
+        "internal/inline/frame.go"
+      ],
+      "note": "402 QUOTA_EXCEEDED surfaced verbatim as a typed error frame."
+    },
+    "E2-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/searxng/searxng.go web_search (SSRF-guarded)",
+        "internal/client/searxng/http.go",
+        "internal/searxng/searxng_unit_test.go",
+        "internal/searxng/searxng_integration_test.go"
+      ],
+      "note": "SearXNG web-search helper present + SSRF-guarded; tools-retry surface not wired (tool leg unbuilt)."
+    },
+    "E2-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/diagram/ (13 files) convert.go/render.go/scene.go/chokepoint.go",
+        "internal/server/server.go:345 /api/ai/diagrams/bake",
+        "internal/diagram/bake_test.go",
+        "internal/diagram/convert_test.go",
+        "internal/server/diagram_route_test.go"
+      ],
+      "note": "Server-side mermaid->drawio/excalidraw bake is real and routed."
+    },
+    "E3-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/ask/ask.go:179 Service.Ask",
+        "internal/ask/ask.go:276 RetrieveCitations",
+        "internal/clients/clients.go:160 Knowledge.Retrieve",
+        "internal/ask/ask_test.go"
+      ],
+      "note": "Cited-ask core is real (retrieval + threshold + envelope); heavy multi-hop tool-loop is single-pass."
+    },
+    "E3-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/ask/ask.go:332 unansweredEnvelope",
+        "internal/ask/ask.go:362 buildCitations",
+        "internal/ask/ask.go:379 deepLinkURL",
+        "internal/ask/decode.go",
+        "internal/ask/ask_test.go"
+      ],
+      "note": "K5 synthesis + grounding rules + citation/deep-link composition present."
+    },
+    "E3-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/server/ask_discovery.go",
+        "internal/server/server.go:272 GET /api/ai/ask (authV.Middleware)",
+        "internal/workflow/workflow.go:126 RunAskTurn (real pre-flight+ask)",
+        "internal/server/ask_discovery_test.go"
+      ],
+      "note": "GET /api/ai/ask front door is real; MCP-direct lives in sibling orvex-studio-mcp."
+    },
+    "E3-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/inline/ (12 files) inline.go/stream.go/draft.go/prompt.go",
+        "internal/server/server.go:310-311 /api/ai/inline + accept",
+        "internal/server/inline_route_test.go",
+        "internal/inline/stream_test.go"
+      ],
+      "note": "Inline AI selection/cursor completions + transforms present and routed."
+    },
+    "E3-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/inline/draft.go Draft slot lifecycle",
+        "internal/store/postgres/draft_repo.go",
+        "migrations/0002_ai_inline_drafts.sql",
+        "internal/store/postgres/draft_repo_integration_test.go"
+      ],
+      "note": "Server-backed AI draft slot per {workspace,user,page} with lifecycle + TTL sweep present."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/provisioning/provisioning.go Provision (get-or-create tenant_ai_config)",
+        "internal/litellm/admin.go:108 CreateVirtualKey",
+        "cmd/ai-provisioner/main.go",
+        "internal/provisioning/provisioning_test.go",
+        "cmd/ai-provisioner/main_test.go"
+      ],
+      "note": "Per-tenant virtual key mint + max_budget backstop provisioning present."
+    },
+    "E4-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/budget/budget.go:61-70 CostCenter",
+        "internal/litellm/provider.go:23 BuildTags",
+        "internal/litellm/provider.go:32 Resolve"
+      ],
+      "note": "Per-caller scoped LiteLLM keys + cost-center tagging present."
+    },
+    "E4-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/clients/clients.go:663 Billing.ReadEntitlement",
+        "internal/budget/budget.go Preflight reconcile",
+        "internal/cache/cache.go:49 entitlement eviction TODO"
+      ],
+      "note": "Entitlement read + budget reconcile present; billing.entitlement.changed consumer + event-driven cache eviction NOT wired (TODO)."
+    },
+    "E4-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/budget/budget.go Preflight/Decision (fail-closed)",
+        "internal/nfr/nfr.go:110 HonestSpendRead",
+        "internal/server/quota_preflight_test.go",
+        "internal/budget/budget_test.go"
+      ],
+      "note": "Pre-flight spend check is real and fail-closed (never zero-on-failure)."
+    },
+    "E4-S5": {
+      "status": "absent",
+      "evidence": [
+        "(no model-class allowlist / frontier-gate code in internal/)"
+      ],
+      "note": "Free-tier model-class allowlist gate not implemented."
+    },
+    "E4-S6": {
+      "status": "present",
+      "evidence": [
+        "cmd/metering/main.go Kafka consumer group + journal",
+        "internal/metering/metering.go Journal.Record (upsert-on-ce-id)",
+        "migrations/0003_usage_outbox_tables.sql (ai_usage_journal)",
+        "internal/cache/spend_cache.go Redis counters",
+        "internal/metering/metering_test.go"
+      ],
+      "note": "Usage journal + Kafka metering worker + Postgres + Redis counters present; cap-alert emission is TODO."
+    },
+    "E4-S7": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:312 /api/ai/usage = todo() 501 stub",
+        "internal/budget/budget.go EmbeddingKey scaffold"
+      ],
+      "note": "Usage-reporting API is a 501 stub; nested embedding budget is scaffold; capped/uncapped CI gate not evidenced."
+    },
+    "E5-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/litellm/litellm.go gateway (sole model door)",
+        "internal/client/litellm/http.go+stream.go+chat.go transport",
+        "internal/litellm/provider.go tool-model swap via tags",
+        "(GET /api/ai/models route absent)"
+      ],
+      "note": "LiteLLM sole-gateway + transport + tool-model swap present; GET /api/ai/models endpoint absent."
+    },
+    "E5-S2": {
+      "status": "partial",
+      "evidence": [
+        "migrations/0004_tenant_ai_config.sql",
+        "internal/store/postgres/ai_credentials_repo.go (litellm_key_ciphertext)",
+        "internal/litellm/decrypt.go",
+        "(no settings HTTP API)"
+      ],
+      "note": "tenant_ai_config store + encrypted key present; settings API (HTTP) absent."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/litellm/litellm.go:10-11 read-only invariant (documented)",
+        "internal/budget/capread.go read-only DTO",
+        "(no settings-write handler to mask)"
+      ],
+      "note": "Read-only base-URL/virtual-key invariant documented; no settings-write path exists so no typed rejection is wired."
+    },
+    "E5-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/pii/redact.go Redact + Mask",
+        "internal/pii/redact_test.go",
+        "internal/inline/inline.go:79-88 AC11 PII-redaction seam NOT yet wired (honesty flag)"
+      ],
+      "note": "PII redactor present as a function; fail-closed outbound middleware not wired into the request path."
+    },
+    "E5-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/image/ (7 files) service.go/handler.go/decode.go",
+        "internal/server/server.go:328-332 /api/ai/images/generate (paid-gated via Billing)",
+        "internal/image/handler_test.go",
+        "internal/image/service_test.go"
+      ],
+      "note": "Image generation REST + emit-image tool shell + paid-gate present; MCP generate_image wiring lives in sibling repo."
+    },
+    "E6-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:349 /internal/v1/steps/model-call = todo() 501"
+      ],
+      "note": "model-call durable step is a 501 stub."
+    },
+    "E6-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:350 /internal/v1/steps/tool-exec = todo() 501"
+      ],
+      "note": "tool-exec durable step is a 501 stub."
+    },
+    "E6-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:351 /internal/v1/steps/result-sink = todo() 501"
+      ],
+      "note": "result-sink durable step is a 501 stub."
+    },
+    "E6-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/clients/session_exchange.go delegation-token exchange",
+        "internal/clients/session_exchange_test.go",
+        "(tool-exec step absent)"
+      ],
+      "note": "Session/delegation-token exchange primitive present; not wired at a tool-exec step (that step is absent)."
+    },
+    "E6-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/workflow/workflow.go (scaffold orchestrator)",
+        "internal/retention/retention.go + internal/jobs/orphan_sweep.go maintenance",
+        "internal/event/event.go KafkaRelay progress",
+        "(durable step boundary absent)"
+      ],
+      "note": "Maintenance schedules + outbox relay present; durable step boundary + A-RELAY progress-over-durable + worker guard absent."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/library/prompt.go PromptService CRUD+Apply",
+        "internal/store/postgres/prompt_repo.go",
+        "migrations/0002_memory_canvas_prompt_tables.sql (ai_prompt_library)",
+        "internal/library/library_test.go"
+      ],
+      "note": "Prompt library CRUD + system-prompt rendering present."
+    },
+    "E7-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/memory/service.go Recall + RenderSection",
+        "internal/store/postgres/memory_repo.go",
+        "migrations/0002_memory_canvas_prompt_tables.sql (ai_memories + ai_memory_settings)",
+        "internal/store/postgres/memory_integration_test.go",
+        "internal/memory/service_test.go"
+      ],
+      "note": "Memories CRUD + chat-recall + opt-in setting + space-scoped visibility present."
+    },
+    "E7-S3": {
+      "status": "absent",
+      "evidence": [
+        "(no extraction pipeline in internal/ or cmd/)"
+      ],
+      "note": "Async memory-extraction pipeline not implemented."
+    },
+    "E7-S4": {
+      "status": "absent",
+      "evidence": [
+        "(no beads/staging capture edge in internal/ or cmd/)"
+      ],
+      "note": "beads->staging capture edge not implemented."
+    },
+    "E7-S5": {
+      "status": "absent",
+      "evidence": [
+        "(no proposal dedup/reconcile or memory-poisoning/prompt-injection defense)"
+      ],
+      "note": "Proposal dedup/reconcile + memory-poisoning defense not implemented."
+    },
+    "E7-S6": {
+      "status": "absent",
+      "evidence": [
+        "(no proposal-quality eval / regression gate)"
+      ],
+      "note": "Continuous proposal-quality eval + regression gate not implemented."
+    },
+    "E7-S7": {
+      "status": "partial",
+      "evidence": [
+        "internal/memory/service.go:79 RenderSection per-memory + total payload caps",
+        "internal/memory/types.go injection-bound doc",
+        "(no >=50% measurement/surface, warm-cache, or inbound import)"
+      ],
+      "note": "Token-budgeted memory injection cap present; >=50% measure/surface + warm-cache + inbound import absent."
+    },
+    "E8-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/store/postgres/postgres.go (Repository seam, pgx-confined)",
+        "migrations/0001-0004 schema",
+        "postgres.go:19 tenant-GUC/RLS is a COMMENT only"
+      ],
+      "note": "Postgres schema + repository seam present; tenant-RLS policies + per-request GUC NOT implemented."
+    },
+    "E8-S2": {
+      "status": "partial",
+      "evidence": [
+        "migrations/0003_usage_outbox_tables.sql (ai_usage_journal PARTITION BY RANGE, default partition only)",
+        "internal/cache/ Redis caches",
+        "(no step-ledger tables; partition cronjob = 'future ticket')"
+      ],
+      "note": "Range-partitioned journal + Redis caches present; step-ledger append tables + partition cronjob absent."
+    },
+    "E8-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/auth/verifier.go (JWT+JWKS+identity, RS* alg allowlist, fail-closed)",
+        "internal/clients/session_exchange.go upstream token pass-through",
+        "internal/auth/verifier_test.go"
+      ],
+      "note": "Edge token verification + upstream pass-through present; explicit RequireFresh knob not separately named."
+    },
+    "E8-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/event/event.go outbox Publisher + KafkaRelay",
+        "migrations/0003_usage_outbox_tables.sql (ai_event_outbox)",
+        "internal/metering/metering.go upsert-on-ce-id",
+        "cmd/server/main.go:451 startOutboxRelay",
+        "internal/event/event_test.go + kafka_consumer_test.go"
+      ],
+      "note": "Transactional outbox + Kafka relay + ce-id idempotency + orvexcell fail-closed present."
+    },
+    "E8-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:124-163 /healthz (echoes CELL_ID+CLUSTER_NAME) + /readyz + /metrics",
+        "internal/health/service.go",
+        "internal/nfr/nfr.go SLO budgets",
+        "internal/health/service_test.go + integration_test.go"
+      ],
+      "note": "Liveness/readiness split + cell-contract echo + metrics present; full OTel->LGTM SLI export partial."
+    },
+    "E8-S6": {
+      "status": "present",
+      "evidence": [
+        ".github/workflows/ci.yml:275 static AGPL-import scan (AC7)",
+        "internal/nfr/nfr.go latency budgets + EnforcedOps gate",
+        "internal/nfr/nfr_test.go + contract_test.go"
+      ],
+      "note": "No-AGPL-import CI guard + latency-budget verification present."
+    },
+    "E9-S1": {
+      "status": "absent",
+      "evidence": [
+        "(no improve-with-AI backend; only referenced as a billing GatedFeature name in clients.go:692)"
+      ],
+      "note": "Improve-with-AI backend not implemented."
+    },
+    "E9-S2": {
+      "status": "absent",
+      "evidence": [
+        "(no Prompt Composer backend; 'composer' only a billing GatedFeature name in clients.go:691)"
+      ],
+      "note": "Prompt Composer backend not implemented."
+    },
+    "E9-S3": {
+      "status": "absent",
+      "evidence": [
+        "(no wizard task-first prompt-builder AI-assist backend)"
+      ],
+      "note": "Wizard prompt-builder AI-assist backend not implemented."
+    },
+    "E9-S4": {
+      "status": "absent",
+      "evidence": [
+        "(no Orvex rating / structural-quality AI scoring)"
+      ],
+      "note": "Orvex rating AI scoring factor not implemented."
+    }
+  },
+  "summary": "orvex-studio-ai is a substantial, honestly-scaffolded Go service: 20 stories present, 17 partial, 12 absent. The interactive front doors are real and tested (chat SSE, cited-ask GET /api/ai/ask, inline, diagram bake, image gen) as is the metering/budget spine (pre-flight fail-closed gate, per-caller scoped keys, Kafka usage journal, transactional outbox+relay, edge auth, health). The service is deliberate about honesty: unbuilt pieces are 501 todo() stubs, not fakes. The main gaps are the durable Temporal step-APIs (E6, all 501 stubs), the memory-extraction/proposal slice (E7-S3..S6 absent), the AI product-feature backends (E9 all absent), and several supporting cross-cuts (tool-execution leg, tenant-RLS, settings API + /api/ai/models, model-class allowlist gate, usage-reporting API)."
+}

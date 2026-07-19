@@ -1,0 +1,49 @@
+{
+  "slug": "PxoUAiGN29",
+  "title": "ADR-0015: Identity-owned tenancy DB — ruling-7 cross-DB delete reconcile (drop the CASCADE FK) + the encryption and existence-read seams",
+  "verdict_summary": "Canonical (ratified 2026-07-08), not a stub/superseded — a real decision ADR governing the ENG-1446 ClerkTenancySpine leg with concrete identity build obligations. Its core rulings ARE covered: dropping the cross-DB CASCADE FK + the idempotent delete-event reconcile consumer + the orphan-sweep backstop land in identity epic E5 (E5-S3 outbox/relay, E5-S4 reconcile deprovisioner ownership; FR-I15), and the E5-S4 code audit confirms the SpineReconciler CloudEvent worker + orphan-sweep are already implemented; the org->workspace mapping table lands in E3-S1 (FR-I8); the engine-side publish of workspace.deleted/user.deleted is covered by wiki FR-37. Two named seams the ADR explicitly raises as ABSENT from the split repo have no build story: ruling 7a (at-rest encryption of the DB-backed Clerk config via an orvex-studio-lib OpenBao+ESO helper) and ruling 7b (the engine contracts existence-read the orphan-sweep must call instead of a cross-DB read).",
+  "gaps": [
+    {
+      "requirement": "Ruling 7a — at-rest encryption for the DB-backed Clerk config via an orvex-studio-lib OpenBao+ESO encryption helper",
+      "quote": "Ruling 7a — the encryption seam = OpenBao + ESO via a lib helper. The DB-backed Clerk config is encrypted at rest through the established OpenBao + External Secrets Operator secrets pattern ... surfaced via an `orvex-studio-lib` encryption helper. ... The fork's `@orvex/secret` `LocalSecretService` is NOT ported; there is NO bespoke in-repo cipher and NO hardcoded/constant key. DB-wins over env; a masked-secret sentinel on save leaves the stored ciphertext unchanged.",
+      "why_uncovered": "The lib breakdown (lib/plan.json + bodies) has no encryption/secret-helper story at all; grep for encrypt|secret-helper|openbao|cipher|at-rest returns nothing. On the identity side, E4-S6 relocates the clerkConfig admin route but only for the admin-org authz gate (no at-rest encryption), and E8's only OpenBao/ExternalSecrets mention is a one-line cross-cutting infra-tier note (pod secret delivery for E1-E7's own deployment credentials), not a DB-column encryption helper with DB-wins-over-env + masked-secret-sentinel semantics. feature-map.txt's only encrypted-config hit is an unrelated ai/tenant_ai_config store. This is a BUILD obligation (a named lib artifact + its identity consumer), not a definition-phase pack item — ENG-2101 only pins contract tags for stories that already exist in plan.json; it does not create scope.",
+      "suggested_home": "New orvex-studio-lib story for the encryption helper (keyed by OpenBao/ESO material), plus an identity story (extend E4-S6 or E3-S1's config store) that encrypts the DB-backed Clerk config at rest through it with DB-wins-over-env + masked-secret sentinel.",
+      "verdict": "CONFIRMED",
+      "verdict_reason": "No lib/identity story anywhere authors an at-rest encryption helper or DB-wins-over-env/masked-sentinel semantics for the DB-backed Clerk config; E4-S6/E8 cover authz and infra-secret-delivery only, a genuinely distinct concern."
+    },
+    {
+      "requirement": "Ruling 7b — engine contracts-service existence-read endpoint that the orphan-sweep calls to determine engine-workspace existence (additive to ENG-1365)",
+      "quote": "Ruling 7b — cross-DB existence reads go through the contracts seam. The orphan-sweep determines engine-workspace existence by calling the engine's contracts service API (the `events-contracts-catalog` / `ENG-1365` seam), never a direct cross-DB query or join ... The engine existence-read contract endpoint (7b) is assumed to be part of the `ENG-1365` catalog; if it does not yet exist there, `ENG-1365` gains a small additive contract (an existence/HEAD-style read).",
+      "why_uncovered": "No story in contracts/, wiki/, or wiki-api/ exposes an engine workspace-existence (HEAD/exists) read contract; the only existence-related wiki-api story (E1-S5 FR-A17) is the OPPOSITE concern (no-existence-oracle authz propagation). contracts/E2-S1 (engine-primitives.yaml) is a code-audited 'present' surface with a closed, fully-enumerated 15-op list (blocks/ACL/export/api-key/exchange/provision/realtime-invalidate/export-policy/quota-status) that does not include an existence/HEAD op; contracts/E2-S3 (identity.yaml) is the identity-side surface, not the engine side. No ENG-1365 reference exists anywhere in breakdown/*/plan.json. The sanctioned engine-side existence-read contract the sweep must call has no BUILD story, so the sweep either does a forbidden cross-DB read or depends on an unbuilt/unpinned surface.",
+      "suggested_home": "Additive contract in the events-contracts-catalog / engine (ENG-1365 scope; contracts + wiki/wiki-api engine surface) — a small existence/HEAD-style workspace-exists read the identity orphan-sweep consumes.",
+      "verdict": "CONFIRMED",
+      "verdict_reason": "engine-primitives.yaml's op list is closed and audited-present without an existence/HEAD read; no ENG-1365 reference exists anywhere in the breakdown, so the sweep's mandated seam has no owning story."
+    }
+  ],
+  "components": [
+    {
+      "name": "orvex-studio-identity org->workspace mapping table (no cross-DB FK)",
+      "quote": "The identity-owned org->workspace mapping table holds no foreign key into engine `workspaces`. Referential integrity for cross-DB deletes moves to eventual reconcile."
+    },
+    {
+      "name": "identity delete-event reconcile consumer (workspace.deleted / space.deleted / page.deleted, idempotent)",
+      "quote": "identity consumes `workspace.deleted` / `space.deleted` / `page.deleted` CloudEvents ... and reconciles the mapping idempotently (keyed by event/resource id ... ). One adapter behind the contract client; no inline Kafka in the service."
+    },
+    {
+      "name": "identity orphan-sweep backstop (periodic scheduled job)",
+      "quote": "A periodic scheduled job reconciles deletes missed while the consumer was down. It is the safety net for the eventual-consistency window and is itself idempotent."
+    },
+    {
+      "name": "orvex-studio-lib encryption helper (OpenBao/ESO-keyed)",
+      "quote": "surfaced via an `orvex-studio-lib` encryption helper. The key material is OpenBao-managed and delivered by ESO."
+    },
+    {
+      "name": "engine contracts-service existence-read endpoint (ENG-1365)",
+      "quote": "the orphan-sweep determines engine-workspace existence by calling the engine's contracts service API (the `events-contracts-catalog` / `ENG-1365` seam)"
+    },
+    {
+      "name": "ClerkTenancySpineSpec (ENG-1446 binary gate)",
+      "quote": "`ClerkTenancySpineSpec` (the `ENG-1446` binary gate) asserts no cross-DB CASCADE FK, idempotent consume-twice, and the sweep — behaviour-through-interface, never a cross-DB join."
+    }
+  ]
+}

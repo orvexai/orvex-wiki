@@ -1,0 +1,71 @@
+{
+  "slug": "o2waDNw3ix",
+  "total": 13,
+  "results": [
+    {
+      "id": "A-LAYOUT",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E1-S1 \"A-LAYOUT directory scaffold + README layout-table sync\" (title-level tag; not a coverage-index key since A-* are ADR-style rulings, not FR/NFR ids)"
+    },
+    {
+      "id": "A-AUTHOR",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E1-S5 \"Authored-not-generated provenance guard\" — body AC1/AC2 cite [Source: NFR-C1, A-AUTHOR]"
+    },
+    {
+      "id": "A-CATALOG",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E3-S1 \"CloudEvent type catalog (events/catalog.yaml)\" — AC3 cites [Source: FR-C6, A-CATALOG]"
+    },
+    {
+      "id": "A-PROFILES",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E3-S2 \"Envelope profiles PROFILES.md\" — AC1/AC2 cite [Source: FR-C7, A-PROFILES]; also referenced in E3-S6"
+    },
+    {
+      "id": "A-SSE",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E3-S5 \"SSE wire contract WIRE.md + EVENTS.md authority flip\" — AC6 cites [Source: FR-C10, A-SSE]; also referenced in E3-S6"
+    },
+    {
+      "id": "A-OPENAPI",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E1-S6 \"Shared _components: error envelope, pagination, auth schemes\" — AC1-3 cite A-OPENAPI; also referenced in E1-S3, E2-S6, E2-S7"
+    },
+    {
+      "id": "A-SOURCES",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E4-S2 \"source-adapter registry SCHEMA.yaml + wiki.yaml\" — AC1/AC2/AC5 cite [Source: FR-C12, A-SOURCES]"
+    },
+    {
+      "id": "A-DFM",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key A-DFM -> [ENG-2487, wiki-corpus]; also breakdown/contracts E4-S4 \"DfM round-trip fixtures + pkg/dfm Go API surface\""
+    },
+    {
+      "id": "A-GATES",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json Gates epic E6 (E6-S1..E6-S5, \"AGPL-import guard / divergence-gate / contract-drift gates / FR-31 harness / DfM parity gate\"); also referenced in E1-S4 AC4"
+    },
+    {
+      "id": "A-VERSION",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E1-S4 \"Versioning & change policy: VERSION/CHANGELOG/semver tags/x-status\" — AC1/AC5 cite A-VERSION; also referenced in E1-S2"
+    },
+    {
+      "id": "A-CODEGEN",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key A-CODEGEN -> [extsweep]; also breakdown/contracts E1-S4 cites [Architecture A-VERSION, A-CODEGEN]"
+    },
+    {
+      "id": "F-QUOTA",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/contracts/plan.json E2-S1 \"engine-primitives.yaml operations (...F-QUOTA)\" — AC3 defines the F-QUOTA quota-status read primitive"
+    },
+    {
+      "id": "ADR-0008",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key ADR-0008 -> [extsweep]; also breakdown/contracts E7-S2 \"Change-authority governance: ADR-0008 lane classifier + additive-fast-track review SLA\" (dedicated story, AC1-AC5)"
+    }
+  ]
+}

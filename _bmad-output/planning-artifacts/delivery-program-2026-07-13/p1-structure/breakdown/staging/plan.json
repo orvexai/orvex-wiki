@@ -1,0 +1,119 @@
+{
+  "service": "orvex-studio-staging",
+  "requirement_source": "mOzNDhn322 (PRD: orvex-studio-staging) — FR-STG1..29 + NFR-STG1..6; grounded by P5R7eCXJA0 (PRD Addendum) and GOacy9kdJz (Architecture: AD-1..AD-14)",
+  "sources": [
+    {"slug": "mOzNDhn322", "title": "PRD: orvex-studio-staging"},
+    {"slug": "P5R7eCXJA0", "title": "PRD Addendum — orvex-studio-staging"},
+    {"slug": "GOacy9kdJz", "title": "Architecture: orvex-studio-staging"}
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] staging: Service foundation — six-tier satellite, contracts codegen, auth, RLS store & event spine",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {"id": "E1-S1", "title": "[staging] Service skeleton — six-tier layout, cmd binaries, env-only config, health/ready", "body_file": "bodies/E1-S1.md", "covers": ["NFR-STG6"], "audit": "partial"},
+        {"id": "E1-S2", "title": "[staging] Contracts codegen wiring + AGPL-import denylist + drift gate", "body_file": "bodies/E1-S2.md", "covers": ["NFR-STG2", "FR-STG26"], "audit": "partial"},
+        {"id": "E1-S3", "title": "[staging] Auth middleware via orvex-studio-lib/pkg/auth + tenant GUC + VerifyFresh", "body_file": "bodies/E1-S3.md", "covers": ["NFR-STG5"], "audit": "partial"},
+        {"id": "E1-S4", "title": "[staging] Postgres store baseline — RLS fail-closed migration 0001, UUIDv7, testcontainers", "body_file": "bodies/E1-S4.md", "covers": ["NFR-STG5", "NFR-STG3"], "audit": "present"},
+        {"id": "E1-S5", "title": "[staging] Transactional outbox + relay + spine consumer + OTel obs", "body_file": "bodies/E1-S5.md", "covers": ["NFR-STG6", "NFR-STG4"], "audit": "partial"}
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] staging: Staged proposal intake — proposals, ChangeSets, provenance, pointers & quotas",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {"id": "E2-S1", "title": "[staging] Submit Proposal — 5 operations, DfM/PM validation, base-version stamp, receipt", "body_file": "bodies/E2-S1.md", "covers": ["FR-STG1", "FR-STG4"], "audit": "absent"},
+        {"id": "E2-S2", "title": "[staging] ChangeSet lifecycle state machine — open→applied/expired, explicit + idle submit", "body_file": "bodies/E2-S2.md", "covers": ["FR-STG2"], "audit": "absent"},
+        {"id": "E2-S3", "title": "[staging] Provenance — two-sided immutable attribution keyed on verified principal", "body_file": "bodies/E2-S3.md", "covers": ["FR-STG5"], "audit": "absent"},
+        {"id": "E2-S4", "title": "[staging] Pointer-state payloads — S3 tenant-keyed bodies, sha256 hash in queue rows", "body_file": "bodies/E2-S4.md", "covers": ["FR-STG6"], "audit": "absent"},
+        {"id": "E2-S5", "title": "[staging] Admission control & quotas — in-flight caps, 402 QUOTA_EXCEEDED, depth/age alerting", "body_file": "bodies/E2-S5.md", "covers": ["FR-STG3", "NFR-STG2"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] staging: Librarian triage — disposition, find-before-create routing & hard conflict detection",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {"id": "E3-S1", "title": "[staging] Disposition production per Proposal — route, confidence, diff, justification", "body_file": "bodies/E3-S1.md", "covers": ["FR-STG7"], "audit": "absent"},
+        {"id": "E3-S2", "title": "[staging] Find-before-create routing — knowledge dedup, duplicate-of, divert-to-workgraph", "body_file": "bodies/E3-S2.md", "covers": ["FR-STG8"], "audit": "absent"},
+        {"id": "E3-S3", "title": "[staging] Hard conflict detection — authoritative read, anchor re-resolution, no auto-merge", "body_file": "bodies/E3-S3.md", "covers": ["FR-STG9"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] staging: Autonomy dial, trust tiers & batch review queue",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {"id": "E4-S1", "title": "[staging] Autonomy Dial enforcement — server-side policy verdict per tenant+space", "body_file": "bodies/E4-S1.md", "covers": ["FR-STG10"], "audit": "absent"},
+        {"id": "E4-S2", "title": "[staging] Trust Tiers — per-producer acceptance history gates auto-apply & throttles", "body_file": "bodies/E4-S2.md", "covers": ["FR-STG11"], "audit": "absent"},
+        {"id": "E4-S3", "title": "[staging] Review Queue — filtered bulk decide, buckets, mandatory adjudication lane", "body_file": "bodies/E4-S3.md", "covers": ["FR-STG12"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] staging: Apply engine, triage-time beautification & scheduled publishing",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {"id": "E5-S1", "title": "[staging] Apply engine — wiki-api CAS writes, receipts, pause state, rollback, step-APIs", "body_file": "bodies/E5-S1.md", "covers": ["FR-STG13", "NFR-STG3"], "audit": "absent"},
+        {"id": "E5-S2", "title": "[staging] Beautification at triage — re-author, mechanical done-bar, sha256 artifact", "body_file": "bodies/E5-S2.md", "covers": ["FR-STG14"], "audit": "absent"},
+        {"id": "E5-S3", "title": "[staging] Scheduled ChangeSet publishing — UTC instant+tzid, cancellable, conflict re-run", "body_file": "bodies/E5-S3.md", "covers": ["FR-STG28"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] staging: Librarian learning loop, cold-start & prompt-pack marketplace",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {"id": "E6-S1", "title": "[staging] Feedback capture — append-only events linked to proposal, disposition, pack version", "body_file": "bodies/E6-S1.md", "covers": ["FR-STG15"], "audit": "absent"},
+        {"id": "E6-S2", "title": "[staging] Learning application & transparency — exemplars, tiers, held-out harness, changelog", "body_file": "bodies/E6-S2.md", "covers": ["FR-STG16", "FR-STG17"], "audit": "absent"},
+        {"id": "E6-S3", "title": "[staging] Cold-start defaults — baseline pack, recommend dial, content-free exemplars", "body_file": "bodies/E6-S3.md", "covers": ["FR-STG27"], "audit": "absent"},
+        {"id": "E6-S4", "title": "[staging] Prompt-pack marketplace v1-minimal — publish/install/rate, admin-approval install", "body_file": "bodies/E6-S4.md", "covers": ["FR-STG29"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] staging: Librarian maintenance mandate — the standing tidy sweeps",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {"id": "E7-S1", "title": "[staging] Sweep executor + duplicate & merge sweep — corpus near-dup, supersede-merge", "body_file": "bodies/E7-S1.md", "covers": ["FR-STG18"], "audit": "absent"},
+        {"id": "E7-S2", "title": "[staging] Staleness & verification queue + retrieval trust-gating dependency contract", "body_file": "bodies/E7-S2.md", "covers": ["FR-STG19"], "audit": "absent"},
+        {"id": "E7-S3", "title": "[staging] Structure & link hygiene sweep — orphans, broken links, misfiled, IA flags", "body_file": "bodies/E7-S3.md", "covers": ["FR-STG20"], "audit": "absent"},
+        {"id": "E7-S4", "title": "[staging] Beautification sweep — flag pages failing the mechanical bar, propose diffs", "body_file": "bodies/E7-S4.md", "covers": ["FR-STG21"], "audit": "absent"},
+        {"id": "E7-S5", "title": "[staging] AI-groundability flag + review-state gate — page-meta via wiki-api, knowledge enforces", "body_file": "bodies/E7-S5.md", "covers": ["FR-STG22"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] staging: Platform surfaces, events & the hard-cut migration",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {"id": "E8-S1", "title": "[staging] MCP staging section — staging_* tools, hidden category, per-agent auth", "body_file": "bodies/E8-S1.md", "covers": ["FR-STG23"], "audit": "absent"},
+        {"id": "E8-S2", "title": "[staging] CLI staging section — orvex-cli staging parity verbs", "body_file": "bodies/E8-S2.md", "covers": ["FR-STG24"], "audit": "absent"},
+        {"id": "E8-S3", "title": "[staging] Events on the spine — studio.staging.* CloudEvents + contracts catalog", "body_file": "bodies/E8-S3.md", "covers": ["FR-STG26"], "audit": "absent"},
+        {"id": "E8-S4", "title": "[staging] Hard-cut migration of ALL agent wiki-write surfaces — loud errors, sequenced last", "body_file": "bodies/E8-S4.md", "covers": ["FR-STG25"], "audit": "absent"},
+        {"id": "E8-S5", "title": "[staging] Curator supersession — Card v1→Proposal verbatim mapping + goldens", "body_file": "bodies/E8-S5.md", "covers": ["FR-STG25"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E9",
+      "title": "[EPIC] staging: Scale benchmark & cross-cutting NFR release gate",
+      "body_file": "bodies/E9.md",
+      "stories": [
+        {"id": "E9-S1", "title": "[staging] 100-Proposal load benchmark — submit/triage/apply SLOs as release gate", "body_file": "bodies/E9-S1.md", "covers": ["NFR-STG1"], "audit": "absent"},
+        {"id": "E9-S2", "title": "[staging] Isolation & auditability — apply-rate throttle, per-tenant fairness, immutable audit", "body_file": "bodies/E9-S2.md", "covers": ["NFR-STG2", "NFR-STG4"], "audit": "partial"},
+        {"id": "E9-S3", "title": "[staging] Six-surface E2E + P8 isolation probes — fresh-tenant real-data pass", "body_file": "bodies/E9-S3.md", "covers": ["NFR-STG5", "NFR-STG6"], "audit": "absent"}
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-STG1", "FR-STG2", "FR-STG3", "FR-STG4", "FR-STG5", "FR-STG6", "FR-STG7", "FR-STG8", "FR-STG9", "FR-STG10",
+      "FR-STG11", "FR-STG12", "FR-STG13", "FR-STG14", "FR-STG15", "FR-STG16", "FR-STG17", "FR-STG18", "FR-STG19", "FR-STG20",
+      "FR-STG21", "FR-STG22", "FR-STG23", "FR-STG24", "FR-STG25", "FR-STG26", "FR-STG27", "FR-STG28", "FR-STG29",
+      "NFR-STG1", "NFR-STG2", "NFR-STG3", "NFR-STG4", "NFR-STG5", "NFR-STG6"
+    ],
+    "uncovered": []
+  }
+}

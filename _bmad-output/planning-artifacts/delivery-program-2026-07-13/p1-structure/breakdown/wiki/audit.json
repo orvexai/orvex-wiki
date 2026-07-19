@@ -1,0 +1,329 @@
+{
+  "repo": "orvex-wiki",
+  "audited_ref": "origin/main",
+  "head": "84e4f3dd 2026-07-14 19:42:01 +0200",
+  "branches_note": "origin/main HEAD 84e4f3dd (#117 enable CLOUD). Fix branches (fix/engine-*, flip/prod-modules-on-cutover) are 1-2 commits ahead but those are the already-merged #114-#117 fixes; origin/dev is 2 ahead only for dev-scoped Kafka-topic isolation + a main->dev sync (no unmerged feature work). Main is the current state.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/orvex-root.module.ts",
+        "apps/server/src/orvex/orvex-root.module.spec.ts",
+        "scripts/ci/engine-only-import-guard.sh",
+        "eslint.config.mjs"
+      ],
+      "note": "orvex/* tree mounted via the single OrvexRootModule.register() import (app.module.ts:137); engine-only-import-guard.sh + eslint no-@docmost/no-ee boundary rules; VANILLA byte-parity gate on ORVEX_MODULES_ENABLED."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        "scripts/check-patches.mjs",
+        "scripts/lib/patches-drift.mjs",
+        "patches/inline-edit-allowlist.json",
+        ".github/workflows/ci.yml"
+      ],
+      "note": "patches-drift + frozen inline-edit-allowlist CI gate present (self-test fixtures), but it is a fuzzy patch-context matcher, not the FR-30 weighted hot-file conflict-hunk model; the allow-list ledger is EMPTY (entries:[]), not the 13-row ledger."
+    },
+    "E1-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No overlay-rebase import runbook doc (docs/ holds only delivery-checklist.md + design/patches-drift-ci-design.md); no 15-item correctness-hardening allow-list class evidenced."
+    },
+    "E1-S4": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/extensions/orvex-migrator.service.ts",
+        "apps/server/src/orvex/extensions/orvex-migrator.concurrency.spec.ts",
+        "apps/server/src/orvex/extensions/orvex-migrator.spec.ts"
+      ],
+      "note": "pg_advisory_xact_lock boot-migrate (service.ts:70/82) + orvex_migrations ledger table (service.ts:113) + renamed-migration duplicate trap tested in orvex-migrator.spec.ts; concurrency spec covers the lock."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/database/migrations/20260708T100000-orvex-page-meta-governance-cols.ts",
+        "apps/server/src/database/migrations/20260709T090000-migrate-provenance-trio-to-page-meta.ts",
+        "apps/server/src/orvex/page-metadata/orvex-page-metadata.service.ts",
+        "apps/server/src/orvex/page-metadata/orvex-page-metadata.service.spec.ts",
+        "apps/server/src/database/types/db.d.ts:355"
+      ],
+      "note": "orvex_page_meta side table carries governance/lifecycle/provenance + version/content_hash; provenance trio migrated off pages via INSERT..SELECT; upstream pages kept stock (fresh port, not a column move); read-parity covered by migration + service specs."
+    },
+    "E2-S2": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/page-blocks/apply-ops.service.ts",
+        "apps/server/src/orvex/page-blocks/__tests__/apply-ops.service.race.spec.ts",
+        "apps/server/src/orvex/page-blocks/orvex-apply-ops.controller.e2e.spec.ts",
+        "apps/server/src/orvex/page-blocks/apply-ops-batch.util.ts"
+      ],
+      "note": "Typed PM-JSON apply-ops chokepoint with casIncrementMeta CAS guard, 409 on ifVersion mismatch, atomic-or-409; race + e2e tests."
+    },
+    "E2-S3": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/core/internal-api/internal-api.service.ts",
+        "apps/server/src/core/permissions/orvex-permissions.service.ts",
+        "apps/server/src/core/permissions/page-permission.reads.spec.ts",
+        "apps/server/src/core/internal-api/internal-api.controller.spec.ts"
+      ],
+      "note": "FR-13 ACL primitive: evalPage page-level eval (orvex-permissions.service.ts:101) + batch delta-pull ACL intersection (internal-api filterAccessiblePages); tested."
+    },
+    "E2-S4": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/core/internal-api/internal-api.service.ts",
+        "apps/server/src/integrations/export/export.service.ts",
+        "apps/server/src/orvex/audit/orvex-audit-actor.resolver.ts",
+        "apps/server/src/core/internal-api/internal-api.controller.spec.ts"
+      ],
+      "note": "exportPage markdown/text_repr (FR-18/38) with a tenant-isolation IDOR guard before ExportService fetch (internal-api.service.ts:137); real audit-service present; tested."
+    },
+    "E2-S5": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/core/page-provenance/orvex-page-provenance.service.ts",
+        "apps/server/src/core/page-provenance/orvex-page-provenance.service.spec.ts",
+        "apps/server/src/collaboration/extensions/persistence.extension.ts",
+        "apps/server/src/collaboration/collaboration.handler.spec.ts"
+      ],
+      "note": "aiAuthored provenance stamp on REST + collab (updatePageContent markAiAuthored) with provenance trio in orvex_page_meta; service + collab handler specs."
+    },
+    "E2-S6": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/transclusion-safeguard/interceptors/transclusion-safeguard.interceptor.ts",
+        "apps/server/src/orvex/transclusion-safeguard/orvex-transclusion-safeguard.service.ts",
+        "apps/server/src/orvex/transclusion-safeguard/orvex-transclusion-impact.controller.spec.ts",
+        "apps/server/src/orvex/transclusion-safeguard/interceptors/transclusion-safeguard.interceptor.spec.ts"
+      ],
+      "note": "Transclusion-impact primitive + safeguard interceptor on destructive mutation of a transcluded source; interceptor + service + impact-controller specs."
+    },
+    "E2-S7": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/page-metadata/orvex-page-supersede.controller.ts",
+        "apps/server/src/orvex/page-metadata/orvex-page-promote.controller.ts",
+        "apps/server/src/orvex/page-metadata/ws-page-lifecycle-broadcaster.ts",
+        "apps/server/src/orvex/page-metadata/orvex-page-supersede.integration.spec.ts",
+        "apps/server/src/orvex/page-metadata/eng-1434-ac11-discovery-hiding.integration.spec.ts"
+      ],
+      "note": "FR-40 lifecycle (supersede/promote/status/archive) + superseded-tree discovery filter + ws lifecycle broadcaster riding orvex_page_meta; integration specs."
+    },
+    "E3-S1": {
+      "status": "partial",
+      "evidence": [
+        "packages/@orvex/dfm/src/pm-to-dfm.ts",
+        "packages/@orvex/dfm/src/dfm-to-json.ts",
+        "packages/@orvex/dfm/src/errors.ts",
+        "packages/@orvex/dfm/test/dfm.spec.ts"
+      ],
+      "note": "@orvex/dfm package extracted (pmToDfm/dfmToJson/registry/errors) with real round-trip for the covered paragraph subset + honesty-contract throws for uncovered types; opaque-fence round-trip is a TYPED SIGNATURE that throws DFM_NOT_IMPLEMENTED (pm-to-dfm.ts:84); engine write-path does not yet import it (only llms + one import test do)."
+    },
+    "E3-S2": {
+      "status": "partial",
+      "evidence": [
+        "packages/@orvex/dfm/test/fixtures/paragraph.pm.json",
+        "packages/@orvex/dfm/test/fixtures/paragraph.dfm.md",
+        "eslint.config.mjs"
+      ],
+      "note": "Local golden fixtures exist but no cross-repo Go-twin conformance (no orvex-studio-contracts fixture wiring); no dedicated DfM import-boundary guard script found (only the general engine-only-import-guard)."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/entitlement/entitlement.service.ts",
+        "apps/server/src/orvex/entitlement/entitlement-cache.ts",
+        "apps/server/src/orvex/entitlement/entitlement-http-billing.port.ts",
+        "apps/server/src/orvex/entitlement/entitlement-no-hardcoded-caps.spec.ts",
+        "apps/server/src/orvex/entitlement/entitlement.service.spec.ts"
+      ],
+      "note": "Entitlement reader with short-TTL cache + HTTP billing port, fail-closed only when port fails and no cached projection (service.ts:57); no-hardcoded-caps spec enforces caps come from the entitlement."
+    },
+    "E4-S2": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/entitlement/entitlement.service.ts",
+        "apps/server/src/orvex/entitlement/entitlement-write-chokepoint.integration.spec.ts",
+        "apps/server/src/orvex/entitlement/entitlement-storage-chokepoint.integration.spec.ts",
+        "apps/server/src/orvex/entitlement/entitlement-member-chokepoint.integration.spec.ts",
+        "apps/server/src/core/page/services/page.service.ts:171"
+      ],
+      "note": "Quota pre-flight enforced at page-create/attachment-upload/member-add/import chokepoints (assertWithinQuota/assertIncrementWithinQuota) with integration specs, but currentUsage is a DB count/aggregate passed by the caller — the Redis fast-counter O(1) mechanism is NOT implemented."
+    },
+    "E4-S3": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/entitlement/quota.exception.ts",
+        "apps/server/src/orvex/entitlement/entitlement.service.ts"
+      ],
+      "note": "402 QUOTA_EXCEEDED domain exception (QuotaExceededException) present and thrown/marshalled at the chokepoints; hardening extras (deep-link/largest-files payload, members 110% JIT) not evidenced."
+    },
+    "E4-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No Redis fast-counter exists, so no O(changed) counter-reconciliation sweep and no fail-closed-storage/fail-open-cheap Redis-loss counter path; the entitlement cache fail-closed is a different seam."
+    },
+    "E4-S5": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/http/orvex-quota.controller.ts"
+      ],
+      "note": "Quota-state query endpoint present (GET /orvex/quota); no history-retention prune cron (no @Cron/ScheduleModule singleton for history pruning)."
+    },
+    "E5-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/events/outbox/outbox-writer.service.ts",
+        "apps/server/src/orvex/events/outbox/__tests__/integration/outbox-atomicity-and-relay.integration.spec.ts",
+        "apps/server/src/collaboration/extensions/persistence.extension.ts"
+      ],
+      "note": "Transactional outbox enqueue(trx,event) in the mutation's own trx incl the collab onStoreDocument content-write path (integration spec ENG-1383 F5); atomicity + rollback tests."
+    },
+    "E5-S2": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/events/outbox/outbox-relay.service.ts",
+        "apps/server/src/orvex/events/outbox/kafka-publisher.adapter.ts",
+        "apps/server/src/orvex/events/outbox/kafka-publisher.port.ts",
+        "apps/server/src/orvex/events/outbox/__tests__/integration/outbox-atomicity-and-relay.integration.spec.ts"
+      ],
+      "note": "Worker relay drains outbox to a real CloudEvents 1.0 structured-mode envelope on Kafka, exactly-once with crash-retry idempotency (spec AC3/AC4), envelope conforms to pinned _envelope.json."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/events/outbox/outbox-relay.service.ts",
+        "apps/server/src/orvex/events/outbox/orvex-outbox-trace-context.util.ts"
+      ],
+      "note": "orvexcell + orvextenant extension attrs + correlation_id present on the emitted envelope; but the relay publishes to a single getKafkaOutboxTopic(), not per-domain {domain}-events.{cell} topics, and there is no dedicated relay liveness/lag heartbeat probe."
+    },
+    "E5-S4": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/events/constants/orvex-event-types.ts",
+        "apps/server/src/core/workspace/services/workspace.service.ts"
+      ],
+      "note": "workspace.deleted durable outbox event present (EVT_WORKSPACE_DELETED, emitted from workspace.service); the user-removal path emits AuditEvent.USER_DELETED (audit only) — no durable user.deleted outbox event constant for cross-service cleanup."
+    },
+    "E6-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/core/api-key/orvex-bearer-auth.guard.ts",
+        "apps/server/src/core/api-key/api-key.service.ts",
+        "apps/server/src/core/api-key/api-key.repo.ts",
+        "apps/server/src/core/api-key/api-key.contract.spec.ts",
+        "apps/server/src/database/migrations/20260707T090001-orvex-api-key-hash.ts"
+      ],
+      "note": "Clean-room api-key under core/api-key with hashed keys + scopes migration + bearer guard; jwt.strategy no longer imports ee/api-key; contract spec."
+    },
+    "E6-S2": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/core/session-mint/orvex-session-mint.service.ts",
+        "apps/server/src/core/session-mint/orvex-session-mint.service.spec.ts",
+        "apps/server/src/orvex/session-mint/exchange-token-verifier.ts",
+        "apps/server/src/orvex/session-mint/exchange-token-verifier.spec.ts",
+        "apps/server/src/orvex/http/orvex-native-login.guard.ts"
+      ],
+      "note": "POST /api/orvex/session/exchange consumes an RS256/JWKS exchange token -> createSessionAndToken; native-login guard blocks native login; verifier + service specs."
+    },
+    "E6-S3": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/http/orvex-source.controller.ts",
+        "apps/server/src/orvex/config/orvex-config.service.ts"
+      ],
+      "note": "AGPL §13 source-offer @Public endpoint returning {sha,sourceRepo} present (typed defect if unset, never fabricated); LICENSE-COMPLIANCE doc + git source-mirror not found in the tree."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/common/middlewares/domain.middleware.ts",
+        "apps/server/src/common/middlewares/domain.middleware.spec.ts",
+        "apps/server/src/main.ts",
+        "apps/server/src/integrations/environment/environment.service.ts"
+      ],
+      "note": "CLOUD-mode boot + hostname->workspace resolver (domain.middleware, spec'd) + CLOUD-mode session-mint exemptions in main.ts; #117 enabled CLOUD multi-tenant on the prod engine."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No transaction-scoped fail-closed RLS: no set_config tenant binding, no CREATE POLICY / ENABLE ROW LEVEL SECURITY migration, no cross-tenant bytes=0 probe."
+    },
+    "E7-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No polymorphic user-or-org tenant model and no personal->Teams upgrade re-key pass; tenancy is workspace-keyed only."
+    },
+    "E7-S4": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/entitlement/entitlement-http-billing.port.ts",
+        "apps/server/src/integrations/environment/environment.service.ts",
+        "apps/server/src/integrations/queue/constants/queue.constants.ts",
+        "apps/server/src/database/migrations/20250106T195516-billing.ts"
+      ],
+      "note": "Billing read moved to the HTTP entitlement port, but upstream Stripe seat-sync is NOT severed (STRIPE_SEATS_SYNC queue at queue.constants.ts:30, STRIPE_SECRET_KEY still read at environment.service.ts:249) and the in-engine billing migration is NOT retired."
+    },
+    "E7-S5": {
+      "status": "absent",
+      "evidence": [
+        "apps/server/src/core/workspace/workspace.constants.ts"
+      ],
+      "note": "The tenant status column exists (workspace.constants.ts:13) but is unwired — no FR-22 suspension enforcement blocking mutate/non-read/export surfaces and no push-invalidation."
+    },
+    "E8-S1": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/collaboration/yjs.util.ts",
+        "apps/server/src/collaboration/collaboration.util.ts",
+        "apps/server/src/collaboration/collaboration.handler.spec.ts",
+        "apps/server/src/collaboration/__tests__/persistence.extension.spec.ts"
+      ],
+      "note": "Yjs/Hocuspocus server schema built from the shared tiptap extensions (yjs.util.ts:22, collaboration.util.ts:144); collab handler + persistence specs; React client ProseMirror editors present under apps/client/src/ee."
+    },
+    "E8-S2": {
+      "status": "present",
+      "evidence": [
+        "apps/client/src/ee/ai-chat/pages/ai-chat.tsx",
+        "apps/server/src/orvex/llms/orvex-llms.controller.ts",
+        "apps/server/src/orvex/llms/orvex-llms.controller.spec.ts",
+        "scripts/ci/client-ai-thinness-guard.sh"
+      ],
+      "note": "Thin AI/MCP client affordances (ee/ai-chat) + engine llms surface; client-ai-thinness CI gate enforces zero server-side AI logic (D-S4 exception); controller spec."
+    },
+    "E8-S3": {
+      "status": "present",
+      "evidence": [
+        "apps/server/src/orvex/http/orvex-global-prefix-exclude.ts",
+        "apps/server/src/orvex/http/orvex-global-prefix-exclude.spec.ts",
+        "apps/server/src/orvex/http/orvex-http.e2e.spec.ts",
+        "apps/server/src/orvex/mcp-surface-shed-at-parity.spec.ts"
+      ],
+      "note": "No /docs Swagger anywhere (no SwaggerModule/DocumentBuilder); internal-only API with global-prefix-exclude + product-family-agnostic configured endpoints; e2e + mcp-parity specs."
+    },
+    "E9-S1": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/http/orvex-tenant-move.controller.ts",
+        "apps/server/src/orvex/http/dto/tenant-move-manifest.dto.ts",
+        "apps/server/src/orvex/http/orvex-tenant-cell-move.service.ts",
+        "apps/server/src/orvex/http/orvex-tenant-cell-move.service.spec.ts"
+      ],
+      "note": "Typed step-API (quiesce/export/import/activate) + TenantMoveManifest DTO + mandatory Idempotency-Key header present; moveCell delegates to identity Registry.Move (real, spec'd), but the four content-pipeline steps are deliberate 501 stubs and no coverage-checked TENANT_MOVE.md exists."
+    },
+    "E9-S2": {
+      "status": "partial",
+      "evidence": [
+        "apps/server/src/orvex/health/orvex-health.controller.ts",
+        "apps/server/src/orvex/health/orvex-health.service.ts",
+        "apps/server/src/orvex/health/orvex-health.e2e.spec.ts",
+        "apps/server/src/orvex/health/orvex-health.service.spec.ts"
+      ],
+      "note": "Per-dependency liveness health (HTTP 200 with per-dep status body) present + e2e/service specs; explicit CELL_ID/CLUSTER_NAME echo, dedicated per-role relay/collab-WS probes, and load-bearing ADR-NNNN draft files not evidenced."
+    }
+  },
+  "summary": "Merged origin/main carries a substantial, well-tested orvex/* engine: 18 of 35 stories are present with meaningful tests (thin-fork foundation, page_meta side table + apply-ops/ACL/export/provenance/transclusion/lifecycle primitives, entitlement reader, transactional outbox->Kafka relay, api-key + session-mint auth, CLOUD boot, collab schema, internal-only API). 12 are partial (quota enforcement lacks the Redis fast-counter; DfM extracted but opaque round-trip stubbed; event cell-topic/heartbeat, user.deleted, source-mirror, Stripe sever, tenant-move content steps, and health cell-echo incomplete). 5 are absent (import runbook/hardening allow-list, counter reconciliation, RLS isolation, polymorphic tenant, suspension enforcement) — the isolation/hardening frontier is the real gap."
+}

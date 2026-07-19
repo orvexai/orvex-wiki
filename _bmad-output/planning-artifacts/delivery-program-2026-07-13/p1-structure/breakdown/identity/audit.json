@@ -1,0 +1,370 @@
+{
+  "repo": "orvex-studio-identity",
+  "audited_ref": "origin/dev",
+  "head": "cf0c6e6 2026-07-14 16:17:17 +0200",
+  "branches_note": "origin/main (07da4cb) is 1 ahead of dev but only the PR#29 merge of dev \u2014 no unique content. origin/feat/m2-e2e-gate-harness (0f8eefb) is 1 ahead / 3 behind dev, carrying the M2 E2E closing-gate harness (tests/e2e/gate_m2_e2e_test.go, ENG-1574) not yet on dev. origin/crew/daniel is stale (37 behind). No ENG-2069 hazard: no dev branch is meaningfully ahead of the audited ref.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/token/verifier.go",
+        "internal/clerk/clerk.go",
+        "internal/oidc/oidc.go",
+        "internal/token/verifier_test.go",
+        "internal/oidc/oidc_federation_test.go",
+        "internal/clerk/clerk_test.go"
+      ],
+      "note": "multi-issuer verifier maps Clerk + Keycloak tokens to one gen.Principal (deny-by-default, fail-closed); real Clerk/Keycloak resolvers."
+    },
+    "E1-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/token/verifier.go",
+        "internal/jwks/jwks.go",
+        "internal/token/verifier_test.go",
+        "internal/jwks/jwks_test.go"
+      ],
+      "note": "verifier.go delegates the full crypto pipeline to orvex-studio-lib/pkg/auth MultiIssuerVerifier; deny-by-default Middleware + RequireScope."
+    },
+    "E1-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/token/introspect.go",
+        "internal/token/introspect_test.go",
+        "internal/server/token_surface_integration_test.go",
+        "internal/cache/cache.go"
+      ],
+      "note": "POST /v1/introspect + dual-path Introspector (Clerk session OR opaque grant) present with tests; MISSING the Redis-cached introspection cadence/TTL \u2014 cache.go ships only the RevocationDenyList as real Redis, the introspection cache is still stdlib scaffold."
+    },
+    "E1-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/token/introspect.go",
+        "internal/token/token.go",
+        "internal/cache/cache.go",
+        "internal/server/token_revocation_integration_test.go"
+      ],
+      "note": "fresh-introspect gate (fail-closed when the deny-list is unreachable for a high-privilege call) + real Redis push-revocation deny-list + Broadcast-on-revoke present; MISSING the fixed grace hard-bound max-staleness (tied to the still-scaffolded introspection cache)."
+    },
+    "E2-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/token/token.go",
+        "internal/token/introspect.go",
+        "internal/token/mint_test.go"
+      ],
+      "note": "Mint freezes claims onto the grant row and introspection reconstructs the principal from that frozen row; MISSING the org-switch immutability guarantee \u2014 req.Tenant org-switch re-exchange is explicitly NOT honored (server.go:935) and there is no org-A-vs-org-B CI test."
+    },
+    "E2-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/server/token_surface_integration_test.go"
+      ],
+      "note": "POST /v1/tokens is gated by requireSession (bearer) and mints via token.Authority; MISSING explicit CSRF/origin binding + first-party proof-of-user for the browser front ends."
+    },
+    "E2-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/token/scope.go",
+        "internal/token/verifier.go",
+        "internal/token/scope_test.go",
+        "internal/token/platform_scope_test.go"
+      ],
+      "note": "scope derived server-side (derivePlatformScope + intersectWithTokenScope, never client input) and enforced via RequireScope (lib/auth, deny-by-default)."
+    },
+    "E2-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/token/token.go",
+        "internal/token/revoke_test.go",
+        "internal/server/token_revocation_integration_test.go"
+      ],
+      "note": "List + Revoke with the revocation event written to the transactional outbox in one txn (RevokeAndEnqueue) and a within-TTL revocation integration test; MISSING rotate (no rotate handler exists)."
+    },
+    "E3-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/store/postgres/tenancy.go",
+        "internal/clerk/clerk.go",
+        "gen/principal.go",
+        "internal/store/postgres/tenancy_integration_test.go",
+        "internal/server/clerk_tenancy_spine_integration_test.go"
+      ],
+      "note": "polymorphic {user|org} tenancy (TenantKey) over org_workspaces; opaque, non-derivable Subject/Tenant ids; registry-backed."
+    },
+    "E3-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/oidc/provision.go",
+        "internal/oidc/throttle.go",
+        "internal/oidc/oidc_federation_test.go",
+        "internal/server/clerk_tenancy_spine_integration_test.go"
+      ],
+      "note": "OIDC JIT provisioning through OidcUserProvisioner + fixed-window ThrottleLimiters (ported 30/60-per-window limits) + Clerk JIT with concurrent-race idempotency."
+    },
+    "E3-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/clerk/clerk.go",
+        "internal/store/postgres/tenancy.go",
+        "internal/store/postgres/postgres.go"
+      ],
+      "note": "polymorphic personal/org tenancy + ReactivateMembers + an org-convert journal event are referenced; MISSING the actual Personal->Teams upgrade pass (org mint + tenant re-key) and access-transition isolation \u2014 org-switch re-exchange is not honored."
+    },
+    "E3-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no Clerk org_role -> workspace role enum mapping anywhere in the tree."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/server/exchange_scope_integration_test.go",
+        "internal/server/exchange_ttl_integration_test.go",
+        "internal/server/exchange_workspace_integration_test.go"
+      ],
+      "note": "POST /v1/exchange verifies the Clerk session (clerk.Resolver.Verify) then mints a short-lived opaque exchange token via the same token.Authority; engine consumes it (never sets the cookie itself)."
+    },
+    "E4-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/token/token.go",
+        "internal/clerk/enforce_sso.go",
+        "internal/server/server.go",
+        "internal/server/enforce_sso_integration_test.go"
+      ],
+      "note": "identity-side native-login lockout is real (ErrSSORequired + isFederated + PUT enforce-sso admin route); the actual removal of the engine's password login/change/forgot/reset + /setup endpoints lives in the engine repo, not here."
+    },
+    "E4-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/sealing/sealing.go",
+        "internal/sealing/verify.go",
+        "internal/sealing/keysource.go",
+        "cmd/sealtool/main.go",
+        "internal/sealing/sealing_test.go",
+        "cmd/sealtool/main_test.go"
+      ],
+      "note": "offline-sealed ed25519 break-glass credential mint+verify + sealtool CLI; fail-closed verify (expired/bad-sig/wrong-aud distinguished for logging only)."
+    },
+    "E4-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/oidc/oidc.go",
+        "internal/oidc/mirror.go",
+        "internal/oidc/provision.go",
+        "internal/oidc/oidc_federation_test.go",
+        "internal/oidc/oidc_test.go"
+      ],
+      "note": "full Keycloak OIDC-RP relocated as native Go (authorize/callback/provider CRUD/mirror/discovery-cache/PKCE); no @docmost imports (Go repo)."
+    },
+    "E4-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/scim/scim.go",
+        "internal/scim/token.go",
+        "internal/scim/guard.go",
+        "internal/scim/scim_test.go",
+        "internal/scim/token_test.go",
+        "internal/server/scim_wiring_test.go"
+      ],
+      "note": "SCIM 2.0 Users/Groups CRUD + membership PATCH + SCIM bearer-token mgmt behind a timing-safe HMAC guard; NOTE the stores are in-memory reference impls (MemoryUserStore/etc), a Postgres-backed impl is deferred."
+    },
+    "E4-S6": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/server/clerk_config_integration_test.go"
+      ],
+      "note": "admin routes relocated (setEnforceSSO/clerkConfig/oidcProviders) behind tenant-scoped authz + restricted-token ceiling; MISSING a dedicated admin-org authz gate (today it is self-tenant scoping only)."
+    },
+    "E5-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/clients/clients.go",
+        "deploy/kustomize/app-manifests/deployment-server.yaml"
+      ],
+      "note": "provision/deprovision REST handlers exist (POST /api/clerk/provision + /deprovision, provisionEnginePrincipal/provisionAIWorkspace); MISSING workload identity (mTLS/SPIFFE) + NetworkPolicy \u2014 referenced only as upstream/deployment concerns, no NetworkPolicy manifest in deploy/."
+    },
+    "E5-S2": {
+      "status": "partial",
+      "evidence": [
+        "cmd/deprovisioner/main.go",
+        "internal/server/server.go",
+        "internal/workflow/workflow.go"
+      ],
+      "note": "the deprovision REST route exists and a cmd/deprovisioner Knative worker is wired; MISSING the two-phase soft-disable + grace-gated purge behaviour \u2014 the worker's Handle only decodes + logs a TODO, no workflow dispatch/purge."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/event/event.go",
+        "internal/store/postgres/outbox.go",
+        "internal/registry/registry.go",
+        "internal/store/postgres/outbox_integration_test.go"
+      ],
+      "note": "transactional outbox (Outbox port + store/postgres/outbox.go, written atomically by registry + token revoke) and CloudEvents Consumer/envelope decode present; MISSING the outbound relay \u2014 event.Relay.Publish returns \"not implemented\" (no Kafka producer yet)."
+    },
+    "E5-S4": {
+      "status": "partial",
+      "evidence": [
+        "cmd/reconciler/main.go",
+        "internal/clerk/reconcile.go",
+        "internal/clerk/sweep.go",
+        "cmd/reconciler/main_test.go"
+      ],
+      "note": "the reconciler CloudEvent worker + orphan-sweep are implemented (real Tenancy-backed SpineReconciler); MISSING the F2 resolution itself \u2014 retiring the CloudEvent worker in favour of a REST-callee-only path is still flagged an OPEN decision in-code."
+    },
+    "E6-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/store/postgres/registry.go",
+        "internal/registry/registry.go",
+        "internal/store/postgres/registry_integration_test.go"
+      ],
+      "note": "PII-free routing core is a real schema-confined store (RegistryCore over registry_tenant_cells/registry_hostnames) with isolation tests; MISSING the sensitive in-jurisdiction shard as a separate schema-isolated store (stripe_customer/contacts not implemented)."
+    },
+    "E6-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/registry/registry.go",
+        "internal/store/postgres/registry.go",
+        "internal/registry/registry_test.go",
+        "internal/store/postgres/registry_integration_test.go"
+      ],
+      "note": "Assign picks the home cell at creation by geo-proximity + residency pin and ReserveHostname enforces global hostname/slug uniqueness; idempotent re-assign."
+    },
+    "E6-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/registry/registry.go",
+        "internal/replicate/replicate.go",
+        "internal/replicate/replicate_test.go"
+      ],
+      "note": "the routing-core Resolve read path + a 2nd-cell routes-only replication prep (internal/replicate DryRun) exist; MISSING the Workers KV mirror + Cloudflare edge geo-router read path (no Cloudflare/KV code)."
+    },
+    "E6-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/registry/registry.go",
+        "internal/registry/move_consumer.go",
+        "internal/server/registry_move_test.go",
+        "ORG_MOVE.md",
+        "deploy/kustomize/app-manifests/kafka-trigger-tenant-move.yaml"
+      ],
+      "note": "registry.Move (the activate step) + move_consumer + a Kafka tenant-move trigger + an ORG_MOVE.md store inventory exist; MISSING the full typed quiesce/export/import step API + TenantMoveManifest (token_grants/org_workspaces are noted uncovered; the file is ORG_MOVE.md, not TENANT_MOVE.md)."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/server/whoami_opaque_bearer_integration_test.go"
+      ],
+      "note": "GET /v1/whoami mounted behind requireSession + cellPinGuard, echoing the verified principal (opaque-bearer path covered)."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no device-authorization / token-grant flow for `orvex auth login` \u2014 clerk/magic.go is a browser-iframe magic-link/OTP exchange, not a CLI device-code flow."
+    },
+    "E7-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/clients/clients.go"
+      ],
+      "note": "GET /healthz (cell-contract echo) exists and the engine client carries an INTERNAL_API_BEARER_TOKEN; MISSING the /healthz doctor probe alias and a documented interim engine api-key passthrough surface."
+    },
+    "E8-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/store/postgres/postgres.go",
+        "internal/store/postgres/grants.go",
+        "internal/cache/cache.go",
+        "internal/store/postgres/grants_integration_test.go"
+      ],
+      "note": "JSONB append journal (EventJournal) + real Redis (RevocationDenyList) + tenant-scoped isolation asserted by grants/entitlements integration tests; MISSING DB-level Postgres RLS policies \u2014 isolation is application-tier \"RLS-by-tenant\" query scoping, no CREATE POLICY / ENABLE ROW LEVEL SECURITY."
+    },
+    "E8-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/config/config.go",
+        "deploy/kustomize/app-manifests/deployment-server.yaml"
+      ],
+      "note": "/healthz echoes CELL_ID + CLUSTER_NAME; MISSING the livez/readyz split (both probes hit /healthz) and CELL_ID is not strictly required (defaults to the \"solo\" sentinel)."
+    },
+    "E8-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go",
+        "internal/server/cell_pin_guard_integration_test.go"
+      ],
+      "note": "cellPinGuard 421 (StatusMisdirectedRequest) self-heal middleware present with an integration test; MISSING an HTTP Idempotency-Key on the internal step APIs (registry has a move-id ledger, not the request header)."
+    },
+    "E8-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/store/postgres/postgres.go",
+        "internal/registry/registry.go",
+        "deploy/kustomize/app-manifests/observability.yaml"
+      ],
+      "note": "audit stream is real (EventJournal + outbox events on mint/revoke/cell-assign); MISSING OTel/Prometheus \u2014 no /metrics endpoint (observability.yaml admits this) and no otel instrumentation in code."
+    },
+    "E8-S5": {
+      "status": "partial",
+      "evidence": [
+        "_bmad-output/planning-artifacts/architecture/architecture-orvex-studio-identity.md"
+      ],
+      "note": "A-TOKEN/A-VERIFY/A-SESSION are captured in the service architecture doc under _bmad-output/planning-artifacts/architecture; MISSING dedicated standalone ADR files authored per SE-Arch \u00a77."
+    },
+    "E9-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no verified_principal entity and no principal-scoped lifetime AI-trial ledger anywhere in the tree."
+    },
+    "E9-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no per-principal live-tenant cap, progressive-trust tiers, or staged provisioning."
+    },
+    "E9-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no table-stakes edge controls \u2014 no Turnstile, disposable-email block, IP/ASN, or velocity checks."
+    },
+    "E9-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no signup risk-score fusion / ALLOW-STEP-UP-DENY logic or risk-triggered step-up."
+    },
+    "E10-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no BYOK / KMS customer-managed-key path (store-layer or otherwise)."
+    },
+    "E10-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no SOC 2 Type II / HIPAA BAA compliance-path artifacts in the repo."
+    },
+    "E10-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/registry/registry.go"
+      ],
+      "note": "residency primitives exist (residency_pin + residencyCells steer cell selection at Assign); MISSING the self-host / BYOC data-residency option itself."
+    },
+    "E10-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no personal<->employer firewall, per-use consent, or AD-8 mint-boundary delivery token."
+    }
+  },
+  "summary": "orvex-studio-identity is a mature, heavily-tested Go service: the verification spine (E1), token authority (E2), tenant/JIT spine (E3), exchange + Keycloak-OIDC + SCIM + break-glass seams (E4), and the global cell registry (E6) are largely real with meaningful integration tests. The consistent gaps are the not-yet-wired async/edge pieces (Redis introspection cache, outbox->Kafka relay, deprovision two-phase worker, Workers-KV edge router) and, wholesale, the anti-Sybil epic (E9) and most of the memory-security/compliance epic (E10 BYOK/SOC2/BAA/consent), which are absent. 11 present, 22 partial, 9 absent of 42 stories."
+}

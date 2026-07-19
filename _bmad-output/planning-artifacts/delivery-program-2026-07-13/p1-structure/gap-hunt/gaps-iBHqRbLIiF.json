@@ -1,0 +1,11 @@
+{
+  "slug": "iBHqRbLIiF",
+  "title": "ADR-0022: Rerank-stage insertion into the RRF-terminal knowledge Search pipeline",
+  "verdict_summary": "Status = Proposed (draft, NOT canonical) — a decision record that RATIFIES an already-landed, already-tested reranker seam rather than mandating new build work. The ADR itself states the code already exists and is adversarially reviewed green (internal/clients.Reranker, Orchestrator.WithReranker, graceful-skip test on branch eng-1475-work). Its every architecture decision (optional 6th step, structural never-white-screen swallow-on-error, true-external clients port, off-by-default nil-safe seam, one-port/one-call-site) is directly covered by story E3-S2 (FR-K11) in the knowledge plan, which audit-marks the same code as already implemented and pins the DoD tests (TestHybridRetrieveRanksAndGracefulSkip / TestRerankerUnavailableGracefulSkip). The only genuine forward BUILD item — injecting a live clients.Reranker into the production composition root — is explicitly declared OUT OF SCOPE by the ADR (Decision 4 / Consequences: 'lands as a follow-up ticket once ratified') and is contingent on a ratification that has not occurred (Status still Proposed). No build gap for this program.",
+  "gaps": [],
+  "components": [
+    {"name": "internal/clients.Reranker (true-external port, HTTP POST /rerank)", "quote": "the code already exists and is adversarially reviewed green — internal/clients.Reranker (HTTP POST /rerank, {query, docs:[{doc_id, snippet}]} -> results, wired with a real transport)"},
+    {"name": "internal/workflow.Orchestrator.WithReranker (optional nil-safe seam, Step 5)", "quote": "internal/workflow.Orchestrator carries an optional, nil-safe Reranker interface field (WithReranker). A nil reranker means the stage is simply absent"},
+    {"name": "TestSearchRerankerUnavailableGracefulSkip (graceful-skip contract test)", "quote": "proven by TestSearchRerankerUnavailableGracefulSkip (httptest, real transport, no hand-authored response body)"}
+  ]
+}

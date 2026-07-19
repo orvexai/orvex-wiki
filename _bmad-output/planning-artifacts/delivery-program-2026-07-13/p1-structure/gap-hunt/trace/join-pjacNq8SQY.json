@@ -1,0 +1,11 @@
+{
+  "slug": "pjacNq8SQY",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0023",
+      "verdict": "COVERED",
+      "owner_or_reason": "Zero build gaps (gaps-pjacNq8SQY.json verdict_summary): ADR itself not a coverage-index key, but every build obligation it names maps to covered orvex-studio-workflows FR ids in coverage-index.json — FR-W14 (ENG-2493/ENG-2620), FR-W3 (ENG-2480/ENG-2639), FR-W18 (ENG-2487/ENG-2488/ENG-2638/ENG-2639), FR-W6 (ENG-2499/ENG-2626/2627/2628), A-W1 (ENG-2626). Sole open item OQ-W6 (trigger-source ownership) is an explicit deferred OPEN QUESTION tracked by ENG-1446 (clerk-identity, blocked-by), not a build mandate -> not counted as a separate uncovered candidate."
+    }
+  ]
+}

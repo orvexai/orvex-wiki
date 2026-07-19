@@ -1,0 +1,128 @@
+[
+ {
+  "slug": "79YR5C7caM",
+  "title": "ADR-0006: Orchestrator execution seat \u2014 operator workstation",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "94xrZhXCej",
+  "title": "ADR-0009: Auth-flow / exchange-token contract \u2014 dual-IdP exchange \u2192 session mint",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "UWJzZBVDng",
+  "title": "ADR-0017: New external dependency \u2014 @clerk/react client SDK in the wiki engine",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "pjacNq8SQY",
+  "title": "ADR-0023: DeprovisionWorkflow ownership \u2014 orvex-workflows as the durable Temporal control plane, engine-API executor seam, ruling-7 delete-propagation boundary",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "ulVURyc2pd",
+  "title": "ADR-0024: Agent Staging Area supersedes the OPS Librarian feature specs \u2014 Card Contract v1 \u2192 Proposal (verbatim superset)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "vdc62Z4Sa4",
+  "title": "ADR-0031: New external dependency \u2014 Tree-Sitter binding for the full-build code graph dep-graph extractor",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "yNFx3YyNap",
+  "title": "ADR-0033: Work-claim arbiter for the delivery orchestrator \u2014 Linear-status-as-claim + guardrail contract + Temporal-CAS trip-wire",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "12aDkq4iOd",
+  "title": "ADR-0034: Credential lanes for agent execution \u2014 deny-by-default per-lane scoping",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "XdqWhwQyGc",
+  "title": "Crossplane",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ },
+ {
+  "slug": "cLWfnuXCWb",
+  "title": "Delivery Overview \u2014 Orvex Studio",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "5eFdxN3edd",
+  "title": "Delivery Program \u2014 Robust Tested Deployment (Phases 0\u20133)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "KNZMCOKAV8",
+  "title": "Delivery Prompts",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "7K0lWqrgMJ",
+  "title": "Drift correction \u2014 Delivery Orchestrator prompt, Linear ground truth (2026-07-09)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "9VUHxAcoXw",
+  "title": "Issue Authoring Prompt \u2014 Project Milestones & Issues",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "GG6RzEvtWh",
+  "title": "Milestone Dashboard \u2014 Template",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "gkkUDzn277",
+  "title": "Orchestrator Prompt \u2014 Delivery",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "UKanXYLCQD",
+  "title": "Orchestrator Prompt \u2014 Foundation",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "yXUWpQpRjx",
+  "title": "Orchestrator Prompt \u2014 Phase 1: Definition Factory",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ },
+ {
+  "slug": "ErYdXzIj6g",
+  "title": "Orchestrator Prompt \u2014 Phase 2.5: Product Acceptance E2E",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ },
+ {
+  "slug": "Ng66su4dVG",
+  "title": "Orchestrator Prompt \u2014 Phase 2: Isolated Builds & Continuous Proving",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ },
+ {
+  "slug": "cjv9Q4RuyI",
+  "title": "Studio Family Foundation Rollup (2026-07-06)",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ }
+]

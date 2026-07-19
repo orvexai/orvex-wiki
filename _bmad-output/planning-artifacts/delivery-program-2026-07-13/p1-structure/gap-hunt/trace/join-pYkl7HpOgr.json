@@ -1,0 +1,16 @@
+{
+  "slug": "pYkl7HpOgr",
+  "total": 2,
+  "results": [
+    {
+      "id": "ADR-0007",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a build id itself (ratified decision record, mints no FR-*/NFR-*); every obligation it pins has a build story: lib/E-x (pkg/events CloudEvents envelope + orvexcell/orvextenant fail-closed stamp, FR-L1 family), contracts/E3-S1 (events/catalog.yaml catalog, FR-C6), contracts/E3-S3 (publisher version-carry/batch fan-out, FR-C8), contracts/E3-S4 (payload schemas, FR-C9), plus A-EVENTS/A-SEAMS (wiki-corpus ENG-2494/2495) for the outbox->Kafka relay and drift-gate emitted-event validation. Same pattern as precedent join-AJzAntNPsz.json (ADR-0010 -> COVERED via constituent FR ids)."
+    },
+    {
+      "id": "A-CATALOG",
+      "verdict": "COVERED",
+      "owner_or_reason": "Architecture id (o2waDNw3ix, orvex-studio-contracts) for the CloudEvent type catalog obligation; implemented by contracts/E3-S1 [covers FR-C6] (events/catalog.yaml), E3-S3 [covers FR-C8] (publisher version-carry), E3-S4 [covers FR-C9] (payload schemas, dataschema pointers), E1-S3 (SEAMS.md seam inventory incl. A-CATALOG seams). FR-C6/FR-C8/FR-C9 are all keys in coverage-index.json (contracts-corpus, ENG-2124/2126/2127)."
+    }
+  ]
+}

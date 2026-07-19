@@ -1,0 +1,66 @@
+{
+  "slug": "7LGGFR5tGE",
+  "total": 12,
+  "results": [
+    {
+      "id": "F-CI",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2617; breakdown/workflows/plan.json E1-S3 covers=[\"F-CI\"] (CI bootstrap: go vet/build/test-race + CS lints + cell-lint required status)"
+    },
+    {
+      "id": "F-CELL",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2631, ENG-2644; plan.json E4-S2 covers=[\"F-CELL\",\"NFR-W6\"] (CELL_ID/CLUSTER_NAME/healthz + orvexcell stamping) and E6-S3 covers=[\"F-CELL\",\"FR-W17\"] (cell-routed activity targets)"
+    },
+    {
+      "id": "F-IDP",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "OQ-deferred, not a buildable story: issue-bodies/pack-workflows.md AC5 + body flag Clerk-lifecycle ingestion/Management-API ownership (workflows vs identity) as a review must-resolve to be ruled in lockstep with the identity pack via ADR + human doc-ratify (\"F-IDP may later move Clerk contact to identity\", \"Deferred work named with future owner\"); mirrored in issue-bodies/pack-identity.md (F2/F-IDP). No plan.json story carries F-IDP in its covers array."
+    },
+    {
+      "id": "F-RETRY",
+      "verdict": "COVERED",
+      "owner_or_reason": "alias match: plan.json Epic E3 \"[EPIC] workflows: Retry taxonomy & delivery hardening (G2 loss-window fixes)\" -> E3-S1 covers=[\"NFR-W5\",\"A-W4\"] (AUTHORITATIVE unbounded + BEST-EFFORT retry classes) implements the retry-taxonomy finding under NFR-W5/A-W4, plus E3-S3/E3-S5 (FR-W6/NFR-W7/FR-W15) round out retry/backoff+DLQ hardening. Literal string \"F-RETRY\" not present in corpus but the concept is fully built."
+    },
+    {
+      "id": "F-DEDUP",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2633; plan.json E4-S4 covers=[\"F-DEDUP\",\"NFR-W2\"] (ce-id from Svix message id + Idempotency-Key propagation)"
+    },
+    {
+      "id": "F-PAYLOAD",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2632; plan.json E4-S3 covers=[\"F-PAYLOAD\",\"NFR-W2\"] (ID-only Temporal payloads: drop OrgName)"
+    },
+    {
+      "id": "F-BROKER",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "issue-bodies/pack-workflows.md explicitly names the \"namespace-local `default` vs `studio-spine` broker\" defect as a build task (\"named as build tasks, not shipped\") and in the as-built defect backlog enumeration, but no story in breakdown/workflows/plan.json carries a fix for it -- no covers entry, no AC, no task references this broker-target migration anywhere in bodies/*.md (only tangential \"Seams: Kafka broker / spine broker\" context notes on unrelated stories E5-S1, E3-S3, E7-S3). Genuine gap."
+    },
+    {
+      "id": "F-HOST",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2619; plan.json E1-S5 covers=[\"F-HTTPROUTE\",\"F-SECRETS\",\"F-HOST\"] (GitOps hygiene: vestigial manifests, httproute, dead Temporal secret wiring, README)"
+    },
+    {
+      "id": "F-SEAM",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2621; plan.json E2-S1 covers=[\"FR-W16\",\"F-SEAM\"] (land clerk.* CE catalog + payload schemas in contracts with golden-fixture round-trip)"
+    },
+    {
+      "id": "F-HTTPROUTE",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2619; plan.json E1-S5 covers=[\"F-HTTPROUTE\",\"F-SECRETS\",\"F-HOST\"]"
+    },
+    {
+      "id": "F-SECRETS",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit -> ENG-2619; plan.json E1-S5 covers=[\"F-HTTPROUTE\",\"F-SECRETS\",\"F-HOST\"]"
+    },
+    {
+      "id": "F-NACK",
+      "verdict": "COVERED",
+      "owner_or_reason": "alias match: plan.json E3-S2 title \"[workflows] Dispatcher already-started = ACK; NACK only on transient (FR-W6/A-W1)\" covers=[\"FR-W6\",\"A-W1\"] directly implements the NACK-only-on-transient fix (also named in pack-workflows.md defect backlog as \"dispatcher NACK loop\"). Literal string \"F-NACK\" not present in corpus but the concept is fully built."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "slug": "nmIMlwFvHM",
+  "title": "Product Ideas, Pricing & Decisions — Session Capture",
+  "verdict_summary": "Draft session-capture of product/pricing/GTM ideas, not a requirements spec. The page carries no formal requirement ids (no FR-*/NFR-*/A-*/AD-*/D-*/OQ-*) and no build-mandating MUSTs. Its closing note is explicit: 'Draft — session capture of product/pricing/GTM ideas. Pricing (free + £5–7 AI tier) is a working decision; feature ideas are candidates for the backlog, not committed scope.' Feature ideas (personal-data guard, AI-privacy setup, niche demo-data onboarding, free-month trial, account firewall, multi-context, import-from-AI-chats) are framed as candidates and validation notes, not committed obligations. This is an idea/pattern-source page — returning zero gaps per the pattern-source-only rule. Named product concepts (The Librarian, chat-history import, persona demo datasets) are recorded as components for traceability only, not as build mandates from this page.",
+  "gaps": [],
+  "components": [
+    {"name": "The Librarian (capture → confirm → file pipeline)", "quote": "Leverages what exists — reuses the capture/curation pipeline (The Librarian) as a bulk backfill, not a net-new engine."},
+    {"name": "Chat-history import (ChatGPT/Claude/Gemini/Grok sanctioned exports)", "quote": "let a new (or existing) user import their existing AI chat history and vendor memory — ChatGPT, Claude, Gemini, Grok — into Orvex."},
+    {"name": "Personal-data guard (PII/SEND/PHI pre-AI screen)", "quote": "Flags names / behaviour / SEND (and PII) before it reaches the AI — turns \"be careful\" into an enforced rule"},
+    {"name": "Niche demo-data onboarding (teacher/doctor/parent datasets)", "quote": "Start on a realistic example for your niche/persona — launch three: teacher → a school · doctor → a clinic · parent → a household"},
+    {"name": "Account split / firewall (personal↔company)", "quote": "Personal memory belongs to the user & is firewalled; genuinely school knowledge lives in the school account; the two never mix"}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "slug": "CjaHVTg8Id",
+  "title": "Studio ↔ MCP Contract",
+  "classification": "draft / superseded design proposal — the canonical orvex-studio-mcp PRD (k1sWjtJq3x) + Architecture (BE0jTNoweS) adopted a different, simpler auth model (\"Token pass-through: caller token verbatim on every upstream, no service credential\" — feature-map 'Auth edge & token trust boundary' workstream) that directly contradicts this page's MCP-service-credential + Studio session-token-resolve-API design. Page status=draft, zero backlinks in the wiki. The MUST/SHOULD language here describes an alternate architecture that was not the one built; the adopted design's auth-edge obligations are already covered by the existing orvex-studio-mcp story set. No mandated, un-owned build obligation survives.",
+  "gaps": []
+}

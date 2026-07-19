@@ -1,0 +1,8 @@
+flowchart LR
+  CAP["capture\n(beads · save-this · import)"] -->|async, off write path| EXT["ai extraction\n(propose)"]
+  EXT --> DEDUP["dedup vs Memory"] --> QUEUE["staging queue"]
+  QUEUE -->|human confirm\nAD-4| SOR["api Memory SoR\ncard + state AD-2/3"]
+  SOR -->|memory.* CloudEvent| IDX["knowledge index\nper-user namespace AD-7"]
+  COMPOSE["Prompt Composer\nskill + Memory + wiki (RAG)"] --> IDX
+  COMPOSE -->|mint delivery token AD-8| DELIV["Client compose port\nAD-5a / AD-6"]
+  DELIV -->|write-only, per-use consented token| AIUI["ChatGPT · Gemini · web"]

@@ -1,0 +1,471 @@
+{
+  "service": "orvex-studio-workflows",
+  "requirement_source": "PRD: orvex-studio-workflows (4IF3xjIdAs, status draft) + Architecture: orvex-studio-workflows (JiIyp0RLLJ, canonical) + Architecture Audit \u2014 SE-Arch review (7LGGFR5tGE). PRD is draft but detailed; arch is canonical and unusually mature. FR/NFR ids (FR-W1..W18 with W12 removed per D-S11; NFR-W1..W8) drive coverage; buildable A-W/F-*/OQ-W workstream ids added.",
+  "sources": [
+    {
+      "slug": "4IF3xjIdAs",
+      "title": "PRD: orvex-studio-workflows"
+    },
+    {
+      "slug": "JiIyp0RLLJ",
+      "title": "Architecture: orvex-studio-workflows"
+    },
+    {
+      "slug": "7LGGFR5tGE",
+      "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)"
+    }
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] workflows: Rename, namespace & CI/replay foundation",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {
+          "id": "E1-S1",
+          "title": "[workflows] Repo/module/image/OpenBao-path rename migration (OQ-W1/WS-20)",
+          "body_file": "bodies/E1-S1.md",
+          "covers": [
+            "OQ-W1"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E1-S2",
+          "title": "[workflows] Namespace + task-queue consolidation carrying in-flight grace sleeps (OQ-W2)",
+          "body_file": "bodies/E1-S2.md",
+          "covers": [
+            "OQ-W2",
+            "NFR-W3"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S3",
+          "title": "[workflows] CI bootstrap: go vet/build/test-race + CS lints + cell-lint required status (F-CI)",
+          "body_file": "bodies/E1-S3.md",
+          "covers": [
+            "F-CI"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S4",
+          "title": "[workflows] WorkflowReplayer harness + recorded histories + workflow.GetVersion gate (A-W5/NFR-W1)",
+          "body_file": "bodies/E1-S4.md",
+          "covers": [
+            "NFR-W1",
+            "A-W5"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E1-S5",
+          "title": "[workflows] GitOps hygiene: vestigial manifests, httproute, dead Temporal secret wiring, README (F-HTTPROUTE/F-SECRETS)",
+          "body_file": "bodies/E1-S5.md",
+          "covers": [
+            "F-HTTPROUTE",
+            "F-SECRETS",
+            "F-HOST"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E1-S6",
+          "title": "[workflows] Temporal constants + idempotent schedule-init generalization (FR-W14)",
+          "body_file": "bodies/E1-S6.md",
+          "covers": [
+            "FR-W14"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] workflows: Contract seam & shared-lib client integration",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {
+          "id": "E2-S1",
+          "title": "[workflows] Land clerk.* CE catalog + payload schemas in contracts with golden-fixture round-trip (F-SEAM)",
+          "body_file": "bodies/E2-S1.md",
+          "covers": [
+            "FR-W16",
+            "F-SEAM"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E2-S2",
+          "title": "[workflows] Per-domain step-API OpenAPI + retry-class annotations authored in contracts (A-W3)",
+          "body_file": "bodies/E2-S2.md",
+          "covers": [
+            "FR-W16",
+            "A-W3",
+            "NFR-W2"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E2-S3",
+          "title": "[workflows] Versioned append-only workflow input/result types (FR-W16/NFR-W1)",
+          "body_file": "bodies/E2-S3.md",
+          "covers": [
+            "FR-W16",
+            "NFR-W1"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E2-S4",
+          "title": "[workflows] Lib-codegen activity clients replacing hand-rolled (rebuild + billing) (deps table/lib OQ-L5)",
+          "body_file": "bodies/E2-S4.md",
+          "covers": [
+            "FR-W16"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] workflows: Retry taxonomy & delivery hardening (G2 loss-window fixes)",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {
+          "id": "E3-S1",
+          "title": "[workflows] AUTHORITATIVE unbounded + BEST-EFFORT retry classes (NFR-W5/A-W4)",
+          "body_file": "bodies/E3-S1.md",
+          "covers": [
+            "NFR-W5",
+            "A-W4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S2",
+          "title": "[workflows] Dispatcher already-started = ACK; NACK only on transient (FR-W6/A-W1)",
+          "body_file": "bodies/E3-S2.md",
+          "covers": [
+            "FR-W6",
+            "A-W1"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S3",
+          "title": "[workflows] Trigger spec.delivery retry/backoff + deadLetterSink DLQ + depth alerting (FR-W6/NFR-W7)",
+          "body_file": "bodies/E3-S3.md",
+          "covers": [
+            "FR-W6",
+            "NFR-W7"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E3-S4",
+          "title": "[workflows] DLQ-as-record: malformed/unsupported dispositions replace ACK-and-drop (FR-W6/A-W8)",
+          "body_file": "bodies/E3-S4.md",
+          "covers": [
+            "FR-W6",
+            "A-W8"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E3-S5",
+          "title": "[workflows] Long-retry + workflow-failure alerting + operator-replay runbook (NFR-W5/FR-W15)",
+          "body_file": "bodies/E3-S5.md",
+          "covers": [
+            "NFR-W5",
+            "FR-W15",
+            "NFR-W7"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] workflows: Observability, cell contract & residency posture",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {
+          "id": "E4-S1",
+          "title": "[workflows] Per-domain SLIs + metrics + OTel spans feeding LGTM (FR-W15)",
+          "body_file": "bodies/E4-S1.md",
+          "covers": [
+            "FR-W15"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S2",
+          "title": "[workflows] Cell-contract compliance: CELL_ID/CLUSTER_NAME/healthz + orvexcell stamping (F-CELL a/b)",
+          "body_file": "bodies/E4-S2.md",
+          "covers": [
+            "F-CELL",
+            "NFR-W6"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S3",
+          "title": "[workflows] ID-only Temporal payloads: drop OrgName (F-PAYLOAD)",
+          "body_file": "bodies/E4-S3.md",
+          "covers": [
+            "F-PAYLOAD",
+            "NFR-W2"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E4-S4",
+          "title": "[workflows] ce-id from Svix message id + Idempotency-Key propagation (F-DEDUP/NFR-W2)",
+          "body_file": "bodies/E4-S4.md",
+          "covers": [
+            "F-DEDUP",
+            "NFR-W2"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E4-S5",
+          "title": "[workflows] Read-only admin Temporal-view endpoint for console (NFR-W6 amendment)",
+          "body_file": "bodies/E4-S5.md",
+          "covers": [
+            "NFR-W6"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] workflows: Tenant-lifecycle domain \u2014 provision/deprovision/reconcile + polymorphic tenancy + entitlements",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {
+          "id": "E5-S1",
+          "title": "[workflows] Operate + verify the shipped Clerk pipeline: Svix 401/502/200 + 1MB cap (FR-W1)",
+          "body_file": "bodies/E5-S1.md",
+          "covers": [
+            "FR-W1",
+            "NFR-W6"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E5-S2",
+          "title": "[workflows] ProvisionWorkflow org-liveness guard \u2014 non-retryable stop on deleted org (FR-W2)",
+          "body_file": "bodies/E5-S2.md",
+          "covers": [
+            "FR-W2"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E5-S3",
+          "title": "[workflows] User-keyed personal-tenant provisioning + polymorphic workflow-ID (FR-W2/FR-W17, D-S17)",
+          "body_file": "bodies/E5-S3.md",
+          "covers": [
+            "FR-W2",
+            "FR-W17"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S4",
+          "title": "[workflows] Free-plan entitlement create on provision \u2014 AUTHORITATIVE billing step-API (FR-W18)",
+          "body_file": "bodies/E5-S4.md",
+          "covers": [
+            "FR-W18"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E5-S5",
+          "title": "[workflows] DeprovisionWorkflow disable\u2192grace\u2192purge + entitlement revoke (FR-W3/FR-W18)",
+          "body_file": "bodies/E5-S5.md",
+          "covers": [
+            "FR-W3",
+            "FR-W18"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S6",
+          "title": "[workflows] ReconcileWorkflow corrective remediation \u2014 dry-run first, bounded (FR-W4)",
+          "body_file": "bodies/E5-S6.md",
+          "covers": [
+            "FR-W4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S7",
+          "title": "[workflows] Grace-window cancel signal + purge confirmation gate (FR-W5)",
+          "body_file": "bodies/E5-S7.md",
+          "covers": [
+            "FR-W5"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] workflows: IdP-agnostic lifecycle & identity cutover",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {
+          "id": "E6-S1",
+          "title": "[workflows] Studio-side cutover: re-point at identity mirror + workload identity + retire 404 carve-out (FR-W7)",
+          "body_file": "bodies/E6-S1.md",
+          "covers": [
+            "FR-W7"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E6-S2",
+          "title": "[workflows] Keycloak-tenant lifecycle via identity-emitted CloudEvents on the spine (FR-W17)",
+          "body_file": "bodies/E6-S2.md",
+          "covers": [
+            "FR-W17"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E6-S3",
+          "title": "[workflows] Cell-routed activity targets via the identity tenant\u2192cell registry (F-CELL c)",
+          "body_file": "bodies/E6-S3.md",
+          "covers": [
+            "F-CELL",
+            "FR-W17"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] workflows: Knowledge index rebuild/backfill domain",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {
+          "id": "E7-S1",
+          "title": "[workflows] RebuildTenant checkpointed workflow: namespace\u2192walk\u2192delta-repull\u2192alias-swap\u2192retire (FR-W8)",
+          "body_file": "bodies/E7-S1.md",
+          "covers": [
+            "FR-W8"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S2",
+          "title": "[workflows] RebuildCell parent fan-out + ContinueAsNew + progress query (FR-W9)",
+          "body_file": "bodies/E7-S2.md",
+          "covers": [
+            "FR-W9"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S3",
+          "title": "[workflows] CE-on-spine rebuild enqueue Trigger + dispatcher registry (FR-W10/A-W10)",
+          "body_file": "bodies/E7-S3.md",
+          "covers": [
+            "FR-W10",
+            "A-W10"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S4",
+          "title": "[workflows] Worker fixed-replica sizing vs RTO \u2014 shadow measure + scale-up runbook, NO-KEDA (NFR-W4/OQ-W7)",
+          "body_file": "bodies/E7-S4.md",
+          "covers": [
+            "NFR-W4",
+            "NFR-W8"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] workflows: Org-conversion & AI tool-loop domains",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {
+          "id": "E8-S1",
+          "title": "[workflows] OrgUpgrade compensating workflow: mint org, re-key tenant in place, carry data+entitlements (FR-W13)",
+          "body_file": "bodies/E8-S1.md",
+          "covers": [
+            "FR-W13",
+            "A-W10",
+            "FR-W17"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S2",
+          "title": "[workflows] AI tool-loop durable workflow: loop-state, activity-per-call, caps, ContinueAsNew (FR-W11)",
+          "body_file": "bodies/E8-S2.md",
+          "covers": [
+            "FR-W11",
+            "A-W10",
+            "NFR-W8"
+          ],
+          "audit": "absent"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-W1",
+      "FR-W2",
+      "FR-W3",
+      "FR-W4",
+      "FR-W5",
+      "FR-W6",
+      "FR-W7",
+      "FR-W8",
+      "FR-W9",
+      "FR-W10",
+      "FR-W11",
+      "FR-W13",
+      "FR-W14",
+      "FR-W15",
+      "FR-W16",
+      "FR-W17",
+      "FR-W18",
+      "NFR-W1",
+      "NFR-W2",
+      "NFR-W3",
+      "NFR-W4",
+      "NFR-W5",
+      "NFR-W6",
+      "NFR-W7",
+      "NFR-W8",
+      "A-W1",
+      "A-W4",
+      "A-W8",
+      "A-W10",
+      "F-CI",
+      "F-SEAM",
+      "F-CELL",
+      "F-PAYLOAD",
+      "F-DEDUP",
+      "F-HTTPROUTE",
+      "F-SECRETS",
+      "F-HOST",
+      "OQ-W1",
+      "OQ-W2"
+    ],
+    "uncovered": []
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "xTwrHXI261",
+  "total": 1,
+  "results": [
+    {
+      "id": "F-QUOTA",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a direct coverage-index key, but hard-checked: feature-map.txt and breakdown/*/plan.json show F-QUOTA implemented verbatim by ai/E2-S3 ('[ai] F-QUOTA 402 QUOTA_EXCEEDED surfaced verbatim as a typed tool-error frame', covers FR-AI9+NFR-AI5 -> ENG-2251/ENG-2252/ENG-2255) and lib/E3-S2 ('[lib] pkg/engineclient: F-QUOTA 402 as first-class terminal non-retryable error', covers FR-L12a), plus corroborating propagation stories in wiki-api (FR-A22 -> ENG-2531), staging (FR-STG3/NFR-STG2), workgraph (FR-MEM1), billing (FR-B17a) quota panes."
+    }
+  ]
+}

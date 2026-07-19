@@ -1,0 +1,31 @@
+{
+ "slug": "4IF3xjIdAs",
+ "total": 25,
+ "results": [
+  {"id": "FR-W1", "verdict": "COVERED", "owner_or_reason": "ENG-2481, ENG-2635"},
+  {"id": "FR-W2", "verdict": "COVERED", "owner_or_reason": "ENG-2482, ENG-2636, ENG-2637"},
+  {"id": "FR-W3", "verdict": "COVERED", "owner_or_reason": "ENG-2480, ENG-2639"},
+  {"id": "FR-W4", "verdict": "COVERED", "owner_or_reason": "ENG-2483, ENG-2640"},
+  {"id": "FR-W5", "verdict": "COVERED", "owner_or_reason": "ENG-2494, ENG-2495, ENG-2641"},
+  {"id": "FR-W6", "verdict": "COVERED", "owner_or_reason": "ENG-2499, ENG-2626, ENG-2627, ENG-2628"},
+  {"id": "FR-W7", "verdict": "COVERED", "owner_or_reason": "ENG-2498, ENG-2642"},
+  {"id": "FR-W8", "verdict": "COVERED", "owner_or_reason": "ENG-2502, ENG-2645"},
+  {"id": "FR-W9", "verdict": "COVERED", "owner_or_reason": "ENG-2506, ENG-2646"},
+  {"id": "FR-W10", "verdict": "COVERED", "owner_or_reason": "ENG-2490, ENG-2647"},
+  {"id": "FR-W11", "verdict": "COVERED", "owner_or_reason": "ENG-2489, ENG-2650"},
+  {"id": "FR-W13", "verdict": "COVERED", "owner_or_reason": "ENG-2491, ENG-2649"},
+  {"id": "FR-W14", "verdict": "COVERED", "owner_or_reason": "ENG-2493, ENG-2620"},
+  {"id": "FR-W15", "verdict": "COVERED", "owner_or_reason": "ENG-2493, ENG-2629, ENG-2630"},
+  {"id": "FR-W16", "verdict": "COVERED", "owner_or_reason": "ENG-2508, ENG-2621, ENG-2622, ENG-2623, ENG-2624"},
+  {"id": "FR-W17", "verdict": "COVERED", "owner_or_reason": "ENG-2508, ENG-2637, ENG-2643, ENG-2644, ENG-2649"},
+  {"id": "FR-W18", "verdict": "COVERED", "owner_or_reason": "ENG-2487, ENG-2488, ENG-2638, ENG-2639"},
+  {"id": "NFR-W1", "verdict": "COVERED", "owner_or_reason": "ENG-2618, ENG-2623"},
+  {"id": "NFR-W2", "verdict": "COVERED", "owner_or_reason": "ENG-2622, ENG-2632, ENG-2633"},
+  {"id": "NFR-W3", "verdict": "COVERED", "owner_or_reason": "ENG-2616"},
+  {"id": "NFR-W4", "verdict": "COVERED", "owner_or_reason": "ENG-2648"},
+  {"id": "NFR-W5", "verdict": "COVERED", "owner_or_reason": "ENG-2625, ENG-2629"},
+  {"id": "NFR-W6", "verdict": "COVERED", "owner_or_reason": "ENG-2631, ENG-2634, ENG-2635"},
+  {"id": "NFR-W7", "verdict": "COVERED", "owner_or_reason": "ENG-2627, ENG-2629"},
+  {"id": "NFR-W8", "verdict": "COVERED", "owner_or_reason": "ENG-2648, ENG-2650"}
+ ]
+}

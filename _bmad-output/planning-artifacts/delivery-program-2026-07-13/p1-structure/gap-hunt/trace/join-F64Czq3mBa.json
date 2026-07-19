@@ -1,0 +1,11 @@
+{
+  "slug": "F64Czq3mBa",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0005",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "ADR-0005 (F64Czq3mBa, 'Public repos use GitHub-hosted runners — CS §13 exception') is CI-substrate/platform-infra governance, not a product requirement: it defines no FR/NFR ids of its own, mandates only a dedicated public-runners ARC scale set in my-idp platform/apps/arc plus CI-config retargeting, and its own gap-hunt pass (gaps-F64Czq3mBa.json) already found zero product-build gaps. Not in coverage-index.json, no hits in feature-map.txt, no 'covers' reference in any breakdown plan.json (the only other 'ADR-0005' title in this program is the unrelated wiki-space ADR sABdrZoQdp, which is a separate page)."
+    }
+  ]
+}

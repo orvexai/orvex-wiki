@@ -1,0 +1,31 @@
+{
+  "slug": "EfwXQGLPEp",
+  "total": 5,
+  "results": [
+    {
+      "id": "ADR-0024",
+      "verdict": "COVERED",
+      "owner_or_reason": "api story E5-S5 'Curator→staging supersession (classifyOnSave → staging submit)' implements ADR-0024 verbatim (AC1-AC3, AC6 cite it); covers-tags AD-4/FR-SA12 -> ENG-2308, ENG-2314, ENG-2318"
+    },
+    {
+      "id": "ADR-0025",
+      "verdict": "COVERED",
+      "owner_or_reason": "same api story E5-S5, AC4 explicitly cites ADR-0025 ('/v1/memory store unchanged post-cutover'); covers-tags AD-4/FR-SA12 -> ENG-2308, ENG-2314, ENG-2318"
+    },
+    {
+      "id": "A-AUTH",
+      "verdict": "COVERED",
+      "owner_or_reason": "direct key in coverage-index.json -> ENG-2295, ENG-2499, ENG-2656, ui-corpus, wiki-corpus"
+    },
+    {
+      "id": "A-DATA",
+      "verdict": "COVERED",
+      "owner_or_reason": "api story E1-S6 'Persistence topology + observability + audit stream' (AC1/AC4) cites [Source: FR-SA33/FR-SA34, A-DATA] for the Postgres/Redis/S3 split (no Mongo, no local pgvector); covers-tags FR-SA33/FR-SA34 -> ENG-2299, ENG-2294"
+    },
+    {
+      "id": "A-CELL",
+      "verdict": "COVERED",
+      "owner_or_reason": "direct key in coverage-index.json -> ENG-2296, ENG-2496, ENG-2510, wiki-corpus"
+    }
+  ]
+}

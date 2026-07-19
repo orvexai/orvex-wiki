@@ -1,0 +1,12 @@
+{
+  "slug": "F7tTjMNVAr",
+  "title": "ADR-0013: MCP gateway event consumption — raw in-process Kafka consumer vs Knative Trigger",
+  "verdict_summary": "Decided/ratified canonical ADR (PO ruling on OD-6, 2026-07-08). Its single BUILD obligation — the MCP gateway consuming token-revocation events via a raw in-process Kafka consumer (NOT a Knative Trigger), preserving ordering (partitionkey=tenant id), DLQ, and at-least-once — is directly covered by the story titled 'Raw in-process Kafka revocation consumer -> deny-list apply (ADR-0013)' under the MCP 'Statelessness, revocation consumer & day-1 cell contract' epic. The at-least-once/ordering/DLQ MUST is part of that same raw-consumer story. OD-7 is an explicit canon-hygiene roster-line edit owned by the canon-hygiene batch (not this ADR, not a build obligation). No BUILD gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "orvex-studio-mcp raw in-process Kafka revocation consumer",
+      "quote": "The MCP gateway consumes token-revocation events via a raw in-process Kafka consumer — a consumer group subscribing directly to the studio-spine topics — NOT a Knative Trigger. ... The consumer MUST still replicate the ordering (partitionkey = tenant id, per ADR-0007), DLQ, and at-least-once guarantees the Trigger would otherwise provide."
+    }
+  ]
+}

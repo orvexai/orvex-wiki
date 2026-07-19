@@ -1,0 +1,16 @@
+{
+  "slug": "yNFx3YyNap",
+  "title": "ADR-0033: Work-claim arbiter for delivery orchestrator",
+  "verdict_summary": "Accepted ADR that RATIFIES the already-landed Linear-status-as-claim mechanism in the delivery orchestrator's own harness (tools/act3/delivery-engine.js v9). It is a process/tooling decision record for the meta-infrastructure that EXECUTES the delivery program, not an Orvex Studio product deliverable — the product-story breakdown (ENG-2091..2110 packs + 575 stories) builds the wiki engine/satellites/CLI/AI/RAG surfaces, not the Act-3 orchestration engine. The ADR carries no FR-*/NFR-*/A-*/AD-*/D-* ids; its normative content is the G1-G4 guardrail contract, the T1-T3 trip-wires, and two hardening additions to the harness (G3 partition-disjointness preflight assertion, and a mid-run claim lease keyed on the engine-owned dispatched-agent handle table). All other mechanics (claimedIds guard, partition disjointness convention, startup reclaim, P1 anti-auto-close guard, the In-Progress flip + linear-sync refresh) are explicitly 'existing, kept' and already landed in delivery-engine.js v9. The only named future component — a Temporal deterministic-workflow-ID ClaimWorkflow CAS in orvex-workflows — is explicitly DEFERRED and forbidden from being built now (a synchronizer for a structurally-unreachable race); it becomes a build obligation only if a T1-T3 trip-wire fires. Nothing here mandates present product build work that needs a story. Zero gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "tools/act3/delivery-engine.js (delivery orchestrator harness)",
+      "quote": "tools/act3/delivery-engine.js (v9, orvex-wiki) — the landed claim/frontier/reclaim/P1-guard mechanics this ADR ratifies and hardens: claimedIds (intra-engine guard), PARTITION/partitionProjects (cross-engine disjointness), startup reclaim, P1_GUARD (anti-auto-close), the In-Progress claim flip + linear-sync.sh issue refresh-verify."
+    },
+    {
+      "name": "orvex-workflows Temporal ClaimWorkflow CAS (deferred successor — build only on trip-wire)",
+      "quote": "The named successor is a Temporal deterministic-workflow-ID CAS hosted in orvex-workflows — not a new service, not Dolt, not a bespoke arbiter... A future ClaimWorkflow keyed on a deterministic claim-<ENG-N> id gives real, quota-independent, concurrent-safe mutual exclusion... when a trip-wire actually fires."
+    }
+  ]
+}

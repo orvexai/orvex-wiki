@@ -1,0 +1,48 @@
+{
+  "slug": "vBvVDFklZo",
+  "title": "Memory Gap-Closure — Fold-in Map",
+  "verdict_summary": "Live (non-superseded) ownership/fold-in map assigning memory gap-closure features F0-F8 + spine AD-1..12 to owning services (all of which exist: api, knowledge, ai, identity, mcp, contracts, staging). Its own owned slice is F0 onboarding + F1 client compose. The verbatim-merged requirements are FR-O1/O3/O4 + FR-D1..D7. FR-D1..D7 (the browser-extension delivery client, the one NEW component) are covered by the browser-extension pack-spine ENG-2689/2690. FR-O1 (guided profession-aware seed → first-session enriched output) and FR-O3 (designed empty states + demo/real separation) are covered by function via UI stories FR-UI5 (Streaming FormSpec onboarding), FR-UI20 (Demo World guided first-run + atomic graduation), FR-UI29 (honest empty/skeleton/error trio). The referenced cross-service FR sets (FR-M/L/E/X/C/S/AI11/MEM) all appear in covers-union. One genuine build gap: FR-O4's concrete ≤3-tap/≤2-min non-technical connection usability acceptance test is in no plan.json covers[] — the Connections/MCP setup UI story (FR-UI25) exists but carries no such usability-test acceptance gate.",
+  "gaps": [
+    {
+      "requirement": "FR-O4",
+      "quote": "\"Connect an assistant in one guided step\" (FR-D2) MUST have a concrete acceptance test: a non-technical user completes connection in ≤ 3 taps and ≤ 2 minutes with no config file or command line, verified by first-run usability testing.",
+      "why_uncovered": "FR-O4 appears in no plan.json covers[] (covers-union has FR-O2 only). The Connections & MCP setup UI story (FR-UI25) provides guided setup but carries no ≤3-tap/≤2-min non-technical usability acceptance test. The extension delivery flow (FR-D2) it gates is handled by ENG-2689/2690, but the usability-test acceptance itself is an unfiled UI/product acceptance obligation.",
+      "suggested_home": "orvex-studio-ui — add a first-run connection usability acceptance test (≤3 taps / ≤2 min, no CLI/JSON) as acceptance criteria on the Connections & MCP setup story (FR-UI25), coordinated with the ENG-2689/2690 extension connect flow.",
+      "verdict": "REFUTED — FR-O4 is the acceptance gate for FR-D2 (the browser-extension one-guided-step connect), and FR-D2 belongs to the excluded F1 extension component, not orvex-studio-ui/FR-UI25. It is explicitly owned as definition-phase work by ENG-2690 (the extension Definition Pack): its Definition of Done lists 'FR-O4/FR-D2 one-guided-step connect ≤3 taps/≤2 min' and its Task 3 names 'the FR-O4 ≤3-taps/≤2-min usability gate' as part of the required test plan (source: scratchpad/f1-pack.md, confirmed = ENG-2690 via scratchpad/ext-readme.md). ENG-2690 is itself gated on ENG-2689's viability spike, so the SDD/test-plan naturally has not yet materialized into any plan.json covers[] — that is expected pre-definition status, not an unfiled gap. FR-UI25/E7-S2 correctly covers only the SPA-side connection surface (token issuance, write-mode switch, guided MCP setup for the Five AIs); it does not own the extension's one-tap connect flow FR-O4 gates, so it is correctly silent on this AC. No build work is missing from any owning service's plan; the obligation is tracked and will land in ENG-2690's stories once the pack is certified."
+    }
+  ],
+  "components": [
+    {
+      "name": "Delivery client (browser-extension / compose-box adapter) — NEW repo",
+      "quote": "New component — Delivery client (F1) — F0 delivery UX · F1 client compose port (FR-D1–7). ... The browser-extension/compose-box adapter — no existing service owns it; needs a new repo. Gated on the F1 viability spike (OQ8, incl. the CWS 2026-08-01 re-check)."
+    },
+    {
+      "name": "DeliveryAdapter port / contract",
+      "quote": "orvex-studio-contracts — the pinned seam: card schema, DeliveryAdapter port, MCP additions, memory.* CloudEvent catalog."
+    },
+    {
+      "name": "memory.* CloudEvent catalog",
+      "quote": "the pinned seam: card schema, DeliveryAdapter port, MCP additions, memory.* CloudEvent catalog. Spine: AD-2 · AD-5a · AD-11."
+    },
+    {
+      "name": "Memory system-of-record /v1/memory (orvex-studio-api)",
+      "quote": "orvex-studio-api — F3 data model (FR-M1–4) · F4 lifecycle (FR-L1–5) · the Memory SoR /v1/memory."
+    },
+    {
+      "name": "Memory retrieval projection + eval harness (orvex-studio-knowledge)",
+      "quote": "orvex-studio-knowledge — F5 retrieval eval (FR-E1–4) · the memory retrieval projection · F4 projection consistency. ... Read-only projection; owns the eval harness + regression gate."
+    },
+    {
+      "name": "MCP memory-retrieval surface (orvex-studio-mcp)",
+      "quote": "orvex-studio-mcp — F1 MCP retrieval surface · the DeliveryAdapter contract. Spine: AD-5b (MCP = read under I-4, not a delivery adapter)."
+    },
+    {
+      "name": "Single-use delivery/consent token mint (orvex-studio-identity)",
+      "quote": "orvex-studio-identity — F6 BYOK (FR-S1–3) · firewall + consent (FR-S5). ... Mints the single-target, single-use delivery token; manages BYOK/KMS."
+    },
+    {
+      "name": "Librarian ChangeSets review/confirm queue (orvex-studio-staging)",
+      "quote": "orvex-studio-staging — F2 review queue (the Librarian ChangeSets). ... Hosts the propose→confirm queue; the confirm gate is the sole mutation path."
+    }
+  ]
+}

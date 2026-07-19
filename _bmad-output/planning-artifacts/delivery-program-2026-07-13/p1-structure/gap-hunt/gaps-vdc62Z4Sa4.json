@@ -1,0 +1,13 @@
+{
+  "slug": "vdc62Z4Sa4",
+  "title": "ADR-0031: New external dependency — Tree-Sitter binding for the full-build code graph dep-graph extractor",
+  "verdict_summary": "Proposed ADR (design-first D1) for orvex-cli's Tree-Sitter code-graph dependency. Not superseded/archived/stub. Its D2 build obligations — the internal/codegraph adapter, the pinned go-tree-sitter binding + Go grammar module, the deterministic Graph envelope, build-tag isolation, honest REQUIRES_FULL_BINARY stub, and CI both-tags — all trace to an existing story: E3-S8 '[cli] screenshot (chromium) + code graph (treesitter) full-binary verbs' (covers FR-CLI4/FR-CLI6), with E2-S4 owning the FR-CLI6 variant-gating seam. Both FR-CLI6/NFR-CLI6 are in covers-union. The E3-S8 code audit (origin/dev @48329b7) confirms the tree-sitter Go-grammar deterministic dep-graph, internal/codegraph, honest stubs, and ci.yml full-variant build are already present. Definition-phase D1 is a pack-spine obligation. Zero BUILD gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "internal/codegraph (full-build-only adapter package)", "quote": "A single new package, `internal/codegraph` (full-build only, `//go:build full`), is the sole adapter allowed to import `go-tree-sitter` or any grammar package."},
+    {"name": "Build(fixtureRoot string) (Graph, error)", "quote": "It exposes one function, `Build(fixtureRoot string) (Graph, error)`, called only from the `code graph` command handler (replacing today's `fullOnly(\"code-graph\", …)` stub in `cmd/wiki.go`)."},
+    {"name": "github.com/tree-sitter/go-tree-sitter (pinned v0.24.0)", "quote": "`github.com/tree-sitter/go-tree-sitter` (the official Go bindings, MIT license, cgo-based … Pin at `v0.24.0`."},
+    {"name": "github.com/tree-sitter/tree-sitter-go (grammar module)", "quote": "Per-language grammars are added as separate pinned Go modules under the same org (e.g. `github.com/tree-sitter/tree-sitter-go`) — Go only for the initial cut."},
+    {"name": "Graph JSON envelope struct (FileNode/DepEdge)", "quote": "`Graph` is a JSON-serializable struct: `{Files: []FileNode, Edges: []DepEdge}` where `FileNode{Path string, Symbols []string}` and `DepEdge{From, To string, Kind string}`."}
+  ]
+}

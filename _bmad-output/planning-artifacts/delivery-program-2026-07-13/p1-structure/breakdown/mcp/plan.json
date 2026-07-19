@@ -1,0 +1,365 @@
+{
+ "service": "orvex-studio-mcp",
+ "requirement_source": "PRD: orvex-studio-mcp (post-split repoint) \u2014 slug k1sWjtJq3x (canonical); Architecture: orvex-studio-mcp (post-split) \u2014 slug BE0jTNoweS (canonical); ADR 0001 \u2014 lR3kpc0Ra2 (draft)",
+ "sources": [
+  {
+   "slug": "k1sWjtJq3x",
+   "title": "PRD: orvex-studio-mcp (post-split repoint)"
+  },
+  {
+   "slug": "BE0jTNoweS",
+   "title": "Architecture: orvex-studio-mcp (post-split)"
+  },
+  {
+   "slug": "lR3kpc0Ra2",
+   "title": "ADR 0001 \u2014 MCP /v1 client regeneration + ask\u2192ai upstream (contracts-pinned)"
+  }
+ ],
+ "epics": [
+  {
+   "id": "E1",
+   "title": "[EPIC] mcp: MCP protocol surface & tool discovery",
+   "body_file": "bodies/E1.md",
+   "stories": [
+    {
+     "id": "E1-S1",
+     "title": "[mcp] Streamable-HTTP + stdio server core with connect-time instructions & authoring-guide resource",
+     "body_file": "bodies/E1-S1.md",
+     "covers": [
+      "FR-M1",
+      "FR-M15"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S2",
+     "title": "[mcp] Curated hero surface (\u2264~13 eager tools) + list_tools(category?) progressive disclosure",
+     "body_file": "bodies/E1-S2.md",
+     "covers": [
+      "FR-M2"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S3",
+     "title": "[mcp] whoami: verified principal + capability probe in one round-trip",
+     "body_file": "bodies/E1-S3.md",
+     "covers": [
+      "FR-M14"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S4",
+     "title": "[mcp] DfM-only agent contract: reject raw markdown, opaque-node handle passthrough",
+     "body_file": "bodies/E1-S4.md",
+     "covers": [
+      "FR-M4"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E2",
+   "title": "[EPIC] mcp: Wiki verb shim \u2014 read ladder & write chokepoint",
+   "body_file": "bodies/E2.md",
+   "stories": [
+    {
+     "id": "E2-S1",
+     "title": "[mcp] get_page read ladder (info\u2192outline\u2192blocks) + locator ergonomics",
+     "body_file": "bodies/E2-S1.md",
+     "covers": [
+      "FR-M3",
+      "FR-M10"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S2",
+     "title": "[mcp] save_page/edit write chokepoint: CAS ifVersion\u2192409, verified receipt, 402 QUOTA verbatim",
+     "body_file": "bodies/E2-S2.md",
+     "covers": [
+      "FR-M3"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S3",
+     "title": "[mcp] get_changes pull-based on the caller's scoped token (no SSE, no admin token)",
+     "body_file": "bodies/E2-S3.md",
+     "covers": [
+      "FR-M9"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S4",
+     "title": "[mcp] get_space_tree & get_neighborhood navigation shim",
+     "body_file": "bodies/E2-S4.md",
+     "covers": [
+      "FR-M3",
+      "FR-M6"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "title": "[EPIC] mcp: Upstream repoint & contracts-pinned codegen",
+   "body_file": "bodies/E3.md",
+   "stories": [
+    {
+     "id": "E3-S1",
+     "title": "[mcp] R0 wiki-api base-URL repoint: env rename + purge stale legacy hosts",
+     "body_file": "bodies/E3-S1.md",
+     "covers": [
+      "FR-M6"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S2",
+     "title": "[mcp] Contracts-tag codegen: fail-loud typed client + one deliberate /v1 regeneration",
+     "body_file": "bodies/E3-S2.md",
+     "covers": [
+      "FR-M8",
+      "FR-M6",
+      "NFR-M4"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S3",
+     "title": "[mcp] ask \u2192 orvex-studio-ai upstream: resolveAsk routing, K5 passthrough, no fallback",
+     "body_file": "bodies/E3-S3.md",
+     "covers": [
+      "FR-M7"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S4",
+     "title": "[mcp] search/related/neighborhood \u2192 orvex-studio-knowledge direct (D-M8)",
+     "body_file": "bodies/E3-S4.md",
+     "covers": [
+      "FR-M7"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "title": "[EPIC] mcp: Auth edge & token trust boundary",
+   "body_file": "bodies/E4.md",
+   "stories": [
+    {
+     "id": "E4-S1",
+     "title": "[mcp] TS verifier binding: multi-issuer JWKS \u2192 claims/aud/frozen-claim \u2192 deny-by-default scope gate \u2192 principal",
+     "body_file": "bodies/E4-S1.md",
+     "covers": [
+      "FR-M11"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S2",
+     "title": "[mcp] Introspection cache + FR-C13 conformance vector suite as CI release gate",
+     "body_file": "bodies/E4-S2.md",
+     "covers": [
+      "FR-M11",
+      "NFR-M3"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S3",
+     "title": "[mcp] Token pass-through: caller token verbatim on every upstream, no service credential",
+     "body_file": "bodies/E4-S3.md",
+     "covers": [
+      "FR-M12",
+      "NFR-M3"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S4",
+     "title": "[mcp] Human-gated actions transport-only: needs_human_*, RATIFY/CONFIRM verbatim, never promote",
+     "body_file": "bodies/E4-S4.md",
+     "covers": [
+      "FR-M13"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S5",
+     "title": "[mcp] stdio auth-posture parity + resource standing audit gate",
+     "body_file": "bodies/E4-S5.md",
+     "covers": [
+      "FR-M15"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "title": "[EPIC] mcp: Statelessness, revocation consumer & day-1 cell contract",
+   "body_file": "bodies/E5.md",
+   "stories": [
+    {
+     "id": "E5-S1",
+     "title": "[mcp] Stateless shim: no DB, bounded principal-independent caches, jti window retires at R1",
+     "body_file": "bodies/E5-S1.md",
+     "covers": [
+      "FR-M17",
+      "NFR-M3"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E5-S2",
+     "title": "[mcp] Raw in-process Kafka revocation consumer \u2192 deny-list apply (ADR-0013)",
+     "body_file": "bodies/E5-S2.md",
+     "covers": [
+      "FR-M11",
+      "NFR-M3"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E5-S3",
+     "title": "[mcp] Day-1 cell contract: CELL_ID/CLUSTER_NAME, /healthz echo, orvexcell fail-closed, cell-scoped topic",
+     "body_file": "bodies/E5-S3.md",
+     "covers": [
+      "FR-M17",
+      "FR-M18"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E5-GAP1",
+     "title": "[mcp] ADR-0020 cell-discovery routing \u2014 VERIFY + harden discover-once-pin / 308 / 421 self-heal / SOLO_CELL / fail-closed errors",
+     "body_file": "../gap-hunt/fix-bodies/fix-adr0020-mcp-routing.md",
+     "covers": [],
+     "audit": "present",
+     "gap_fix": true,
+     "linear": "ENG-2707"
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "title": "[EPIC] mcp: Studio product tools & MCP memory-retrieval surface",
+   "body_file": "bodies/E6.md",
+   "stories": [
+    {
+     "id": "E6-S1",
+     "title": "[mcp] Six studio_* product tools with caller-token pass-through + fail-closed scope gate",
+     "body_file": "bodies/E6-S1.md",
+     "covers": [
+      "FR-M19"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E6-S2",
+     "title": "[mcp] Re-home marketplace_search/skill_get onto knowledge (Decision 4 / C21)",
+     "body_file": "bodies/E6-S2.md",
+     "covers": [
+      "FR-M19"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E6-S3",
+     "title": "[mcp] MCP memory-retrieval surface: memory read as a knowledge tool call (AD-5b, I-4)",
+     "body_file": "bodies/E6-S3.md",
+     "covers": [
+      "FR-M19"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "title": "[EPIC] mcp: Golden-tape KPI, operability & wrapper decommission",
+   "body_file": "bodies/E7.md",
+   "stories": [
+    {
+     "id": "E7-S1",
+     "title": "[mcp] Golden-tape KPI eval harness (\u22642 calls / \u2264~1k tokens) with committed fixtures, CI release gate",
+     "body_file": "bodies/E7-S1.md",
+     "covers": [
+      "FR-M5",
+      "NFR-M6"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E7-S2",
+     "title": "[mcp] Operability: /health + /healthz, OTel/Prometheus SLIs, shim-overhead + revocation-lag SLI to LGTM",
+     "body_file": "bodies/E7-S2.md",
+     "covers": [
+      "FR-M18",
+      "NFR-M1"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E7-S3",
+     "title": "[mcp] AGPL-import guard in CI + typed-degradation posture (never fail open)",
+     "body_file": "bodies/E7-S3.md",
+     "covers": [
+      "NFR-M5",
+      "NFR-M2"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E7-S4",
+     "title": "[mcp] Decommission embedded packages/orvex-mcp (73\u2192parity) via FR-C5 ledger + ADR-0004 tier split",
+     "body_file": "bodies/E7-S4.md",
+     "covers": [
+      "FR-M16",
+      "NFR-M4"
+     ],
+     "audit": "present"
+    }
+   ]
+  }
+ ],
+ "coverage": {
+  "ids_found": [
+   "FR-M1",
+   "FR-M2",
+   "FR-M3",
+   "FR-M4",
+   "FR-M5",
+   "FR-M6",
+   "FR-M7",
+   "FR-M8",
+   "FR-M9",
+   "FR-M10",
+   "FR-M11",
+   "FR-M12",
+   "FR-M13",
+   "FR-M14",
+   "FR-M15",
+   "FR-M16",
+   "FR-M17",
+   "FR-M18",
+   "FR-M19",
+   "NFR-M1",
+   "NFR-M2",
+   "NFR-M3",
+   "NFR-M4",
+   "NFR-M5",
+   "NFR-M6"
+  ],
+  "uncovered": []
+ }
+}

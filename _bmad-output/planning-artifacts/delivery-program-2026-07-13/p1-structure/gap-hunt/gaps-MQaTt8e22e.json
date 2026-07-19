@@ -1,0 +1,24 @@
+{
+  "slug": "MQaTt8e22e",
+  "title": "ADR-0018: Kata-isolated DinD runner set",
+  "verdict_summary": "Draft infra/governance ADR (pending PO ratification) that extends ADR-0005 to provision a dedicated Kata-isolated DinD ARC scale set for orvex-wiki's Docker-dependent public-repo CI jobs. It carries NO formal requirement ids (no FR-*/NFR-*/D-*) and mandates only CI-substrate infrastructure work, all of which lives OUTSIDE the product delivery program: (a) an ARC scale set provisioned in the separate `my-idp` platform repo (manifest already staged on branch crew/eng-1572-public-dind-runners commit 147b28b2, explicitly gated behind PO ratification + a reviewer merge, per ADR-0005 Decision option 5 governance), and (b) CI-config retargeting inside orvex-wiki's own .github/ + scripts/test/ (ci.yml runs-on, actionlint.yaml labels, ci-substrate-conformance.spec.sh AC1). None of these are product-surface build obligations that a p1-structure delivery story (api/mcp/cli/ai/rag/knowledge-sync microservices) would own; the ARC runner substrate is a distinct my-idp platform-infra + ENG-1572 CI-substrate track. Feature-map grep for dind/runner/kata/ci-substrate returns zero — confirming this is intentionally out-of-band, not a coverage miss in the product packs. Zero product-build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "public-dind-runners (ARC scale set)",
+      "quote": "Provision a **dedicated Kata-isolated DinD scale set `public-dind-runners`** in the `public-runners` GitHub runner group (already org-scoped to `orvex-wiki` only)"
+    },
+    {
+      "name": "my-idp platform/apps/arc/manifests/runners/public-dind-runner-values.yaml",
+      "quote": "Manifest staged at `my-idp` `platform/apps/arc/manifests/runners/public-dind-runner-values.yaml`, wired into `platform/apps/arc/kustomization.yaml` as a fifth `helmChart` entry, on branch `crew/eng-1572-public-dind-runners` (commit `147b28b2`). Not merged, not synced"
+    },
+    {
+      "name": "orvex-wiki .github/workflows/ci.yml (3 jobs retargeted)",
+      "quote": "retarget the 3 jobs (`test-server`, `test-server-integration`, `gate-m6-e2e`) in `orvex-wiki/.github/workflows/ci.yml`"
+    },
+    {
+      "name": "orvex-wiki .github/actionlint.yaml + scripts/test/ci-substrate-conformance.spec.sh",
+      "quote": "add `public-dind-runners` to `orvex-wiki/.github/actionlint.yaml`'s self-hosted labels and to the allowed-label set in `orvex-wiki/scripts/test/ci-substrate-conformance.spec.sh` AC1; close that spec's residual `ubuntu-latest`-tolerating exception branch"
+    }
+  ]
+}

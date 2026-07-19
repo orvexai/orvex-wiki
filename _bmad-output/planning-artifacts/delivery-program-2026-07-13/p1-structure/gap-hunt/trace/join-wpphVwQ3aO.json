@@ -1,0 +1,1 @@
+{"slug":"wpphVwQ3aO","total":1,"results":[{"id":"ADR-0002","verdict":"COVERED","owner_or_reason":"wiki/E6-S2 [wiki] Exchange-token session-mint consume (RS256/JWKS) → createSessionAndToken; native login removed fully — covers A-AUTH/FR-W6/FR-15, directly implements ADR-0002's decision (native login removed, identity-only auth)"}]}

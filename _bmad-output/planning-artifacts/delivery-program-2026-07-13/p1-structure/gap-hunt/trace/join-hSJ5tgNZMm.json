@@ -1,0 +1,11 @@
+{
+  "slug": "hSJ5tgNZMm",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0021",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Decision doc (draft, pending doc-ratify) mandating no new FR/NFR of its own; gaps-hSJ5tgNZMm.json records 'gaps': [] with explicit verdict_summary that build-shaped MUSTs are carried by existing token-pass-through stories. It only cites FR-A4/A5, both COVERED (ENG-2522/2523, ENG-2524/2525). Caller-token pass-through concept independently confirmed implemented across multiple stories in feature-map.txt (lines 52, 453, 461, 567)."
+    }
+  ]
+}

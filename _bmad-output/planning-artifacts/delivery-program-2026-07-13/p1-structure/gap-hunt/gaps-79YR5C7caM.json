@@ -1,0 +1,13 @@
+{
+  "slug": "79YR5C7caM",
+  "title": "ADR-0006: Orchestrator execution seat — operator workstation",
+  "verdict_summary": "Canonical decision-record ADR (ratified 2026-07-07, amended same day) that resolves the Act-1 open decisions about WHERE the delivery orchestrator and its build/review sub-agents run and HOW they are credentialed. It is a governance/process artifact about the delivery-program's own execution seat — not a spec of Orvex Studio product surfaces. Every 'decision' it records either (a) ratifies the already-proven laptop seat (zero new infra), (b) settles the credential model as operator-local harness-mediated auth with the later amendment WITHDRAWING the hard refuse-gate, (c) fixes persistence to git + GitHub, or (d) explicitly KEEPS the already-scaffolded crew DEPLOY overlays. All named components/artifacts already exist on disk (verified: deploy/kustomize/components/crew/, orvex-studio-mcp crew-applicationset.yaml + crew-component/, tools/act3/ engine files). No un-id'd MUST mandates NEW product build work; the credential MUST (refuse-dispatch-on-raw-key) was itself withdrawn by the amendment. All future/multi-operator/claim-arbiter items are explicitly deferred (\"open, not decided here\"). Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-mcp/deploy/argocd/crew-applicationset.yaml", "quote": "an ArgoCD `ApplicationSet` whose `scmProvider` generator watches `orvexai/orvex-studio-mcp` for `^crew/.+` branches and mints one Application per crew branch — EXISTS (scaffolded, ADR says 'Keep')"},
+    {"name": "orvex-studio-mcp/deploy/kustomize/crew-component/", "quote": "the shared per-dev deploy manifests: Recreate-strategy Deployment running the Tekton-built crew-dev:crew image — EXISTS (scaffolded)"},
+    {"name": "orvex-studio-mcp/deploy/kustomize/crew-env/", "quote": "path `deploy/kustomize/crew-env` rendered from `dev` by the ApplicationSet — EXISTS (scaffolded)"},
+    {"name": "orvex-wiki/deploy/kustomize/components/crew/", "quote": "the wiki-side crew `Component`: a full parallel per-crew stack (own Postgres/Redis), `wiki.crew-{name}.orvex.dev` — EXISTS (scaffolded)"},
+    {"name": "tools/act3/ delivery-engine + resume assets", "quote": "Engine files live in-repo (`tools/act3/` or equivalent): the delivery-engine Workflow script, resume assets, README, and wiki mirror — EXISTS (delivery-engine.js, README.md, po-decisions present)"}
+  ]
+}

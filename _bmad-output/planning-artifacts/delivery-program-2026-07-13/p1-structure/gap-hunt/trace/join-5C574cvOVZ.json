@@ -1,0 +1,31 @@
+{
+  "slug": "5C574cvOVZ",
+  "total": 5,
+  "results": [
+    {
+      "id": "ADR-0001",
+      "verdict": "COVERED",
+      "owner_or_reason": "Polymorphic {user|org} tenant principle is implemented across many stories, not aliased under the ADR id itself: billing/E2-S1 'Append-only entitlement_versions schema + current projection + polymorphic principal' (covers FR-B4), workgraph/E6-S2 'Org-shared namespaces via explicit admin grant (polymorphic {user|org})' (covers FR-MEM25), plus identity's 'Tenant registry — idp-tagged polymorphic user|org mapping' and 'Transaction-scoped fail-closed RLS + cross-tenant CI probes' stories in feature-map.txt. Not a coverage-index key itself (ADRs aren't ticket ids), but the concept is heavily built."
+    },
+    {
+      "id": "ADR-0002",
+      "verdict": "COVERED",
+      "owner_or_reason": "Agent-safety principle (errors loud-but-never-weaponizable; explicit degradation status, never fabricated content) folds into two concrete stories under different ids: contracts/E5-S1 'Frozen errorCode + CLI exit-code vocabulary (errors/*.yaml)' (typed, non-destructive error codes replace copy-pasteable commands) and workgraph/E4-S1 'Remember/recall/forget with injection caps + elision banners' (covers FR-MEM8; explicit elision/degraded-status banners, never silent/fabricated). No direct coverage-index key or feature-map hit on 'agent-safety'/'weaponizable'/'beads' literal terms, but the invariant is built via these aliased stories."
+    },
+    {
+      "id": "ADR-0003",
+      "verdict": "COVERED",
+      "owner_or_reason": "Frozen 402 QUOTA_EXCEEDED is one of the most heavily-built cross-cutting requirements in the program: workgraph/E6-S3 'Quota verdicts — frozen 402 QUOTA_EXCEEDED against billing entitlements' (covers FR-MEM1), wiki-api/E4-S5 'QUOTA_EXCEEDED 402 verbatim propagation' (covers FR-A22), staging/E2-S5 'Admission control & quotas — 402 QUOTA_EXCEEDED' (covers FR-STG3, NFR-STG2), plus mcp/cli/lib quota-402 propagation stories in feature-map.txt. Not a coverage-index key itself (ADR ids aren't ticket ids), but the concept is fully built across services."
+    },
+    {
+      "id": "ADR-0004",
+      "verdict": "COVERED",
+      "owner_or_reason": "Direct hit in coverage-index.json: ADR-0004 -> ['gapfix']. Corroborated in feature-map.txt line 468: 'Decommission embedded packages/orvex-mcp (73->parity) via FR-C5 ledger + ADR-0004 tier split'."
+    },
+    {
+      "id": "ADR-0005",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "ADR-0005 in the orvexstudioarch family-ADR pool (ADR-0001..ADR-0016, shared with the same page's neighboring ADR-0001/0003/0004 citations) resolves to F64Czq3mBa 'Public repos use GitHub-hosted runners (CS §13 exception)' — CI-substrate/platform-infra governance, not a product requirement. It defines no FR-*/NFR-*/D-* ids of its own; this program's own prior gap-hunt pass on that exact ADR (gaps-F64Czq3mBa.json / join-F64Czq3mBa.json) already found zero product-build gaps, confirming it mandates only a dedicated public-runners ARC scale set in the separate my-idp platform repo plus CI-config retargeting in orvex-wiki's own .github/ — outside any p1-structure delivery microservice's ownership. Confirmed independently: absent from coverage-index.json, zero hits for dind/runner/kata/ci-substrate in feature-map.txt, and no 'covers' reference in any breakdown plan.json. (The other same-named 'ADR-0005: Minimal standalone wiki' page, sABdrZoQdp, lives in the unrelated orvexwiki space and does not match this orvexstudioarch page's ADR family.)"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "slug": "7K0lWqrgMJ",
+  "title": "Drift correction — Delivery Orchestrator prompt, Linear ground truth (2026-07-09)",
+  "what_it_is": "A dated drift-correction note documenting two fixes discovered during the 2026-07-09 resume run against the Act-3 Delivery Orchestrator prompt (gkkUDzn277): (1) the operative Linear scope model was a 15-project ENG-team allowlist driven by --projects-file, not the phantom 'Orvex AI Studio' project referenced in the prompt, and (2) sync-initiative config/pin details. It is not itself a build/delivery plan — it is a provenance record of a prompt-fix, plus an adopted §13 lesson-log entry and evidence pointers for that run.",
+  "status_class": "ONE-OFF-NOTE",
+  "action": "SUPERSEDE-TO-ARCHIVE",
+  "overlaps": "Both corrections on this page are already landed on gkkUDzn277 (the canonical Act-3 Delivery Orchestrator prompt) — first via an append, then fully superseded four minutes later by an inline replace on gkkUDzn277 itself. The page's own in-body correction note further states the ENG-allowlist/--projects-file model it describes is now stale: current ground truth is the Linear Initiative 'Orvex Studio' (UUID ddeb5b07…) as the 15-member-project scope of record, per gkkUDzn277 §2.4/§3.11 — matching MEMORY.md's orvex-wiki-linear-initiative note. It has no direct relationship to the parallel-build-plan or the Delivery Program (5eFdxN3edd) phase orchestrators; it is scoped entirely to the Act-3 machinery's Linear-sync ground truth, already double-superseded, and kept only as a historical record. No live consumer should read this page as current."
+}

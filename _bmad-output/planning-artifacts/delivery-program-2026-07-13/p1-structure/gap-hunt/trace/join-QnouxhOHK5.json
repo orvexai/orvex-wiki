@@ -1,0 +1,11 @@
+{
+  "slug": "QnouxhOHK5",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0032",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/mcp/plan.json story E7-S4 'Decommission embedded packages/orvex-mcp (73->parity) via FR-C5 ledger + ADR-0004 tier split' (covers FR-M16, NFR-M4) implements every ADR-0032 decision: FR-C5 73-tool ledger disposition, /mcp deletion gated on parity, CASL search gate not ported, tools.ts ADR-0004 tier split. FR-M16 also resolves in coverage-index.json to ENG-2475/mcp-corpus. No literal 'ADR-0032' key exists in coverage-index.json, but the concept is covered under FR-M16/FR-C5."
+    }
+  ]
+}

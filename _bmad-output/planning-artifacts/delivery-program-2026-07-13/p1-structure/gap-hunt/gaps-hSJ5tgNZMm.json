@@ -1,0 +1,14 @@
+{
+  "slug": "hSJ5tgNZMm",
+  "title": "ADR-0021: wiki-api edge — caller-token pass-through (never re-mint, never a service credential)",
+  "verdict_summary": "Draft ADR (pending PO doc-ratify) that records the wiki-api edge token contract implemented and locked by ENG-1488. It is a decision doc, not a requirements doc: it MANDATES no new FR/NFR ids of its own and its build-shaped MUSTs (forward caller token byte-for-byte, reuse pkg/auth RequireScope, fail-closed on IdentityVerifyEnabled=false, propagate typed errors) are each carried by existing token-pass-through stories. FR-A4/A5 (which the ADR only cites) are in covers-union. Named components (orvex-wiki-api, orvex-studio-lib/pkg/auth, server.go/clients.go, the DoD test) all exist and are covered. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-wiki-api (resource-agnostic verb-grammar edge facade)", "quote": "`orvex-wiki-api` (the resource-agnostic verb-grammar facade, FR-A4/A5) sits in front of two upstreams — the wiki engine and knowledge — and forwards every caller request to both."},
+    {"name": "orvex-studio-lib/pkg/auth (RequireScope, Principal, MultiIssuerVerifier)", "quote": "`orvex-studio-lib/pkg/auth` — `RequireScope`, `Principal`, `MultiIssuerVerifier` (true-external identity boundary, faked only in tests per CS §5)."},
+    {"name": "internal/server/server.go (requireScope, CallerVerifier)", "quote": "`internal/server/server.go` (`requireScope`, `CallerVerifier`)"},
+    {"name": "internal/clients/clients.go (Engine.ApplyOps, Knowledge.Search)", "quote": "`internal/clients/clients.go` (`Engine.ApplyOps`, `Knowledge.Search`)"},
+    {"name": "TestTokenPassThroughScopeIntersection (named DoD gate)", "quote": "the named DoD gate `TestTokenPassThroughScopeIntersection`."},
+    {"name": "libVerifierAdapter (wraps *auth.MultiIssuerVerifier)", "quote": "`libVerifierAdapter` (wraps `*auth.MultiIssuerVerifier`) exists in wiki-api today but is unwired — it requires issuer/JWKS config that this repo does not yet provision (tracked as a follow-up, not a gap in this ADR's decision)."}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "7E0Hbb9it2",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0003",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a coverage-index key by itself (only ADR-0004/0008/0011/0015/0020/0035 present), but hard-check confirms coverage: A-QUOTA and A-QUOTA-HARDENING (the requirements this ADR formalizes) are both in covers-union.json; feature-map.txt lines 622-624 (quota domain fn + controller/collab marshal + members 110% JIT) cover clauses 1/4/7, lines 260 & 442 (wiki-api.yaml QUOTA passthrough; save_page/edit 402 QUOTA verbatim) cover clause 6, and lines 119/166/276 (contracts conformance fixtures + frozen errorCode vocabulary) cover clause 5. Clauses 2/3 (never-429/never-destructive) are inherent postures of the same domain verdict, not separable build items."
+    }
+  ]
+}

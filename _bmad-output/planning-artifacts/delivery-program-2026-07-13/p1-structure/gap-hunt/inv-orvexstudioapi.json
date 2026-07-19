@@ -1,0 +1,29 @@
+{
+  "space": "orvexstudioapi",
+  "pages": [
+    {
+      "slug": "TpxkDsKTkC",
+      "title": "Architecture Audit — SE-Arch review (2026-07-05)",
+      "doc_type": "retrospective",
+      "status": "canonical",
+      "requirement_bearing": false,
+      "already_read": true
+    },
+    {
+      "slug": "ekTh7nDQqo",
+      "title": "Architecture: orvex-studio-api",
+      "doc_type": "architecture",
+      "status": "canonical",
+      "requirement_bearing": true,
+      "already_read": true
+    },
+    {
+      "slug": "85qj2wwU2L",
+      "title": "PRD: orvex-studio-api",
+      "doc_type": "prd",
+      "status": "draft",
+      "requirement_bearing": true,
+      "already_read": true
+    }
+  ]
+}

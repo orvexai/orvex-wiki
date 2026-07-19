@@ -1,0 +1,346 @@
+{
+  "repo": "orvex-studio-console",
+  "audited_ref": "origin/dev",
+  "head": "331ddd7 2026-07-14 20:56:52 +0200",
+  "branches_note": "Default branch is origin/dev (331ddd7). origin/main (1d90dda) and origin/dev carry the same trivial ENG-1968 console-audit-trigger rename via separate PRs (#69 dev / #70 main); chore/reconcile-main-into-dev is merged and 0 ahead. No branch is materially ahead of dev with unmerged feature code \u2014 the ENG-2069 nothing-on-main hazard does not apply here.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "cmd/server/main.go",
+        "internal/server/server.go:290 (healthz)",
+        "internal/server/server_test.go:79 (TestHealthzEchoesCell)",
+        "internal/server/server_test.go:102 (TestHealthzFailsLoudOnMissingCellConfig)"
+      ],
+      "note": "Single-binary Go service with cell-aware /healthz that echoes CellID+ClusterName and fails 503 loud on missing config; fail-fast covered. Caveats vs DoD: the binary is cmd/server (not cmd/console) and the healthz JSON keys are `cell`/`cluster` (not `cell_id`/`cluster_name`) \u2014 behaviour matches, field naming differs."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/spa.go",
+        "internal/server/embed.go",
+        "internal/server/spa_test.go (TestSpaShellServedSingleOriginWithCellBootstrap, TestSpaCatchAllDoesNotSwallowApi)",
+        "web/vite.config.ts",
+        "web/scripts/build-git-deps.mjs",
+        "Dockerfile"
+      ],
+      "note": "go:embed SPA pipeline + one-origin catch-all (never swallows /api) present and tested; secret-free cell bootstrap injected. MISSING: no strict CSP header is set anywhere (grep for Content-Security-Policy/default-src/frame-ancestors finds nothing in Go, HTML, or the httproute manifest) \u2014 the 'strict CSP' half of the story is unimplemented."
+    },
+    "E1-S3": {
+      "status": "present",
+      "evidence": [
+        "gates/agpl-import/agpl-import-guard.sh",
+        "internal/observability/confinement_test.go (TestObsCredentialConfinedToObservabilityPackage)",
+        "web/src/traces/license-guard.spec.ts",
+        "web/src/traces/edge-confinement.spec.ts",
+        ".github/workflows/ci.yml"
+      ],
+      "note": "AGPL-import denylist guard (@docmost/*) runs in CI; LGTM read-only credential confined to internal/observability by a package-boundary import test, plus web-side license/edge-confinement specs."
+    },
+    "E1-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/celllint_test.go (TestCellLintConformance)",
+        "internal/server/server.go:181 (events.ConsumeInCell on the audit-event route)"
+      ],
+      "note": "cell-lint conformance (always-warm replicas>=2, no-HPA/KEDA, no-temporal-egress, secrets-external, /healthz echo) is present and tested; foreign-cell drop exists on the Kafka audit-event sink via events.ConsumeInCell. MISSING: no cell-guard middleware fronting /api/*, no tenant-move 501 stub route, and no TENANT_MOVE.md."
+    },
+    "E1-S5": {
+      "status": "present",
+      "evidence": [
+        "deploy/kustomize/app-manifests/deployment-server.yaml (replicas: 2, RollingUpdate)",
+        "internal/server/celllint_test.go (AC2 always-warm / no-HPA)",
+        "internal/config/config.go (ORVEX_<SVC>_URL endpoint-as-config)",
+        "deploy/kustomize/components/{crew,staging}/kustomization.yaml"
+      ],
+      "note": "Always-warm multi-replica Deployment (replicas>=2, no HPA/KEDA, enforced by celllint) plus endpoint-as-config cross-cell posture \u2014 every sibling reached only through its configured URL, no baked host."
+    },
+    "E1-S6": {
+      "status": "partial",
+      "evidence": [
+        "internal/config/config.go:129 (RedisURL, Redis-only)",
+        "tests/smoke/smoke_test.go (T1 Redis, T2 stateless-BFF no-Postgres, T3 Redis ops)",
+        "internal/breakglass/ratelimit.go (RedisRateLimiter)",
+        "internal/observability/observability.go (DegradedError isolation)",
+        "internal/server/gated_mutation_test.go (TestAdminCardDegradesIndependently)",
+        "internal/observability/observability_test.go (TestObsSignalDegradesIndependently)"
+      ],
+      "note": "Redis-only stateless-BFF posture (config + smoke tests asserting no Postgres/Mongo) and the isolated-client honest-render framework (typed per-signal/per-card DegradedError, no cross-panel fate-sharing) are present and tested. MISSING: no dedicated circuit-breaker and no generic Redis state-adapter abstraction \u2014 Redis is used directly (go-redis) only for the break-glass rate bucket."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/authgate/authgate.go (Gate.Read/authenticate, deny-by-default)",
+        "internal/authwiring/authwiring.go (BuildGate, MultiIssuerVerifier wiring)",
+        "gen/principal.go (IsAdminOrg)",
+        "internal/authgate/authgate_test.go (TestRead_*)",
+        "internal/authwiring/authwiring_test.go (TestBuildGate_*)",
+        "internal/server/server_test.go:178 (TestProtocolAdminRoutesDenyByDefaultWhenUnauthenticated)"
+      ],
+      "note": "lib/auth edge: deny-by-default + Clerk admin-org gate on every admin/workflows route; verifier delegated to orvex-studio-lib (never re-implemented). Fully tested incl. nil-verifier fail-closed and non-admin-org 403."
+    },
+    "E2-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/authgate/authgate.go (Gate.Mutate + FreshChecker, FR-L5)",
+        "internal/authwiring/authwiring.go (IntrospectionCache no-grace)",
+        "internal/server/server.go:455 (requireConfirmation typed confirm)",
+        "internal/authgate/authgate_test.go (TestMutate_*)",
+        "internal/server/workflows_test.go (TestWorkflowWriteRejectedWhenIntrospectionStale, ...WithoutConfirmation)",
+        "internal/server/gated_mutation_test.go (TestAdminMutationRejectedWhenStale)"
+      ],
+      "note": "Fresh no-grace introspection on every mutation route + typed per-target confirmation (echo the workflow/resource id) enforced before any upstream call; fail-closed on stale/errored freshness. Tested end-to-end."
+    },
+    "E2-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/clients/clients.go (verbatim operator-token pass-through, doJSON/call)",
+        "internal/clients/clients_test.go (TestRevokeToken_ForwardsOperatorTokenToOperatorSurface)",
+        "internal/server/gated_mutation_test.go (TestAdminMutationForwardsOperatorToken, TestAdminCallsOperatorSurfaceNotLifecycle)",
+        "internal/observability/confinement_test.go (LGTM standing-cred separation)"
+      ],
+      "note": "Operator token forwarded byte-equal to each satellite's own operator surface (no elevated console credential on admin paths); the only standing credential is the read-only LGTM token, confined to internal/observability. Tested."
+    },
+    "E2-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/workflow/workflow.go (Wrap: audit-intent -> call -> audit-outcome, audit-or-fail)",
+        "internal/audit/kafka.go (KafkaRecorder -> studio-spine)",
+        "internal/workflow/workflow_test.go (TestWrap_* incl. OutcomeAuditFailureFailsAnOtherwiseSuccessfulMutation)",
+        "internal/audit/kafka_test.go",
+        "internal/audit/kafka_integration_test.go (TestAuditOrFailDurableOnStudioSpine)"
+      ],
+      "note": "Audit-before-respond mutation wrap where a failed audit write fails the mutation; durable CloudEvents Kafka writer to the family audit stream. Comprehensively tested (unit + integration)."
+    },
+    "E2-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/admin/audit.go (BrowseAudit)",
+        "internal/audit/store.go (filter by actor/satellite/action)",
+        "internal/audit/store_test.go",
+        "internal/admin/audit_test.go",
+        "internal/server/server.go:614 (auditGated)",
+        "web/src/audit/pages/AuditViewerPage.tsx",
+        "web/src/audit/components/AuditRetention.tsx",
+        "web/src/ConsoleAuditViewerSpec.spec.tsx"
+      ],
+      "note": "Audit browse/search backend (durable Store with actor/satellite/action filtering) present and tested; web AuditViewerPage + retention component + spec exist. GAPS: the web pane is wired to TypedStubAuditListService (honest-empty) not a live BFF client; the audit-pane read is NOT itself audited (only break-glass reads are); tenant-embedded-keys handling not evidenced."
+    },
+    "E3-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/observability/observability.go (Guardrails, GuardrailError before any backend call)",
+        "internal/server/routes.go:80 (/api/obs/*)",
+        "internal/observability/observability_test.go (TestGuardrailTripsBeforeBackendCall, TestObsGuardrailRejectsOverLimit)",
+        "internal/observability/mimir_test.go (TestMetricsGuardrailTripsBeforeMimirCall, cardinality cap)"
+      ],
+      "note": "Guardrailed LGTM proxy /api/obs/{logs,metrics,traces,alerts} with FR-CT6 caps (time-range, log-volume, cardinality/response-size) enforced server-side, plus typed degradation. Fully tested."
+    },
+    "E3-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:316 (obsLogs)",
+        "internal/observability/observability.go (Logs, LogQL query_range)",
+        "internal/server/server_test.go:213 (TestObsLogsProxiesWhenConfigured, GuardrailReturns400, DegradesWhenUnconfigured)"
+      ],
+      "note": "BFF log-search over Loki/LogQL is present and tested (scoped query, guardrail 400, typed 502 degrade). MISSING: no web log-search pane exists (web/src has traces/audit/ai-usage/settings only) \u2014 the 'Grafana shell + result pane' UI half is unbuilt."
+    },
+    "E3-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:335 (obsMetrics)",
+        "internal/observability/mimir.go",
+        "internal/observability/mimir_test.go (TestMetricsQueryShapesMimirMatrix, ...)",
+        "internal/server/obsmetrics_test.go"
+      ],
+      "note": "BFF metrics over Mimir/PromQL is present and tested (query shaping, step defaulting, cardinality cap, typed degrade). MISSING: no web metrics/dashboards pane / Grafana-Scenes shell in web/src."
+    },
+    "E3-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:347 (obsTraces)",
+        "internal/observability/observability.go (Traces, OTLP->waterfall)",
+        "web/src/traces/TracesPane.tsx",
+        "web/src/traces/Waterfall.tsx",
+        "web/src/traces/TracesPane.spec.tsx",
+        "web/src/traces/scenes-shell.spec.ts",
+        "internal/observability/observability_test.go (TestObsTracesReturnsWaterfall, NotFoundIsEmptyNotDegraded)"
+      ],
+      "note": "Trace lookup + ORIGINAL (AGPL-clean) waterfall renderer present full-stack: BFF Tempo proxy shaping OTLP into gen.TraceResult, plus a hand-built React Waterfall pane with license/edge-confinement specs. Tested both tiers."
+    },
+    "E3-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/observability/correlate.go (Correlate, FR-C18 vocabulary)",
+        "internal/observability/observability_test.go (TestObsCorrelationKeysOnConventions)"
+      ],
+      "note": "Cross-signal correlation keyed on the contracts FR-C18 shared-attribute vocabulary (orvex.tenant/cell, service.name, trace id) is present as a pure mapping and tested. MISSING: no web cross-signal pivot UI wiring a log line into the trace pane."
+    },
+    "E3-S6": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:362 (obsAlerts)",
+        "internal/observability/observability.go (Alerts, Alertmanager v2)",
+        "internal/observability/observability_test.go (TestObsAlertsProxiesFiringAndResolved)"
+      ],
+      "note": "BFF alert-state surface over Alertmanager v2 (firing/resolved shaping) is present and tested. MISSING: no web alert-state pane and no links from alerts into the correlated pane."
+    },
+    "E3-S7": {
+      "status": "partial",
+      "evidence": [
+        "internal/admin/health.go (HealthBoard, reachability half)",
+        "internal/server/server.go:697 (healthBoard, realRoute)",
+        "internal/admin/health_test.go (TestHealthBoard_IsolatedPerSibling)",
+        "internal/server/server_test.go:298 (TestAdminHealthIsLive)"
+      ],
+      "note": "Satellite health board reachability half (per-sibling /healthz fan-out, isolated so one down sibling never blanks another) is present, live, and tested. MISSING: the FR-CT4 Mimir-sourced per-satellite SLI half is explicitly deferred (see health.go comment); no web health-board pane."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/clients/clients.go:268 (Workflows authorizing-proxy client, no temporal-frontend dial)",
+        "internal/admin/workflows.go (ListWorkflows/GetWorkflow)",
+        "internal/server/server.go:389 (listWorkflowsGated/getWorkflowGated)",
+        "internal/clients/workflows_test.go (TestWorkflowListProxiesToUpstream, GetDecodesDetail)",
+        "internal/server/workflows_test.go (TestWorkflowListProxiesToUpstream)",
+        "internal/server/celllint_test.go (AC3 no-temporal-egress)"
+      ],
+      "note": "Workflow visibility reads go exclusively through the workflows authorizing proxy with operator-token pass-through; console constructs no Temporal client anywhere (asserted by celllint no-temporal-egress). BFF present and tested. Note: no web workflows-list pane."
+    },
+    "E4-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/admin/workflows.go (Retry/Cancel/SignalWorkflow via Wrap)",
+        "internal/clients/clients.go (Workflows.Retry/Cancel/Signal)",
+        "internal/server/server.go:411 (retry/cancel/signalWorkflowGated, gate.Mutate + confirmation)",
+        "internal/server/workflows_test.go (TestWorkflowWriteForwardsOperatorTokenToProxy, RejectedWhenIntrospectionStale, WithoutConfirmation)",
+        "internal/clients/workflows_test.go (TestWorkflowWriteForwardsOperatorTokenToProxy)"
+      ],
+      "note": "Workflow write ops (retry/cancel/signal) via the proxy, each behind gate.Mutate (fresh introspection) + typed confirmation + audit-wrap. Fully tested. Note: no web write UI."
+    },
+    "E4-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No workspace/user lifecycle state-machine and no reconcile-drift view anywhere in the tree. admin/identity.go is explicitly read-only ('write half of FR-CT7 does not exist yet'); internal/server/reconcile_test.go is the unrelated M8 route-count reconciliation, not workspace reconciliation."
+    },
+    "E5-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/admin/identity.go (Tenants, read-only)",
+        "internal/clients/clients.go:139 (ListTenants -> identity /v1/registry/tenants)",
+        "internal/server/server.go:532 (tenantsGated)",
+        "internal/server/gated_mutation_test.go (TestAdminReadRequiresAdminOrg)"
+      ],
+      "note": "Org/tenant registry browse (read half) present at the BFF with admin-org gating and typed degradation. MISSING: no provisioning-history view, and no web org/tenant registry pane. Write half intentionally deferred (matches story's read-half scope)."
+    },
+    "E5-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/admin/identity.go (Tokens, RevokeToken via Wrap)",
+        "internal/clients/clients.go (ListTokens, RevokeToken -> identity operator surface)",
+        "internal/server/server.go:555 (tokensGated, GatedRevokeToken)",
+        "internal/clients/clients_test.go (TestRevokeToken_ForwardsOperatorTokenToOperatorSurface)",
+        "internal/server/gated_mutation_test.go (TestGatedRevokeToken_DecodesJSONBody, TestAdminCallsOperatorSurfaceNotLifecycle)"
+      ],
+      "note": "Token list + revoke (with audit-wrap, operator-surface-not-lifecycle) present and tested. MISSING: no token ROTATE operation, and no web token-management pane (list/inspect/rotate/revoke UI)."
+    },
+    "E5-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/admin/satellite_ops.go (Reindex via Wrap)",
+        "internal/clients/clients.go:191 (TriggerReindex -> knowledge /admin/v1/reindex)",
+        "internal/server/server.go:605 (reindexGated)",
+        "internal/clients/clients_test.go (TestTriggerReindex_ForwardsOperatorTokenToOperatorSurface)"
+      ],
+      "note": "Knowledge reindex trigger fronted via the FR-K25 wrap: console calls knowledge's own admin surface (knowledge, not console, publishes the spine event), gated + audited + tested. Note: no dedicated web control (would ride a generic action)."
+    },
+    "E6-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/admin/billing.go (AIUsage passthrough)",
+        "internal/clients/clients.go:214 (UsageReport raw-JSON passthrough)",
+        "internal/server/server.go:566 (aiUsageGated)",
+        "web/src/ai-usage/AiUsageCostPage.tsx",
+        "web/src/ai-usage/CapEditor.tsx",
+        "web/src/ai-usage/cap-math.ts",
+        "web/src/ConsoleAiUsageCostDashboardSpec.spec.tsx"
+      ],
+      "note": "AI usage & enforcement pane present full-stack: BFF passes ai's FR-AI15 report through verbatim (console stores no cap value), plus a React spend-vs-cap page with cap-math and a spec. Note: the entrypoint wires TypedStubAiUsageService (honest-empty) pending the real ai client swap \u2014 the pane renders, live data is one seam swap away."
+    },
+    "E6-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/admin/billing.go (Entitlement/SetEntitlement/QuotaUsage)",
+        "internal/clients/clients.go (Billing GetEntitlement/SetEntitlement, Engine QuotaUsage)",
+        "internal/server/server.go:573 (getEntitlementsGated/setEntitlementsGated/quotaGated)",
+        "internal/server/gated_mutation_test.go"
+      ],
+      "note": "BFF plan/entitlement read+set (billing SoR) and engine F-QUOTA usage read present and gate/audit-tested. MISSING: no web plan/entitlement/quota-usage pane in web/src."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/breakglass/breakglass.go",
+        "internal/breakglass/offline_adapter.go",
+        "internal/server/server.go:714 (breakglassStatus/breakglassRecover route class)",
+        "internal/breakglass/breakglass_test.go (TestBreakGlassSeparateFromNormalPlane)",
+        "internal/breakglass/offline_adapter_test.go (TestBreakGlassVerifiesRealOfflineSealedCred)",
+        "internal/server/celllint_test.go (dependency-direction)"
+      ],
+      "note": "Break-glass route class with identity-offline-only verification (orvex-studio-lib offlineauth adapter) separated from the normal Clerk-verified plane; dependency-direction asserted. Present and tested."
+    },
+    "E7-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/breakglass/ratelimit.go (RedisRateLimiter, fail-closed)",
+        "internal/breakglass/alarm.go (out-of-band alarm)",
+        "internal/breakglass/breakglass.go (DefaultAllowList bounded actions)",
+        "internal/breakglass/breakglass_test.go (TestBreakGlassRateLimited, RefusesNonAllowlistedAction, VerifiesOfflineAndAuditsEveryUse)",
+        "internal/breakglass/ratelimit_test.go (AllowsThenRejectsOverBudget, FailsClosedOnNonPositiveConfig)"
+      ],
+      "note": "Break-glass rate-limit (Redis bucket, fails closed), out-of-band alarm on every use, and a bounded action allow-list (satellite actions rejected) \u2014 all present and tested."
+    },
+    "E8-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S5": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S6": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S7": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    },
+    "E8-S8": {
+      "status": "absent",
+      "evidence": [],
+      "note": "User-Behavior Analytics / PostHog surface is entirely unimplemented: no pkg/posthog port, no /api/analytics/* BFF, no analytics/session-replay/web-analytics web panes, and no posthog dependency in web/package.json. Nothing in the tree references PostHog or UBA."
+    }
+  },
+  "summary": "Console's Go BFF is largely built and well-tested (auth edge, audit-or-fail wrap, LGTM obs proxy with guardrails, workflows authorizing-proxy client, admin composition, break-glass plane): 15 stories present, 12 partial, 9 absent on origin/dev@331ddd7. The dominant gap is the web SPA \u2014 only traces, audit, ai-usage and settings panes exist, so most obs/admin stories are BFF-complete but UI-incomplete (partial); the entire E8 PostHog analytics epic and the E4-S3 workspace-lifecycle/reconcile view are absent; E1-S2's strict CSP is unimplemented."
+}

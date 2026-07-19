@@ -1,0 +1,35 @@
+sequenceDiagram
+  participant U as User
+  participant CS as Content script
+  participant SW as Service worker
+  participant ID as identity
+  participant API as api
+  participant K as knowledge / ai
+  participant P as Provider composer
+
+  U->>CS: Click Orvex button (explicit per-use action, AD-6 clause 2)
+  CS->>SW: Deliver request<br/>providerId, target-account signal if exposed (FR-CF7)
+  SW->>SW: Check live Orvex session + active scope (AD-EXT-6)
+  alt session absent or expired
+    SW-->>U: Fail closed, visible re-auth prompt
+  else session valid
+    SW->>K: Retrieve + compose enriched bundle<br/>delegated principal (I-4), RYW via api SoR (AD-EXT-7)
+    K-->>SW: Enriched bundle
+    SW-->>U: Popup shows memory preview, private items flagged
+    U->>SW: Per-use consent (FR-CF1)
+    SW->>ID: MINT single-target single-use short-TTL token<br/>scope {memory, target, user, composedTextRef}<br/>+ asserted-scope (AD-8, AD-EXT-3/6, Shape 2)
+    ID-->>SW: Consented delivery token<br/>(firewall + consent + scope re-resolved & ENFORCED here; breach = refused, not warned)
+    SW->>API: Shape 1a compose-validation call<br/>PRESENTING deliveryToken + composedTextRef
+    API-->>SW: validated (token RESERVED, hash-equality<br/>check only — audit NOT yet written)
+    SW->>CS: Proceed to canary transaction (Shape 1b composeInto port)
+    CS->>P: Canary: resolve -> verify-writable -> insert -> read-back (~250ms, AD-EXT-4)
+    alt canary success
+      P-->>U: Text visible in composer; user reviews, edits, sends (never auto-send, AD-6 clause 4)
+      CS->>SW: outcome: injected
+    else canary failure
+      CS-->>U: Fail loud; branch to copy/paste degrade (§6)
+      CS->>SW: outcome: copied (or aborted)
+    end
+    SW->>API: Shape 1a outcome-report<br/>{deliveryToken, outcome}
+    API-->>SW: acknowledged — token SPENT,<br/>authoritative audit recorded (AD-EXT-3/AD-EXT-6)
+  end

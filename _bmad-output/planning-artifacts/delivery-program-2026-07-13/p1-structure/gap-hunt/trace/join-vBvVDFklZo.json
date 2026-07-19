@@ -1,0 +1,56 @@
+{
+  "slug": "vBvVDFklZo",
+  "total": 10,
+  "results": [
+    {
+      "id": "FR-O1",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2701 (api/plan.json E7-GAP1, gap_fix story, title+body ../gap-hunt/fix-bodies/fix-fr-o1-seeding.md explicitly implement FR-O1 profession-aware starter Memory + demo world seed). NOTE: story's covers[] array is empty (metadata bug) so coverage-index.json only found it via a fallback 'gapfix' tag, not the real ticket ID — real ticket ENG-2701 confirmed by direct plan.json read."
+    },
+    {
+      "id": "FR-O3",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2702 (ui/plan.json E3-GAP1, gap_fix story, title+body ../gap-hunt/fix-bodies/fix-fr-o3-empty-states.md explicitly implement FR-O3 per-surface designed empty states + demo/real separation). NOTE: story's covers[] array is empty (metadata bug) so coverage-index.json only found it via a fallback 'gapfix' tag, not the real ticket ID — real ticket ENG-2702 confirmed by direct plan.json read."
+    },
+    {
+      "id": "FR-O4",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2714, ENG-2730 (extension/plan.json E2-S1 'Guided one-step connect' + E6-S4 'FR-O4 first-run usability test — connect ≤3 taps ≤2 min, no config, verified', both covers:[FR-O4,...])"
+    },
+    {
+      "id": "FR-D1",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2717, ENG-2718, ENG-2719, ENG-2728 (extension/plan.json E3-S1/E3-S2/E3-S3/E6-S2, covers:[FR-D1,...])"
+    },
+    {
+      "id": "FR-D2",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2714, ENG-2716, ENG-2729, ENG-2730 (extension/plan.json E2-S1/E2-S3/E6-S3/E6-S4, covers:[FR-D2,...])"
+    },
+    {
+      "id": "FR-D3",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2716, ENG-2720 (extension/plan.json E2-S3/E3-S4, covers:[FR-D3,...])"
+    },
+    {
+      "id": "FR-D4",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2715, ENG-2721, ENG-2722 (extension/plan.json E2-S2/E4-S1/E4-S2, covers:[FR-D4,...])"
+    },
+    {
+      "id": "FR-D5",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2713, ENG-2717, ENG-2722, ENG-2723, ENG-2724 (extension/plan.json E1-S3/E3-S1/E4-S2/E4-S3/E5-S1, covers:[FR-D5,...])"
+    },
+    {
+      "id": "FR-D6",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2718, ENG-2720 (extension/plan.json E3-S2/E3-S4, covers:[FR-D6,...])"
+    },
+    {
+      "id": "FR-D7",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2725, ENG-2726, ENG-2728 (extension/plan.json E5-S2/E5-S3/E6-S2, covers:[FR-D7,...])"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "slug": "ViWUZj1MrW",
+  "total": 9,
+  "results": [
+    {
+      "id": "AD-EXT-1",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a coverage-index key literally, but hard-check match: breakdown/extension/plan.json E3-S1 '[extension] Delivery-adapter framework — provider registry + own-compose-surface injection port' (covers FR-D1, FR-D5) implements AD-EXT-1's exact rule (one DeliveryAdapter interface behind a single provider registry) under the older FR-D id."
+    },
+    {
+      "id": "AD-EXT-2",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "No story anywhere implements 'tier is data, never code' — the versioned signed-remote-JSON GO/DEGRADE config channel with sole-authority precedence over the AD-EXT-1 registry. extension/plan.json E3-S4 hardcodes Claude/Grok as a static posture (not a data-driven config flip); E5-S2 versions selector fixtures for breakage repair only, not the tier field or its precedence rule. Zero hits for tier-config/signed-JSON/GO-DEGRADE concepts in feature-map.txt or any breakdown/*/plan.json 'covers'. Also absent from the gap-hunt/ext-sweep tickets (which covered AD-EXT-3/4/5/6/7 but not this one). Genuine gap — predates the addendum architecture that introduced tier-as-remote-config; not OQ-deferred or superseded."
+    },
+    {
+      "id": "AD-EXT-3",
+      "verdict": "COVERED",
+      "owner_or_reason": "Key in coverage-index.json -> [\"extsweep\"]. Corresponds to gap-hunt/ext-sweep/architecture.json's 'Shape 1a compose-VALIDATION + outcome-report' ticket (token reserve-then-spend, audit SoR)."
+    },
+    {
+      "id": "AD-EXT-4",
+      "verdict": "COVERED",
+      "owner_or_reason": "Key in coverage-index.json -> [\"extsweep\"]. Canary/closed-shadow-DOM go/no-go tied into the Shape 1a/3 gap tickets in gap-hunt/ext-sweep/architecture.json."
+    },
+    {
+      "id": "AD-EXT-5",
+      "verdict": "COVERED",
+      "owner_or_reason": "Key in coverage-index.json -> [\"extsweep\"]. Zero-non-Orvex-egress rule closed by the Shape 3 canary-telemetry ingest ticket (api is the sole egress path) in gap-hunt/ext-sweep/architecture.json."
+    },
+    {
+      "id": "AD-EXT-6",
+      "verdict": "COVERED",
+      "owner_or_reason": "Key in coverage-index.json -> [\"extsweep\"]. Server-authoritative scope re-resolution + audit-SoR closed by the identity Shape 2 mint-tightening ticket in gap-hunt/ext-sweep/architecture.json."
+    },
+    {
+      "id": "AD-EXT-7",
+      "verdict": "COVERED",
+      "owner_or_reason": "Key in coverage-index.json -> [\"extsweep\"]. Read-your-writes-on-audit acceptance criterion (AC7) explicitly threaded through the Shape 1a ticket in gap-hunt/ext-sweep/architecture.json."
+    },
+    {
+      "id": "AD-EXT-8",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Not a coverage-index key. Hard-check: zero hits for extension-delivery.yaml/mintDeliveryToken/AD-EXT in breakdown/contracts/plan.json, breakdown/api/plan.json, breakdown/identity/plan.json 'covers' fields, and contracts/plan.json covers arrays are all empty for this concept; zero hits in feature-map.txt. gap-hunt/ext-sweep/contract-spec.json's own 'LAND the Delivery-Seam contract artifacts into orvex-studio-contracts' gap (verdict CONFIRMED, why_uncovered: 'nothing owns the landing') is exactly this AD-EXT-8 rule and remains only a proposed_issue, not yet a filed/covered ticket. Genuine gap."
+    },
+    {
+      "id": "AD-EXT-9",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a coverage-index key literally, but hard-check match: breakdown/extension/plan.json E1-S1 '[extension] MV3 scaffold — manifest v3 service worker + popup shell, env-only config, build + CI' (covers AD-5a) literally implements AD-EXT-9's rule (env-injected backend URLs, no baked default) via its 'env-only config' scope."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "Iff6l2VvGt",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0027",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a coverage-index key (index has no 'ADR-0027'), but hard-check confirms coverage under the workgraph architecture's local decision alias AD-7. breakdown/workgraph/plan.json story E8-S1 'studio.workgraph.* event schemas + source-adapter (sources/workgraph.yaml, acl_primitive) + OTel' covers:['AD-7'] and its body (E8-S1.md) cites [Source: AD-7, AD-3] for the exact ADR-0027 obligations: subdomain naming, sources/workgraph.yaml source-adapter with acl_primitive fail-closed shape, and rich-event-inline-authoritative indexing. Supporting obligations covered by sibling stories also tagged AD-7: E1-S4 (transactional outbox -> studio-spine, covers NFR-MEM5+AD-7), E2-S4 (batch per-resource event fan-out, covers FR-MEM6), E5-S3 (hard cascading delete + knowledge purge, covers FR-MEM13+NFR-MEM7), E8-S2 (console fleet view via knowledge projections + 3 anomaly detectors, covers FR-MEM17). feature-map.txt 'orvex-studio-workgraph' pack (Events/projection & console section, ~line 730-736) lists both stories verbatim. Pre-computed gap-hunt/gaps-adr-0027.json independently verdicts 'zero gaps' against this same story set plus FR-MEM10/11/13/14/16 and NFR-MEM1 (retrieval SLO spike, also present in workgraph pack). Note: coverage-index.json's own 'AD-7' key (ENG-2213/2240/2369/knowledge-corpus) is a DIFFERENT architecture doc's AD-7 (azRwTCZMqw, Memory retrieval namespace wall) - a decision-alias collision across docs - so that index entry does not itself evidence this ADR; the plan.json covers[] + body Source: tags in the workgraph pack are the authoritative link instead."
+    }
+  ]
+}

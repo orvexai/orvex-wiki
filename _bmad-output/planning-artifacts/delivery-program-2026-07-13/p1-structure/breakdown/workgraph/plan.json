@@ -1,0 +1,118 @@
+{
+  "service": "orvex-studio-workgraph",
+  "requirement_source": "PRD: orvex-studio-workgraph (Kgp6JT3IOR) + Architecture (bnbRUdCm6R) + PRD Addendum (2KrwsvY5zL)",
+  "sources": [
+    {"slug": "Kgp6JT3IOR", "title": "PRD: orvex-studio-workgraph"},
+    {"slug": "bnbRUdCm6R", "title": "Architecture: orvex-studio-workgraph"},
+    {"slug": "2KrwsvY5zL", "title": "PRD Addendum — orvex-studio-workgraph"}
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] workgraph: Foundations — repo, contracts codegen, Postgres store, auth, event spine",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {"id": "E1-S1", "title": "[workgraph] Repo scaffold + six-tier layout + contracts-tag codegen", "body_file": "bodies/E1-S1.md", "covers": ["AD-1"], "audit": "partial"},
+        {"id": "E1-S2", "title": "[workgraph] Postgres store baseline: schema, UUIDv7, tenant RLS fail-closed, embedded migration applier", "body_file": "bodies/E1-S2.md", "covers": ["NFR-MEM4", "AD-6", "AD-9"], "audit": "present"},
+        {"id": "E1-S3", "title": "[workgraph] Auth wiring via orvex-studio-lib pkg/auth (deny-by-default, per-agent tokens, VerifyFresh)", "body_file": "bodies/E1-S3.md", "covers": ["NFR-MEM4"], "audit": "absent"},
+        {"id": "E1-S4", "title": "[workgraph] Transactional outbox + cmd/relay → studio-spine (CloudEvents audit)", "body_file": "bodies/E1-S4.md", "covers": ["NFR-MEM5", "AD-7"], "audit": "partial"},
+        {"id": "E1-S5", "title": "[workgraph] Server-issued per-tenant short ids (wg- base32-crockford, contracts grammar)", "body_file": "bodies/E1-S5.md", "covers": ["FR-MEM1", "AD-6"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] workgraph: Work-graph core — items, edges, ready/blocked, batch, coordination primitives",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {"id": "E2-S1", "title": "[workgraph] Item CRUD + append-only notes/comments + studio.workgraph.* events", "body_file": "bodies/E2-S1.md", "covers": ["FR-MEM1"], "audit": "absent"},
+        {"id": "E2-S2", "title": "[workgraph] Typed edges (blocks/related/parent-child/discovered-from) with blocks cycle rejection", "body_file": "bodies/E2-S2.md", "covers": ["FR-MEM2"], "audit": "absent"},
+        {"id": "E2-S3", "title": "[workgraph] Ready/blocked/stats query + defer/undefer + denormalized flag with incremental recompute", "body_file": "bodies/E2-S3.md", "covers": ["FR-MEM3", "FR-MEM7", "NFR-MEM2"], "audit": "absent"},
+        {"id": "E2-S4", "title": "[workgraph] Batch: N mutations in one transaction with per-resource event fan-out", "body_file": "bodies/E2-S4.md", "covers": ["FR-MEM6"], "audit": "absent"},
+        {"id": "E2-S5", "title": "[workgraph] Coordination primitives — gate items, work templates, epic dispatch views", "body_file": "bodies/E2-S5.md", "covers": ["FR-MEM26"], "audit": "absent"},
+        {"id": "E2-S6", "title": "[workgraph] Scale envelope load test + published measured degradation curve", "body_file": "bodies/E2-S6.md", "covers": ["NFR-MEM2"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] workgraph: Claims, leases & handoff — atomic coordination without double-claims",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {"id": "E3-S1", "title": "[workgraph] Atomic claim CAS + lease TTL + owner-only heartbeat", "body_file": "bodies/E3-S1.md", "covers": ["FR-MEM4"], "audit": "absent"},
+        {"id": "E3-S2", "title": "[workgraph] cmd/reaper — conditional-CAS stale-lease revert to ready", "body_file": "bodies/E3-S2.md", "covers": ["FR-MEM4"], "audit": "absent"},
+        {"id": "E3-S3", "title": "[workgraph] Handoff state machine + identity-registered role resolution", "body_file": "bodies/E3-S3.md", "covers": ["FR-MEM5", "FR-MEM24"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] workgraph: Facts, prime & retrieval — the cheap-warm-start layer",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {"id": "E4-S1", "title": "[workgraph] Remember/recall/forget with injection caps + elision banners", "body_file": "bodies/E4-S1.md", "covers": ["FR-MEM8"], "audit": "absent"},
+        {"id": "E4-S2", "title": "[workgraph] Prime compact + full with fixed content contract + token budget", "body_file": "bodies/E4-S2.md", "covers": ["FR-MEM9", "NFR-MEM3"], "audit": "absent"},
+        {"id": "E4-S3", "title": "[workgraph] Hybrid retrieval/ranking via knowledge semantic leg (no LLM in hot path)", "body_file": "bodies/E4-S3.md", "covers": ["FR-MEM10"], "audit": "absent"},
+        {"id": "E4-S4", "title": "[workgraph] Retrieval spike — publish SLOs + fast-path index-scan tier", "body_file": "bodies/E4-S4.md", "covers": ["NFR-MEM1"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] workgraph: Janitors — consolidation, tiered compaction, hard delete (async only)",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {"id": "E5-S1", "title": "[workgraph] Async consolidation ADD/UPDATE/DELETE/NOOP + 0.98-cosine intra-batch dedup", "body_file": "bodies/E5-S1.md", "covers": ["FR-MEM11"], "audit": "absent"},
+        {"id": "E5-S2", "title": "[workgraph] Tiered compaction (tier-1 summarize / tier-2 archive) reference-aware + restore", "body_file": "bodies/E5-S2.md", "covers": ["FR-MEM12"], "audit": "absent"},
+        {"id": "E5-S3", "title": "[workgraph] Hard cascading delete — purge derived artifacts + content-free tombstone + knowledge purge", "body_file": "bodies/E5-S3.md", "covers": ["FR-MEM13", "NFR-MEM7"], "audit": "absent"},
+        {"id": "E5-S4", "title": "[workgraph] Janitor step-API contract + workflows schedules + no-train EU-resident provider config", "body_file": "bodies/E5-S4.md", "covers": ["NFR-MEM5", "NFR-MEM7"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] workgraph: Authz & quota — namespaces outside, grants inside, 402 verdicts, degradation",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {"id": "E6-S1", "title": "[workgraph] authz chokepoint — namespace isolation + 3-state privacy enum + per-item grants", "body_file": "bodies/E6-S1.md", "covers": ["FR-MEM23", "FR-MEM21", "FR-MEM8", "NFR-MEM4"], "audit": "absent"},
+        {"id": "E6-S2", "title": "[workgraph] Org-shared namespaces via explicit admin grant (polymorphic {user|org})", "body_file": "bodies/E6-S2.md", "covers": ["FR-MEM25"], "audit": "absent"},
+        {"id": "E6-S3", "title": "[workgraph] Quota verdicts — frozen 402 QUOTA_EXCEEDED against billing entitlements", "body_file": "bodies/E6-S3.md", "covers": ["FR-MEM1"], "audit": "absent"},
+        {"id": "E6-S4", "title": "[workgraph] Degradation posture — honest-empty prime/recall + CAS-safe claim under outage", "body_file": "bodies/E6-S4.md", "covers": ["NFR-MEM6"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] workgraph: Surfaces & adapters — MCP, CLI, KG interop, Claude memory-tool",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {"id": "E7-S1", "title": "[workgraph] MCP workgraph_* section + studio_memory disambiguation pointers", "body_file": "bodies/E7-S1.md", "covers": ["FR-MEM14", "FR-MEM22", "FR-MEM21"], "audit": "absent"},
+        {"id": "E7-S2", "title": "[workgraph] CLI orvex-cli workgraph section (verb parity, --json)", "body_file": "bodies/E7-S2.md", "covers": ["FR-MEM15"], "audit": "absent"},
+        {"id": "E7-S3", "title": "[workgraph] KG interop adapter (entities/relations/observations read+write, golden-fixtured)", "body_file": "bodies/E7-S3.md", "covers": ["FR-MEM16"], "audit": "absent"},
+        {"id": "E7-S4", "title": "[workgraph] Claude memory-tool backend (memory_20250818 /memories file ops)", "body_file": "bodies/E7-S4.md", "covers": ["FR-MEM27"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] workgraph: Events, projection & console — the read-side fleet view",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {"id": "E8-S1", "title": "[workgraph] studio.workgraph.* event schemas + source-adapter (sources/workgraph.yaml, acl_primitive) + OTel", "body_file": "bodies/E8-S1.md", "covers": ["AD-7"], "audit": "partial"},
+        {"id": "E8-S2", "title": "[workgraph] Console fleet view via knowledge projections + three anomaly detectors + fact pin/unpin", "body_file": "bodies/E8-S2.md", "covers": ["FR-MEM17"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E9",
+      "title": "[EPIC] workgraph: Rituals, adherence & wiki-worthy — the chat-platform hooks",
+      "body_file": "bodies/E9.md",
+      "stories": [
+        {"id": "E9-S1", "title": "[workgraph] Prompt pack store + versioned revisions + server-side reinforcement", "body_file": "bodies/E9-S1.md", "covers": ["FR-MEM18"], "audit": "absent"},
+        {"id": "E9-S2", "title": "[workgraph] Adherence telemetry + pre-GA viability spike + GA gate", "body_file": "bodies/E9-S2.md", "covers": ["FR-MEM19"], "audit": "absent"},
+        {"id": "E9-S3", "title": "[workgraph] Wiki-worthy flow — package + submit staging Proposal via stagingclient (cycle-rejected)", "body_file": "bodies/E9-S3.md", "covers": ["FR-MEM20"], "audit": "absent"}
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-MEM1", "FR-MEM2", "FR-MEM3", "FR-MEM4", "FR-MEM5", "FR-MEM6", "FR-MEM7", "FR-MEM8", "FR-MEM9", "FR-MEM10",
+      "FR-MEM11", "FR-MEM12", "FR-MEM13", "FR-MEM14", "FR-MEM15", "FR-MEM16", "FR-MEM17", "FR-MEM18", "FR-MEM19", "FR-MEM20",
+      "FR-MEM21", "FR-MEM22", "FR-MEM23", "FR-MEM24", "FR-MEM25", "FR-MEM26", "FR-MEM27",
+      "NFR-MEM1", "NFR-MEM2", "NFR-MEM3", "NFR-MEM4", "NFR-MEM5", "NFR-MEM6", "NFR-MEM7"
+    ],
+    "uncovered": []
+  }
+}

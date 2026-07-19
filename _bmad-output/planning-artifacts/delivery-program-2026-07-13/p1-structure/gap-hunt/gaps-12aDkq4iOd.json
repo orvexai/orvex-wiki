@@ -1,0 +1,20 @@
+{
+  "slug": "12aDkq4iOd",
+  "title": "ADR-0034: Credential lanes for agent execution",
+  "verdict_summary": "Accepted, active family-tier ADR — NOT superseded/stub. But its subject is the DELIVERY ORCHESTRATOR's own agent-dispatch credential handling (control/build/verify lanes, deny-by-default allow-list dispatch env, orchestrator-derived scoped-ephemeral mint), i.e. governance of the autonomous delivery loop's meta-tooling (orchestrator prompt gkkUDzn277, laptop-seat in-process children), not a feature of the Orvex Studio product that the 575-story build program constructs. It declares NO formal requirement ids of its own (no FR/NFR/AD/D/OQ). Its MUSTs are changes to the orchestrator dispatch path — done directly to the harness/prompt, not tracked as product stories. The one product-adjacent artifact, the orvex-studio-ai broker-token contract API, is an EXPLICIT open follow-up ('not decided here', an orvex-studio-ai PRD/contracts item) with a documented interim scoped-raw-key fallback. Confirmed against coverage: zero credential-lane/dispatch/broker terms in covers-union; feature-map auth hits are all product features (token-mint service, LGTM/credential confinement gates), none touching orchestrator dispatch lanes. Zero product-build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "orvex-studio-ai broker-token contract API (scoped/metered/short-TTL LLM token)",
+      "quote": "When a task genuinely needs model capability beyond the harness, the build lane declares a scoped, metered, short-TTL token brokered through orvex-studio-ai's contract API ... Follow-ups (open, not decided here): ... the orvex-studio-ai broker-token scope vocabulary (an orvex-studio-ai PRD / contracts item)."
+    },
+    {
+      "name": "Orchestrator dispatch allow-list mechanism (per-lane credential manifest + derive/inject step)",
+      "quote": "The dispatch env is constructed by enumerating the target lane's declared credentials and injecting only those ... The orchestrator must derive-and-scope credentials per dispatch instead of the current 'hold everything, inject a fixed env' — a per-lane credential manifest and a derive/inject step."
+    },
+    {
+      "name": "Lane-manifest format (concrete)",
+      "quote": "Follow-ups (open, not decided here): ... The concrete lane-manifest format and the orvex-studio-ai broker-token scope vocabulary."
+    }
+  ]
+}

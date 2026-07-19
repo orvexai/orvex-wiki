@@ -1,0 +1,626 @@
+[
+ {
+  "slug": "pf10XC2Qjz",
+  "title": "Architecture: orvex-cli",
+  "space": "orvexcli",
+  "status": "canonical"
+ },
+ {
+  "slug": "PACF13d3I3",
+  "title": "Orvex CLI \u2014 Audit Findings & Rebirth Plan",
+  "space": "orvexcli",
+  "status": "draft"
+ },
+ {
+  "slug": "R4AOVBLST7",
+  "title": "PRD: orvex-cli",
+  "space": "orvexcli",
+  "status": "draft"
+ },
+ {
+  "slug": "3z78laG6dB",
+  "title": "Addendum \u2014 Product Brief: Orvex Studio",
+  "space": "orvexstudio",
+  "status": "canonical"
+ },
+ {
+  "slug": "iiCcKhGptV",
+  "title": "Architecture Spine: Orvex Memory \u2014 Gap Closure",
+  "space": "orvexstudio",
+  "status": "canonical"
+ },
+ {
+  "slug": "g9vWbSYplh",
+  "title": "PRD: Orvex Memory \u2014 Gap Closure",
+  "space": "orvexstudio",
+  "status": "canonical"
+ },
+ {
+  "slug": "Cb0XBkNezd",
+  "title": "Architecture: orvex-studio-ai",
+  "space": "orvexstudioai",
+  "status": "canonical"
+ },
+ {
+  "slug": "pbKI3BpQmY",
+  "title": "PRD: orvex-studio-ai",
+  "space": "orvexstudioai",
+  "status": "canonical"
+ },
+ {
+  "slug": "ekTh7nDQqo",
+  "title": "Architecture: orvex-studio-api",
+  "space": "orvexstudioapi",
+  "status": "canonical"
+ },
+ {
+  "slug": "85qj2wwU2L",
+  "title": "PRD: orvex-studio-api",
+  "space": "orvexstudioapi",
+  "status": "draft"
+ },
+ {
+  "slug": "K5rumy9a8c",
+  "title": "ADR-0001: Polymorphic user-or-org tenancy",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "WWngFAdCYk",
+  "title": "ADR-0002: Wiki URL scheme \u2014 service-first host ordering",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "7E0Hbb9it2",
+  "title": "ADR-0003: Frozen QUOTA_EXCEEDED (402) cross-service error contract",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "GABwtTr4pp",
+  "title": "ADR-0004: Cross-cell peer-URL boundary \u2014 relaxation policy",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "F64Czq3mBa",
+  "title": "ADR-0005: Public repos use GitHub-hosted runners (CS \u00a713 exception)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "79YR5C7caM",
+  "title": "ADR-0006: Orchestrator execution seat \u2014 operator workstation",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "pYkl7HpOgr",
+  "title": "ADR-0007: CloudEvent envelope for the studio-spine",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "JLMuwgc9fV",
+  "title": "ADR-0008: Contracts change-authority \u2014 layered automated-merge + ADR-gated reshaping",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "94xrZhXCej",
+  "title": "ADR-0009: Auth-flow / exchange-token contract \u2014 dual-IdP exchange \u2192 session mint",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "AJzAntNPsz",
+  "title": "ADR-0010: studio.* CloudEvent type taxonomy",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "qZFmNWGY47",
+  "title": "ADR-0011: Tenant-to-cell registry \u2014 the platform's only global component",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "HylAAMRbPO",
+  "title": "ADR-0012: Tenancy model confirmation \u2014 polymorphic {user | org}",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "F7tTjMNVAr",
+  "title": "ADR-0013: MCP gateway event consumption \u2014 raw in-process Kafka consumer vs Knative Trigger",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "bL9bUj4tua",
+  "title": "ADR-0014: Knowledge store engine = Turbopuffer (namespace-per-tenant)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "PxoUAiGN29",
+  "title": "ADR-0015: Identity-owned tenancy DB \u2014 ruling-7 cross-DB delete reconcile + encryption/existence-read seams",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "akzWiopQBD",
+  "title": "ADR-0016: Engine distributed tracing & cross-service trace-context propagation",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "UWJzZBVDng",
+  "title": "ADR-0017: New external dependency \u2014 @clerk/react client SDK in the wiki engine",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "MQaTt8e22e",
+  "title": "ADR-0018: Dedicated Kata-isolated DinD runner set for public-repo CI that needs Docker",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "ODz3dEqZRJ",
+  "title": "ADR-0019: Studio BFF cell-compliance 421 self-heal signal",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "9KcwAG5SRg",
+  "title": "ADR-0020: MCP cell-discovery routing (discover-once-pin-421)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "hSJ5tgNZMm",
+  "title": "ADR-0021: wiki-api edge \u2014 caller-token pass-through",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "iBHqRbLIiF",
+  "title": "ADR-0022: Rerank-stage insertion into the RRF-terminal knowledge Search pipeline",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "pjacNq8SQY",
+  "title": "ADR-0023: DeprovisionWorkflow ownership \u2014 orvex-workflows as the durable Temporal control plane, engine-API executor seam, ruling-7 delete-propagation boundary",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "ulVURyc2pd",
+  "title": "ADR-0024: Agent Staging Area supersedes the OPS Librarian feature specs \u2014 Card Contract v1 \u2192 Proposal (verbatim superset)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "AqXpAlgvIv",
+  "title": "ADR-0025: Workgraph supersedes the OPS agent-side memory design \u2014 the user/agent memory split",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "W6MoFZgXEW",
+  "title": "ADR-0026: studio.staging.* event subdomain \u2014 service naming + the per-service producer generalization",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "Iff6l2VvGt",
+  "title": "ADR-0027: studio.workgraph.* event subdomain \u2014 workgraph as a P9 content source (source-adapter, rich-event-inline)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "8kTZK91vHd",
+  "title": "ADR-0028: 402 QUOTA_EXCEEDED vocabulary \u2014 surfaces enrollment for orvex-studio-staging and orvex-studio-workgraph",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "WZWmazrlS0",
+  "title": "ADR-0029: MCP identity edge-verifier cutover (ruling 8 revocation, no bridge)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "yOyavcWHEz",
+  "title": "ADR-0030: Cell-routing claim vocabulary on the Principal (cell/cell_epoch additive; sid stays out)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "vdc62Z4Sa4",
+  "title": "ADR-0031: New external dependency \u2014 Tree-Sitter binding for the full-build code graph dep-graph extractor",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "QnouxhOHK5",
+  "title": "ADR-0032: In-fork /mcp decommission at REST-gap parity \u2014 one agent door",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "yNFx3YyNap",
+  "title": "ADR-0033: Work-claim arbiter for the delivery orchestrator \u2014 Linear-status-as-claim + guardrail contract + Temporal-CAS trip-wire",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "12aDkq4iOd",
+  "title": "ADR-0034: Credential lanes for agent execution \u2014 deny-by-default per-lane scoping",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "QbEBPuKcGR",
+  "title": "ADR-0035: Go\u2194TypeScript contract/client bridge \u2014 per-repo codegen from the pinned seams",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "cpeenW2R9t",
+  "title": "Doc Governance \u2014 Drift & Spec-Gate (owned by wiki-api)",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "z5K777kNkD",
+  "title": "Event-Driven Architecture",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ },
+ {
+  "slug": "JGAUQRsw2g",
+  "title": "Multi-Region Cells, Failover & the Day-1 Cell Contract",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "CxjFpIVUZY",
+  "title": "Orvex Studio \u2014 Architecture & Principles",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "pTeVSp9P5f",
+  "title": "Systems Architecture",
+  "space": "orvexstudioarch",
+  "status": "draft"
+ },
+ {
+  "slug": "86CiGucQwU",
+  "title": "URL, Environment & Multi-Region Scheme",
+  "space": "orvexstudioarch",
+  "status": "canonical"
+ },
+ {
+  "slug": "o2ZqSrZjE6",
+  "title": "Architecture: orvex-studio-billing",
+  "space": "orvexstudiobilling",
+  "status": "canonical"
+ },
+ {
+  "slug": "Blcvui4UIn",
+  "title": "PRD: orvex-studio-billing",
+  "space": "orvexstudiobilling",
+  "status": "canonical"
+ },
+ {
+  "slug": "Ii9q9kBNms",
+  "title": "Architecture: User-Behavior Analytics (Console)",
+  "space": "orvexstudioconsole",
+  "status": "draft"
+ },
+ {
+  "slug": "L1NVnmRgpy",
+  "title": "Architecture: orvex-studio-console",
+  "space": "orvexstudioconsole",
+  "status": "canonical"
+ },
+ {
+  "slug": "TYWAtnvliD",
+  "title": "PRD Addendum \u2014 User-Behavior Analytics",
+  "space": "orvexstudioconsole",
+  "status": "draft"
+ },
+ {
+  "slug": "kldiZu93EC",
+  "title": "PRD: orvex-studio-console",
+  "space": "orvexstudioconsole",
+  "status": "canonical"
+ },
+ {
+  "slug": "nngOgO0CGO",
+  "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)",
+  "space": "orvexstudiocontracts",
+  "status": "canonical"
+ },
+ {
+  "slug": "o2waDNw3ix",
+  "title": "Architecture: orvex-studio-contracts",
+  "space": "orvexstudiocontracts",
+  "status": "canonical"
+ },
+ {
+  "slug": "jwF4VLHfNs",
+  "title": "PRD: orvex-studio-contracts",
+  "space": "orvexstudiocontracts",
+  "status": "draft"
+ },
+ {
+  "slug": "CYHyoUd7J1",
+  "title": "Anti-Sybil / Free-Tier Abuse \u2014 Options & Recommendation",
+  "space": "orvexstudioidentity",
+  "status": "draft"
+ },
+ {
+  "slug": "YuY9XWpKPS",
+  "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)",
+  "space": "orvexstudioidentity",
+  "status": "canonical"
+ },
+ {
+  "slug": "dQUjrSXhdp",
+  "title": "Architecture: orvex-studio-identity",
+  "space": "orvexstudioidentity",
+  "status": "canonical"
+ },
+ {
+  "slug": "cnhla0qRRF",
+  "title": "PRD: orvex-studio-identity",
+  "space": "orvexstudioidentity",
+  "status": "draft"
+ },
+ {
+  "slug": "NdH4benMGe",
+  "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)",
+  "space": "orvexstudioknowledge",
+  "status": "canonical"
+ },
+ {
+  "slug": "azRwTCZMqw",
+  "title": "Architecture: orvex-studio-knowledge",
+  "space": "orvexstudioknowledge",
+  "status": "canonical"
+ },
+ {
+  "slug": "dcOUbpzE8L",
+  "title": "PRD Addendum \u2014 orvex-studio-knowledge",
+  "space": "orvexstudioknowledge",
+  "status": "draft"
+ },
+ {
+  "slug": "dCbFzRQGDr",
+  "title": "PRD: orvex-studio-knowledge",
+  "space": "orvexstudioknowledge",
+  "status": "canonical"
+ },
+ {
+  "slug": "0mFImku9Gp",
+  "title": "R-9: Search-Stack Consolidation Design",
+  "space": "orvexstudioknowledge",
+  "status": "draft"
+ },
+ {
+  "slug": "JxnqaaYx3j",
+  "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)",
+  "space": "orvexstudiolib",
+  "status": "canonical"
+ },
+ {
+  "slug": "0NPvDR3C0m",
+  "title": "Architecture: orvex-studio-lib",
+  "space": "orvexstudiolib",
+  "status": "canonical"
+ },
+ {
+  "slug": "fG2jKeRGiu",
+  "title": "PRD: orvex-studio-lib",
+  "space": "orvexstudiolib",
+  "status": "draft"
+ },
+ {
+  "slug": "lR3kpc0Ra2",
+  "title": "ADR 0001 \u2014 MCP /v1 client regeneration + ask\u2192ai upstream (contracts-pinned)",
+  "space": "orvexstudiomcp",
+  "status": "draft"
+ },
+ {
+  "slug": "BE0jTNoweS",
+  "title": "Architecture: orvex-studio-mcp (post-split)",
+  "space": "orvexstudiomcp",
+  "status": "canonical"
+ },
+ {
+  "slug": "2hPabxB7Fh",
+  "title": "Docmost Server Requirements for the Orvex Studio MCP",
+  "space": "orvexstudiomcp",
+  "status": "draft"
+ },
+ {
+  "slug": "k1sWjtJq3x",
+  "title": "PRD: orvex-studio-mcp (post-split repoint)",
+  "space": "orvexstudiomcp",
+  "status": "canonical"
+ },
+ {
+  "slug": "GOacy9kdJz",
+  "title": "Architecture: orvex-studio-staging",
+  "space": "orvexstudiostaging",
+  "status": "canonical"
+ },
+ {
+  "slug": "P5R7eCXJA0",
+  "title": "PRD Addendum \u2014 orvex-studio-staging",
+  "space": "orvexstudiostaging",
+  "status": "canonical"
+ },
+ {
+  "slug": "mOzNDhn322",
+  "title": "PRD: orvex-studio-staging",
+  "space": "orvexstudiostaging",
+  "status": "canonical"
+ },
+ {
+  "slug": "DmJsnB5Z9Y",
+  "title": "Architecture: orvex-studio-ui",
+  "space": "orvexstudioui",
+  "status": "canonical"
+ },
+ {
+  "slug": "xsRMrju3D1",
+  "title": "PRD: orvex-studio-ui",
+  "space": "orvexstudioui",
+  "status": "draft"
+ },
+ {
+  "slug": "7LGGFR5tGE",
+  "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)",
+  "space": "orvexstudioworkflows",
+  "status": "canonical"
+ },
+ {
+  "slug": "JiIyp0RLLJ",
+  "title": "Architecture: orvex-studio-workflows",
+  "space": "orvexstudioworkflows",
+  "status": "canonical"
+ },
+ {
+  "slug": "4IF3xjIdAs",
+  "title": "PRD: orvex-studio-workflows",
+  "space": "orvexstudioworkflows",
+  "status": "draft"
+ },
+ {
+  "slug": "bnbRUdCm6R",
+  "title": "Architecture: orvex-studio-workgraph",
+  "space": "orvexstudioworkgraph",
+  "status": "canonical"
+ },
+ {
+  "slug": "2KrwsvY5zL",
+  "title": "PRD Addendum \u2014 orvex-studio-workgraph",
+  "space": "orvexstudioworkgraph",
+  "status": "canonical"
+ },
+ {
+  "slug": "Kgp6JT3IOR",
+  "title": "PRD: orvex-studio-workgraph",
+  "space": "orvexstudioworkgraph",
+  "status": "canonical"
+ },
+ {
+  "slug": "5uf23v6wIW",
+  "title": "ADR-0001: Transactional outbox to Kafka direct \u2014 no Redis bridge",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "wpphVwQ3aO",
+  "title": "ADR-0002: Native login removed \u2014 identity-only auth",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "Nr3WIs0Zpt",
+  "title": "ADR-0003: Quota counters fail-open for cheap resources on Redis loss",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "MXKW6srwyD",
+  "title": "ADR-0004: Billing\u2192engine entitlement read \u2014 push-evict + pull-on-miss",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "sABdrZoQdp",
+  "title": "ADR-0005: Minimal standalone wiki \u2014 engine + identity mandatory",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "opJLbcaGxU",
+  "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "BzRkTYmtvo",
+  "title": "Architecture Overview",
+  "space": "orvexwiki",
+  "status": "draft"
+ },
+ {
+  "slug": "twQ3BBzpTE",
+  "title": "Architecture: orvex-wiki",
+  "space": "orvexwiki",
+  "status": "canonical"
+ },
+ {
+  "slug": "qJojHbWJni",
+  "title": "Orvex Wiki Program \u2014 Authoritative Study & Fold-In Plan",
+  "space": "orvexwiki",
+  "status": "draft"
+ },
+ {
+  "slug": "EPsdD7uK8e",
+  "title": "PRD: orvex-wiki",
+  "space": "orvexwiki",
+  "status": "draft"
+ },
+ {
+  "slug": "pG9s9OjqZA",
+  "title": "Architecture: orvex-wiki-api",
+  "space": "orvexwikiapi",
+  "status": "canonical"
+ },
+ {
+  "slug": "8jAiCBifDW",
+  "title": "PRD: orvex-wiki-api",
+  "space": "orvexwikiapi",
+  "status": "draft"
+ },
+ {
+  "slug": "V6hlDjecfh",
+  "title": "(extension canon)",
+  "space": "orvexstudioextension",
+  "status": "canonical"
+ },
+ {
+  "slug": "QpVnEF7aEU",
+  "title": "(extension canon)",
+  "space": "orvexstudioextension",
+  "status": "canonical"
+ },
+ {
+  "slug": "5t8uxVnnA4",
+  "title": "(extension canon)",
+  "space": "orvexstudioextension",
+  "status": "canonical"
+ },
+ {
+  "slug": "ViWUZj1MrW",
+  "title": "(extension canon)",
+  "space": "orvexstudioextension",
+  "status": "canonical"
+ },
+ {
+  "slug": "mcRYD29C6o",
+  "title": "(extension canon)",
+  "space": "orvexstudioextension",
+  "status": "canonical"
+ }
+]

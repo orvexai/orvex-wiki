@@ -1,0 +1,71 @@
+{
+ "slug": "DmJsnB5Z9Y",
+ "total": 13,
+ "results": [
+  {
+   "id": "A-SHELL",
+   "verdict": "COVERED",
+   "owner_or_reason": "Direct key in coverage-index.json -> ENG-2652, ENG-2658 (ui-corpus)."
+  },
+  {
+   "id": "A-STREAM",
+   "verdict": "COVERED",
+   "owner_or_reason": "Direct key in coverage-index.json -> ENG-2662, ENG-2670 (ui-corpus)."
+  },
+  {
+   "id": "A-DRAFT",
+   "verdict": "COVERED",
+   "owner_or_reason": "Direct key in coverage-index.json -> ENG-2654 (ui-corpus)."
+  },
+  {
+   "id": "A-DS",
+   "verdict": "COVERED",
+   "owner_or_reason": "Direct key in coverage-index.json -> ENG-2651, ENG-2653 (ui-corpus)."
+  },
+  {
+   "id": "A-STATELESS",
+   "verdict": "COVERED",
+   "owner_or_reason": "Direct key in coverage-index.json -> ENG-2652 (ui-corpus)."
+  },
+  {
+   "id": "A-GLOBAL-URL",
+   "verdict": "COVERED",
+   "owner_or_reason": "No direct key, but this is the same ruling as coverage-index key 'A-GLOBAL' -> ENG-2657 (ui-corpus). plan.json requirement_source and E1-S7 ('[ui] Serving topology & deploy: Workers Static Assets, grey-cloud origins...') both cite the doc's A-* ruling list as 'A-SHELL/A-STREAM/A-DRAFT/A-DS/A-STATELESS/A-GLOBAL/A-AUTH' (no '-URL'/'​-UI' suffix in canon) and E1-S7 covers=['A-GLOBAL','NFR-UI1'] -- same ruling, alias naming."
+  },
+  {
+   "id": "A-AUTH-UI",
+   "verdict": "COVERED",
+   "owner_or_reason": "No direct key, but same ruling as coverage-index key 'A-AUTH' -> ENG-2295, ENG-2499, ENG-2656 (ui-corpus, wiki-corpus). plan.json's own architecture ruling list names it 'A-AUTH' (no '-UI' suffix) -- alias naming, same decision."
+  },
+  {
+   "id": "F1",
+   "verdict": "COVERED",
+   "owner_or_reason": "Audit finding F1 (1dFHMUtcKS, seam-topology/canon, fixed-in-draft) is the serving-topology finding that produced the A-GLOBAL-URL/A-GLOBAL ruling itself ('§1 table, A-GLOBAL-URL, §6 name the Cloudflare Worker + Workers Static Assets end-state'). Built by breakdown/ui E1-S7 '[ui] Serving topology & deploy: Workers Static Assets, grey-cloud origins, region-agnostic bundle, runtime CONFIG' (covers=['A-GLOBAL','NFR-UI1']); code audit in E1-S7.md confirms Worker+static-assets topology present. Owning ticket ENG-2657."
+  },
+  {
+   "id": "F2",
+   "verdict": "COVERED",
+   "owner_or_reason": "Audit finding F2 (security/auth-flow, fixed-in-draft: 'Tightened A-STATELESS now specifies' the identity-exchanged cell-bearing session token). Built by breakdown/ui E1-S2 '[ui] Contracts codegen consumer + typed BFF /api client + identity session-token attach' (covers=['A-STATELESS',...]); AC2/DoD test TestApiClientAttachesCellToken asserts the cell-claim token (not raw Clerk JWT) is attached, and code audit confirms it's present & tested. Owning ticket ENG-2652 (coverage-index A-STATELESS)."
+  },
+  {
+   "id": "F3",
+   "verdict": "NOT-BUILD",
+   "owner_or_reason": "Audit finding F3 (op-ex/doc-hygiene, low) is a pure in-page annotation fix on the architecture doc's own change-log bullet ('the stale bullet is annotated [REVERSED...]') -- already fixed-in-draft as a documentation edit, no runtime/build surface. No story in breakdown/ui/plan.json targets this; correctly not a build item."
+  },
+  {
+   "id": "F4",
+   "verdict": "NOT-BUILD",
+   "owner_or_reason": "Audit finding F4 (adr-triggers, medium) is explicitly 'open-decision' and blocked: 'the Studio Decision Records parent + numbering registry is TBD... Cannot invent an ADR number (canon rule)' -- ADR-registry-blocked, OQ-deferred per audit's own disposition. The three triggers (serving-topology, auth-flow, Clerk/Stripe external-dep) surface only as Guidance-section reminders in E1-S7.md/E1-S2.md/E7-S3.md ('record it; do not paper over') -- not a concrete 'file ADR NNN' AC/DoD line anywhere in breakdown/ui. No ADR page exists and none can be numbered yet; not a build story."
+  },
+  {
+   "id": "F5",
+   "verdict": "COVERED",
+   "owner_or_reason": "Audit finding F5 (contract-seam, fixed-in-draft: 'A-STREAM + the new §4 seam table name orvex-studio-contracts as the wire pin'). Built by breakdown/ui stories covering A-STREAM (E1-S2 AC1 'TS DTO + SSE-grammar types are emitted' from the pinned contracts codegen tag, [Source: A-STREAM]); coverage-index A-STREAM -> ENG-2662, ENG-2670."
+  },
+  {
+   "id": "F6",
+   "verdict": "COVERED",
+   "owner_or_reason": "Audit finding F6 (op-ex/build-state: 'No CI..., not enrolled in cell-lint... the bootstrap Issue lands them'). Built directly by breakdown/ui E1-S1 '[ui] CI ship-gate harness: vitest + Playwright + eslint + axe + visual + token-lint + cell-lint enrolment' (covers=['NFR-UI2','NFR-UI3','NFR-UI5','A-DS']), whose AC1 explicitly requires eslint/tsc/cell-lint required-status enrolment and whose code audit shows most gates already landed in CI. Owning ticket via A-DS -> ENG-2651/ENG-2653 (coverage-index)."
+  }
+ ]
+}

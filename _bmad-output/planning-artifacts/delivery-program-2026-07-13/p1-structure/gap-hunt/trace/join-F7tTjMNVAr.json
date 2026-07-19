@@ -1,0 +1,11 @@
+{
+  "slug": "F7tTjMNVAr",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0013",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/mcp/plan.json story E5-S2 ('Raw in-process Kafka revocation consumer → deny-list apply (ADR-0013)'); body cites ADR-0013 as the canon-tier exception to Principle 2 and references section cites 'ADR-0013 F7tTjMNVAr' directly. Not present as a coverage-index.json key (index gap), confirmed covered via hard-check grep of breakdown/*/plan.json and story bodies."
+    }
+  ]
+}

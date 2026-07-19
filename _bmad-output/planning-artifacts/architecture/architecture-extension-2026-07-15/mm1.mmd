@@ -1,0 +1,36 @@
+flowchart TB
+  subgraph ext["Orvex Studio Extension — MV3, untrusted client"]
+    SW["Service worker<br/>background orchestration<br/>AD-EXT-1 AD-EXT-6"]
+    CS1["Content script<br/>chatgpt.ts (GO)"]
+    CS2["Content script<br/>gemini.ts (GO, shadow-DOM gated)"]
+    CS3["Content script<br/>claude.ts (DEGRADE)"]
+    CS4["Content script<br/>grok.ts (DEGRADE)"]
+    UI["Popup / UI shell<br/>React presentational<br/>CS section 6"]
+  end
+  DATA["Signed remote JSON<br/>selector packs + tier config<br/>AD-EXT-2 FR-BC7"]
+  subgraph seam["orvex-studio-contracts seam<br/>AD-EXT-8, generated TS client<br/>(Shape 1b composeInto is NOT here)"]
+    CON["compose-validate + outcome-report<br/>(Shape 1a)<br/>consent-token gate (Shape 2)<br/>canary heartbeat (Shape 3)"]
+  end
+  ID["orvex-studio-identity<br/>mint + scope + consent<br/>AD-8 enforcement boundary"]
+  API["orvex-studio-api<br/>/v1/memory SoR<br/>compose call, RYW read<br/>canary-telemetry ingest (FR-BC5)"]
+  KNOW["orvex-studio-knowledge<br/>retrieval projection, I-4"]
+  AI["orvex-studio-ai<br/>prompt composition"]
+  BILL["orvex-studio-billing<br/>connect-time pass/fail gate only"]
+
+  SW -->|resolve/verify/insert/read-back| CS1
+  SW -->|resolve/verify/insert/read-back| CS2
+  SW -->|copy-ready panel| CS3
+  SW -->|copy-ready panel| CS4
+  UI -->|state derives from| SW
+  DATA -->|signed data, never code| SW
+  SW -->|generated TS client| CON
+  CON --> ID
+  CON -->|compose-validate, outcome-report, RYW read| API
+  SW -->|canary heartbeat, Shape 3, FR-BC5| CON
+  CON -->|telemetry ingest| API
+  SW -->|bundle retrieval, delegated principal| KNOW
+  SW -->|composition| AI
+  SW -->|connect-time gate only| BILL
+
+  ID -. enforces firewall+consent at mint .- CON
+  API -. RYW SoR read + canary-telemetry ingest, OTLP metrics + Loki logs, never CloudEvents .- CON

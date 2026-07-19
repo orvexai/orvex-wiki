@@ -1,0 +1,13 @@
+{
+  "slug": "yOyavcWHEz",
+  "title": "ADR-0030: Cell-routing claim vocabulary on the Principal (cell/cell_epoch additive; sid stays out)",
+  "verdict_summary": "Draft decision-record (operative per precedent) codifying an ADDITIVE, already-landed contract amendment: add OPTIONAL cell/cell_epoch to identity/principal.schema.json to match fields the shared verifier (orvex-studio-lib/pkg/auth) already emits and the 421 stale-cell guard already reads. All four Decisions describe completed work — the amendment landed as orvex-studio-contracts PR #35 (gates green), the token surface landed as orvex-studio-identity PR #16 (ENG-1944), and the orvex-studio-mcp consumer (src/transport/http.ts) already reads claims.cell/cell_epoch with no rename required. Every named artifact already EXISTS. Coverage of the underlying build (principal schemas, pkg/auth cell-claim parse, 421 cell-guard, tenant->cell registry) is confirmed across covers-union (A-CELL, A-CELL-COMPLIANCE, A-CELL-ROUTING, F-CELL) and the feature-map. No outstanding BUILD obligation; zero gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-contracts identity/principal.schema.json", "quote": "Amend identity/principal.schema.json additively: add OPTIONAL cell (type: string ...) and cell_epoch (type: integer, minimum: 0). ... Landed as orvex-studio-contracts PR #35, gates green (make validate, make schemas 91/91, test_seam_freeze green)."},
+    {"name": "orvex-studio-contracts identity/cell-claims.schema.json + schemas/cell-discovery-response.schema.json", "quote": "identity/principal.schema.json, identity/token-claims.schema.json, identity/cell-claims.schema.json, schemas/cell-discovery-response.schema.json — the codified shapes."},
+    {"name": "orvex-studio-lib/pkg/auth (principal.go, cell_claims.go)", "quote": "orvex-studio-lib/pkg/auth already produces both fields on the Principal it emits — Principal.Cell / Principal.CellEpoch ... and the stale-cell guard already reads them off the Principal (pkg/auth/cell_claims.go: p.Cell, p.CellEpoch, ErrStaleCell)."},
+    {"name": "orvex-studio-mcp src/transport/http.ts (cell-routing consumer)", "quote": "orvex-studio-mcp src/transport/http.ts (eng-1405-work) reads exactly claims.cell + claims.cell_epoch (-> cellEpoch) and routes/guards on them — so the consumer already matches the now-codified vocabulary; no consumer field rename is required."},
+    {"name": "orvex-studio-identity token surface (ENG-1944 PR #16)", "quote": "ENG-1944 (orvex-studio-identity PR #16 @ bf2f602) landed the real token surface; the cell-bearing short-TTL session/access token carries these claims via the Clerk org/user-metadata and Keycloak-mapper carriers that the authoritative tenant->cell registry stamps."}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "iBHqRbLIiF",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0022",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-K11 (ENG-2342, ENG-2343, knowledge-corpus) via story [knowledge] E3-S2 'Hybrid ranking: RRF fusion + freshness + optional nil-safe rerank stage' implements the exact reranker seam decisions in this ADR; ADR is Proposed/not-yet-ratified and its own text declares the only remaining forward item (wiring a live reranker into prod) out of scope pending ratification"
+    }
+  ]
+}

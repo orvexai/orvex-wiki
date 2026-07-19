@@ -1,0 +1,455 @@
+{
+  "service": "orvex-cli",
+  "requirement_source": "PRD: orvex-cli (R4AOVBLST7, draft) — WHAT the CLI must do; Architecture: orvex-cli (pf10XC2Qjz, canonical) — HOW, incl. cell-contract findings F-B/F-C/F-F/F-G. PRD is draft but is the sole requirement source (FR-CLI/NFR-CLI id scheme); architecture supplies the transport/daemon/cell-contract shapes.",
+  "sources": [
+    {
+      "slug": "R4AOVBLST7",
+      "title": "PRD: orvex-cli (draft)"
+    },
+    {
+      "slug": "pf10XC2Qjz",
+      "title": "Architecture: orvex-cli (canonical)"
+    },
+    {
+      "slug": "EJ9WgVAuls",
+      "title": "Architecture Audit — SE-Arch review 2026-07-05 (canonical, skimmed for findings F-A..F-G)"
+    },
+    {
+      "slug": "PACF13d3I3",
+      "title": "Orvex CLI — Audit Findings & Rebirth Plan (draft, C0–C9 phase map + D1–D13 defects)"
+    }
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] cli: Client Foundations, Service Registry & Transport Chokepoint",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {
+          "id": "E1-S1",
+          "title": "[cli] From-scratch repo scaffold + AGPL-import CI guard",
+          "body_file": "bodies/E1-S1.md",
+          "covers": [
+            "FR-CLI1",
+            "NFR-CLI7"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S2",
+          "title": "[cli] Endpoint registry + Profile per-service hosts + ORVEX_URL/env model",
+          "body_file": "bodies/E1-S2.md",
+          "covers": [
+            "FR-CLI3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S3",
+          "title": "[cli] Service-aware transport chokepoint: envelopes, retry, correlation ID, Idempotency-Key",
+          "body_file": "bodies/E1-S3.md",
+          "covers": [
+            "FR-CLI11",
+            "NFR-CLI4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S4",
+          "title": "[cli] Per-service typed clients codegen from contracts tag + drift CI gate",
+          "body_file": "bodies/E1-S4.md",
+          "covers": [
+            "FR-CLI11",
+            "NFR-CLI7"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S5",
+          "title": "[cli] 421 cell-mismatch re-resolve path + tenant-to-cell registry read",
+          "body_file": "bodies/E1-S5.md",
+          "covers": [
+            "NFR-CLI5"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] cli: Output Contract, Error Vocabulary & Command-Surface Parity",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {
+          "id": "E2-S1",
+          "title": "[cli] Namespace-first cobra command tree + hidden back-compat aliases",
+          "body_file": "bodies/E2-S1.md",
+          "covers": [
+            "FR-CLI3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S2",
+          "title": "[cli] Output contract: JSON-when-piped, --output/--fields, snake_case, SetEscapeHTML(false)",
+          "body_file": "bodies/E2-S2.md",
+          "covers": [
+            "FR-CLI7"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S3",
+          "title": "[cli] Frozen 0–9 exit codes + errorCode vocabulary shared client artifact",
+          "body_file": "bodies/E2-S3.md",
+          "covers": [
+            "FR-CLI8"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S4",
+          "title": "[cli] Two build variants (orvex / orvex-full) + honest REQUIRES_FULL_BINARY stubs",
+          "body_file": "bodies/E2-S4.md",
+          "covers": [
+            "FR-CLI6"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S5",
+          "title": "[cli] docmost-cli behaviour-parity harness as CI gate",
+          "body_file": "bodies/E2-S5.md",
+          "covers": [
+            "FR-CLI2",
+            "NFR-CLI1"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] cli: Wiki Namespace on orvex-wiki-api",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {
+          "id": "E3-S1",
+          "title": "[cli] Page CRUD + verb grammar with CAS ifVersion, DUPLICATE_CANDIDATE, QUOTA_EXCEEDED",
+          "body_file": "bodies/E3-S1.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI10",
+            "FR-CLI8"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S2",
+          "title": "[cli] Nav, watchers, permissions, transclusion & governance verbs",
+          "body_file": "bodies/E3-S2.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI10"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S3",
+          "title": "[cli] Block authoring: 21 retained block types + diagram + image_from_prompt",
+          "body_file": "bodies/E3-S3.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI9"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S4",
+          "title": "[cli] space / comment / label / attach + binary attachment I/O",
+          "body_file": "bodies/E3-S4.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI10"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S5",
+          "title": "[cli] history / diff / revert / version + drift + audit dual-write",
+          "body_file": "bodies/E3-S5.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI10"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S6",
+          "title": "[cli] migrate import / export / verify / apply",
+          "body_file": "bodies/E3-S6.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI10"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S7",
+          "title": "[cli] verify suite (lint/links/orphans/render/space/duplicates/staleness/drift/ia) + spec gate check",
+          "body_file": "bodies/E3-S7.md",
+          "covers": [
+            "FR-CLI4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S8",
+          "title": "[cli] screenshot (chromium) + code graph (treesitter) full-binary verbs",
+          "body_file": "bodies/E3-S8.md",
+          "covers": [
+            "FR-CLI4",
+            "FR-CLI6"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] cli: Offline DfM↔ProseMirror Conversion via pkg/dfm",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {
+          "id": "E4-S1",
+          "title": "[cli] pkg/dfm in-process converters + opaque-node round-trip (linear opaque-preserve)",
+          "body_file": "bodies/E4-S1.md",
+          "covers": [
+            "FR-CLI12",
+            "FR-CLI9"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S2",
+          "title": "[cli] AGPL-provenance audit gate + clean-room pkg/dfm sourcing",
+          "body_file": "bodies/E4-S2.md",
+          "covers": [
+            "FR-CLI13",
+            "NFR-CLI7"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S3",
+          "title": "[cli] Golden-corpus parity test + ENG-1327/1328/897/898/1261 defences",
+          "body_file": "bodies/E4-S3.md",
+          "covers": [
+            "FR-CLI21",
+            "FR-CLI13",
+            "FR-CLI8"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S4",
+          "title": "[cli] Compensating-machinery trim (sidecars / embed-degradation / canonicalizer collapse)",
+          "body_file": "bodies/E4-S4.md",
+          "covers": [
+            "FR-CLI13"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S5",
+          "title": "[cli] Offline authoring paths: mirror push/pull/watch + update --content markdown",
+          "body_file": "bodies/E4-S5.md",
+          "covers": [
+            "FR-CLI12",
+            "NFR-CLI3"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] cli: Search, AI & Admin Namespaces",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {
+          "id": "E5-S1",
+          "title": "[cli] search namespace → knowledge (keyword/semantic/hybrid/related/duplicates/attachment) + --cached",
+          "body_file": "bodies/E5-S1.md",
+          "covers": [
+            "FR-CLI5",
+            "FR-CLI11"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S2",
+          "title": "[cli] ai namespace → ai (ask/chat/inline/image/models/cost) + BUDGET_EXCEEDED/MODEL_UNAVAILABLE",
+          "body_file": "bodies/E5-S2.md",
+          "covers": [
+            "FR-CLI5",
+            "FR-CLI11"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S3",
+          "title": "[cli] admin namespace routing (reindex/reembed/events/user/workspace) per finding F-E",
+          "body_file": "bodies/E5-S3.md",
+          "covers": [
+            "FR-CLI5",
+            "FR-CLI11"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] cli: Daemon, SQLite Cache & SSE Freshness",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {
+          "id": "E6-S1",
+          "title": "[cli] Per-host daemon lifecycle + SQLite WAL cache + Unix-socket IPC",
+          "body_file": "bodies/E6-S1.md",
+          "covers": [
+            "FR-CLI14"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S2",
+          "title": "[cli] Cache-sync cursor-delta projection + hard-delete tombstones + content_pm",
+          "body_file": "bodies/E6-S2.md",
+          "covers": [
+            "FR-CLI15",
+            "NFR-CLI2"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S3",
+          "title": "[cli] SSE consumer wire contract + monotonic epoch-ms cursor + page.status_changed fix",
+          "body_file": "bodies/E6-S3.md",
+          "covers": [
+            "FR-CLI16",
+            "NFR-CLI5"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S4",
+          "title": "[cli] Cursor cell-qualification + events-host cold-start + ~6h reconcile + offline --cached",
+          "body_file": "bodies/E6-S4.md",
+          "covers": [
+            "FR-CLI14",
+            "NFR-CLI3",
+            "NFR-CLI5"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] cli: Multi-Service Auth via Identity",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {
+          "id": "E7-S1",
+          "title": "[cli] auth namespace → identity: scoped-token mint, whoami/status from claims, profiles",
+          "body_file": "bodies/E7-S1.md",
+          "covers": [
+            "FR-CLI17",
+            "FR-CLI5"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S2",
+          "title": "[cli] lib/auth edge verification + api-key pass-through interim + zero-trust propagation",
+          "body_file": "bodies/E7-S2.md",
+          "covers": [
+            "FR-CLI17",
+            "NFR-CLI4"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] cli: Back-Compat Migration & Release Chain",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {
+          "id": "E8-S1",
+          "title": "[cli] docmost-cli shim + DOCMOST_* env aliases + config-dir first-run migration",
+          "body_file": "bodies/E8-S1.md",
+          "covers": [
+            "FR-CLI18"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E8-S2",
+          "title": "[cli] Keychain/token read-through migration (no orphaned credentials)",
+          "body_file": "bodies/E8-S2.md",
+          "covers": [
+            "FR-CLI19"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S3",
+          "title": "[cli] Release chain under orvexai: 2-variant goreleaser, cosign, SLSA, module-owner=release-owner",
+          "body_file": "bodies/E8-S3.md",
+          "covers": [
+            "FR-CLI20",
+            "NFR-CLI6"
+          ],
+          "audit": "partial"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-CLI1",
+      "FR-CLI2",
+      "FR-CLI3",
+      "FR-CLI4",
+      "FR-CLI5",
+      "FR-CLI6",
+      "FR-CLI7",
+      "FR-CLI8",
+      "FR-CLI9",
+      "FR-CLI10",
+      "FR-CLI11",
+      "FR-CLI12",
+      "FR-CLI13",
+      "FR-CLI14",
+      "FR-CLI15",
+      "FR-CLI16",
+      "FR-CLI17",
+      "FR-CLI18",
+      "FR-CLI19",
+      "FR-CLI20",
+      "FR-CLI21",
+      "NFR-CLI1",
+      "NFR-CLI2",
+      "NFR-CLI3",
+      "NFR-CLI4",
+      "NFR-CLI5",
+      "NFR-CLI6",
+      "NFR-CLI7"
+    ],
+    "uncovered": []
+  }
+}

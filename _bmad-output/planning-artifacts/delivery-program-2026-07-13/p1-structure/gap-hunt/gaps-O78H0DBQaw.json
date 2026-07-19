@@ -1,0 +1,7 @@
+{
+  "slug": "O78H0DBQaw",
+  "title": "Research — Landing Page & Onboarding Tour: Winning Attention Within Seconds",
+  "verdict_summary": "PROPOSAL / NOT-RATIFIED — zero gaps. The doc opens by declaring itself 'a research-and-proposal input, not a ratified spec' that 'does not supersede' the ratified Marketing/Sales Landing + Sign-Up spec (N3IPMiOWix); it merely proposes an additional persona-self-selection layer + tour redesign 'for the PO/design team to evaluate and fold in or reject.' The 'What resolves it' section assigns PO/Freya to DECIDE whether persona self-selection is added and whether the 11-step tour gets rebuilt; the doc's status only flips draft→canonical 'once the direction is confirmed — or gets marked superseded if a different direction is chosen.' It carries NO formal requirement ids (no FR-/NFR-/A-/AD-/D-/OQ-), and every 'MUST'/'should' is contingent design guidance inside an unratified Option-B recommendation, not a build mandate. Build obligations for the landing page and onboarding surfaces live in the ratified spec N3IPMiOWix, not here. Treated as pattern-source-only per the extraction rule → zero gaps.",
+  "gaps": [],
+  "components": []
+}

@@ -1,0 +1,8 @@
+{
+  "slug": "cjv9Q4RuyI",
+  "title": "Studio Family Foundation Rollup (2026-07-06)",
+  "what_it_is": "A dated, point-in-time handoff rollup of one execution run of the Foundation Orchestrator (UKanXYLCQD) across 10 satellite repos (Foundation M1-M8 stage completeness per repo), plus a 2026-07-06 operator-correction banner reinstating orvex-studio-identity as an 11th foundationed repo. It reports blockers found during that run (empty shared auth verifier in orvex-studio-lib, missing studio-api.yaml contract, toolchain CVE gaps, Act-1 orchestrator seat undecided) and a ranked 'recommended next actions' list — it is a status/results artifact of running existing machinery, not itself a build plan or a delivery-sequencing document.",
+  "status_class": "DATED-SNAPSHOT",
+  "action": "MARK-HISTORICAL",
+  "overlaps": "No direct conflict with the 4-phase Delivery Program (5eFdxN3edd) or the new parallel-build-plan.md — it predates both and operates at a different altitude (per-repo foundation-stage status, not phase/team sequencing). Overlaps in spirit with the Foundation Orchestrator (UKanXYLCQD) it was produced by (that page is the reusable machinery; this page is one run's dated output) and with later status census pages (e.g. 'Orvex Studio NOT done 2026-07-13' per memory) which supersede its findings as of-now. Confusion risk: a reader could mistake its 'recommended next actions' (auth verifier, identity foundation, Act-1 seat) for a live plan-of-record when the actual sequencing now lives in the Delivery Program phases; several items it flags as open (e.g. identity foundation, auth verifier) may already be stale relative to 2026-07-12/13 program state and should not be treated as current backlog without re-verification."
+}

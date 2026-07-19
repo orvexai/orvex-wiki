@@ -1,0 +1,11 @@
+{
+  "slug": "AJzAntNPsz",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0010",
+      "verdict": "COVERED",
+      "owner_or_reason": "lib/E2-S1 (pkg/events CloudEvents envelope+orvexcell stamp), api/E1-S4 (CloudEvent publish via transactional outbox), knowledge/E10-S1 (Studio corpora ingestion studio.skill/memory/chat.*), contracts/E3-S1 (CloudEvent type catalog events/catalog.yaml). ADR-0010 is a naming/taxonomy convention (studio.<subdomain>.<event>), explicitly defers concrete per-type schemas to FR-C9 as-built contracts; envelope conformance covered separately via ADR-0007/A-EVENTS."
+    }
+  ]
+}

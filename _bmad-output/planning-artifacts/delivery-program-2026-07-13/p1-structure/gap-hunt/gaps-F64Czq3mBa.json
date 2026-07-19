@@ -1,0 +1,12 @@
+{
+  "slug": "F64Czq3mBa",
+  "title": "ADR-0005: Public repos use GitHub-hosted runners (CS §13 exception)",
+  "verdict_summary": "Decision record (ADR) about the GitHub Actions CI runner substrate, amended twice. Its final ruling mandates only CI/infra configuration — a dedicated, non-privileged `public-runners` ARC scale set (platform/apps/arc) serving orvex-wiki, `runs-on: runners`, `allows_public_repositories` scoped to that group alone, and maintainer-approval gating for fork PRs. These are platform/ops CI-substrate obligations that were surfaced and resolved during the foundation run (the ADR records an operator ruling of 2026-07-06), not delivery-program product build work. The ADR defines no FR/NFR ids of its own; the only formal requirement it references, FR-W19 (AGPL source availability, the reason orvex-wiki is public), is already in covers-union.json. No product build stories are owed. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "public-runners ARC scale set (dedicated, ephemeral, non-privileged runner group for orvex-wiki)",
+      "quote": "The public repo (orvex-wiki) runs CI on a dedicated, ephemeral, non-privileged `public-runners` group — a separate ARC scale set (platform service in my-idp, `platform/apps/arc`) that is: single-use (`minRunners: 0`), NON-privileged with NO docker-in-docker... The `public-runners` GitHub runner group is org-scoped to only `orvex-wiki`"
+    }
+  ]
+}

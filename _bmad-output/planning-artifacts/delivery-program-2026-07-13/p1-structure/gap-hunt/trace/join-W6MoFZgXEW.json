@@ -1,0 +1,11 @@
+{
+  "slug": "W6MoFZgXEW",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0026",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Canonical decision record (ratified 2026-07-10), not itself a build id — no coverage-index key, no feature-map/plan.json 'covers' hit. Its own gap-hunt/gaps-W6MoFZgXEW.json verdict_summary confirms 'No uncovered build gaps': every named component it decides is independently covered — orvex-studio-staging service (feature-map Service foundation pack), studio.staging.* CloudEvents + contracts catalog (feature-map 'Events on the spine' story), and FR-STG26 (coverage-index -> ENG-2175, ENG-2204, staging-corpus); the engine wiki.* outbox producer is explicitly deferred by the ADR itself to the staging delivery plan."
+    }
+  ]
+}

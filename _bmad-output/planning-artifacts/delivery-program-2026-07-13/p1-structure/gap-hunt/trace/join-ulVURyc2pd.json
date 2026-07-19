@@ -1,0 +1,11 @@
+{
+  "slug": "ulVURyc2pd",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0024",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Canonical decision record (ratified 2026-07-10), not a build spec — introduces no new requirement ids of its own. Its enacted obligations are expressed entirely through other ids that are already in coverage-index.json: FR-STG1 (ENG-2179), FR-STG25 (ENG-2205/2206), FR-SA12 (ENG-2314/2318), FR-SA13 (ENG-2315), FR-SA14 (ENG-2316), FR-SA15/16 (ENG-2317), AD-12 (ENG-2309). Page's own gap-hunt verdict_summary confirms gaps:[] and 'Zero uncovered BUILD gaps'."
+    }
+  ]
+}

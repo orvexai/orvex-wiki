@@ -1,0 +1,11 @@
+{
+  "slug": "sABdrZoQdp",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0005",
+      "verdict": "COVERED",
+      "owner_or_reason": "ADR-0005 (sABdrZoQdp, 'Minimal standalone wiki — engine + identity mandatory', orvexwiki space — distinct from the orvexstudioarch ADR-0005 runner-governance doc) is explicitly cited by slug as source traceability in bodies/E7-S3.md and bodies/E8-S3.md (breakdown/wiki/plan.json). E7-S3 'covers' A-TENANCY (polymorphic user-or-org tenant + personal->Teams upgrade-pass re-key); E8-S3 'covers' FR-W16/FR-W17/FR-W25 + A-PORTABLE/A-APIBOUNDARY (engine API internal-only, no /docs Swagger, product-family-agnostic endpoints). The ADR's engine+identity-mandatory decision is realized under these concrete requirement ids rather than under the literal ADR-0005 string."
+    }
+  ]
+}

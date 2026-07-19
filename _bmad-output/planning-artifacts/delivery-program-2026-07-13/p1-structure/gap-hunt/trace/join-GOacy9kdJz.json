@@ -1,0 +1,20 @@
+{
+  "slug": "GOacy9kdJz",
+  "total": 14,
+  "results": [
+    {"id": "AD-1", "verdict": "COVERED", "owner_or_reason": "ENG-2210, ENG-2309 (api-corpus)"},
+    {"id": "AD-2", "verdict": "COVERED", "owner_or_reason": "ENG-2305 (api-corpus)"},
+    {"id": "AD-3", "verdict": "COVERED", "owner_or_reason": "ENG-2308 (api-corpus)"},
+    {"id": "AD-4", "verdict": "COVERED", "owner_or_reason": "ENG-2308, ENG-2318 (api-corpus)"},
+    {"id": "AD-5", "verdict": "COVERED", "owner_or_reason": "Hard-checked (not in coverage-index): staging plan.json E5-S1 '[staging] Apply engine — wiki-api CAS writes, receipts, pause state, rollback, step-APIs' (covers FR-STG13, NFR-STG3 -> ENG-2190) and E5-S3 'Scheduled ChangeSet publishing' (covers FR-STG28 -> ENG-2192) jointly implement AD-5's central-Temporal/idempotent-step-API rule; confirmed in feature-map.txt line 492 'Apply engine ... step-APIs'"},
+    {"id": "AD-6", "verdict": "COVERED", "owner_or_reason": "ENG-2211, ENG-2214, ENG-2448 (identity-corpus)"},
+    {"id": "AD-7", "verdict": "COVERED", "owner_or_reason": "ENG-2213, ENG-2240, ENG-2369 (knowledge-corpus)"},
+    {"id": "AD-8", "verdict": "COVERED", "owner_or_reason": "ENG-2448 (identity-corpus/extsweep)"},
+    {"id": "AD-9", "verdict": "COVERED", "owner_or_reason": "ENG-2211, ENG-2370 (knowledge-corpus)"},
+    {"id": "AD-10", "verdict": "COVERED", "owner_or_reason": "Hard-checked (not in coverage-index): staging plan.json E2-S4 '[staging] Pointer-state payloads — S3 tenant-keyed bodies, sha256 hash in queue rows' (covers FR-STG6 -> ENG-2182) is a verbatim title match for AD-10; confirmed in feature-map.txt line 481"},
+    {"id": "AD-11", "verdict": "COVERED", "owner_or_reason": "ENG-2313, ENG-2369 (api-corpus/extsweep/knowledge-corpus)"},
+    {"id": "AD-12", "verdict": "COVERED", "owner_or_reason": "ENG-2309 (api-corpus)"},
+    {"id": "AD-13", "verdict": "COVERED", "owner_or_reason": "Hard-checked (not in coverage-index): staging plan.json E5-S2 '[staging] Beautification at triage — re-author, mechanical done-bar, sha256 artifact' (covers FR-STG14 -> ENG-2191) is a verbatim title match for AD-13; confirmed in feature-map.txt line 493"},
+    {"id": "AD-14", "verdict": "COVERED", "owner_or_reason": "Hard-checked (not in coverage-index): staging plan.json E6-S1..E6-S4 (Feedback capture -> ENG-2193, Learning application & transparency -> ENG-2194, Cold-start defaults -> ENG-2195, Prompt-pack marketplace v1-minimal admin-approval install -> ENG-2196) jointly cover FR-STG15-17/27/29, matching AD-14's captured/versioned/admin-gated learning rule; confirmed in feature-map.txt lines 495-499 'Librarian learning loop, cold-start & prompt-pack marketplace'"}
+  ]
+}

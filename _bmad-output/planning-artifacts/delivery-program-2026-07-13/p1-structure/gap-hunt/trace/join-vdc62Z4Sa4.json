@@ -1,0 +1,11 @@
+{
+  "slug": "vdc62Z4Sa4",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0031",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a direct coverage-index key, but hard-check confirms coverage: gap-hunt/gaps-vdc62Z4Sa4.json's own D2-trace verdict, feature-map.txt line 177 ('screenshot (chromium) + code graph (treesitter) full-binary verbs'), and breakdown/cli/plan.json story E3-S8 all implement the ADR-0031 obligations (internal/codegraph adapter, pinned go-tree-sitter binding, deterministic Graph envelope, build-tag isolation, honest stub, CI both-tags) under FR-CLI4/FR-CLI6/NFR-CLI6."
+    }
+  ]
+}

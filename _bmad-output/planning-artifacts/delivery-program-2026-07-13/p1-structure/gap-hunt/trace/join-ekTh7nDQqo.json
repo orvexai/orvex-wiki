@@ -1,0 +1,81 @@
+{
+ "slug": "ekTh7nDQqo",
+ "total": 15,
+ "results": [
+  {
+   "id": "A-STRANGLE",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2294"
+  },
+  {
+   "id": "A-OWN",
+   "verdict": "COVERED",
+   "owner_or_reason": "not in coverage-index (covers-field gap); cited as source in api/E2 (ENG-2301,ENG-2302,ENG-2303,ENG-2304) + E7-S1 (ENG-2322) body/AC text"
+  },
+  {
+   "id": "A-DELEGATE",
+   "verdict": "COVERED",
+   "owner_or_reason": "not in coverage-index (covers-field gap); cited as source across api/E3-S2,E6-S2,E7-S2,E8-S1,E8-S2,E9-S1..S4 (ENG-2305/2306,2320,2323,2324,2325,2327,2328,2329,2330)"
+  },
+  {
+   "id": "A-PRIVACY",
+   "verdict": "COVERED",
+   "owner_or_reason": "not in coverage-index (covers-field gap); cited as source in api/E3-S3,E4-S2,E9-S3 (ENG-2307,ENG-2311,ENG-2329)"
+  },
+  {
+   "id": "A-CURATOR",
+   "verdict": "COVERED",
+   "owner_or_reason": "not in coverage-index (covers-field gap); cited as source across api/E5-S1..S4,E6-S3 (ENG-2314/2318,2315,2316,2317,2321)"
+  },
+  {
+   "id": "A-DATA",
+   "verdict": "COVERED",
+   "owner_or_reason": "not in coverage-index (covers-field gap); cited as AC source in api/E1-S6,E1-S4,E6-S1 (ENG-2294/2299,2297/2298,2319)"
+  },
+  {
+   "id": "A-AUTH",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2295,ENG-2499,ENG-2656"
+  },
+  {
+   "id": "A-CELL",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2296,ENG-2496,ENG-2510"
+  },
+  {
+   "id": "A-CELL-COMPLIANCE",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2296,ENG-2298"
+  },
+  {
+   "id": "A-SEQ",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2300"
+  },
+  {
+   "id": "AD-1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2210,ENG-2309"
+  },
+  {
+   "id": "AD-2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2305"
+  },
+  {
+   "id": "AD-3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2308"
+  },
+  {
+   "id": "AD-4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2308,ENG-2318"
+  },
+  {
+   "id": "AD-12",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2309"
+  }
+ ]
+}

@@ -1,0 +1,111 @@
+{
+  "slug": "pG9s9OjqZA",
+  "total": 21,
+  "results": [
+    {
+      "id": "A-STRANGLER",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index has no direct hit, but plan.json+bodies match: [wiki-api] Epic E1 '[EPIC] wiki-api: Phase-0 dual-surface strangler facade & Go runtime foundation' cites 'Arch A-STRANGLER' verbatim (bodies/E1.md); E1-S2 'Byte-compatible /api/orvex/* reverse proxy (surface a)' (FR-A15, D-A9) -> ENG-2512, E1-S3 'Draft /v1 verb-grammar surface scaffold served alongside (surface b)' (FR-A15, D-A9) -> ENG-2513"
+    },
+    {
+      "id": "A-RUNTIME",
+      "verdict": "COVERED",
+      "owner_or_reason": "Epic E1 title includes 'Go runtime foundation'; E1-S1 'Go service skeleton, six-tier layout, config' (FR-A15, NFR-A2) -> ENG-2511; E1-S6 'Blocking CI bootstrap gates ... + no-AGPL-import guard' (NFR-A7, the AGPL-contamination reason A-RUNTIME rejects TS) -> ENG-2516"
+    },
+    {
+      "id": "A-SERIALIZER",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: bodies/E2-S1.md 'Clean-room per D-A11 / A-SERIALIZER' (FR-A1, NFR-A7, D-A11) -> ENG-2517; bodies/E2.md epic body cites '[Source: FR-A1, FR-A3, Arch A-SERIALIZER]'; sibling stories E2-S2..E2-S5 -> ENG-2518/2519/2520/2521"
+    },
+    {
+      "id": "A-VERBS",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: bodies/E3-S1.md References 'Architecture pG9s9OjqZA (A-VERBS, B1)' (FR-A4, FR-A11, D-A5, D-A12) -> ENG-2522; write-primitive line (FR-A6) -> E4-S1 ENG-2527, CAS/receipt (FR-A7) -> E4-S2 ENG-2528"
+    },
+    {
+      "id": "A-GOVERNANCE",
+      "verdict": "COVERED",
+      "owner_or_reason": "Epic E6 body (bodies/E6.md) is the doc-governance re-home epic (drift+spec-gate+audit-write, D-S8/D-S11); E6-S1 'Living-wiki drift verification' (FR-A20) -> ENG-2536, E6-S2 'Wiki-first spec-gate {satisfied,token,reason}' (FR-A21, D-A8) -> ENG-2537, E6-S3 'External-agent audit-write endpoint -> engine WORM sink' (FR-A23) -> ENG-2538"
+    },
+    {
+      "id": "A-ASK",
+      "verdict": "COVERED",
+      "owner_or_reason": "the only wiki-api-owned edge of A-ASK (ai-origin writes through the standard chokepoint, D-A12) is explicit story E4-S4 'ai-origin write path through standard chokepoint (delegated token, no privilege)' -> Architecture pG9s9OjqZA (A-ASK, preserve acyclic topology) -> ENG-2530; the 'no ask verb' negative is AC3 of E3-S1 (D-A12) -> ENG-2522 and AC3 of E1-S3 -> ENG-2513"
+    },
+    {
+      "id": "A-TOKEN",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: bodies/E1-S5.md References 'Architecture pG9s9OjqZA (A-TOKEN, A-STATE, §D preserve)' (FR-A17, D-A10) -> ENG-2515; edge verify + pass-through is E1-S4 'Edge token verify via lib/auth + token pass-through + K4 interim posture' (FR-A16) -> ENG-2514; transport-only minting piece also cited by E4-S3 (A-TOKEN, A-GOVERNANCE) -> ENG-2529"
+    },
+    {
+      "id": "A-STATE",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: bodies/E7-S1.md References 'Architecture pG9s9OjqZA (A-STATE, A1, A6, C honest-state)' (FR-A18, D-A10, FR-A17) -> ENG-2539; bodies/E7.md epic body '[Source: FR-A18, Arch A-STATE]'"
+    },
+    {
+      "id": "A-STANDALONE",
+      "verdict": "COVERED",
+      "owner_or_reason": "E7-S5 'Redaction-below-relocation-line parity test + standalone degradation posture' (NFR-A3, NFR-A5) -> ENG-2543 (audit status: partial, but story exists and is dispatched)"
+    },
+    {
+      "id": "A-DESCRIPTOR",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: bodies/E5-S3.md References 'Architecture pG9s9OjqZA (A-DESCRIPTOR, §4 contracts deltas)' (FR-A14, NFR-A6) -> ENG-2535; bodies/E5.md epic body '[Source: FR-A14, Arch A-DESCRIPTOR]'"
+    },
+    {
+      "id": "A-SHAPE",
+      "verdict": "COVERED",
+      "owner_or_reason": "bodies/E5.md epic body '[Source: FR-A12, FR-A13, Arch A-SHAPE]'; E5-S1 'One shaping layer: field projection, concise|detailed, cursor pagination' (FR-A12) -> ENG-2533, E5-S2 'Body-offload: resource_link handles + token estimates, ACL-enforced deref' (FR-A13) -> ENG-2534"
+    },
+    {
+      "id": "D-A2",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "'the human wiki never touches wiki-api (D-A2)' is a design-rationale sentence in §5 Risks (justifies plain-Deployment topology), carries no FR/NFR tag, is not cited by id in any story body (grep across breakdown/wiki-api/bodies/*.md: zero hits), and is not among the four service-scoped ADRs the SE-Arch review's own B5 finding lists to file (A-RUNTIME/D-A11, A-STATE/D-A10, A-DESCRIPTOR/D-A7, A-VERBS/FR-A6). It is an emergent consequence of wiki-api being agent-only (no human-facing routes exist in the /v1 or /api/orvex/* surfaces built under E1/E3), not a discrete buildable requirement"
+    },
+    {
+      "id": "D-A3",
+      "verdict": "COVERED",
+      "owner_or_reason": "cited only paired with D-A9 in the A-STRANGLER heading itself ('dual-surface facade first, relocation behind it (D-A3, D-A9)') — same underlying decision as A-STRANGLER; covered by the same E1 epic (ENG-2511..2516) plus the phased-relocation language repeated in bodies/E2.md, E4.md ('later phases swap handlers... one seam at a time')"
+    },
+    {
+      "id": "D-A4",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "explicitly superseded in the page body: 'A-ASK — no ask here... (D-A12, supersedes D-A4)' — D-A4 is a dead/replaced decision (the earlier ask-routing choice), not a build target; the live decision D-A12 is COVERED via A-ASK/E4-S4 (ENG-2530)"
+    },
+    {
+      "id": "D-A5",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: bodies/E3-S1.md AC4 '[Source: FR-A4, D-A5]' and References '(PRD 8jAiCBifDW FR-A4, FR-A11, D-A5, D-A12)' -> ENG-2522; bodies/E3.md epic body 'kept vestigial-but-future-proof (D-A5)'"
+    },
+    {
+      "id": "D-A7",
+      "verdict": "COVERED",
+      "owner_or_reason": "same decision as A-DESCRIPTOR ('A-DESCRIPTOR — contracts-authored, drift-gated (FR-A14, D-A7)') -> E5-S3 'Contracts-authored descriptor conformance + served /v1/openapi.json drift-gate + fail-loud' (FR-A14, NFR-A6) -> ENG-2535; also named in B5's ADR-to-file list as 'A-DESCRIPTOR/D-A7'"
+    },
+    {
+      "id": "D-A8",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citations: bodies/E6-S2.md AC2 '[Source: FR-A21, D-A8]' -> ENG-2537; bodies/E6-S1.md AC5 '[Source: FR-A20, D-A8]' -> ENG-2536; bodies/E4-S3.md AC2/AC3 '[Source: FR-A8, D-A8]' and References '(A-TOKEN, A-GOVERNANCE)' -> ENG-2529"
+    },
+    {
+      "id": "D-A9",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citations: bodies/E1-S2.md AC1 '[Source: FR-A15, D-A9]' -> ENG-2512; bodies/E1-S3.md AC1 '[Source: FR-A15, D-A9]' -> ENG-2513; bodies/E1.md epic body '(D-A9)'"
+    },
+    {
+      "id": "D-A10",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citations: bodies/E7-S1.md AC1/AC4 '[Source: FR-A18, D-A10]' -> ENG-2539; bodies/E1-S5.md AC3 '[Source: FR-A17, D-A10]' -> ENG-2515; bodies/E7.md epic body '(D-A10)'"
+    },
+    {
+      "id": "D-A11",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citations: bodies/E2-S1.md AC2 '[Source: FR-A1, NFR-A7, D-A11]' and 'Clean-room per D-A11 / A-SERIALIZER' -> ENG-2517; bodies/E2.md epic body 'delivered as a clean-room Go package ... (D-A11)'; bodies/E2-S4.md notes 'D-A6's server-endpoint delegation is superseded by D-A11 (in-process)' -> ENG-2520"
+    },
+    {
+      "id": "D-A12",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citations: bodies/E3-S1.md AC3 '[Source: FR-A4, D-A12]' -> ENG-2522; bodies/E1-S3.md AC3 '[Source: FR-A4, D-A12]' -> ENG-2513; bodies/E4-S4.md story text + AC3 '[Source: FR-A9, FR-A10, D-A12]' + References '(A-ASK, §D preserve acyclic topology)' -> ENG-2530; bodies/E4.md epic body '(D-A12)'"
+    }
+  ]
+}

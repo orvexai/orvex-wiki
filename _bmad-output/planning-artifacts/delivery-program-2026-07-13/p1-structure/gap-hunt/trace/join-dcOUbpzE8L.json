@@ -1,0 +1,14 @@
+{
+  "slug": "dcOUbpzE8L",
+  "total": 8,
+  "results": [
+    {"id": "FR-K3", "verdict": "COVERED", "owner_or_reason": "ENG-2332 (knowledge-corpus)"},
+    {"id": "FR-K4", "verdict": "COVERED", "owner_or_reason": "ENG-2333 (knowledge-corpus)"},
+    {"id": "FR-K15", "verdict": "COVERED", "owner_or_reason": "ENG-2351 (knowledge-corpus); also breakdown/knowledge/plan.json story E5-S2"},
+    {"id": "FR-K15a", "verdict": "COVERED", "owner_or_reason": "missing from coverage-index.json but present in breakdown/knowledge/plan.json story E5-S3 (CLI wire-contract deltas)"},
+    {"id": "FR-K20", "verdict": "COVERED", "owner_or_reason": "ENG-2356 (knowledge-corpus); also breakdown/knowledge/plan.json story E7-S1"},
+    {"id": "FR-K20a", "verdict": "COVERED", "owner_or_reason": "missing from coverage-index.json but present in breakdown/knowledge/plan.json story E7-S2 (Projection field set)"},
+    {"id": "FR-K20b", "verdict": "COVERED", "owner_or_reason": "missing from coverage-index.json but present in breakdown/knowledge/plan.json story E7-S3 (Page-level ACL tombstones)"},
+    {"id": "NFR-K7", "verdict": "COVERED", "owner_or_reason": "ENG-2339 (knowledge-corpus)"}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "slug": "DjGso9bsgj",
+  "total": 2,
+  "results": [
+    {
+      "id": "A-FRONTEND",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E1-S2 (go:embed SPA build pipeline + strict CSP, covers NFR-CT4) implements A-FRONTEND per body_file explicit 'Source: Arch A-FRONTEND, D-CT1' citations; also referenced in E1 epic body. Not literally keyed in coverage-index.json but implemented under NFR-CT4/E1-S2."
+    },
+    {
+      "id": "A-BREAKGLASS",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E7-S1 + E7-S2 (break-glass route class + rate-limit/allow-list, covers FR-CT15/NFR-CT3) plus identity/E4-S3 implement A-BREAKGLASS per body_file citations ('FR-CT15, A-BREAKGLASS', 'A-BREAKGLASS ADR filed'). Not literally keyed in coverage-index.json but implemented under FR-CT15/NFR-CT3."
+    }
+  ]
+}

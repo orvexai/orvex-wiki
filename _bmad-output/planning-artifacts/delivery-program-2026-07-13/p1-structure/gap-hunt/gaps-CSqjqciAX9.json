@@ -1,0 +1,16 @@
+{
+  "slug": "CSqjqciAX9",
+  "title": "Vision — Knowledge & Prompt Management for AI (for everyone)",
+  "verdict_summary": "Pattern-source / north-star vision narrative. Contains NO formal requirement ids (no FR-*/NFR-*/A-*/AD-*/D-*/OQ-*) and no discrete un-id'd build MUSTs. Its 'non-negotiable' statements (understanding-before-use, personalisation-before-catalogue, one-tap-to-any-AI) are strategic UX principles, not buildable units. All concrete build obligations are explicitly delegated to the two referenced pages: the Product Brief (WA9A1sEol7) and the Phase 1 build spec (eO3CSNGaoU). Every surface it names — the four screens (onboarding -> personalised home/discover -> builder -> use/share), generate-by-selection, five-AI export (ChatGPT/Claude/Gemini/Custom GPT/Gemini Gem), learn-from-misses paste loop, and the near-term MCP servers — is already covered by existing stories and the orvex-studio-mcp repo. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "Four P1 screens: onboarding -> personalised home -> builder -> use/share", "quote": "Phase 1 delivers four screens (onboarding → personalised home → builder → use/share) and 10–25 founder-curated starter skills for a single locked vertical"},
+    {"name": "Personalised curated shelf (DISCOVER)", "quote": "DISCOVER — a personalised shelf of curated, trusted skills for your profession. Not a catalogue dump"},
+    {"name": "Skill viewer showing labelled parts (UNDERSTAND)", "quote": "UNDERSTAND — every skill is shown as clear, labelled pieces (sections and items) you can read before trusting it"},
+    {"name": "Plain-language personalisation layer over curated base (MAKE YOURS)", "quote": "MAKE YOURS — add your voice, your rules, your company knowledge... Your additions layer on top of the curated base; the base can always be restored"},
+    {"name": "Rendered-prompt copy + one vendor export (USE IN ANY AI)", "quote": "USE IN ANY AI — copy the rendered prompt into ChatGPT, Claude, Gemini, or any assistant. Or push via one vendor export (Custom GPT / Gemini Gem)"},
+    {"name": "Learn-from-misses paste loop with one-tap fix (LEARN FROM MISSES)", "quote": "LEARN FROM MISSES — paste a bad output back in, describe what went wrong in plain language, and Studio proposes a targeted fix. One tap applies it"},
+    {"name": "Generate-by-selection default + sanctioned wizard entry", "quote": "Generate-by-selection, not unguided free-form, is the default entry... A wizard-driven, task-first prompt builder is a sanctioned alternative entry"},
+    {"name": "Orvex MCP servers (near-term roadmap)", "quote": "Orvex MCP servers sit inside AI tools — Claude, Cursor, and others. Push skills in from Orvex; pull missed outputs back out for the tuning loop"}
+  ]
+}

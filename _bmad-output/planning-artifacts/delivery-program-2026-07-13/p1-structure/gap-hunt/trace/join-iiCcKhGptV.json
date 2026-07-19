@@ -1,0 +1,18 @@
+{
+ "slug": "iiCcKhGptV",
+ "total": 12,
+ "results": [
+  {"id": "AD-1", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2210, ENG-2309 (api-corpus)"},
+  {"id": "AD-2", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2305 (api-corpus)"},
+  {"id": "AD-3", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2308 (api-corpus)"},
+  {"id": "AD-4", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2308, ENG-2318 (api-corpus)"},
+  {"id": "AD-5", "verdict": "COVERED", "owner_or_reason": "not in coverage-index; hard-check found sub-parts implemented under alias ids: AD-5a covered by breakdown/extension/plan.json E1-S1, E1-S2, E6-S1 ('covers':['AD-5a']); AD-5b covered by breakdown/mcp/plan.json E6-S3 (title cites AD-5b, feature-map.txt:463); AD-5c (stateful vendor-sync surface) is explicitly OQ3-gated/deferred per the source page's 'Deferred' section ('MUST NOT ship until resolved') — not a build gap"},
+  {"id": "AD-6", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2211, ENG-2214, ENG-2448 (identity-corpus)"},
+  {"id": "AD-7", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2213, ENG-2240, ENG-2369 (knowledge-corpus)"},
+  {"id": "AD-8", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2448, extsweep (identity-corpus)"},
+  {"id": "AD-9", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2211, ENG-2370 (knowledge-corpus)"},
+  {"id": "AD-10", "verdict": "COVERED", "owner_or_reason": "not in coverage-index; hard-check found breakdown/ai/plan.json E7-S3 ('[ai] Async extraction pipeline off the write path at the proposal quality bar', covers FR-X1/FR-X5) whose body explicitly implements the AD-10 rule (extraction rides a separate nested LiteLLM budget, D-S15) and cites 'spine iiCcKhGptV; AD-10' verbatim in bodies/E7-S3.md and E7.md — covered under FR-X1/FR-X5, not tagged AD-10 in the index"},
+  {"id": "AD-11", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2313, ENG-2369 (api-corpus, knowledge-corpus)"},
+  {"id": "AD-12", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2309 (api-corpus)"}
+ ]
+}

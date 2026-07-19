@@ -1,0 +1,1 @@
+{"slug":"vBvVDFklZo","uuid":"019f60fe-e071-7196-8e5a-e7c340aa5a13","url":"https://docs.eu-central-1.myidp.cloud/s/orvexstudio/p/memory-gap-closure-fold-in-map-vBvVDFklZo","title":"Memory Gap-Closure — Fold-in Map","space_slug":"orvexstudio","created_at":"2026-07-14T14:19:04.17Z","status":"draft","doc_type":"technical-spec"}

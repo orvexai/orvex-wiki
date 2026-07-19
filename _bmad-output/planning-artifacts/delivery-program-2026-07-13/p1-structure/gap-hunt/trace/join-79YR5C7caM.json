@@ -1,0 +1,11 @@
+{
+  "slug": "79YR5C7caM",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0006",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Governance/process ADR (Orchestrator execution seat) with its own gap-hunt verdict 'Zero build gaps' — ratifies existing laptop seat + already-scaffolded crew deploy overlays, withdraws the credential refuse-gate via same-day amendment; not a product spec, no MUST mandates new build work. Not in coverage-index.json, feature-map.txt, or any plan.json 'covers' list — correctly absent, not a miss."
+    }
+  ]
+}

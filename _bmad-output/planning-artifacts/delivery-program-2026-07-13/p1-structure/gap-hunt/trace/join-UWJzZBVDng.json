@@ -1,0 +1,11 @@
+{
+  "slug": "UWJzZBVDng",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0017",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Decision record ratifying already-shipped @clerk/react client SDK surface (ENG-1387); not a coverage-index key itself (ADRs aren't requirement ids). Its decision points are scoping/invariant constraints on existing code, not new build obligations; the one forward-looking MUST is a testing policy, not a discrete feature. Underlying shipped surface traces via FR-15 (POST /v1/exchange, feature-map line 305) -> ENG-2499 in coverage-index. gap-hunt/gaps-UWJzZBVDng.json already recorded zero build gaps for this page."
+    }
+  ]
+}

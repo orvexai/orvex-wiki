@@ -1,0 +1,13 @@
+flowchart LR
+  A["resolve<br/>compose node"] --> B{"verify-writable?"}
+  B -- no --> X1["NOTWRITABLE<br/>abort before visible write"]
+  B -- yes --> C["insert<br/>native-setter + InputEvent"]
+  C --> D["read-back<br/>~250ms budget"]
+  D -- confirmed --> S["success<br/>visible in composer"]
+  D -- not confirmed --> X2["VERIFY<br/>fail loud"]
+  A -- not found --> X3["NOTFOUND<br/>fail loud"]
+  A -- multiple candidates --> X4["AMBIGUOUS<br/>fail loud"]
+  X1 --> F["copy paste fallback<br/>plus team alert"]
+  X2 --> F
+  X3 --> F
+  X4 --> F

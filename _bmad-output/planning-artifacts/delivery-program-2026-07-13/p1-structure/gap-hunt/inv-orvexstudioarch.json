@@ -1,0 +1,989 @@
+{
+ "space": "orvexstudioarch",
+ "pages": [
+  {
+   "slug": "K5rumy9a8c",
+   "title": "ADR-0001: Polymorphic user-or-org tenancy",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "WWngFAdCYk",
+   "title": "ADR-0002: Wiki URL scheme \u2014 service-first host ordering",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "7E0Hbb9it2",
+   "title": "ADR-0003: Frozen QUOTA_EXCEEDED (402) cross-service error contract",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "GABwtTr4pp",
+   "title": "ADR-0004: Cross-cell peer-URL boundary \u2014 relaxation policy",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "F64Czq3mBa",
+   "title": "ADR-0005: Public repos use GitHub-hosted runners (CS \u00a713 exception)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "79YR5C7caM",
+   "title": "ADR-0006: Orchestrator execution seat \u2014 operator workstation",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "pYkl7HpOgr",
+   "title": "ADR-0007: CloudEvent envelope for the studio-spine",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "JLMuwgc9fV",
+   "title": "ADR-0008: Contracts change-authority \u2014 layered automated-merge + ADR-gated reshaping",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "94xrZhXCej",
+   "title": "ADR-0009: Auth-flow / exchange-token contract \u2014 dual-IdP exchange \u2192 session mint",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "AJzAntNPsz",
+   "title": "ADR-0010: studio.* CloudEvent type taxonomy",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "qZFmNWGY47",
+   "title": "ADR-0011: Tenant-to-cell registry \u2014 the platform's only global component",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "HylAAMRbPO",
+   "title": "ADR-0012: Tenancy model confirmation \u2014 polymorphic {user | org}",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "F7tTjMNVAr",
+   "title": "ADR-0013: MCP gateway event consumption \u2014 raw in-process Kafka consumer vs Knative Trigger",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "bL9bUj4tua",
+   "title": "ADR-0014: Knowledge store engine = Turbopuffer (namespace-per-tenant)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "PxoUAiGN29",
+   "title": "ADR-0015: Identity-owned tenancy DB \u2014 ruling-7 cross-DB delete reconcile + encryption/existence-read seams",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "akzWiopQBD",
+   "title": "ADR-0016: Engine distributed tracing & cross-service trace-context propagation",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "UWJzZBVDng",
+   "title": "ADR-0017: New external dependency \u2014 @clerk/react client SDK in the wiki engine",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "MQaTt8e22e",
+   "title": "ADR-0018: Dedicated Kata-isolated DinD runner set for public-repo CI that needs Docker",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "ODz3dEqZRJ",
+   "title": "ADR-0019: Studio BFF cell-compliance 421 self-heal signal",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "9KcwAG5SRg",
+   "title": "ADR-0020: MCP cell-discovery routing (discover-once-pin-421)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "hSJ5tgNZMm",
+   "title": "ADR-0021: wiki-api edge \u2014 caller-token pass-through",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "iBHqRbLIiF",
+   "title": "ADR-0022: Rerank-stage insertion into the RRF-terminal knowledge Search pipeline",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "pjacNq8SQY",
+   "title": "ADR-0023: DeprovisionWorkflow ownership \u2014 orvex-workflows as the durable Temporal control plane, engine-API executor seam, ruling-7 delete-propagation boundary",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "ulVURyc2pd",
+   "title": "ADR-0024: Agent Staging Area supersedes the OPS Librarian feature specs \u2014 Card Contract v1 \u2192 Proposal (verbatim superset)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "AqXpAlgvIv",
+   "title": "ADR-0025: Workgraph supersedes the OPS agent-side memory design \u2014 the user/agent memory split",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "W6MoFZgXEW",
+   "title": "ADR-0026: studio.staging.* event subdomain \u2014 service naming + the per-service producer generalization",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "Iff6l2VvGt",
+   "title": "ADR-0027: studio.workgraph.* event subdomain \u2014 workgraph as a P9 content source (source-adapter, rich-event-inline)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "8kTZK91vHd",
+   "title": "ADR-0028: 402 QUOTA_EXCEEDED vocabulary \u2014 surfaces enrollment for orvex-studio-staging and orvex-studio-workgraph",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "WZWmazrlS0",
+   "title": "ADR-0029: MCP identity edge-verifier cutover (ruling 8 revocation, no bridge)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "yOyavcWHEz",
+   "title": "ADR-0030: Cell-routing claim vocabulary on the Principal (cell/cell_epoch additive; sid stays out)",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "vdc62Z4Sa4",
+   "title": "ADR-0031: New external dependency \u2014 Tree-Sitter binding for the full-build code graph dep-graph extractor",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "QnouxhOHK5",
+   "title": "ADR-0032: In-fork /mcp decommission at REST-gap parity \u2014 one agent door",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "yNFx3YyNap",
+   "title": "ADR-0033: Work-claim arbiter for the delivery orchestrator \u2014 Linear-status-as-claim + guardrail contract + Temporal-CAS trip-wire",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "12aDkq4iOd",
+   "title": "ADR-0034: Credential lanes for agent execution \u2014 deny-by-default per-lane scoping",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "QbEBPuKcGR",
+   "title": "ADR-0035: Go\u2194TypeScript contract/client bridge \u2014 per-repo codegen from the pinned seams",
+   "doc_type": "adr",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "omPa9ZJKSS",
+   "title": "Apache Kafka & Strimzi",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "AqPkQypf5a",
+   "title": "Architecture Audit \u2014 Family Rollup (2026-07-05)",
+   "doc_type": "retrospective",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "ZCAOuIkAaA",
+   "title": "ArgoCD",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "Vg2CBH8Xtb",
+   "title": "Clerk",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "i5Kp2WMTah",
+   "title": "CloudEvents",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "e5kDO9WCin",
+   "title": "Cloudflare Edge & Proxy",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "L8eFA0S0yT",
+   "title": "Cloudflare Workers",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "6aMAzsYeQb",
+   "title": "Coding Standards",
+   "doc_type": "policy",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "j5nximbF8D",
+   "title": "Crew Environments \u2014 Per-Developer Stacks",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "XdqWhwQyGc",
+   "title": "Crossplane",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "32Huug8U4B",
+   "title": "Decision Records \u2014 Orvex Studio",
+   "doc_type": "project-overview",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "cLWfnuXCWb",
+   "title": "Delivery Overview \u2014 Orvex Studio",
+   "doc_type": "runbook",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "5eFdxN3edd",
+   "title": "Delivery Program \u2014 Robust Tested Deployment (Phases 0\u20133)",
+   "doc_type": "technical-spec",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "KNZMCOKAV8",
+   "title": "Delivery Prompts",
+   "doc_type": "runbook",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "cpeenW2R9t",
+   "title": "Doc Governance \u2014 Drift & Spec-Gate (owned by wiki-api)",
+   "doc_type": "",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "7K0lWqrgMJ",
+   "title": "Drift correction \u2014 Delivery Orchestrator prompt, Linear ground truth (2026-07-09)",
+   "doc_type": "retrospective",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "z5K777kNkD",
+   "title": "Event-Driven Architecture",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "nmL9vLUCfA",
+   "title": "Fork Change \u2192 Ticket Ledger",
+   "doc_type": "",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "4vmBIkbP46",
+   "title": "Grafana & the LGTM Stack",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "SBUdQWweYy",
+   "title": "Harbor",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "GmKOk6xz0J",
+   "title": "Index \u2014 Orvex Platform Canon",
+   "doc_type": "project-overview",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "9VUHxAcoXw",
+   "title": "Issue Authoring Prompt \u2014 Project Milestones & Issues",
+   "doc_type": "runbook",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "8titaI7P5P",
+   "title": "Keycloak",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "IfnxNfN788",
+   "title": "Knative (Serving & Eventing)",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "xX2wsawQqV",
+   "title": "Kubernetes",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "ZZ28Qp1ZCJ",
+   "title": "LiteLLM",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "gCkQHa7CER",
+   "title": "Loki",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "GG6RzEvtWh",
+   "title": "Milestone Dashboard \u2014 Template",
+   "doc_type": "runbook",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "AD0LBqmjtA",
+   "title": "Mimir",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "JGAUQRsw2g",
+   "title": "Multi-Region Cells, Failover & the Day-1 Cell Contract",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "e6JtOEUuPZ",
+   "title": "OpenBao & External Secrets",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "BO1PMLK9hn",
+   "title": "OpenTelemetry",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "gkkUDzn277",
+   "title": "Orchestrator Prompt \u2014 Delivery",
+   "doc_type": "runbook",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "UKanXYLCQD",
+   "title": "Orchestrator Prompt \u2014 Foundation",
+   "doc_type": "runbook",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "yXUWpQpRjx",
+   "title": "Orchestrator Prompt \u2014 Phase 1: Definition Factory",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "ErYdXzIj6g",
+   "title": "Orchestrator Prompt \u2014 Phase 2.5: Product Acceptance E2E",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "Ng66su4dVG",
+   "title": "Orchestrator Prompt \u2014 Phase 2: Isolated Builds & Continuous Proving",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "CxjFpIVUZY",
+   "title": "Orvex Studio \u2014 Architecture & Principles",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "CBXmt8eSVq",
+   "title": "Our Systems",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "2nwLE1RUmd",
+   "title": "PostHog",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "KEEdlMezc7",
+   "title": "PostgreSQL & CloudNativePG",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "xTwrHXI261",
+   "title": "Redis",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "Z6qICaBzMl",
+   "title": "Rook-Ceph & S3",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "8sYi523i4t",
+   "title": "SE Architect \u2014 Review Agent",
+   "doc_type": "policy",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "glKBOEb9LH",
+   "title": "Stripe",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "cjv9Q4RuyI",
+   "title": "Studio Family Foundation Rollup (2026-07-06)",
+   "doc_type": "retrospective",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "pTeVSp9P5f",
+   "title": "Systems Architecture",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "6NzRX4JMMo",
+   "title": "Technology Stack",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "nZioJyGQHk",
+   "title": "Tekton",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "4CdrayMofg",
+   "title": "Tempo",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "bpmGdbGXiN",
+   "title": "Temporal",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "mEX6ZYbFVc",
+   "title": "Traefik & Gateway API",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "chBPEXsXPR",
+   "title": "Turbopuffer",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "86CiGucQwU",
+   "title": "URL, Environment & Multi-Region Scheme",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "ZaOMlTXLBl",
+   "title": "Yjs",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "PCbBbVfhtM",
+   "title": "cert-manager",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "HixW3bUhop",
+   "title": "external-dns",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "B66dINHNvs",
+   "title": "orvex-cli",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "bLhqYrJLRu",
+   "title": "orvex-studio-ai",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "EfwXQGLPEp",
+   "title": "orvex-studio-api",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "7QkzUaXZJK",
+   "title": "orvex-studio-billing",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "DjGso9bsgj",
+   "title": "orvex-studio-console",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "XZdd14uEFs",
+   "title": "orvex-studio-contracts",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "3diqY9yV7b",
+   "title": "orvex-studio-identity",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "5C574cvOVZ",
+   "title": "orvex-studio-knowledge",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "IztJL7BRhk",
+   "title": "orvex-studio-lib",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "WON2z73Gie",
+   "title": "orvex-studio-mcp",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "HOOBQO8VyZ",
+   "title": "orvex-studio-staging",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "YDN90IxR6z",
+   "title": "orvex-studio-ui",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "BfqcqwCHZZ",
+   "title": "orvex-studio-workflows",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "Mu3ytYds5h",
+   "title": "orvex-studio-workgraph",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "uusV2vfJ2b",
+   "title": "orvex-wiki",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "dCNYFnoLNF",
+   "title": "orvex-wiki-api",
+   "doc_type": "architecture",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": false
+  },
+  {
+   "slug": "rdwJjDdcDD",
+   "title": "\u2328\ufe0f M12 \u2014 Platform CLI \u00b7 Wave C \u00b7 closing gate ENG-1577 \u00b7 target 2026-09-22",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "VNUAOIEESc",
+   "title": "\u2699\ufe0f M3 \u2014 Workflows Control Plane \u00b7 Wave A \u00b7 closing gate ENG-1558 \u00b7 target 2026-08-04",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "LwhX9ucK61",
+   "title": "\u26a1 M6 \u2014 Engine Event Spine & Primitives \u00b7 Wave B \u00b7 closing gate ENG-1572 \u00b7 target 2026-08-25",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "tn3q8NqFXu",
+   "title": "\ud83d\udcb3 M4 \u2014 Billing SoR \u00b7 Wave A \u00b7 closing gate ENG-1579 \u00b7 target 2026-08-04",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "620fnY389u",
+   "title": "\ud83d\udcca M13 \u2014 Console & Observability \u00b7 Wave C \u00b7 closing gate ENG-1549 \u00b7 target 2026-09-22",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "lYt5GyoVBi",
+   "title": "\ud83d\udcda M5 \u2014 Knowledge Backbone \u00b7 Wave A \u00b7 closing gate ENG-1559 \u00b7 target 2026-08-11",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "KJZ3V8j3aZ",
+   "title": "\ud83d\udd11 M2 \u2014 Identity GA \u00b7 Wave A \u00b7 closing gate ENG-1574 \u00b7 target 2026-08-04",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "KhxHXwOKkE",
+   "title": "\ud83d\udd12 M0 \u2014 Contracts Seam Frozen \u00b7 Wave 0 \u00b7 closing gate ENG-1580 \u00b7 target 2026-07-14",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "jsCbyzIO8V",
+   "title": "\ud83d\udd17 M10 \u2014 Studio BFF \u00b7 Wave C \u00b7 closing gate ENG-1535 \u00b7 target 2026-09-15",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "CC3yoQud9b",
+   "title": "\ud83d\udda5\ufe0f M11 \u2014 Studio SPA \u00b7 Wave C \u00b7 closing gate ENG-1571 \u00b7 target 2026-09-15",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "eMaxlFBcBA",
+   "title": "\ud83d\ude80 M14 \u2014 Launch \u00b7 Wave C \u00b7 closing gate ENG-1578 \u00b7 target 2026-09-29",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "EuwDD1gnsZ",
+   "title": "\ud83d\udef0\ufe0f M9 \u2014 MCP Gateway Repoint \u00b7 Wave B \u00b7 closing gate ENG-1576 \u00b7 target 2026-09-01",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "bwuFhhnARj",
+   "title": "\ud83e\udde0 M8 \u2014 AI Brain \u00b7 Wave B \u00b7 closing gate ENG-1575 \u00b7 target 2026-09-01",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "I3YWPxvGQ1",
+   "title": "\ud83e\udde9 M1 \u2014 Shared Lib Spine \u00b7 Wave 0 \u00b7 closing gate ENG-1581 \u00b7 target 2026-07-21",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  },
+  {
+   "slug": "qbFz5zojUQ",
+   "title": "\ud83e\uddf1 M7 \u2014 Wiki API Composition Tier \u00b7 Wave B \u00b7 closing gate ENG-1573 \u00b7 target 2026-08-25",
+   "doc_type": "runbook",
+   "status": "draft",
+   "requirement_bearing": false,
+   "already_read": false
+  }
+ ]
+}

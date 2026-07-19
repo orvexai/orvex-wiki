@@ -1,0 +1,19 @@
+{
+  "slug": "bnbRUdCm6R",
+  "total": 13,
+  "results": [
+    {"id": "AD-1", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2210, ENG-2309 (api-corpus)"},
+    {"id": "AD-2", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2305 (api-corpus)"},
+    {"id": "AD-3", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2308 (api-corpus)"},
+    {"id": "AD-4", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2308, ENG-2318 (api-corpus)"},
+    {"id": "AD-5", "verdict": "COVERED", "owner_or_reason": "not in coverage-index; hard-check via breakdown/workgraph/plan.json covers[] on AD-5's bound FRs finds full coverage: E5-S1 'Async consolidation ADD/UPDATE/DELETE/NOOP + 0.98-cosine intra-batch dedup' (covers FR-MEM11), E5-S2 'Tiered compaction ... reference-aware + restore' (FR-MEM12), E5-S3 'Hard cascading delete ...' (FR-MEM13, NFR-MEM7), E5-S4 'Janitor step-API contract + workflows schedules + no-train EU-resident provider config' (NFR-MEM5, NFR-MEM7); feature-map.txt:719-723 lists the same 4-story Janitors group verbatim (consolidation, tiered compaction, hard delete, step-API contract)"},
+    {"id": "AD-6", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2211, ENG-2214, ENG-2448 (identity-corpus)"},
+    {"id": "AD-7", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2213, ENG-2240, ENG-2369 (knowledge-corpus)"},
+    {"id": "AD-8", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2448, extsweep (identity-corpus)"},
+    {"id": "AD-9", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2211, ENG-2370 (knowledge-corpus)"},
+    {"id": "AD-10", "verdict": "COVERED", "owner_or_reason": "not in coverage-index; hard-check via breakdown/workgraph/plan.json covers[] on AD-10's bound FRs finds full coverage: E7-S1 'MCP workgraph_* section + studio_memory disambiguation pointers' (FR-MEM14), E7-S2 'CLI orvex-cli workgraph section (verb parity, --json)' (FR-MEM15), E7-S3 'KG interop adapter (entities/relations/observations read+write, golden-fixtured)' (FR-MEM16), E7-S4 'Claude memory-tool backend (memory_20250818 /memories file ops)' (FR-MEM27) — the four AD-10 adapter surfaces (MCP, CLI, KG interop, Claude memory-tool) each have a dedicated story"},
+    {"id": "AD-11", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2313, ENG-2369 (api-corpus, extsweep, knowledge-corpus)"},
+    {"id": "AD-12", "verdict": "COVERED", "owner_or_reason": "coverage-index: ENG-2309 (api-corpus)"},
+    {"id": "AD-13", "verdict": "COVERED", "owner_or_reason": "not in coverage-index; hard-check via breakdown/workgraph/plan.json covers[] on AD-13's bound FRs finds coverage: E6-S3 'Quota verdicts — frozen 402 QUOTA_EXCEEDED against billing entitlements' (FR-MEM1 caps) and E4-S2 'Prime compact + full with fixed content contract + token budget' (NFR-MEM3, the injection-cap/elision-banner half of AD-13's rule)"}
+  ]
+}

@@ -1,0 +1,121 @@
+[
+  {
+    "file": "poc-1.md",
+    "title": "[api] Marketplace GitHub provenance — real ★N star count, OAuth claim/unclaim, always-on sync, deletion-lifecycle matrix",
+    "project": "Orvex Studio API",
+    "milestone": "B2 — Skill domain, library, marketplace & social",
+    "blocked_by": ["ENG-2098", "ENG-2303", "ENG-2301", "ENG-2700"]
+  },
+  {
+    "file": "poc-2.md",
+    "title": "[api] Reputation level ladder + live anti-gaming signals — velocity-anomaly freeze, self-accept-impossible, Clerk identity-gate",
+    "project": "Orvex Studio API",
+    "milestone": "B2 — Skill domain, library, marketplace & social",
+    "blocked_by": ["ENG-2098", "ENG-2303"]
+  },
+  {
+    "file": "poc-3.md",
+    "title": "[api] Skill vetting gate — safety/malicious-pattern screen, zero-jargon (SM-4) audit, regulated-sector exclusion, before catalogue entry",
+    "project": "Orvex Studio API",
+    "milestone": "B2 — Skill domain, library, marketplace & social",
+    "blocked_by": ["ENG-2098", "ENG-2301", "ENG-2700"]
+  },
+  {
+    "file": "poc-4.md",
+    "title": "[api] Cross-AI export fact-parity golden-fixture CI gate — Claude ⊆ ChatGPT guaranteed, never a ship/fallback switch",
+    "project": "Orvex Studio API",
+    "milestone": "B3 — Memory subsystem (FormSpec, privacy, lifecycle)",
+    "blocked_by": ["ENG-2098", "ENG-2309"]
+  },
+  {
+    "file": "poc-5.md",
+    "title": "[api] Notification preferences — db/notification_prefs, bff/routes/notifications, per-type toggles + honest 'coming' states",
+    "project": "Orvex Studio API",
+    "milestone": "B10 — Accounts & notification preferences (NEW)",
+    "blocked_by": ["ENG-2098", "ENG-2295", "ENG-2303"]
+  },
+  {
+    "file": "poc-6.md",
+    "title": "[ui] Skill authoring create-from-scratch editor — scaffold wizard, Guide rail, 11 typed block kinds, dual file-scan, publish lifecycle",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109", "ENG-2660", "ENG-2668", "ENG-2301"]
+  },
+  {
+    "file": "poc-7.md",
+    "title": "[ui] Skill Review Inbox (J5) — owner queue, per-block diff accept/reject, partial-accept, rebase conflict, reputation ladder",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109", "ENG-2303"]
+  },
+  {
+    "file": "poc-8.md",
+    "title": "[ui] Skill feedback & discussion — block-level Comment/Suggest overlay + Discussion tabs (comments/suggestions/version-history)",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109", "ENG-2303"]
+  },
+  {
+    "file": "poc-9.md",
+    "title": "[ui] Skill Detail — ownership/trust/social layer (GitHub Claim, Why-Trusted panel, live Reviews, Community zone)",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109"]
+  },
+  {
+    "file": "poc-10.md",
+    "title": "[ui] File-block upload safety-scan pipeline (Scan B) — badge states, quarantine, and per-type visualizers",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109", "ENG-2669", "ENG-2301"]
+  },
+  {
+    "file": "poc-11.md",
+    "title": "[ui] GotBetter — piece-by-piece Base-update merge overlay (simple auto-apply + per-piece Keep-mine/Take-new/Blend-both)",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109"]
+  },
+  {
+    "file": "poc-12.md",
+    "title": "[ui] Discover — cluster/dedupe collapse UI (+N more, query-aware head, lineage-root anchoring)",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109"]
+  },
+  {
+    "file": "poc-13.md",
+    "title": "[ui] Builder live-preview approximate word count in the preview header",
+    "project": "Orvex Studio UI",
+    "milestone": "B4 — Discover, Skill Viewer & Builder",
+    "blocked_by": ["ENG-2109", "ENG-2669"]
+  },
+  {
+    "file": "poc-14.md",
+    "title": "[ui] Your Skills library — segmented Created/Saved/Drafts control + in-library search/sort/filter + full status-badge set",
+    "project": "Orvex Studio UI",
+    "milestone": "B5 — Improve-with-AI, Export/Share/Launch & Library",
+    "blocked_by": ["ENG-2109"]
+  },
+  {
+    "file": "poc-15.md",
+    "title": "[ui] Public marketing/landing page — hero, 5-steps, trio value-prop, marketplace preview, cross-AI reveal, dark closer",
+    "project": "Orvex Studio UI",
+    "milestone": "B2 — App shell, routing & first-run state machine",
+    "blocked_by": ["ENG-2109"]
+  },
+  {
+    "file": "poc-16.md",
+    "title": "[ui] Save to Wiki — capture flow (Save Sheet, deterministic content mapping, Docmost write path)",
+    "project": "Orvex Studio UI",
+    "milestone": "B7 — Your Wiki, Connections & Billing",
+    "blocked_by": ["ENG-2109"]
+  },
+  {
+    "file": "poc-17.md",
+    "title": "[ui] Account & Settings — Connections, Your AIs, Notifications, Appearance, Danger zone panels",
+    "project": "Orvex Studio UI",
+    "milestone": "B7 — Your Wiki, Connections & Billing",
+    "blocked_by": ["ENG-2109"]
+  }
+]

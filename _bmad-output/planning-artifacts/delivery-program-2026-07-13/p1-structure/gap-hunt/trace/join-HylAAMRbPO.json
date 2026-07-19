@@ -1,0 +1,11 @@
+{
+  "slug": "HylAAMRbPO",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0012",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Confirmation/re-affirmation ADR (ratified 2026-07-07) that explicitly makes no change to ADR-0001; closes the D-P1 -> D-S17 -> ADR-0001 lineage rather than introducing new build work. Its restated obligations are already covered by existing stories: polymorphic tenant spine & JIT provisioning (feature-map.txt L299-302), personal->Teams upgrade-pass re-key / OrgUpgrade FR-W13 (L639, L693), polymorphic {user|org} principal on identity+billing (L65-67, L367), and cross-tenant/no-org isolation probes in CI & per-deploy (L365, L515, L638). Arch ids A-TENANCY/A-AUTH/A-CELL are in covers-union per gap-hunt/gaps-HylAAMRbPO.json (gaps: [])."
+    }
+  ]
+}

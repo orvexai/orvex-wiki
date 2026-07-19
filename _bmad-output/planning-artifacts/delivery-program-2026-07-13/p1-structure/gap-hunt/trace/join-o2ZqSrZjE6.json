@@ -1,0 +1,56 @@
+{
+  "slug": "o2ZqSrZjE6",
+  "total": 10,
+  "results": [
+    {
+      "id": "A-ENT",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E2-S1 migration 001 (entitlement_versions append-only + polymorphic principal) via FR-B4 -> ENG-2375; cited directly in E1-S1/E2-S1/E2/E7-S1/E7-S4 body ACs"
+    },
+    {
+      "id": "A-HOOK",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E4-S3 webhook receiver pipeline (verify->journal-raw->idempotency->re-fetch->apply) via FR-B10 -> ENG-2386/ENG-2387; also E4-S5 flip semantics"
+    },
+    {
+      "id": "A-CELL-ROUTING",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E4-S4 title literally names A-CELL-ROUTING (global-tier thin Stripe forwarder + home-cell routing); covers FR-B10 -> ENG-2386/ENG-2387"
+    },
+    {
+      "id": "A-PRICE",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E1-S2 Stripe Product/Price scheme (versioned lookup_keys, VAT-inclusive) via FR-B2 -> ENG-2372; also E4-S1 checkout Price selection"
+    },
+    {
+      "id": "A-CHECK",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E2-S2/E2-S3 single check primitive GET /v1/entitlements/{principal_type}/{principal_id} + fail-consistent client via FR-B5 -> ENG-2376/ENG-2377"
+    },
+    {
+      "id": "A-CAP",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E3 cap/quota policy registry (cap_policies riding plan-versions) via FR-B17 -> ENG-2379; also E3-S4 sync cap push, E3-S1 cap retune"
+    },
+    {
+      "id": "A-TRIAL",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E5-S1 no-card trial temporary entitlement grant via FR-B13 -> ENG-2390; also E5-S2 trial-start, E5-S4 retroactive backfill"
+    },
+    {
+      "id": "A-METER",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E6 metering epic (cmd/metering, usage journal, reconciliation) via FR-B18 -> ENG-2394; also ai E4 FR-20 cost-protection spine cites A-METER layers 1-3"
+    },
+    {
+      "id": "A-AUTH",
+      "verdict": "COVERED",
+      "owner_or_reason": "in coverage-index directly: ENG-2295, ENG-2499, ENG-2656 (ui-corpus, wiki-corpus); also api E1-S2 covers[]=A-AUTH via FR-SA29 -> ENG-2295, and billing E7 edge auth three route classes"
+    },
+    {
+      "id": "A-GDPR",
+      "verdict": "COVERED",
+      "owner_or_reason": "billing E7-S3 GDPR purge step (cancel sub, delete Stripe Customer, pseudonymize journal+entitlement history) via FR-B22 -> ENG-2400"
+    }
+  ]
+}

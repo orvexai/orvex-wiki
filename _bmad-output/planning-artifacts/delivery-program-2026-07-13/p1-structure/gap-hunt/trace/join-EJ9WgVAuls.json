@@ -1,0 +1,41 @@
+{
+  "slug": "EJ9WgVAuls",
+  "total": 7,
+  "results": [
+    {
+      "id": "F-A",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/cli/plan.json story \"Endpoint registry + Profile per-service hosts + ORVEX_URL/env model\" (covers FR-CLI3) builds the per-service host registry per the tightened design (adopts canon flat hosts); residual host-form pinning is tracked separately as open decisions OQ-CLI2/OQ-CLI2b, not a missing build item."
+    },
+    {
+      "id": "F-B",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/cli/plan.json story \"421 cell-mismatch re-resolve path + tenant-to-cell registry read\" (covers NFR-CLI5) directly implements the F-B disposition."
+    },
+    {
+      "id": "F-C",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/cli/plan.json story \"Cursor cell-qualification + events-host cold-start + ~6h reconcile + offline --cached\" (covers FR-CLI14/NFR-CLI3/NFR-CLI5) directly implements the F-C disposition."
+    },
+    {
+      "id": "F-D",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Governance/ADR-filing gap, not a CLI feature to build. Audit disposition is fixed-in-draft (ADR-triggers section added) + open-decision OQ-CLI9, explicitly gated on the still-nonexistent Act-1 ADR registry / Decision-Records parent; no build story exists or should exist for it yet (grep of feature-map.txt for ADR-registry/OQ-CLI9/Act-1 returns nothing)."
+    },
+    {
+      "id": "F-E",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/cli/plan.json story \"admin namespace routing (reindex/reembed/events/user/workspace) per finding F-E\" (covers FR-CLI5/FR-CLI11) explicitly cites F-E by id."
+    },
+    {
+      "id": "F-F",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/cli/plan.json story \"Service-aware transport chokepoint: envelopes, retry, correlation ID, Idempotency-Key\" (covers FR-CLI11/NFR-CLI4) includes the Idempotency-Key guarantee that resolves F-F."
+    },
+    {
+      "id": "F-G",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/cli/plan.json story \"Service-aware transport chokepoint: envelopes, retry, correlation ID, Idempotency-Key\" (covers FR-CLI11/NFR-CLI4) includes correlation-ID origination/propagation that resolves F-G."
+    }
+  ]
+}

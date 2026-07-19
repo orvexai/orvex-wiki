@@ -1,0 +1,33 @@
+{
+  "slug": "R4AOVBLST7",
+  "total": 27,
+  "results": [
+    {"id": "FR-CLI1", "verdict": "COVERED", "owner_or_reason": "ENG-2544"},
+    {"id": "FR-CLI2", "verdict": "COVERED", "owner_or_reason": "ENG-2553"},
+    {"id": "FR-CLI3", "verdict": "COVERED", "owner_or_reason": "ENG-2545, ENG-2549"},
+    {"id": "FR-CLI4", "verdict": "COVERED", "owner_or_reason": "ENG-2554, ENG-2555, ENG-2556, ENG-2557, ENG-2558, ENG-2559, ENG-2560, ENG-2561"},
+    {"id": "FR-CLI5", "verdict": "COVERED", "owner_or_reason": "ENG-2567, ENG-2568, ENG-2569, ENG-2574"},
+    {"id": "FR-CLI6", "verdict": "COVERED", "owner_or_reason": "ENG-2552, ENG-2561"},
+    {"id": "FR-CLI7", "verdict": "COVERED", "owner_or_reason": "ENG-2550"},
+    {"id": "FR-CLI8", "verdict": "COVERED", "owner_or_reason": "ENG-2551, ENG-2554, ENG-2564"},
+    {"id": "FR-CLI9", "verdict": "COVERED", "owner_or_reason": "ENG-2556, ENG-2562"},
+    {"id": "FR-CLI10", "verdict": "COVERED", "owner_or_reason": "ENG-2554, ENG-2555, ENG-2557, ENG-2558, ENG-2559"},
+    {"id": "FR-CLI11", "verdict": "COVERED", "owner_or_reason": "ENG-2546, ENG-2547, ENG-2567, ENG-2568, ENG-2569"},
+    {"id": "FR-CLI12", "verdict": "COVERED", "owner_or_reason": "ENG-2562, ENG-2566"},
+    {"id": "FR-CLI13", "verdict": "COVERED", "owner_or_reason": "ENG-2563, ENG-2564, ENG-2565"},
+    {"id": "FR-CLI14", "verdict": "COVERED", "owner_or_reason": "ENG-2570, ENG-2573"},
+    {"id": "FR-CLI15", "verdict": "COVERED", "owner_or_reason": "ENG-2571"},
+    {"id": "FR-CLI16", "verdict": "COVERED", "owner_or_reason": "ENG-2572"},
+    {"id": "FR-CLI17", "verdict": "COVERED", "owner_or_reason": "ENG-2574, ENG-2575"},
+    {"id": "FR-CLI18", "verdict": "COVERED", "owner_or_reason": "ENG-2576"},
+    {"id": "FR-CLI19", "verdict": "COVERED", "owner_or_reason": "ENG-2577"},
+    {"id": "FR-CLI20", "verdict": "COVERED", "owner_or_reason": "ENG-2578"},
+    {"id": "NFR-CLI1", "verdict": "COVERED", "owner_or_reason": "ENG-2553"},
+    {"id": "NFR-CLI2", "verdict": "COVERED", "owner_or_reason": "ENG-2571"},
+    {"id": "NFR-CLI3", "verdict": "COVERED", "owner_or_reason": "ENG-2566, ENG-2573"},
+    {"id": "NFR-CLI4", "verdict": "COVERED", "owner_or_reason": "ENG-2546, ENG-2575"},
+    {"id": "NFR-CLI5", "verdict": "COVERED", "owner_or_reason": "ENG-2548, ENG-2572, ENG-2573"},
+    {"id": "NFR-CLI6", "verdict": "COVERED", "owner_or_reason": "ENG-2578"},
+    {"id": "NFR-CLI7", "verdict": "COVERED", "owner_or_reason": "ENG-2544, ENG-2547, ENG-2563"}
+  ]
+}

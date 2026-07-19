@@ -1,0 +1,7 @@
+{
+  "slug": "3c6K999A8d",
+  "title": "Research — Messaging & Positioning: The Fletch Framework in Context",
+  "verdict_summary": "Pattern-source / research reference doc. It synthesizes an external B2B SaaS positioning practice (Fletch PMM) and maps it onto the established positioning canon (Moore, Dunford, JTBD, Raskin, etc.). It is explicitly theory/reference and deliberately out of scope for any Orvex build: 'Deliberately out of scope: applying any of this to Orvex AI Studio's own copy or GTM decisions — that is a separate follow-up.' It carries no formal requirement ids (no FR-*/NFR-*/A-*/AD-*/D-*/OQ-*), no un-id'd MUSTs mandating build work, and names no component/repo/artifact that must exist. The 'Open Questions' section holds research-verification items (unverified stats, unidentified sources), not build obligations. Zero build gaps.",
+  "gaps": [],
+  "components": []
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "AqXpAlgvIv",
+  "title": "ADR-0025: Workgraph supersedes the OPS agent-side memory design",
+  "verdict_summary": "Canonical decision/supersession ADR — a naming + ownership-boundary ruling, not a build spec. It mandates no independent build work of its own: its concrete obligations are the referenced FR-MEM ids (FR-MEM21 per-item grants, FR-MEM22 studio_memory_get/save disambiguation pointer, FR-MEM23) which are owned by the Workgraph PRD (Kgp6JT3IOR) and are all present in covers-union (FR-MEM1..27 + NFR-MEM1..7). FR-MEM22's tool-description disambiguation pointer appears explicitly in the workgraph feature map ('MCP workgraph_* section + studio_memory disambiguation pointers'). The supersession/section-amend acts (P5 links on m93DraUfSE, FR-AI11 delegation pointer) are definition-phase wiki-curation obligations already executed and covered by the pack spine. The '/v1/memory' FormSpec store is explicitly NOT superseded and is already built. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-workgraph (hosted coordination service delivering the agent-side capability)", "quote": "Architecture Spine orvex-studio-workgraph (uJAiMMsrJB) deliver the agent-side capability as a hosted, beads-inspired coordination service"},
+    {"name": "studio_memory_get/save MCP tool disambiguation pointer (FR-MEM22)", "quote": "studio_memory_get/save tool descriptions gain a disambiguation pointer directing agent-state usage to the workgraph_* section (FR-MEM22)"},
+    {"name": "workgraph per-item privacy grants inheriting the 3-state enum (FR-MEM21/23, spine AD-9)", "quote": "The built store's 3-state per-item privacy enum (open | private | shared-private) transfers as a design pattern — the base of workgraph's per-item grants (FR-MEM21/23, spine AD-9)"}
+  ]
+}

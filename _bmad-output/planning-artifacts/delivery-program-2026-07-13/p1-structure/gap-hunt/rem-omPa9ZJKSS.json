@@ -1,0 +1,6 @@
+{
+  "slug": "omPa9ZJKSS",
+  "title": "Apache Kafka & Strimzi",
+  "classification": "reference/pattern-source (technology stack canon page; requirements owned by ADR-0007/0013/0016 and the event-spine story packs, both already covered)",
+  "gaps": []
+}

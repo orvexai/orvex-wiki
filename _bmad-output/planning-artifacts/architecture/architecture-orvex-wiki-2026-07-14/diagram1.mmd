@@ -1,0 +1,31 @@
+flowchart TB
+  subgraph client["Delivery client (F1)"]
+    ADP["Client compose port\n(extension / paste) — AD-5a\nMCP=read via I-4; sync=AD-5c"]
+  end
+  subgraph api["orvex-studio-api — Memory SoR"]
+    MEM["/v1/memory card + lifecycle\n(AD-1,2,3)"]
+  end
+  subgraph staging["orvex-studio-staging"]
+    Q["Librarian review queue\n(ChangeSets) — confirm gate (AD-4)"]
+  end
+  subgraph ai["orvex-studio-ai"]
+    EX["extraction compute + chat-recall*\n(*renamed, AD-1)"]
+    ASK["cited-ask RAG loop (I-4)"]
+  end
+  subgraph know["orvex-studio-knowledge"]
+    PROJ["memory retrieval projection\nper-user namespace (AD-7)"]
+    EVAL["retrieval eval harness (AD-9)"]
+  end
+  ID["orvex-studio-identity\nfirewall · consent · BYOK (AD-8)"]
+  CON["orvex-studio-contracts\ncard schema · DeliveryAdapter · MCP (AD-11)"]
+
+  EX -->|proposals| Q
+  Q -->|confirmed| MEM
+  MEM -->|memory.* events| PROJ
+  ASK --> PROJ
+  MEM --> ADP
+  ADP -->|user-triggered write-only| client
+  ID -.enforces.- MEM
+  ID -.enforces.- ADP
+  CON -.pins.- MEM
+  CON -.pins.- ADP

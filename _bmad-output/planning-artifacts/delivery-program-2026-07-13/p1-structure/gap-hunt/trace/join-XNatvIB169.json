@@ -1,0 +1,46 @@
+{
+ "slug": "XNatvIB169",
+ "total": 8,
+ "results": [
+  {
+   "id": "F1",
+   "verdict": "COVERED",
+   "owner_or_reason": "console E1-S5 AC2 cites '[Source: Arch §4, cell rule 9, SE-Arch F1]' directly — host-as-injected-config (console.orvex.ai/.dev, no dev-studio. literal) is a build AC, not just the doc fix."
+  },
+  {
+   "id": "F2",
+   "verdict": "COVERED",
+   "owner_or_reason": "console E1-S1 (CELL_ID/CLUSTER_NAME + /healthz echo, rule 4), E1-S4 (cell-guard 421 rule 3, tenant-move 501 stub rule 10, cell-lint), E1-S5 (rule 9/14 host-as-config, OQ-CT4 per-cell default). Rule-14/global-singleton reconciliation is explicitly ADR-gated (Arch §7) — tracked, not a silent gap."
+  },
+  {
+   "id": "F3",
+   "verdict": "NOT-BUILD",
+   "owner_or_reason": "canon-vs-arch Postgres/Redis contradiction is flagged for human reconciliation only; canon edit is ratify-gated/human-only per doc governance, not an engineering build item. No story implements 'edit canon row'."
+  },
+  {
+   "id": "F4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ADR-filing tracked as epic DoD lines: E1.md 'ADR triggers for A-FRONTEND/D-CT1 filed as dated drafts', E4.md 'D-CTRL ADR filed', E7.md 'A-BREAKGLASS ADR filed'. D-CT5/OQ-CT4 resolution carried via E1-S5's ADR-gated rule-14 note."
+  },
+  {
+   "id": "F5",
+   "verdict": "COVERED",
+   "owner_or_reason": "console E1.md explicitly cites 'Arch §5, SE-Arch F5' as the epic's own rationale; the bootstrap onboarding work (cell-lint, CELL_ID/healthz, tenant-move stub) is E1-S1 + E1-S4."
+  },
+  {
+   "id": "F6",
+   "verdict": "NOT-BUILD",
+   "owner_or_reason": "doc-drift/scope reconciliation only — repo is read-only and 'not touched'; FR-CT20-23/D-CT7 Studio-admin absorption confirmed OUT of scope (no FR-CT20..23 anywhere in breakdown/console). Nothing to build."
+  },
+  {
+   "id": "F7",
+   "verdict": "COVERED",
+   "owner_or_reason": "console E2-S4 implements exactly the fixed-in-draft structure: 'Workflow tier (internal/workflow/) sequences ... audit-record construction in internal/audit/ (pure) ... NOT handler-resident (CS ❌#1)'; E1-S1 also carries CS §6 six-tier."
+  },
+  {
+   "id": "F8",
+   "verdict": "COVERED",
+   "owner_or_reason": "console E1-S3 AC2 cites '[Source: Arch A-EDGE §4, SE-Arch F8; NFR-CT2]' directly — the LGTM-credential-confinement build-tag/lint gate is the exact CI gate F8 calls for."
+  }
+ ]
+}

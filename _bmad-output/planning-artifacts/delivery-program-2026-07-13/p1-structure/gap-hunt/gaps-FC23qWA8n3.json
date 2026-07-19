@@ -1,0 +1,17 @@
+{
+  "slug": "FC23qWA8n3",
+  "title": "Memory Feature Gap — Orvex vs the Field",
+  "verdict_summary": "Draft, AI-authored competitive assessment (synthesis of the memory canon, not a primary requirements spec). It carries NO formal requirement IDs of its own; its build obligations are the 'Fix three before launch' recommendations plus the Tier-1/2/3 gap list. Every one of those actionable obligations maps to an existing story or pack, so zero uncovered gaps. Coverage: browser-extension/cross-AI delivery -> ENG-2689/2690 browser-extension packs + Five-AI export/clipboard fallback + MCP/Claude memory-tool adapter surfaces; extraction quality bar + eval -> async extraction pipeline at proposal quality bar + continuous proposal-quality eval regression gate + retrieval eval harness (recall@10 >= 0.80, public benchmark); frozen Memory card schema -> versioned Memory card schema + FormSpec story; Memory lifecycle -> bi-temporal lifecycle + reconcile + staleness/verification queue; BYOK/SOC2/HIPAA -> BYOK KMS customer-managed keys + SOC2 Type II + HIPAA BAA compliance slice.",
+  "gaps": [],
+  "components": [
+    {"name": "Browser-extension (or equivalent) inject path for ChatGPT/Gemini web UIs", "quote": "Spec + prototype a browser-extension (or equivalent) inject path for the ChatGPT / Gemini web UIs — the non-technical delivery mechanism, not just MCP."},
+    {"name": "Memory extraction quality bar + retrieval eval harness", "quote": "Put a quality bar + eval on extraction and retrieval — the confirm loop is only as good as what it proposes."},
+    {"name": "Frozen Memory data model / card schema", "quote": "Freeze the Memory data model and its lifecycle (schema + temporal / decay / reconcile)"},
+    {"name": "Memory lifecycle (temporal validity, decay, retention, atom-level reconcile state machine)", "quote": "No temporal validity, decay, staleness, retention, or atom-level reconcile state machine for curated Memory"},
+    {"name": "BYOK + SOC2/HIPAA compliance for regulated-professional beachhead", "quote": "add BYOK for the regulated-professional beachhead ... SOC2 / HIPAA / BYOK is the market bar"},
+    {"name": "orvex-studio-ai (chat / ask / metering)", "quote": "orvex-studio-ai (chat / ask / metering), the Studio<->MCP session layer, the skill/memory/chat corpora, and every cross-AI delivery surface are design-only."},
+    {"name": "orvex-studio-api /v1/memory (curated Memory store)", "quote": "Memory — curated facts, the \"RAM,\" owned by orvex-studio-api /v1/memory"},
+    {"name": "Prompt Composer (skill + Memory + wiki fusion at prompt-composition time)", "quote": "Injection happens at prompt-composition time (the Prompt Composer fuses skill + Memory + wiki via RAG)"},
+    {"name": "Outbound Memory sync adapters into native vendor memories (Claude adapter; MCP-KG interop fallback)", "quote": "outbound Memory sync into native vendor memories (Claude adapter specced; ChatGPT platform-blocked; MCP-KG interop as fallback)"}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "slug": "8kTZK91vHd",
+  "title": "ADR-0028: 402 QUOTA_EXCEEDED vocabulary enrollment (staging + workgraph surfaces)",
+  "verdict_summary": "Decision-record ADR that enrolls named write surfaces into the frozen 402 QUOTA_EXCEEDED vocabulary (per ADR-0003 D5's ADR-lane requirement). It introduces NO new formal requirement ids and no new build id; every build obligation it implies traces to existing PRD requirements that are already covered. Staging quota enforcement (FR-STG3/NFR-STG2) is covered by the 'Staged proposal intake' epic ('Admission control & quotas — in-flight caps, 402 QUOTA_EXCEEDED' + over-quota SSE state). Workgraph quota enforcement (FR-MEM1/FR-MEM8/NFR-MEM3) is covered by the 'Block-patch write chokepoint, CAS, human-gating & quota' epic ('QUOTA_EXCEEDED 402 verbatim propagation, batch fails whole'). The contracts errors/vocabulary.yaml surfaces growth is covered by 'Frozen errorCode + CLI exit-code vocabulary (errors/*.yaml)' / 'Error/exit-code vocabulary & MCP REST-gap ledger'. Billing entitlement-catalog dimensions and Idempotency-Key on public write verbs are covered by the billing and step-API stories. A-ADR, FR-STG3, NFR-STG2, FR-MEM1, FR-MEM8, NFR-MEM3, and AD-11 are all present in covers-union. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "orvex-studio-contracts errors/vocabulary.yaml (surfaces list)",
+      "quote": "`orvex-studio-contracts` `errors/vocabulary.yaml` `surfaces` grows by the enumerated verbs at contracts authoring, riding this ADR"
+    },
+    {
+      "name": "staging quota domain package + billingclient (staging_propose/submit/decide/apply 402 surfaces)",
+      "quote": "orvex-studio-staging: `staging_propose`, ChangeSet `submit`, reviewer `decide`, `apply` ... reject-at-the-door with the frozen 402 shape and an explicit queue-full reason"
+    },
+    {
+      "name": "workgraph quota domain package + billingclient (create/update/close/claim/handoff/note/batch/remember 402 surfaces)",
+      "quote": "orvex-studio-workgraph: `create`, `update`, `close`, `claim`, `handoff`, `note`, `batch`, `remember` (MCP `workgraph_*` tools + `orvex-cli workgraph` parity + service API routes)"
+    },
+    {
+      "name": "billing entitlement catalog (staging/workgraph dimensions)",
+      "quote": "Billing's entitlement catalog gains staging/workgraph dimensions."
+    }
+  ]
+}

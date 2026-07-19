@@ -1,0 +1,16 @@
+{
+  "slug": "fr7YaPq8Tl",
+  "title": "Product Brief: The Librarian",
+  "verdict_summary": "Live product brief, NOT superseded/stub — but it is explicitly an upstream build/alignment doc that 'references the existing PRD, it does not restate it' and whose 11 Resolved Decisions + 'Remaining for PRD/Architecture' are execution detail, not open product choices. It carries NO formal requirement IDs of its own; every obligation is downstreamed into the orvex-studio-staging PRD (mOzNDhn322, FR-STG1..29 + NFR-STG1..6) plus supporting PRDs, all of which are comprehensively covered. Coverage confirmed story-by-story: the Librarian engine/ritual/router/dial/dedup/learning/maintenance = orvex-studio-staging package (24 stories, E1-E8, all FR-STG ids in plan.json); layered capture + user-pull floor ('save-this-thread', beads capture edge) = ai E7-S3/E7-S4; card contract (engineGate Card Contract v1) = api E5 + staging Curator supersession; per-credential trust dial = staging E4 (Autonomy Dial + Trust Tiers); credential lifecycle issue/revoke = mcp/identity token management + ui E7-S2 (Connections & MCP setup); Memory full-CRUD + reversibility (bi-temporal, item history/restore) = api E3/E5; Docmost archive/restore/purge = api E5-S3/E6 + FR-40 page-lifecycle + purge stories; sensitivity gating (AI + user-taught, fail-safe) = api E5 + ui E5-S2; bounded-op/fail-fast/no-hang = mcp E1-S4 + staging quota/admission; Intake recurrence/bounding (ChangeSet expiry, depth/age admission, staleness sweep) = staging E2 + E7. Definition-phase obligations (engine spike, card-contract schema freeze) are covered by the staging definition pack (ENG-2094). Zero uncovered BUILD gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "The Librarian (curation engine)", "quote": "The Librarian turns that firehose into a tidy, deduplicated, self-maintaining personal knowledge base inside Orvex AI Studio"},
+    {"name": "The Intake (staging change queue)", "quote": "Intake — the staging change queue. Cards land append-only, not in the wiki, staging every change (add, edit, delete-request)."},
+    {"name": "Card contract {op,target,text,dest,provenance}", "quote": "MCP save-tool -> cards {op,target,text,dest,provenance}"},
+    {"name": "MCP save-tool (narrow capture door)", "quote": "outside-in capture rides a narrow MCP (one safe save door, client-agnostic)"},
+    {"name": "Per-credential trust dial + credential lifecycle", "quote": "per-credential trust dial + credential lifecycle (issue/revoke + permanent + inactivity-timeout)"},
+    {"name": "The shelves / router (Wiki + Memory full-CRUD + Trash)", "quote": "router = Wiki + Memory (full CRUD) + Trash(retire)"},
+    {"name": "Emergent IA engine (productised doc-amend, link-preserving)", "quote": "Productise doc-amend, gated by a spike. Structure is emergent/learned, never templated; the Librarian evolves the IA (propose-confirm, link-preserving)."},
+    {"name": "Sensitivity classifier (AI-classified + user-taught, fail-safe)", "quote": "AI-classified + user-taught, fail-safe (\"when in doubt, gate\"); learns from corrections."}
+  ]
+}

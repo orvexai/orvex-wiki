@@ -1,0 +1,45 @@
+{
+  "space": "orvexstudioconsole",
+  "pages": [
+    {
+      "slug": "XNatvIB169",
+      "title": "Architecture Audit — SE-Arch review (2026-07-05)",
+      "doc_type": "retrospective",
+      "status": "canonical",
+      "requirement_bearing": false,
+      "already_read": false
+    },
+    {
+      "slug": "Ii9q9kBNms",
+      "title": "Architecture: User-Behavior Analytics (Console)",
+      "doc_type": "architecture",
+      "status": "draft",
+      "requirement_bearing": true,
+      "already_read": true
+    },
+    {
+      "slug": "L1NVnmRgpy",
+      "title": "Architecture: orvex-studio-console",
+      "doc_type": "architecture",
+      "status": "canonical",
+      "requirement_bearing": true,
+      "already_read": true
+    },
+    {
+      "slug": "TYWAtnvliD",
+      "title": "PRD Addendum — User-Behavior Analytics",
+      "doc_type": "prd",
+      "status": "draft",
+      "requirement_bearing": true,
+      "already_read": true
+    },
+    {
+      "slug": "kldiZu93EC",
+      "title": "PRD: orvex-studio-console",
+      "doc_type": "prd",
+      "status": "canonical",
+      "requirement_bearing": true,
+      "already_read": true
+    }
+  ]
+}

@@ -1,0 +1,475 @@
+{
+  "service": "orvex-studio-console",
+  "requirement_source": "kldiZu93EC (PRD: orvex-studio-console, FR-CT1..CT19 + FR-CT12a/CT12b + NFR-CT1..CT7) + TYWAtnvliD (PRD Addendum \u2014 User-Behavior Analytics, FR-CT-UBA-1..12 + NFR-CT-UBA-1..5)",
+  "sources": [
+    {
+      "slug": "kldiZu93EC",
+      "title": "PRD: orvex-studio-console"
+    },
+    {
+      "slug": "L1NVnmRgpy",
+      "title": "Architecture: orvex-studio-console"
+    },
+    {
+      "slug": "TYWAtnvliD",
+      "title": "PRD Addendum \u2014 User-Behavior Analytics"
+    },
+    {
+      "slug": "Ii9q9kBNms",
+      "title": "Architecture: User-Behavior Analytics (Console)"
+    }
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] console: Foundation, cell-contract & non-pure-Go build pipeline",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {
+          "id": "E1-S1",
+          "title": "[console] Repo scaffold + cmd/console single binary + /healthz cell echo",
+          "body_file": "bodies/E1-S1.md",
+          "covers": [
+            "FR-CT19"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S2",
+          "title": "[console] go:embed SPA build pipeline (first non-pure-Go build) + one-origin strict CSP",
+          "body_file": "bodies/E1-S2.md",
+          "covers": [
+            "NFR-CT4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S3",
+          "title": "[console] AGPL-import CI guard + LGTM-credential-confinement build-tag/lint gate",
+          "body_file": "bodies/E1-S3.md",
+          "covers": [
+            "NFR-CT4",
+            "NFR-CT2"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S4",
+          "title": "[console] cell-lint + cell-guard middleware + tenant-move 501 stub + TENANT_MOVE.md",
+          "body_file": "bodies/E1-S4.md",
+          "covers": [
+            "FR-CT19"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S5",
+          "title": "[console] Always-warm multi-replica Deployment + endpoint-as-config cross-cell posture",
+          "body_file": "bodies/E1-S5.md",
+          "covers": [
+            "NFR-CT3",
+            "NFR-CT6"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S6",
+          "title": "[console] Redis-only state adapter + isolated-client/circuit-breaker honest-render framework",
+          "body_file": "bodies/E1-S6.md",
+          "covers": [
+            "FR-CT17",
+            "FR-CT18",
+            "NFR-CT7"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] console: Privilege-boundary edge \u2014 authN/Z, credential separation & audit",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {
+          "id": "E2-S1",
+          "title": "[console] lib/auth router: deny-by-default + Clerk admin-org operator gate",
+          "body_file": "bodies/E2-S1.md",
+          "covers": [
+            "FR-CT13",
+            "NFR-CT2"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S2",
+          "title": "[console] Fresh no-grace introspection + typed confirmation on every mutation",
+          "body_file": "bodies/E2-S2.md",
+          "covers": [
+            "FR-CT13"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S3",
+          "title": "[console] Operator-token pass-through + LGTM read-only standing-cred separation",
+          "body_file": "bodies/E2-S3.md",
+          "covers": [
+            "FR-CT16",
+            "NFR-CT2"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S4",
+          "title": "[console] Audit-before-respond wrap \u2192 family audit stream Kafka writer",
+          "body_file": "bodies/E2-S4.md",
+          "covers": [
+            "FR-CT14"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S5",
+          "title": "[console] Audit-trail browse/search pane + sensitive-read auditing + tenant-embedded keys",
+          "body_file": "bodies/E2-S5.md",
+          "covers": [
+            "FR-CT12",
+            "NFR-CT5"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] console: Observability single pane over LGTM",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {
+          "id": "E3-S1",
+          "title": "[console] Guardrailed LGTM proxy /api/obs/* with FR-CT6 caps",
+          "body_file": "bodies/E3-S1.md",
+          "covers": [
+            "FR-CT6",
+            "NFR-CT1"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S2",
+          "title": "[console] Log-search pane (Loki/LogQL) \u2014 Grafana shell + original result pane",
+          "body_file": "bodies/E3-S2.md",
+          "covers": [
+            "FR-CT1"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S3",
+          "title": "[console] Metrics/dashboards pane (Mimir/PromQL) \u2014 Grafana Scenes shell",
+          "body_file": "bodies/E3-S3.md",
+          "covers": [
+            "FR-CT1"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S4",
+          "title": "[console] Trace lookup + ORIGINAL trace waterfall (AGPL-clean)",
+          "body_file": "bodies/E3-S4.md",
+          "covers": [
+            "FR-CT1",
+            "NFR-CT4"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S5",
+          "title": "[console] Cross-signal correlation on the FR-C18 label vocabulary",
+          "body_file": "bodies/E3-S5.md",
+          "covers": [
+            "FR-CT2"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S6",
+          "title": "[console] Alert-state surface with links into the correlated pane",
+          "body_file": "bodies/E3-S6.md",
+          "covers": [
+            "FR-CT5"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S7",
+          "title": "[console] Satellite health board (per-satellite SLIs from Mimir)",
+          "body_file": "bodies/E3-S7.md",
+          "covers": [
+            "FR-CT4"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] console: Temporal workflow visibility & write ops via the authorizing proxy",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {
+          "id": "E4-S1",
+          "title": "[console] Workflows authorizing-proxy client + workflow visibility reads",
+          "body_file": "bodies/E4-S1.md",
+          "covers": [
+            "FR-CT3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S2",
+          "title": "[console] Workflow write ops (retry/cancel/signal) via proxy + fresh introspection",
+          "body_file": "bodies/E4-S2.md",
+          "covers": [
+            "FR-CT10"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S3",
+          "title": "[console] Workspace/user lifecycle state-machine + reconcile drift view",
+          "body_file": "bodies/E4-S3.md",
+          "covers": [
+            "FR-CT11"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] console: Identity & knowledge admin \u2014 compose, never bypass",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {
+          "id": "E5-S1",
+          "title": "[console] Org/tenant registry browse + provisioning history (FR-CT7 read half)",
+          "body_file": "bodies/E5-S1.md",
+          "covers": [
+            "FR-CT7"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S2",
+          "title": "[console] Token management \u2014 list/inspect/rotate/revoke via identity",
+          "body_file": "bodies/E5-S2.md",
+          "covers": [
+            "FR-CT8"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S3",
+          "title": "[console] Satellite operations \u2014 knowledge reindex trigger via FR-K25 wrap",
+          "body_file": "bodies/E5-S3.md",
+          "covers": [
+            "FR-CT9"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] console: Billing/AI entitlements, usage & quota panes",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {
+          "id": "E6-S1",
+          "title": "[console] AI usage & enforcement pane over ai FR-AI15",
+          "body_file": "bodies/E6-S1.md",
+          "covers": [
+            "FR-CT12a"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S2",
+          "title": "[console] Plan/entitlement + quota-usage pane (billing SoR + engine F-QUOTA)",
+          "body_file": "bodies/E6-S2.md",
+          "covers": [
+            "FR-CT12b"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] console: Break-glass emergency plane (zero IdP dependencies)",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {
+          "id": "E7-S1",
+          "title": "[console] Break-glass route class \u2014 identity offline verify only + dependency-direction CI test",
+          "body_file": "bodies/E7-S1.md",
+          "covers": [
+            "FR-CT15",
+            "NFR-CT3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S2",
+          "title": "[console] Break-glass rate-limit + out-of-band alerting + bounded action allow-list",
+          "body_file": "bodies/E7-S2.md",
+          "covers": [
+            "FR-CT15"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] console: User-Behavior Analytics pane (PostHog Cloud EU, fronts + renders only)",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {
+          "id": "E8-S1",
+          "title": "[console] Analytics BFF edge + pkg/posthog port + guardrailed /api/analytics/* (no computation in console)",
+          "body_file": "bodies/E8-S1.md",
+          "covers": [
+            "FR-CT-UBA-9",
+            "FR-CT-UBA-3",
+            "FR-CT-UBA-10"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S2",
+          "title": "[console] Analytics authz + PostHog credential confinement + sensitive-read audit",
+          "body_file": "bodies/E8-S2.md",
+          "covers": [
+            "FR-CT-UBA-6"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S3",
+          "title": "[console] Five product-insight surfaces (activation/adoption/engagement/retention/plan-mix)",
+          "body_file": "bodies/E8-S3.md",
+          "covers": [
+            "FR-CT-UBA-1",
+            "FR-CT-UBA-2"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S4",
+          "title": "[console] Aggregate-first rendering + k-anonymity render suppression",
+          "body_file": "bodies/E8-S4.md",
+          "covers": [
+            "FR-CT-UBA-4"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S5",
+          "title": "[console] Honest, attributed + ILLUSTRATIVE pre-launch-banner panels + typed degradation",
+          "body_file": "bodies/E8-S5.md",
+          "covers": [
+            "FR-CT-UBA-5",
+            "NFR-CT-UBA-3",
+            "NFR-CT-UBA-4"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S6",
+          "title": "[console] Session-replay player embed pane (behind BFF auth-proxy)",
+          "body_file": "bodies/E8-S6.md",
+          "covers": [
+            "FR-CT-UBA-11"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S7",
+          "title": "[console] Web & marketing analytics embed pane (GA4-alternative)",
+          "body_file": "bodies/E8-S7.md",
+          "covers": [
+            "FR-CT-UBA-12"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E8-S8",
+          "title": "[console] Privacy/residency/erasure fronting + PostHog store binding + cost SLI",
+          "body_file": "bodies/E8-S8.md",
+          "covers": [
+            "FR-CT-UBA-7",
+            "FR-CT-UBA-8",
+            "FR-CT-UBA-8a",
+            "NFR-CT-UBA-1",
+            "NFR-CT-UBA-2",
+            "NFR-CT-UBA-5"
+          ],
+          "audit": "absent"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-CT1",
+      "FR-CT2",
+      "FR-CT3",
+      "FR-CT4",
+      "FR-CT5",
+      "FR-CT6",
+      "FR-CT7",
+      "FR-CT8",
+      "FR-CT9",
+      "FR-CT10",
+      "FR-CT11",
+      "FR-CT12",
+      "FR-CT12a",
+      "FR-CT12b",
+      "FR-CT13",
+      "FR-CT14",
+      "FR-CT15",
+      "FR-CT16",
+      "FR-CT17",
+      "FR-CT18",
+      "FR-CT19",
+      "NFR-CT1",
+      "NFR-CT2",
+      "NFR-CT3",
+      "NFR-CT4",
+      "NFR-CT5",
+      "NFR-CT6",
+      "NFR-CT7",
+      "FR-CT-UBA-1",
+      "FR-CT-UBA-2",
+      "FR-CT-UBA-3",
+      "FR-CT-UBA-4",
+      "FR-CT-UBA-5",
+      "FR-CT-UBA-6",
+      "FR-CT-UBA-7",
+      "FR-CT-UBA-8",
+      "FR-CT-UBA-8a",
+      "FR-CT-UBA-9",
+      "FR-CT-UBA-10",
+      "FR-CT-UBA-11",
+      "FR-CT-UBA-12",
+      "NFR-CT-UBA-1",
+      "NFR-CT-UBA-2",
+      "NFR-CT-UBA-3",
+      "NFR-CT-UBA-4",
+      "NFR-CT-UBA-5"
+    ],
+    "uncovered": []
+  }
+}

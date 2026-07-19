@@ -1,0 +1,24 @@
+{
+  "slug": "TYWAtnvliD",
+  "total": 18,
+  "results": [
+    {"id": "FR-CT-UBA-1", "verdict": "COVERED", "owner_or_reason": "ENG-2609"},
+    {"id": "FR-CT-UBA-2", "verdict": "COVERED", "owner_or_reason": "ENG-2609"},
+    {"id": "FR-CT-UBA-3", "verdict": "COVERED", "owner_or_reason": "ENG-2607"},
+    {"id": "FR-CT-UBA-4", "verdict": "COVERED", "owner_or_reason": "ENG-2610"},
+    {"id": "FR-CT-UBA-5", "verdict": "COVERED", "owner_or_reason": "ENG-2611"},
+    {"id": "FR-CT-UBA-6", "verdict": "COVERED", "owner_or_reason": "ENG-2608"},
+    {"id": "FR-CT-UBA-7", "verdict": "COVERED", "owner_or_reason": "ENG-2614"},
+    {"id": "FR-CT-UBA-8", "verdict": "COVERED", "owner_or_reason": "ENG-2614"},
+    {"id": "FR-CT-UBA-8a", "verdict": "COVERED", "owner_or_reason": "coverage-index.json omitted this key, but breakdown/console/plan.json story E8-S8 explicitly covers it (and lists it in plan.json's own coverage.ids_found) alongside FR-CT-UBA-7/8"},
+    {"id": "FR-CT-UBA-9", "verdict": "COVERED", "owner_or_reason": "ENG-2607"},
+    {"id": "FR-CT-UBA-10", "verdict": "COVERED", "owner_or_reason": "ENG-2607"},
+    {"id": "FR-CT-UBA-11", "verdict": "COVERED", "owner_or_reason": "ENG-2612"},
+    {"id": "FR-CT-UBA-12", "verdict": "COVERED", "owner_or_reason": "ENG-2613"},
+    {"id": "NFR-CT-UBA-1", "verdict": "COVERED", "owner_or_reason": "ENG-2614"},
+    {"id": "NFR-CT-UBA-2", "verdict": "COVERED", "owner_or_reason": "ENG-2614"},
+    {"id": "NFR-CT-UBA-3", "verdict": "COVERED", "owner_or_reason": "ENG-2611"},
+    {"id": "NFR-CT-UBA-4", "verdict": "COVERED", "owner_or_reason": "ENG-2611"},
+    {"id": "NFR-CT-UBA-5", "verdict": "COVERED", "owner_or_reason": "ENG-2614"}
+  ]
+}

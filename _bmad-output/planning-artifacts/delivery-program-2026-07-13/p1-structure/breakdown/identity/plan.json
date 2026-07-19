@@ -1,0 +1,550 @@
+{
+ "service": "orvex-studio-identity",
+ "requirement_source": "PRD: orvex-studio-identity (cnhla0qRRF, draft \u2014 carries USER-locked decisions D-IDENT-1..6/D-S3/5/12/13/17) + Architecture: orvex-studio-identity (dQUjrSXhdp, canonical)",
+ "sources": [
+  {
+   "slug": "cnhla0qRRF",
+   "title": "PRD: orvex-studio-identity"
+  },
+  {
+   "slug": "dQUjrSXhdp",
+   "title": "Architecture: orvex-studio-identity"
+  },
+  {
+   "slug": "YuY9XWpKPS",
+   "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)"
+  },
+  {
+   "slug": "CYHyoUd7J1",
+   "title": "Anti-Sybil / Free-Tier Abuse \u2014 Options & Recommendation"
+  }
+ ],
+ "epics": [
+  {
+   "id": "E1",
+   "title": "[EPIC] identity: Verification spine & shared lib/auth verifier",
+   "body_file": "bodies/E1.md",
+   "stories": [
+    {
+     "id": "E1-S1",
+     "title": "[identity] Multi-issuer IdentityResolver \u2192 IdP-agnostic principal",
+     "body_file": "bodies/E1-S1.md",
+     "covers": [
+      "FR-I1"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S2",
+     "title": "[identity] orvex-studio-lib/auth local JWKS verifier (deny-by-default)",
+     "body_file": "bodies/E1-S2.md",
+     "covers": [
+      "FR-I2",
+      "FR-I6"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S3",
+     "title": "[identity] POST /v1/introspect + Redis-cached introspection cadence",
+     "body_file": "bodies/E1-S3.md",
+     "covers": [
+      "FR-I2",
+      "NFR-I1",
+      "NFR-I3"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S4",
+     "title": "[identity] Fail-closed grace hard-bound + fresh-introspect gate + push-revocation",
+     "body_file": "bodies/E1-S4.md",
+     "covers": [
+      "FR-I3",
+      "NFR-I5"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E2",
+   "title": "[EPIC] identity: Token authority (mint / scope / lifecycle)",
+   "body_file": "bodies/E2.md",
+   "stories": [
+    {
+     "id": "E2-S1",
+     "title": "[identity] Mint frozen-at-mint MCP/agent tokens per IdP + org-switch immutability test",
+     "body_file": "bodies/E2-S1.md",
+     "covers": [
+      "FR-I4",
+      "NFR-I4"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S2",
+     "title": "[identity] POST /v1/tokens from both front ends (CSRF/origin + first-party proof)",
+     "body_file": "bodies/E2-S2.md",
+     "covers": [
+      "FR-I5"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S3",
+     "title": "[identity] Server-side scope derivation + lib/auth scope enforcement",
+     "body_file": "bodies/E2-S3.md",
+     "covers": [
+      "FR-I6"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S4",
+     "title": "[identity] Token lifecycle list/rotate/revoke + revocation event within TTL",
+     "body_file": "bodies/E2-S4.md",
+     "covers": [
+      "FR-I7",
+      "NFR-I3"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "title": "[EPIC] identity: Polymorphic tenant spine & JIT provisioning",
+   "body_file": "bodies/E3.md",
+   "stories": [
+    {
+     "id": "E3-S1",
+     "title": "[identity] Tenant registry \u2014 idp-tagged polymorphic user|org mapping, opaque IDs",
+     "body_file": "bodies/E3-S1.md",
+     "covers": [
+      "FR-I8",
+      "NFR-I4",
+      "NFR-I7"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S2",
+     "title": "[identity] Gated, rate-limited JIT provisioning",
+     "body_file": "bodies/E3-S2.md",
+     "covers": [
+      "FR-I9"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S3",
+     "title": "[identity] Personal\u2192Teams upgrade pass (org mint + tenant re-key) + access-transition isolation",
+     "body_file": "bodies/E3-S3.md",
+     "covers": [
+      "FR-I8",
+      "FR-I9"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S4",
+     "title": "[identity] Coarse role mapping (Clerk org_role \u2192 workspace role enum)",
+     "body_file": "bodies/E3-S4.md",
+     "covers": [
+      "FR-I10"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "title": "[EPIC] identity: Engine session seam & dual-IdP login",
+   "body_file": "bodies/E4.md",
+   "stories": [
+    {
+     "id": "E4-S1",
+     "title": "[identity] POST /v1/exchange \u2014 Clerk verify \u2192 exchange-token \u2192 engine session mint (FR-15)",
+     "body_file": "bodies/E4-S1.md",
+     "covers": [
+      "FR-I11"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S2",
+     "title": "[identity] Remove native engine email/password login (D-S3), preserve survivors",
+     "body_file": "bodies/E4-S2.md",
+     "covers": [
+      "FR-I12"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E4-S3",
+     "title": "[identity] Offline-sealed break-glass admin credential (console-only)",
+     "body_file": "bodies/E4-S3.md",
+     "covers": [
+      "FR-I12"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S4",
+     "title": "[identity] Keycloak OIDC-RP relocation (sever @docmost/* imports)",
+     "body_file": "bodies/E4-S4.md",
+     "covers": [
+      "FR-I13"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S5",
+     "title": "[identity] SCIM 2.0 relocation (Users/Groups + SCIM tokens)",
+     "body_file": "bodies/E4-S5.md",
+     "covers": [
+      "FR-I13"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S6",
+     "title": "[identity] Admin surfaces relocation behind admin-org authz",
+     "body_file": "bodies/E4-S6.md",
+     "covers": [
+      "FR-I17"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "title": "[EPIC] identity: Lifecycle callee & event spine",
+   "body_file": "bodies/E5.md",
+   "stories": [
+    {
+     "id": "E5-S1",
+     "title": "[identity] Studio provision/deprovision step API + workload identity (mTLS/SPIFFE) + NetworkPolicy",
+     "body_file": "bodies/E5-S1.md",
+     "covers": [
+      "FR-I14",
+      "NFR-I5"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E5-S2",
+     "title": "[identity] Two-phase deprovision(delete): soft-disable + grace-gated purge, no existence oracle",
+     "body_file": "bodies/E5-S2.md",
+     "covers": [
+      "FR-I14",
+      "NFR-I3"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E5-S3",
+     "title": "[identity] Transactional outbox + relay direct-to-Kafka + CloudEvents orvexcell envelope",
+     "body_file": "bodies/E5-S3.md",
+     "covers": [
+      "FR-I15"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E5-S4",
+     "title": "[identity] Reconcile deprovisioner ownership (F2): retire CloudEvent worker, REST callee only",
+     "body_file": "bodies/E5-S4.md",
+     "covers": [
+      "FR-I15"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "title": "[EPIC] identity: Global org\u2192cell registry & routing (the only global component)",
+   "body_file": "bodies/E6.md",
+   "stories": [
+    {
+     "id": "E6-S1",
+     "title": "[identity] Two schema-isolated registry stores \u2014 PII-free routing core + in-jurisdiction sensitive shard",
+     "body_file": "bodies/E6-S1.md",
+     "covers": [
+      "FR-I19",
+      "NFR-I6"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E6-S2",
+     "title": "[identity] Cell assignment at creation (geo + residency) + global hostname uniqueness",
+     "body_file": "bodies/E6-S2.md",
+     "covers": [
+      "FR-I19"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E6-S3",
+     "title": "[identity] Workers KV mirror + edge geo-router read path (no routing SPOF)",
+     "body_file": "bodies/E6-S3.md",
+     "covers": [
+      "FR-I19",
+      "NFR-I2"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E6-S4",
+     "title": "[identity] Typed tenant-move step API + TenantMoveManifest + TENANT_MOVE.md",
+     "body_file": "bodies/E6-S4.md",
+     "covers": [
+      "FR-I19"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E6-GAP1",
+     "title": "[identity] ADR-0011 #4 mint side \u2014 mirror cell/cell_epoch into Clerk org/user metadata + the Keycloak mapper (config-as-code)",
+     "body_file": "../gap-hunt/fix-bodies/fix-adr0011-mint.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2704"
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "title": "[EPIC] identity: CLI & agent client seam (Orvex CLI)",
+   "body_file": "bodies/E7.md",
+   "stories": [
+    {
+     "id": "E7-S1",
+     "title": "[identity] GET /v1/whoami \u2014 token-verify + caller principal",
+     "body_file": "bodies/E7-S1.md",
+     "covers": [
+      "FR-I20"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E7-S2",
+     "title": "[identity] Device-authorization / token-grant mint flow for orvex auth login",
+     "body_file": "bodies/E7-S2.md",
+     "covers": [
+      "FR-I20"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E7-S3",
+     "title": "[identity] /healthz doctor probe alias + interim engine api-key passthrough",
+     "body_file": "bodies/E7-S3.md",
+     "covers": [
+      "FR-I20"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E8",
+   "title": "[EPIC] identity: Persistence, cell-contract conformance & security ops",
+   "body_file": "bodies/E8.md",
+   "stories": [
+    {
+     "id": "E8-S1",
+     "title": "[identity] Persistence \u2014 Postgres RLS + JSONB append journal + Redis (Mongo struck)",
+     "body_file": "bodies/E8-S1.md",
+     "covers": [
+      "FR-I16",
+      "NFR-I6"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S2",
+     "title": "[identity] livez/readyz split + CELL_ID-required + CLUSTER_NAME echo",
+     "body_file": "bodies/E8-S2.md",
+     "covers": [
+      "FR-I18",
+      "NFR-I2"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S3",
+     "title": "[identity] Cell-guard/421 middleware + Idempotency-Key on internal step APIs",
+     "body_file": "bodies/E8-S3.md",
+     "covers": [
+      "NFR-I5"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S4",
+     "title": "[identity] OTel/Prometheus + audit stream for every mint/revoke/provision",
+     "body_file": "bodies/E8-S4.md",
+     "covers": [
+      "FR-I18"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S5",
+     "title": "[identity] Author A-TOKEN/A-VERIFY + A-SESSION ADRs (SE-Arch \u00a77 triggers)",
+     "body_file": "bodies/E8-S5.md",
+     "covers": [
+      "FR-I18"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-GAP1",
+     "title": "[identity] ADR-0015 ruling 7a \u2014 at-rest encryption helper (OpenBao/ESO-sourced key) for the DB-backed per-tenant Clerk config",
+     "body_file": "../gap-hunt/fix-bodies/fix-adr0015-encryption.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2705"
+    }
+   ]
+  },
+  {
+   "id": "E9",
+   "title": "[EPIC] identity: Anti-Sybil / free-tier abuse controls",
+   "body_file": "bodies/E9.md",
+   "stories": [
+    {
+     "id": "E9-S1",
+     "title": "[identity] verified_principal entity + principal-scoped lifetime AI-trial ledger (flagship)",
+     "body_file": "bodies/E9-S1.md",
+     "covers": [
+      "FR-I9"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E9-S2",
+     "title": "[identity] Per-principal live-tenant cap + progressive-trust tiers + staged provisioning",
+     "body_file": "bodies/E9-S2.md",
+     "covers": [
+      "FR-I9"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E9-S3",
+     "title": "[identity] Table-stakes edge controls (verified-email, disposable-block, Turnstile, IP/ASN, velocity)",
+     "body_file": "bodies/E9-S3.md",
+     "covers": [
+      "FR-I9",
+      "NFR-I5"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E9-S4",
+     "title": "[identity] Signup risk-score fusion \u2192 ALLOW/STEP-UP/DENY + risk-triggered step-up",
+     "body_file": "bodies/E9-S4.md",
+     "covers": [
+      "FR-I9"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E10",
+   "title": "[EPIC] identity: Memory security & compliance (owned slice)",
+   "body_file": "bodies/E10.md",
+   "stories": [
+    {
+     "id": "E10-S1",
+     "title": "[identity] BYOK customer-managed keys via KMS (store-layer enforced, per-tenant)",
+     "body_file": "bodies/E10-S1.md",
+     "covers": [
+      "FR-S1",
+      "FR-S4"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E10-S2",
+     "title": "[identity] SOC 2 Type II + HIPAA BAA compliance path",
+     "body_file": "bodies/E10-S2.md",
+     "covers": [
+      "FR-S2"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E10-S3",
+     "title": "[identity] Self-host / BYOC data-residency option",
+     "body_file": "bodies/E10-S3.md",
+     "covers": [
+      "FR-S3"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E10-S4",
+     "title": "[identity] Personal\u2194employer firewall + per-use consent + AD-8 mint-boundary delivery token",
+     "body_file": "bodies/E10-S4.md",
+     "covers": [
+      "FR-S5",
+      "FR-S6",
+      "AD-8",
+      "AD-6"
+     ],
+     "audit": "absent"
+    }
+   ]
+  }
+ ],
+ "coverage": {
+  "ids_found": [
+   "FR-I1",
+   "FR-I2",
+   "FR-I3",
+   "FR-I4",
+   "FR-I5",
+   "FR-I6",
+   "FR-I7",
+   "FR-I8",
+   "FR-I9",
+   "FR-I10",
+   "FR-I11",
+   "FR-I12",
+   "FR-I13",
+   "FR-I14",
+   "FR-I15",
+   "FR-I16",
+   "FR-I17",
+   "FR-I18",
+   "FR-I19",
+   "FR-I20",
+   "NFR-I1",
+   "NFR-I2",
+   "NFR-I3",
+   "NFR-I4",
+   "NFR-I5",
+   "NFR-I6",
+   "NFR-I7",
+   "FR-S1",
+   "FR-S2",
+   "FR-S3",
+   "FR-S4",
+   "FR-S5",
+   "FR-S6",
+   "AD-8",
+   "AD-6"
+  ],
+  "uncovered": []
+ }
+}

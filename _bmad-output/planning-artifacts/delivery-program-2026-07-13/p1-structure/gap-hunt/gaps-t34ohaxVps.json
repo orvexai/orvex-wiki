@@ -1,0 +1,7 @@
+{
+  "slug": "t34ohaxVps",
+  "title": "Readiness Assessment — Orvex Studio (Diffusion of Innovations)",
+  "verdict_summary": "Directional draft strategic-adoption assessment scoring the Orvex concept against Rogers' Diffusion of Innovations (Relative Advantage, Compatibility, Complexity, Trialability, Observability) with Go/Adapt/Pause verdicts. Self-labelled 'Draft — readiness assessment ... Directional.' It mandates no build work: no formal requirement ids (FR/NFR/A/AD/D/OQ), no un-id'd MUSTs, and no named components/repos/artifacts that must exist. The 'ADAPT' items (one-tap AI connection, explicit free/paid + price, visible/shareable wins, marketplace/referral) are strategic recommendations for the public-launch positioning, not concrete engineering obligations, and where they touch product surfaces they are already owned by product PRDs/packs. Zero build gaps.",
+  "gaps": [],
+  "components": []
+}

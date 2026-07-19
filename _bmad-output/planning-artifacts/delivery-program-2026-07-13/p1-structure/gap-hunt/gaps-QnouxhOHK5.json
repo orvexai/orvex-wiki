@@ -1,0 +1,12 @@
+{
+  "slug": "QnouxhOHK5",
+  "title": "ADR-0032: In-fork /mcp decommission",
+  "verdict_summary": "As-built removal ADR. Though flagged 'Draft (proposed)', its entire body records a completed engine surface shed: the Evidence section confirms PR orvex-wiki#98 merged to dev at 9ca06aff with the named DoD guard test green post-merge, anchor ENG-1407 Done with its parity test green, and the FR-C5 REST-gap ledger at 73/73. Every Decision bullet (delete client MCP settings panel/tab, drop Feature.MCP flag, OrvexMcpSettings DTO, mcpEnabled handling + license gate, throttle override, orphan @modelcontextprotocol/sdk pin; keep in-fork transport absent behind a guard test) is a removal already executed and merged. It mandates no outstanding build work. The two formal requirements it leans on, FR-C5 (WS-16 REST-gap parity gate) and FR-M16 (CASL search gate enforcement moving to knowledge egress + identity scope), are both covered in the story set — the orvex-studio-mcp 'Decommission embedded packages/orvex-mcp (73->parity) via FR-C5 ledger' story carries FR-C5, and FR-M16 appears in covers-union.json. The lone named artifact, mcp-surface-shed-at-parity.spec.ts, already exists and is green. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "mcp-surface-shed-at-parity.spec.ts (named DoD guard test)",
+      "quote": "A named DoD guard (`mcp-surface-shed-at-parity.spec.ts`) keeps the surface shed and blocks re-introduction; it consumes the anchor's parity verdict rather than re-deriving it. ... the named DoD test is green post-merge on dev."
+    }
+  ]
+}

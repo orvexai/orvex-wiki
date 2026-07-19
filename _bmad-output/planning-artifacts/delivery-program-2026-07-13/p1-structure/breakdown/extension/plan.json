@@ -1,0 +1,82 @@
+{
+  "service": "orvex-studio-extension",
+  "requirement_source": "g9vWbSYplh F1 (FR-D1..D7, FR-O4, AD-5a) — the Memory gap-closure PRD; F1 Cross-AI delivery owned by the browser-extension component, the write/compose client port (AD-5a; MCP is AD-5b, not this)",
+  "sources": [
+    {"slug": "g9vWbSYplh", "title": "PRD: Orvex Memory — Gap Closure (F1 FR-D1..D7, FR-O4)"},
+    {"file": "_bmad-output/planning-artifacts/briefs/brief-orvex-studio-2026-07-13/brief.md", "title": "Product Brief: Orvex Studio (cross-AI delivery + AI-privacy framing)"},
+    {"ref": "AD-5a", "title": "Architecture ruling: the extension is the write/compose client port (MCP = AD-5b, not it)"},
+    {"issue": "ENG-2689", "title": "Viability spike — mechanism (extension vs bookmarklet vs native helper), OQ1/OQ8; gates the mechanism"},
+    {"issue": "ENG-2690", "title": "Definition pack — freezes the contract; dispatch gate for every story"},
+    {"issue": "ENG-2696", "title": "knowledge: vendor-API memory sync-out (FR-D6 cross-reference, NOT duplicated here)"},
+    {"issue": "ENG-2697", "title": "ui: AI-privacy setup surface (cross-reference only)"}
+  ],
+  "repo": {"name": "orvexai/orvex-studio-extension", "commit": "b568ba6", "state": "empty — governance README only, pre-definition scaffold"},
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] extension: Foundation — MV3 scaffold, build+CI, AGPL-guard, contracts-codegen TS client & permissions floor",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {"id": "E1-S1", "title": "[extension] MV3 scaffold — manifest v3 service worker + popup shell, env-only config, build + CI", "body_file": "bodies/E1-S1.md", "covers": ["AD-5a"], "audit": "absent"},
+        {"id": "E1-S2", "title": "[extension] Contracts-codegen TS client consumer + AGPL-import/license denylist + drift gate", "body_file": "bodies/E1-S2.md", "covers": ["AD-5a"], "audit": "absent"},
+        {"id": "E1-S3", "title": "[extension] Permissions minimization + CSP hardening + no-content-capture-beyond-compose baseline", "body_file": "bodies/E1-S3.md", "covers": ["FR-D5"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] extension: Auth & delegated principal — one-step connect, scoped token, secure storage, per-assistant status",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {"id": "E2-S1", "title": "[extension] Guided one-step connect — delegated principal mint, ≤3 taps ≤2 min, zero config", "body_file": "bodies/E2-S1.md", "covers": ["FR-D2", "FR-O4"], "audit": "absent"},
+        {"id": "E2-S2", "title": "[extension] Scoped delegated token + secure extension storage, refresh & revoke, no secret leakage", "body_file": "bodies/E2-S2.md", "covers": ["FR-D4"], "audit": "absent"},
+        {"id": "E2-S3", "title": "[extension] Per-assistant connection-status surface + honest not-yet-supported messaging", "body_file": "bodies/E2-S3.md", "covers": ["FR-D2", "FR-D3"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] extension: Per-provider delivery adapters — injection framework, ChatGPT, Gemini, Claude/Grok posture",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {"id": "E3-S1", "title": "[extension] Delivery-adapter framework — provider registry + own-compose-surface injection port", "body_file": "bodies/E3-S1.md", "covers": ["FR-D1", "FR-D5"], "audit": "absent"},
+        {"id": "E3-S2", "title": "[extension] ChatGPT delivery adapter — inject enriched prompt into the user's compose surface", "body_file": "bodies/E3-S2.md", "covers": ["FR-D1", "FR-D6"], "audit": "absent"},
+        {"id": "E3-S3", "title": "[extension] Gemini delivery adapter — inject enriched prompt into the user's compose surface", "body_file": "bodies/E3-S3.md", "covers": ["FR-D1"], "audit": "absent"},
+        {"id": "E3-S4", "title": "[extension] Claude + Grok posture — beachhead coverage + honest not-yet-supported, sync-out cross-ref", "body_file": "bodies/E3-S4.md", "covers": ["FR-D3", "FR-D6"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] extension: Consent & firewall gate at delivery — per-use consent, personal↔employer wall, no silent injection",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {"id": "E4-S1", "title": "[extension] Per-use consent gate for private memories — never silent injection", "body_file": "bodies/E4-S1.md", "covers": ["FR-D4"], "audit": "absent"},
+        {"id": "E4-S2", "title": "[extension] Personal↔employer firewall enforcement at delivery + ToS-safe own-surface only", "body_file": "bodies/E4-S2.md", "covers": ["FR-D4", "FR-D5"], "audit": "absent"},
+        {"id": "E4-S3", "title": "[extension] Delivery-boundary data minimization — no capture beyond compose, no exfiltration", "body_file": "bodies/E4-S3.md", "covers": ["FR-D5"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] extension: Degradation & breakage canaries — copy/paste fallback, selector fixtures, fail-loud, team alert",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {"id": "E5-S1", "title": "[extension] Copy/paste degradation fallback when a provider blocks injection", "body_file": "bodies/E5-S1.md", "covers": ["FR-D5"], "audit": "absent"},
+        {"id": "E5-S2", "title": "[extension] Selector fixtures + provider-UI breakage self-detection canary heartbeat", "body_file": "bodies/E5-S2.md", "covers": ["FR-D7"], "audit": "absent"},
+        {"id": "E5-S3", "title": "[extension] Fail-loud breakage UX + auto-fallback + team alert", "body_file": "bodies/E5-S3.md", "covers": ["FR-D7"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] extension: Distribution, release & quality gates — store review, versioning/auto-update, E2E, a11y, FR-O4 usability",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {"id": "E6-S1", "title": "[extension] Chrome Web Store + Firefox AMO packaging, review constraints, versioning & auto-update", "body_file": "bodies/E6-S1.md", "covers": ["AD-5a"], "audit": "absent"},
+        {"id": "E6-S2", "title": "[extension] E2E harness against provider web UIs — delivery + breakage-detection under CI", "body_file": "bodies/E6-S2.md", "covers": ["FR-D1", "FR-D7"], "audit": "absent"},
+        {"id": "E6-S3", "title": "[extension] Popup a11y + dual-theme quality bar (consumer-grade)", "body_file": "bodies/E6-S3.md", "covers": ["FR-D2"], "audit": "absent"},
+        {"id": "E6-S4", "title": "[extension] FR-O4 first-run usability test — connect ≤3 taps ≤2 min, no config, verified", "body_file": "bodies/E6-S4.md", "covers": ["FR-O4", "FR-D2"], "audit": "absent"}
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": ["FR-D1", "FR-D2", "FR-D3", "FR-D4", "FR-D5", "FR-D6", "FR-D7", "FR-O4", "AD-5a"],
+    "uncovered": []
+  }
+}

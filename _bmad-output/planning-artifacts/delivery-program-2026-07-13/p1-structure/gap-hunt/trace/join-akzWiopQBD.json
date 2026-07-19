@@ -1,0 +1,11 @@
+{
+  "slug": "akzWiopQBD",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0016",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a key in coverage-index.json and no plan.json/feature-map.txt story implements it (grep for ADR-0016, traceparent, OpenTelemetry SDK, orvex-mask returns nothing in breakdown/*/plan.json or feature-map.txt) because this ADR's build legs shipped as direct Linear issues outside the P1-structure epic/story breakdown, not as wiki-plan stories. The page's own gap-hunt file (gap-hunt/gaps-akzWiopQBD.json) already ran the adversarial re-check the join is meant to do: all 3 candidate gaps (OTel SDK+W3C propagation+pino stamping; outbox traceparent/tracestate/correlation_id+relay producer span; orvex-mask.util.ts PII deny-list) were REFUTED against live origin/main code, not just Linear status — ENG-1599 (PR #68, apps/server/src/orvex/obs/**) and ENG-1600 (PR #76, apps/server/src/orvex/events/outbox/orvex-outbox-trace-context.*) are both Done and merged, verified via git log/git ls-tree. The sole remaining sliver (CloudEvent Distributed-Tracing extension attr + golden-fixture round-trip) was explicitly re-scoped 2026-07-09 to ENG-1365 in the separate orvex-studio-contracts repo, out of scope for an orvex-wiki gap-hunt. Owners: ENG-1599, ENG-1600 (ENG-1365 tracked out-of-repo)."
+    }
+  ]
+}

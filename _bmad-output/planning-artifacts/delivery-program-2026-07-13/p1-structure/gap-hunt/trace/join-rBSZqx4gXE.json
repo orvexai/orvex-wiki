@@ -1,0 +1,9 @@
+{
+ "slug": "rBSZqx4gXE",
+ "total": 3,
+ "results": [
+  {"id": "FR-11", "verdict": "COVERED", "owner_or_reason": "ENG-2498 (wiki-corpus)"},
+  {"id": "FR-17", "verdict": "COVERED", "owner_or_reason": "ENG-2494 (wiki-corpus)"},
+  {"id": "F-QUOTA", "verdict": "COVERED", "owner_or_reason": "not a coverage-index key, but implemented under alias ids: [ai] E2-S3 'F-QUOTA 402 QUOTA_EXCEEDED surfaced verbatim as a typed tool-error frame' (covers FR-AI9, NFR-AI5) and [lib] E3-S2 'pkg/engineclient: F-QUOTA 402 as first-class terminal non-retryable error' (covers FR-L12a); confirmed via feature-map.txt lines 12/409 and breakdown/ai/plan.json + breakdown/lib/plan.json"}
+ ]
+}

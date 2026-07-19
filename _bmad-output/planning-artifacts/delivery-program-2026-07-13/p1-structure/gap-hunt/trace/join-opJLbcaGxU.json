@@ -1,0 +1,19 @@
+{
+ "slug": "opJLbcaGxU",
+ "total": 13,
+ "results": [
+  {"id": "F1", "verdict": "COVERED", "owner_or_reason": "A-CELL (cell-contract producer duties) -> ENG-2296, ENG-2496, ENG-2510"},
+  {"id": "F2", "verdict": "COVERED", "owner_or_reason": "A-TENANCY (edge-owned 421 cell-guard, engine soft assertion + solo no-op) -> ENG-2503"},
+  {"id": "F3", "verdict": "COVERED", "owner_or_reason": "A-MOVE (TenantMoveManifest / TENANT_MOVE.md typed contract) -> ENG-2509"},
+  {"id": "F4", "verdict": "COVERED", "owner_or_reason": "A-TENANCY (global hostname/slug uniqueness delegated to registry) -> ENG-2503"},
+  {"id": "F5", "verdict": "COVERED", "owner_or_reason": "A-OBSERVE (worker relay liveness/lag + collab WS probe) -> ENG-2496, ENG-2510"},
+  {"id": "F6", "verdict": "COVERED", "owner_or_reason": "A-QUOTA-HARDENING (fail-open ceiling flagged for ADR) -> ENG-2491, ENG-2492"},
+  {"id": "F7", "verdict": "COVERED", "owner_or_reason": "A-ADR (register CS §9 rulings for ADR-NNNN filing) -> ENG-2510"},
+  {"id": "F8", "verdict": "COVERED", "owner_or_reason": "A-SEAMS (AGPL @orvex/dfm import boundary — engine only) -> ENG-2488, ENG-2495"},
+  {"id": "F9", "verdict": "COVERED", "owner_or_reason": "A-QUOTA-HARDENING (402 verdict as domain/service fn, not controller) -> ENG-2491, ENG-2492"},
+  {"id": "F10", "verdict": "COVERED", "owner_or_reason": "A-CELL rule #4 (healthz CELL_ID/CLUSTER_NAME echo) -> ENG-2296, ENG-2496, ENG-2510"},
+  {"id": "F11", "verdict": "COVERED", "owner_or_reason": "A-OBSERVE (ingress-to-CloudEvent correlation ID threading) -> ENG-2496, ENG-2510"},
+  {"id": "F12", "verdict": "COVERED", "owner_or_reason": "A-SEAMS (produced event types + entitlement-read contract pinned to orvex-studio-contracts) -> ENG-2488, ENG-2495"},
+  {"id": "F13", "verdict": "NOT-BUILD", "owner_or_reason": "doc-hygiene only — arch page change-log already collapsed in-draft (self-fixed on the audited page itself); no derived FR/A-id, no ticket; PRD's copy of the same whiplash explicitly flagged out-of-scope for the PRD owner, not this program's coverage"}
+ ]
+}

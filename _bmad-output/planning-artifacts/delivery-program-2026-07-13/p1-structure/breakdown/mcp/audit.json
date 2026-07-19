@@ -1,0 +1,266 @@
+{
+  "repo": "orvex-studio-mcp",
+  "audited_ref": "origin/main",
+  "head": "be3cd8b 2026-07-14 17:41:56 +0200",
+  "branches_note": "origin/HEAD/default is 'dev' (be3cd8b's parent line); audited origin/main because main is a strict SUPERSET of dev (main = dev + PR#33 deploy-parity fix 9664094 + merge commits; dev 0-ahead). No dev branch is ahead of main for source purposes — the only main-over-dev delta is deploy YAML, not story code. crew/daniel is 21 behind dev (stale). No ENG-2069 nothing-on-main hazard here: main leads. fetch origin succeeded.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "src/transport/http.ts",
+        "src/transport/stdio.ts",
+        "src/server/index.ts:27",
+        "src/server/resources.ts:150",
+        "test/transport/standalone-boot.test.ts",
+        "test/transport/stdio-verify.test.ts"
+      ],
+      "note": "Server core complete: both transports + connect-time instructions + authoring-guide resource."
+    },
+    "E1-S2": {
+      "status": "present",
+      "evidence": [
+        "src/server/tool-catalog.ts:20",
+        "src/server/tool-visibility.ts",
+        "src/server/tools.ts:2772",
+        "test/transport/standalone-boot.test.ts"
+      ],
+      "note": "Hero-only default surface + list_tools progressive disclosure implemented."
+    },
+    "E1-S3": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:419",
+        "test/enforcement.test.ts",
+        "test/e2e/three-repo-e2e.test.ts"
+      ],
+      "note": "whoami is a single-round-trip live capability probe; test coverage is via enforcement + e2e (no dedicated unit)."
+    },
+    "E1-S4": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:373",
+        "src/server/tools.ts:1041",
+        "test/enforcement.test.ts"
+      ],
+      "note": "DfM-only enforced by construction (no raw-markdown input) + opaque-node handle guard."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:729",
+        "test/golden-tape-harness.test.ts"
+      ],
+      "note": "get_page outline/section/full ladder + ≤2-call locator ergonomics."
+    },
+    "E2-S2": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:1003",
+        "src/server/tools.ts:1351",
+        "src/backstage/wrapper.ts:646",
+        "test/tools/eng-2041-save-page-persisted.test.ts"
+      ],
+      "note": "CAS + read-after-write receipt + 402 QUOTA verbatim all present."
+    },
+    "E2-S3": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:2485",
+        "src/server/reactive.ts"
+      ],
+      "note": "get_changes list+block pull modes on caller's scoped token; admin firehose removed."
+    },
+    "E2-S4": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:2172",
+        "src/server/tools.ts:2302"
+      ],
+      "note": "Both navigation tools registered and implemented."
+    },
+    "E3-S1": {
+      "status": "present",
+      "evidence": [
+        "src/config/config.ts:133",
+        "test/config/wiki-api-repoint.test.ts"
+      ],
+      "note": "WIKI_API_BASE_URL-only, no legacy engine-host fallback."
+    },
+    "E3-S2": {
+      "status": "present",
+      "evidence": [
+        "src/backstage/generated.d.ts",
+        "src/routing/generated.d.ts",
+        "scripts/gen-client.ts",
+        "test/ci/eng-1406-r2-regen.test.ts",
+        "test/golden-tape-r2-v1-provenance.test.ts"
+      ],
+      "note": "Typed client generated from contracts descriptor; note /v1 verbs still return 501 sentinels upstream."
+    },
+    "E3-S3": {
+      "status": "present",
+      "evidence": [
+        "src/upstreams/ai.ts",
+        "test/upstreams/resolve-ask.test.ts",
+        "test/upstreams/ai-client.test.ts",
+        "test/tools/eng-1406-ask-tool-wiring.test.ts"
+      ],
+      "note": "resolveAsk routing + strict K5 passthrough, no synthesized fallback."
+    },
+    "E3-S4": {
+      "status": "partial",
+      "evidence": [
+        "src/server/tools.ts:622",
+        "src/server/tools.ts:2676",
+        "src/upstreams/wiki-api.ts:8",
+        "src/config/config.ts:26"
+      ],
+      "note": "search/related/neighborhood exist but reach knowledge THROUGH wiki-api, not direct — arch §A-UPSTREAM holds no knowledge base URL, so the 'direct (D-M8)' routing is deliberately not implemented."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "src/auth/identity-verifier.ts",
+        "src/auth/scope-gate.ts",
+        "test/auth/identity-verifier.test.ts",
+        "test/auth/scope-gate.test.ts"
+      ],
+      "note": "Multi-issuer JWKS + aud/frozen-claim + deny-by-default scope gate → Principal."
+    },
+    "E4-S2": {
+      "status": "present",
+      "evidence": [
+        "src/auth/http-introspector.ts",
+        "test/ci/conformance-gate.test.ts",
+        ".github/workflows/ci.yml:87"
+      ],
+      "note": "Introspection client + FR-C13 conformance vector suite wired as CI release gate."
+    },
+    "E4-S3": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:118",
+        "src/upstreams/ai.ts:115",
+        "src/upstreams/wiki-api.ts:51",
+        "test/auth/no-mint-token-scrub.test.ts"
+      ],
+      "note": "Caller token forwarded verbatim on every upstream; no service credential minted."
+    },
+    "E4-S4": {
+      "status": "present",
+      "evidence": [
+        "src/server/tools.ts:1351",
+        "test/tools/ac8-human-gating.test.ts"
+      ],
+      "note": "Governance modes are transport-only; never self-mint; RATIFY/CONFIRM forwarded verbatim."
+    },
+    "E4-S5": {
+      "status": "present",
+      "evidence": [
+        "src/transport/stdio.ts",
+        "src/server/resources.ts:1",
+        ".github/workflows/ci.yml:56",
+        "test/transport/stdio-verify.test.ts"
+      ],
+      "note": "stdio verify-once parity + static-only resource standing gate."
+    },
+    "E5-S1": {
+      "status": "present",
+      "evidence": [
+        "src/auth/context.ts",
+        "src/events/revocation-consumer.ts:57",
+        "src/transport/http.ts:9",
+        ".github/workflows/ci.yml:56",
+        "package.json"
+      ],
+      "note": "No DB deps; in-memory principal-independent caches; jti window retired at R1."
+    },
+    "E5-S2": {
+      "status": "present",
+      "evidence": [
+        "src/events/revocation-consumer.ts",
+        "src/events/kafka-driver.ts",
+        "test/events/revocation-consumer.test.ts"
+      ],
+      "note": "In-process kafkajs revocation consumer applies to deny-list (evict-before-serve, idempotent, DLQ)."
+    },
+    "E5-S3": {
+      "status": "present",
+      "evidence": [
+        "src/health/cell.ts",
+        "src/transport/http.ts:294",
+        "src/routing/cell-resolver.ts",
+        "src/routing/discovery-client.ts",
+        "test/routing/cell-resolver.test.ts",
+        "test/transport/cell-routing.test.ts"
+      ],
+      "note": "Cell contract: /healthz echoes CELL_ID+CLUSTER_NAME, orvexcell fail-closed, cell-scoped topic, discovery routing."
+    },
+    "E6-S1": {
+      "status": "present",
+      "evidence": [
+        "src/server/studio-tools.ts",
+        "src/server/tools.ts:118"
+      ],
+      "note": "Eight studio_* tools (≥6) with caller-token pass-through + fail-closed scope gate."
+    },
+    "E6-S2": {
+      "status": "partial",
+      "evidence": [
+        "src/server/studio-tools.ts:71",
+        "src/server/studio-tools.ts:110",
+        "src/backstage/studio-wrapper.ts"
+      ],
+      "note": "Tools exist but call STUDIO_BACKEND, not knowledge — the Decision-4/C21 re-home onto orvex-studio-knowledge is not implemented."
+    },
+    "E6-S3": {
+      "status": "partial",
+      "evidence": [
+        "src/server/studio-tools.ts:145",
+        "src/server/studio-tools.ts:178",
+        "src/backstage/studio-wrapper.ts"
+      ],
+      "note": "memory tools exist but hit Studio /api/memory/formspec, not a knowledge tool call (AD-5b/I-4 not implemented)."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "test/golden-tape-harness.test.ts",
+        "test/golden-tape-r0.test.ts",
+        "test/helpers/tape-accounting.ts",
+        ".github/workflows/ci.yml:90"
+      ],
+      "note": "Golden-tape KPI harness with committed fixtures + CI release gate."
+    },
+    "E7-S2": {
+      "status": "partial",
+      "evidence": [
+        "src/transport/http.ts:286",
+        "src/health/cell.ts",
+        "test/golden-tape-sli.test.ts",
+        "test/transport/cell-routing-sli.test.ts"
+      ],
+      "note": "health/healthz + shim-overhead SLI gate present, but NO OTel/Prometheus metric export to LGTM."
+    },
+    "E7-S3": {
+      "status": "present",
+      "evidence": [
+        ".github/workflows/ci.yml:49",
+        "src/upstreams/ai.ts:64",
+        "src/auth/http-introspector.ts"
+      ],
+      "note": "AGPL import-grep gate in CI + typed-degradation (never fail open)."
+    },
+    "E7-S4": {
+      "status": "present",
+      "evidence": [
+        "test/fixtures/rest-gap/rest-gap-ledger.yaml",
+        "test/parity-decommission.test.ts",
+        "test/fixtures/rest-gap/in-fork-tool-surface.yaml"
+      ],
+      "note": "MCP-side FR-C5 parity ledger (73/73 dispositioned) + gate; the physical package deletion lives in the engine repo."
+    }
+  },
+  "summary": "27 stories: 23 present, 4 partial, 0 absent. The MCP protocol surface (E1), wiki verb shim (E2), upstream repoint + ask→ai codegen (E3-S1..S3), auth edge (E4), statelessness/revocation/cell contract (E5), studio product tools (E6-S1) and golden-tape/AGPL/parity-ledger gates (E7-S1/S3/S4) are all implemented with meaningful hermetic tests. The 4 partials are all the same shape — a deliberate arch divergence, not rot: knowledge is reached THROUGH wiki-api/ai (never MCP-direct, §A-UPSTREAM), so E3-S4's 'search/related→knowledge direct', E6-S2's 'marketplace/skill re-home onto knowledge', and E6-S3's 'memory as a knowledge tool call' are unimplemented (tools exist but on wiki-api/studio-backend); E7-S2 has health/healthz + a shim-overhead SLI CI gate but no OTel/Prometheus export to LGTM."
+}

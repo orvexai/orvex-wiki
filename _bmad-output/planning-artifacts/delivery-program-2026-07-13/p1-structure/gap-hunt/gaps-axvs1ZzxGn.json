@@ -1,0 +1,7 @@
+{
+  "slug": "axvs1ZzxGn",
+  "title": "Onboarding & Demo-Data Design Patterns — Research Digest",
+  "verdict_summary": "Pattern-source-only / research-digest material — no gaps. The page is a PRD Phase-2 addendum whose own preamble states 'Depth preserved for downstream documents (architecture, solution design, tickets). Not PRD-body material.' All six sections (R1–R6) are labeled 'Research digest', and every proposal is explicitly tagged 'Fitted ideas (research-proposed, not decisions).' It carries no formal requirement ids (no FR-*/NFR-*/A-*/AD-*/D-*/OQ-*) and no un-id'd MUSTs that mandate build work; the requirements themselves live in the PRD proper, not in this digest. Named systems (turbopuffer, Mem0, Zep, MCP memory servers, Docmost BFF, etc.) appear as competitor/precedent research references, not as Orvex artifacts this document mandates must exist. Per the task rule for pattern-source/research pages, zero gaps returned.",
+  "gaps": [],
+  "components": []
+}

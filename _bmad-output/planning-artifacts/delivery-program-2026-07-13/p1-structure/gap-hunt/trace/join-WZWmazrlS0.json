@@ -1,0 +1,11 @@
+{
+  "slug": "WZWmazrlS0",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0029",
+      "verdict": "COVERED",
+      "owner_or_reason": "Decision record with zero independent build obligations; every ruling it captures (verifier repoint, tenant:subject session rebind, caller-token pass-through, deny-by-default scope gate, Kafka revocation consumer, six studio_* tools) is carried by already-covered FR-M1..M19/FR-I1..I20/FR-C13/FR-L1..L30 (coverage-index.json: ENG-2305/2449/2469-71/2407/2433-35/2130/2143/2308/2160 etc.) and confirmed by matching orvex-studio-mcp/lib stories in feature-map.txt lines 451-461 ('TS verifier binding...deny-by-default scope gate', 'Token pass-through: caller token verbatim...', 'Raw in-process Kafka revocation consumer', 'Six studio_* product tools with caller-token pass-through')."
+    }
+  ]
+}

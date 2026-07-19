@@ -1,0 +1,56 @@
+{
+  "slug": "YuY9XWpKPS",
+  "total": 10,
+  "results": [
+    {
+      "id": "F1",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Audit disposition = 'fixed' — dev-calls-prod-engine kustomize replacement bug already landed repo-side in commit c2e3a70 (re-verified 2026-07-06), explicitly 'out of wiki write scope'; no delivery-program story references it and none is needed."
+    },
+    {
+      "id": "F2",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/identity/plan.json E5-S4 '[identity] Reconcile deprovisioner ownership (F2): retire CloudEvent worker, REST callee only' — body explicitly cites 'Audit `YuY9XWpKPS` F2'."
+    },
+    {
+      "id": "F3",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/identity/plan.json E8-S2 '[identity] livez/readyz split + CELL_ID-required + CLUSTER_NAME echo' — body AC3/AC4 + refs cite 'Audit `YuY9XWpKPS` F3/F4'."
+    },
+    {
+      "id": "F4",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/identity/plan.json E8-S2 (same story as F3) — AC1/AC2/AC5 cover the livez(200)/readyz(dependency round-trip)/healthz-not-a-gate split; refs cite 'Audit `YuY9XWpKPS` F3/F4'."
+    },
+    {
+      "id": "F5",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/identity/plan.json E6-S1 'Two schema-isolated registry stores — PII-free routing core + in-jurisdiction sensitive shard' — body explicitly cites 'Audit `YuY9XWpKPS` F5'."
+    },
+    {
+      "id": "F6",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/identity/plan.json E8-S5 'Author A-TOKEN/A-VERIFY + A-SESSION ADRs (SE-Arch §7 triggers)' — body cites 'Audit `YuY9XWpKPS` F6'. (Register itself already landed in arch draft; A-CELL-REGISTRY-as-ADR is explicitly a family-space human action, correctly not a service-space story.)"
+    },
+    {
+      "id": "F7",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Stale 'orvex.dev is NOT wired' base-comment fix (httproute.yaml) has no owning story. The only httproute/GitOps-hygiene story in the whole breakdown is breakdown/workflows/plan.json E1-S5 (F-HTTPROUTE), which is scoped to a different audit (`7LGGFR5tGE`, orvex-studio-workflows) and a different repo entirely — not this finding."
+    },
+    {
+      "id": "F8",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "Knative min-scale≥1-vs-plain-Deployment reconcile + authd/lifecycled binary-name drift: only half-adopted — E5.md/E5-S1.md rename the deprovisioner to `cmd/lifecycled` as a Knative Service, but no story anywhere renames the main server binary to `authd` or converts its plain apps/v1 Deployment to a Knative Service. No story cites F8."
+    },
+    {
+      "id": "F9",
+      "verdict": "COVERED",
+      "owner_or_reason": "Split across breakdown/identity/plan.json E8-S3 (cell-guard/421 + Idempotency-Key, cites 'Audit `YuY9XWpKPS` F9') and E6-S4 (typed tenant-move step-API, cites 'Audit `YuY9XWpKPS` F9'); NetworkPolicy/mTLS lands in E5-S1 and the outbox+relay/CloudEvents envelope lands in E5-S3 — all day-1 machinery named in F9 is owned."
+    },
+    {
+      "id": "F10",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "config.go's dead CLERK_PUBLISHABLE_KEY field / ignored CLERK_JWKS_URL alignment has no owning story — grepped 'CLERK_PUBLISHABLE_KEY'/'CLERK_JWKS_URL' across every breakdown/*/bodies/*.md; the only hit (workflows E1-S5) is a different repo's config drift, not identity's. E1-S2 (the JWKS verifier story) implements verification but never mentions reconciling the config struct's key names."
+    }
+  ]
+}

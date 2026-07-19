@@ -1,0 +1,101 @@
+{
+  "slug": "orvex-studio-workflows",
+  "total": 19,
+  "results": [
+    {
+      "id": "A-W1",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2626 (coverage-index key)"
+    },
+    {
+      "id": "A-W2",
+      "verdict": "COVERED",
+      "owner_or_reason": "not an index key, but hard-checked: breakdown/workflows/bodies/E7-S3.md explicitly builds on it ('dispatcher registry generalizes the shipped switch (A-W2)') as part of the FR-W10/A-W10 story"
+    },
+    {
+      "id": "A-W3",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2622 (coverage-index key)"
+    },
+    {
+      "id": "A-W4",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2625 (coverage-index key)"
+    },
+    {
+      "id": "A-W5",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2618 (coverage-index key)"
+    },
+    {
+      "id": "A-W6",
+      "verdict": "COVERED",
+      "owner_or_reason": "not an index key, but hard-checked: breakdown/workflows/bodies/E7-S4.md AC3 cites [Source: NFR-W4 / A-W6] (NO-KEDA fixed-replica worker), also referenced in knowledge/E8-S2.md AC4"
+    },
+    {
+      "id": "A-W7",
+      "verdict": "COVERED",
+      "owner_or_reason": "not an index key, but hard-checked: breakdown/workflows/bodies/E5-S2.md AC1 cites [Source: FR-W2 / A-W7] and E6-S2.md AC1 cites [Source: FR-W17 / A-W7]; E6.md epic rationale cites 'Arch A-W7/§4/§6'"
+    },
+    {
+      "id": "A-W8",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2628 (coverage-index key)"
+    },
+    {
+      "id": "A-W9",
+      "verdict": "COVERED",
+      "owner_or_reason": "not an index key, but hard-checked: breakdown/workflows/bodies/E1-S6.md AC3 cites [Source: FR-W14 / A-W9] ('add a domain' checklist / Schedule idempotency), also referenced in E1-S2.md and E1-S3.md as the checklist these stories feed"
+    },
+    {
+      "id": "A-W10",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2647, ENG-2649, ENG-2650 (coverage-index key)"
+    },
+    {
+      "id": "F-SEAM",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2621 (coverage-index key)"
+    },
+    {
+      "id": "F-CI",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2617 (coverage-index key)"
+    },
+    {
+      "id": "F-IDP",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "explicitly an open/contested decision, not a build target: E5-S2.md calls it an 'open-decision note'; E6.md notes 'F-IDP may additionally move Clerk ingestion here'; issue-bodies/pack-workflows.md AC5 flags it as a review must-resolve to be 'ruled in lockstep with the identity pack — one ruling, not two — never silently chosen', i.e. deferred to human ADR ruling, not implemented by a story"
+    },
+    {
+      "id": "F-CELL",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2631, ENG-2644 (coverage-index key)"
+    },
+    {
+      "id": "F-PAYLOAD",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2632 (coverage-index key)"
+    },
+    {
+      "id": "F-DEDUP",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2633 (coverage-index key)"
+    },
+    {
+      "id": "F-HOST",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2619 (coverage-index key)"
+    },
+    {
+      "id": "F-HTTPROUTE",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2619 (coverage-index key)"
+    },
+    {
+      "id": "F-SECRETS",
+      "verdict": "COVERED",
+      "owner_or_reason": "ENG-2619 (coverage-index key)"
+    }
+  ]
+}

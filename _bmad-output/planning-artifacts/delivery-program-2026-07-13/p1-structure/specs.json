@@ -1,0 +1,273 @@
+{
+  "shared": {
+    "brief": "_bmad-output/planning-artifacts/delivery-program-2026-07-13/p1-structure/authoring-brief.md",
+    "p1_prompt": "_bmad-output/planning-artifacts/delivery-program-2026-07-13/phase-prompts/p1-definition-factory.md",
+    "evidence_dir": "_bmad-output/planning-artifacts/briefs/brief-orvex-studio-2026-07-13/evidence",
+    "milestone_name": "P1 — Definition Factory",
+    "hub_project": "Orvex Studio — Delivery Gates"
+  },
+  "units": [
+    {
+      "key": "pack-contracts", "kind": "pack", "wave": 1,
+      "title": "[FACTORY] orvex-studio-contracts — Service Definition Pack (Wave 1)",
+      "project": "Orvex Studio Contracts", "space": "orvexstudiocontracts",
+      "repo": "orvex-studio-contracts", "evidence": "orvexstudiocontracts.md",
+      "must_carry": [
+        "The pinned Apache-2.0 seam: self-validation CI + AGPL-import guard defined [P1 yXUWpQpRjx W1]",
+        "Change-authority = ADR-0008 (additive → automated lane; breaking/envelope-reshaping → ADR + human ratify) [P1 W1]",
+        "ABSORBS the deferred ENG-2036 entitlement/cap contract shapes so they match the ratified pricing (billing PRD Blcvui4UIn + ai PRD pbKI3BpQmY, both canonical) BEFORE any consumer freezes [program-status §3/§4]",
+        "Defines the contract TAG naming scheme + cuts the first tag; TS-client generation per ADR-0035 wired into the tag pipeline [P1 §3 artifact 2]",
+        "Reconciliation: the live repo is real + mature (OpenAPI per service, golden fixtures) — canon's '~90% unbuilt' is stale; pack reconciles against the deployed artifact [P1 §2 reconciliation note]"
+      ],
+      "blocked_by": [], "blocks": ["bridge-proof", "ENG-2037"]
+    },
+    {
+      "key": "pack-lib", "kind": "pack", "wave": 1,
+      "title": "[FACTORY] orvex-studio-lib — Service Definition Pack (Wave 1)",
+      "project": "Orvex Studio Lib", "space": "orvexstudiolib",
+      "repo": "orvex-studio-lib", "evidence": "orvexstudiolib.md",
+      "must_carry": [
+        "MultiIssuerVerifier build plan — the deny-by-default auth verifier that today blocks every Go satellite as a 52-byte scaffold; JWKS/issuer-registry source named [current-state-map §5 P0-4]",
+        "Module layout + generator toolchain named (mini-ADR only if pack review demands one) [P1 W1]",
+        "gen/ codegen layout for contracts-generated Go stubs [ENG-2037 DoD]",
+        "Go twin of DfM (pkg/dfm) is the sanctioned satellite path to DfM — closed satellites never import the AGPL TS package [project-context A-SEAMS]"
+      ],
+      "blocked_by": [], "blocks": ["bridge-proof", "ENG-2037"]
+    },
+    {
+      "key": "bridge-proof", "kind": "bridge", "wave": 1,
+      "title": "[FACTORY] Go↔TS bridge proof-on-one-seam — ADR-0035 exercised (Wave 1)",
+      "project": "Orvex Studio — Delivery Gates", "space": "orvexstudiocontracts",
+      "repo": "orvex-studio-contracts + orvex-studio-lib", "evidence": "orvexstudiocontracts.md",
+      "must_carry": [
+        "ADR-0035 (QbEBPuKcGR) exercised concretely on ONE real seam: contract → generated Go stub + generated TS client → BOTH compile + one golden fixture round-trips through both [current-state-map §5 P0-5]",
+        "Proves the bridge before the family depends on it; the seam chosen is recorded with a design-it-twice note if new [CS §3.7]",
+        "Binary gate: the round-trip runs green in contracts CI on the tagged commit"
+      ],
+      "blocked_by": ["pack-contracts", "pack-lib"], "blocks": ["ENG-2037"]
+    },
+    {
+      "key": "pack-staging", "kind": "pack", "wave": 2,
+      "title": "[FACTORY] orvex-studio-staging — Service Definition Pack (Wave 2)",
+      "project": "Orvex Studio Staging", "space": "orvexstudiostaging",
+      "repo": "orvex-studio-staging", "evidence": "orvexstudiostaging.md",
+      "must_carry": [
+        "ZERO tickets exist today — this pack births the service's epics AND stories from scratch [P1 W2]",
+        "The Agent Staging Area + the Librarian product epic (supersedes the OPS Librarian/Card Contract v1 and the BFF Curator) [current-state-map §2 Librarian loop, §5 P1-7]",
+        "Sequence the hard-cut of agent write surfaces against 501 deps (the circular gate) [P1 W2]",
+        "Curator↔Librarian contested ownership seam is a review must-resolve [current-state-map §3]",
+        "Existing canon: staging space pages mOzNDhn322 / P5R7eCXJA0 / GOacy9kdJz are the service's canonical PRD/arch set (landed 2026-07-12) — reconcile, never regenerate"
+      ],
+      "blocked_by": ["ENG-2037"], "blocks": ["wave2-gate"]
+    },
+    {
+      "key": "pack-workgraph", "kind": "pack", "wave": 2,
+      "title": "[FACTORY] orvex-studio-workgraph — Service Definition Pack (Wave 2)",
+      "project": "Orvex Studio Workgraph", "space": "orvexstudioworkgraph",
+      "repo": "orvex-studio-workgraph", "evidence": "orvexstudioworkgraph.md",
+      "must_carry": [
+        "ZERO tickets exist today — epics AND stories born here [P1 W2]",
+        "The multi-agent work-graph coordination kernel [P1 W2]",
+        "The NEW workgraph→staging promotion-edge contract for the Librarian's beads fishing [P1 W2]",
+        "The beads product epic from the brief [Brief rgBOQh31p3]",
+        "Naming collision guard: 'workgraph memory' ≠ the Memory product [current-state-map §2]",
+        "Existing canon: workgraph space pages Kgp6JT3IOR / 2KrwsvY5zL / bnbRUdCm6R (landed 2026-07-12) — reconcile, never regenerate"
+      ],
+      "blocked_by": ["ENG-2037"], "blocks": ["wave2-gate"]
+    },
+    {
+      "key": "wave2-gate", "kind": "umbrella", "wave": 2,
+      "title": "[FACTORY] Definition Factory Wave 2 — packs: staging, workgraph",
+      "project": "Orvex Studio — Delivery Gates", "space": null,
+      "repo": null, "evidence": null,
+      "must_carry": [
+        "Wave gate mirroring ENG-2037: Done only when BOTH Wave-2 packs are certified (review PASS) + tagged, and Wave 3 is unblocked and scoped",
+        "The staging+workgraph epics/stories exist (from zero), including the workgraph→staging promotion-edge contract and the Librarian/beads product epics [P1 exit criteria]"
+      ],
+      "blocked_by": ["ENG-2037", "pack-staging", "pack-workgraph"], "blocks": ["all wave-3 packs"]
+    },
+    {
+      "key": "pack-ai", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-ai — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio AI", "space": "orvexstudioai",
+      "repo": "orvex-studio-ai", "evidence": "orvexstudioai.md",
+      "must_carry": [
+        "Composer (teaching Prompt Composer) + task-first wizard backend share (with orvex-studio-api) [P1 W3]",
+        "The Orvex rating (share with orvex-studio-knowledge per the map) [P1 W3]",
+        "Free-tier cost-doctrine model routing: model-class allowlist; frontier paid-only; zero-cost uncounted [program-status §4; ai PRD pbKI3BpQmY canonical]",
+        "LLM calls are confined to orvex-studio-ai family-wide (CS §6) — the pack's contract is the family's one LLM seam",
+        "Open defects context: D12/ENG-2051 + D13/ENG-2052 (ai error mapping) inform the PRD-delta's error-contract shapes [program-status §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-api", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-api — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio API", "space": "orvexstudioapi",
+      "repo": "orvex-studio-api", "evidence": "orvexstudioapi.md",
+      "must_carry": [
+        "Composer + task-first wizard BFF surface [P1 W3]",
+        "Private memories + consent: /v1/memory + studio.memory.* events (corpus-isolation grade is an OQ owned by knowledge pack) [P1 W3]",
+        "Chat import: Curator /v1/import + studio.conversation.imported; the import-UX-vs-backbone seam (api vs knowledge) is a review must-resolve [P1 W3]",
+        "Memory ×3 contested homes seam flagged must-resolve [current-state-map §3]",
+        "Curator supersession by the staging Librarian epic — reconcile with the Wave-2 staging pack's ruling [current-state-map §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-knowledge", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-knowledge — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio Knowledge", "space": "orvexstudioknowledge",
+      "repo": "orvex-studio-knowledge", "evidence": "orvexstudioknowledge.md",
+      "must_carry": [
+        "Outbound sync (with per-vendor caveats) — knowledge is the ONE retrieval/sync backbone [P1 W3]",
+        "The Orvex rating share (with ai) [P1 W3]",
+        "Private-memories corpus-isolation grade (OQ open — resolve or flag) [P1 W3]",
+        "Chat-import indexing side of the api seam [P1 W3]",
+        "Open defects context: D7/ENG-2046 (rag v2 rejects include_vectors → drop Hit.Vector), D8/ENG-2047, D9/ENG-2048 extraction pipeline, D10/ENG-2049, D11/ENG-2050 inform the PRD-delta [program-status §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-billing", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-billing — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio Billing", "space": "orvexstudiobilling",
+      "repo": "orvex-studio-billing", "evidence": "orvexstudiobilling.md",
+      "must_carry": [
+        "The ratified ENG-2036 pricing doctrine: free-tier cost doctrine + no-card standard-free-month (billing PRD Blcvui4UIn canonical) [program-status §3]",
+        "plan→entitlement→cap system of record; ceilings are human-ratified (❌#10 lives here) [CS ❌#10]",
+        "Consumes the entitlement/cap contract shapes the W1 contracts pack froze — cite, do not re-derive [program-status §4]",
+        "Stripe is true-external: port + committed replay fixtures in the test plan [CS §5]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-identity", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-identity — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio Identity", "space": "orvexstudioidentity",
+      "repo": "orvex-studio-identity", "evidence": "orvexstudioidentity.md",
+      "must_carry": [
+        "Clerk-lifecycle contested seam (identity-vs-workflows) is a review must-resolve [current-state-map §3 risk 9]",
+        "The identity spine (Clerk / Keycloak-MyIDP) every service's authenticated route verifies against [SE-Arch security lens]",
+        "Credential lanes per ADR-0034 (12aDkq4iOd) bind the pack's auth shapes",
+        "Furthest-along satellite (M9 closed) — PRD-delta reconciles against the deployed artifact, not stale canon [P1 §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-mcp", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-mcp — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio MCP", "space": "orvexstudiomcp",
+      "repo": "orvex-studio-mcp", "evidence": "orvexstudiomcp.md",
+      "must_carry": [
+        "MCP surface delta-pack; TS satellite → consumes ADR-0035 generated TS clients [ADR-0035]",
+        "Open defects context: D2/ENG-2041 (silent no-op persisted:false + CAS serverVersion:0) + cluster-local URL leak inform the PRD-delta's contract shapes [program-status §2]",
+        "Six-surface verdict FAIL for mcp is the SDD's honest baseline [program-status §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-wiki", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-wiki — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Wiki", "space": "orvexwiki",
+      "repo": "orvex-wiki", "evidence": "orvexwiki.md",
+      "must_carry": [
+        "The one AGPL artifact: thin engine, frozen 13-row inline-edit allow-list, additive orvex/* modules; keep fork surface minimal — prefer composing in wiki-api [project-context]",
+        "PRD EPsdD7uK8e + Architecture twQ3BBzpTE are the existing service canon to reconcile [CLAUDE.md]",
+        "No AGPL import across the boundary: satellites reach DfM via the Go twin or wiki-api — the pack's contract encodes this [A-SEAMS]",
+        "Engine event data = transactional orvex_outbox Postgres table → Kafka studio-spine direct (D-S12/D-S13; NO Mongo) [project-context]",
+        "Environment wins from Phase 0 (D1 engine stable, D16 thin-AGPL+modules deployed, quota armed) are the SDD's live baseline [program-status §1]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-wiki-api", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-wiki-api — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Wiki API", "space": "orvexwikiapi",
+      "repo": "orvex-wiki-api", "evidence": "orvexwikiapi.md",
+      "must_carry": [
+        "The Go twin/composition layer over the AGPL engine — new behaviour composes HERE rather than deep engine edits [project-context]",
+        "Cited-ask/citations surface (the canonical example seam) + search/query proxy shapes [Map §2]",
+        "Open defects context: D15/ENG-2054 + fresh ENG-2082 (KNOWLEDGE_URL/AI_URL NXDOMAIN → 502 UPSTREAM_UNAVAILABLE in prod) inform the PRD-delta's config/endpoint contract [live cache 2026-07-14]",
+        "Six-surface api verdict = the ONE PASS — protect it: forward-compat ACs so the delta never regresses the passing surface [program-status §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-cli", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-cli — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex CLI", "space": "orvexcli",
+      "repo": "orvex-cli", "evidence": "orvexcli.md",
+      "must_carry": [
+        "The one user-facing CLI (SSO-delegated; wiki issue create etc. — ENG-1484 pattern) [memory/canon]",
+        "Open defects context: D4/ENG-2043 + D5/ENG-2044 + D6/ENG-2068 (DfM converter corruption paths) + D16 residual inform the PRD-delta [program-status §2]",
+        "DfM access via the Go twin (orvex-studio-lib pkg/dfm), never the AGPL TS package [A-SEAMS]",
+        "Six-surface verdict FAIL for cli is the SDD's honest baseline [program-status §2]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-console", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-console — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio Console", "space": "orvexstudioconsole",
+      "repo": "orvex-studio-console", "evidence": "orvexstudioconsole.md",
+      "must_carry": [
+        "The troubleshooting/observability UI over LGTM (NOT Grafana); obs contract FR-C18 [observability canon]",
+        "The un-chartered workflows-proxy (/v1/workflows, M13 gate AC4) is a contested seam — review must-resolve [current-state-map §5 P1-6/P1-10; program-status §4 gate table]",
+        "message-tracing-across-outbox is the known observability gap the SDD must own [observability canon]",
+        "UI surface → the 'looks good AND works' bar in the test plan [P1 §3 artifact 3]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "pack-workflows", "kind": "pack", "wave": 3,
+      "title": "[FACTORY] orvex-studio-workflows — Service Definition Pack (Wave 3 delta)",
+      "project": "Orvex Studio Workflows", "space": "orvexstudioworkflows",
+      "repo": "orvex-studio-workflows", "evidence": "orvexstudioworkflows.md",
+      "must_carry": [
+        "Durable, restart-surviving workflows live in Temporal via this service — the family's one durable-workflow home [CS §6 workflow tier]",
+        "Clerk-lifecycle contested seam counterparty (identity-vs-workflows) — must resolve in lockstep with the identity pack, one ruling not two [current-state-map §3 risk 9]",
+        "Temporal test environment strategy in the test plan (remote-but-owned category) [CS §5]"
+      ],
+      "blocked_by": ["wave2-gate"], "blocks": ["wave3-gate"]
+    },
+    {
+      "key": "wave3-gate", "kind": "umbrella", "wave": 3,
+      "title": "[FACTORY] Definition Factory Wave 3 — delta-packs: ai, api, knowledge, billing, identity, mcp, wiki, wiki-api, cli, console, workflows",
+      "project": "Orvex Studio — Delivery Gates", "space": null,
+      "repo": null, "evidence": null,
+      "must_carry": [
+        "Wave gate: Done only when all 11 drained-service delta-packs are certified + tagged and Wave 4 is unblocked",
+        "Each delta-pack resolved (or review-flagged) the contested seams the map names: Clerk-lifecycle identity-vs-workflows; memory ×3 homes; console workflows-proxy; import-UX-vs-backbone [P1 W3]"
+      ],
+      "blocked_by": ["wave2-gate", "pack-ai", "pack-api", "pack-knowledge", "pack-billing", "pack-identity", "pack-mcp", "pack-wiki", "pack-wiki-api", "pack-cli", "pack-console", "pack-workflows"],
+      "blocks": ["pack-ui", "wave4-gate"]
+    },
+    {
+      "key": "pack-ui", "kind": "pack", "wave": 4,
+      "title": "[FACTORY] orvex-studio-ui — Service Definition Pack (Wave 4: UI surface-waves)",
+      "project": "Orvex Studio UI", "space": "orvexstudioui",
+      "repo": "orvex-studio-ui", "evidence": "orvexstudioui.md",
+      "must_carry": [
+        "Enumerate the POC's ~35 surfaces parity-first: Discover/marketplace → Builder/editor flagship → Memory → Library/Collections → Curation Queue → Phase-2 surfaces incl. Composer + wizard [P1 W4]",
+        "Rewrite-same-stack ruling RECORDED: surfaces REWRITTEN (never copy-pasted) on Tailwind + Radix + CVA + zustand + zod + TipTap, with orvex-ds design tokens as the Tailwind styling contract [plan Phase-2 UI ruling]",
+        "Shared DTO/error vocab via contracts codegen replaces the POC's packages/shared; lands in Wave 0 of the UI build [P1 W4]",
+        "The UI-canon amendment is OWED (exact-match orvex-ds.css → tokens-as-Tailwind-contract) — drafted here, human-ratified downstream [P1 W4]",
+        "Every surface wave carries its tests WITH it: vitest + Playwright + axe + visual/screenshot sweep + dual-theme + design-token audit + human delight-check ('looks good AND works') [P1 §3 artifact 3; delivered-looks-good memory]"
+      ],
+      "blocked_by": ["wave3-gate"], "blocks": ["wave4-gate"]
+    },
+    {
+      "key": "wave4-gate", "kind": "umbrella", "wave": 4,
+      "title": "[FACTORY] Definition Factory Wave 4 — UI surface-wave definitions + Phase-1 exit",
+      "project": "Orvex Studio — Delivery Gates", "space": null,
+      "repo": null, "evidence": null,
+      "must_carry": [
+        "Wave gate + Phase-1 exit audit: all 16 packs certified + tagged; every SDD complete; bridge proven; ENG-2036 shapes landed; staging+workgraph epics exist; UI waves enumerated; pack drafts visible in each service's space [P1 exit criteria]",
+        "Phase-1 exit does NOT include the six-surface baseline going green — that is Phase-0 stabilization running concurrently; Phase-2 entry verifies BOTH independently [P1 §9 scope boundary]",
+        "Exit action: launch 'Orchestrator Prompt — Phase 2: Isolated Builds & Continuous Proving' (Ng66su4dVG)"
+      ],
+      "blocked_by": ["wave3-gate", "pack-ui"], "blocks": []
+    }
+  ]
+}

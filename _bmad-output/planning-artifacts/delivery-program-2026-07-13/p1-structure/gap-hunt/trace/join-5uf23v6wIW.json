@@ -1,0 +1,11 @@
+{
+  "slug": "5uf23v6wIW",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0001",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/wiki/plan.json story E5-S2 ('Worker-role relay drains outbox → Kafka CloudEvents...') explicitly cites 'ADR-0001 (5uf23v6wIW)' in its References, and AC4 directly implements the ADR's decision (no Redis→Kafka bridge, direct outbox→Kafka only, D-S13). Not a key in coverage-index.json under this literal id, but confirmed covered by content grep."
+    }
+  ]
+}

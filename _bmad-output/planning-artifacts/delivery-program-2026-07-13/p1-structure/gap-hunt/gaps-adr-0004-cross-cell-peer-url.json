@@ -1,0 +1,29 @@
+{
+  "slug": "GABwtTr4pp",
+  "title": "ADR-0004: Cross-cell peer-URL boundary relaxation",
+  "verdict_summary": "Canonical, ratified 2026-07-07. Not superseded/stub. This is a governance ADR that relaxes cell-contract rules #1/#9 into a policy-plus-exception model. It carries exactly one concrete NEW build obligation: extending the family-wide cell-lint gate (in orvex-studio-contracts) to parse a line-scoped '# cell-lint-allow: <reason>' exception trailer (fail on empty/missing reason). That mechanism is not covered by any story — services only 'enrol' in cell-lint (ui/lib/console/workflows plans) and the contracts gates epic (E6) never touches cell-lint. The other obligations are governance-only (restate principle, defer full relaxation) or an already-existing one-line config addition (crew trailer, formalizing the 2026-07-06 ruling) and do not need stories. One build gap.",
+  "gaps": [
+    {
+      "requirement": "Decision #2 (un-id'd MUST)",
+      "quote": "The `cell-lint` gate MUST be extended to honor an auditable, line-scoped exception trailer: a line whose peer URL matches `orvex.(ai|dev)` passes only if that same line carries `# cell-lint-allow: <reason>` with a non-empty `<reason>`... an empty or missing reason MUST fail the gate.",
+      "why_uncovered": "No story implements cell-lint trailer parsing. Grep of feature-map, covers-union and all breakdown/*/plan.json shows cell-lint only as per-service ENROLMENT/required-status (ui E1-S1, console, workflows F-CI) — never the gate's own logic. The contracts gates epic (E6-S1..S5) covers AGPL-import, divergence, drift, api-key and DfM-parity gates but not cell-lint or its exception trailer.",
+      "suggested_home": "contracts module — new story under the E6 gates epic (or an orvex-studio-contracts cell-lint workflow story), since the ADR explicitly locates this in 'the cell-lint workflow in orvex-studio-contracts'.",
+      "verdict": "CONFIRMED",
+      "verdict_reason": "Re-checked against the live orvex-studio-contracts repo, not just the delivery-program breakdown. Source page GABwtTr4pp is live canon (Status: Canonical, ratified 2026-07-07, not superseded). Contra the gap file's own claim, a 'cell-lint-allow' trailer mechanism DOES already exist in .github/workflows/cell-lint.yml (landed under ENG-1541, used by ENG-1544/ENG-1968) — but it is strictly weaker than ADR-0004 decision #2: the grep is `grep -v 'cell-lint-allow:'`, which exempts ANY line containing that literal substring regardless of what (if anything) follows the colon. It does not check for a non-empty `<reason>`, so `# cell-lint-allow:` with no reason, or whitespace only, silently passes — directly contradicting the ADR's 'an empty or missing reason MUST fail the gate.' tests/test_cell_lint_contract.py::test_peer_url_literal only exercises clean (no literal) vs bad (literal, no trailer at all) — there is no fixture/test for 'trailer present but empty' or 'trailer present with a real reason' (the actual sanctioned-exception path). No story in any breakdown/*/plan.json (incl. contracts E1-S2 which closes a DIFFERENT blind spot — OpenAPI servers: literals, not this trailer) touches this; no ENG-2091..2110 pack issue or ENG-2689/2690 (unrelated browser-extension component) owns it either — ENG-2095 AC9 only requires the SDD to mention 'cell-lint + tenancy compliance' as a documented section, not to fix the enforcement gap. This is ordinary CI-script build work (a ~3-line grep/awk tightening in cell-lint.yml + two new fixtures/tests), not governance or process. Net: the gap survives, narrowed from 'trailer parsing unbuilt' to 'trailer parsing exists but does not enforce non-empty reason, per ADR-0004 decision #2.'"
+    }
+  ],
+  "components": [
+    {
+      "name": "cell-lint gate / workflow (orvex-studio-contracts) — trailer-parsing extension",
+      "quote": "the `cell-lint` workflow in `orvex-studio-contracts` must implement trailer parsing, and the behavior of the org-level required-status ruleset changes on every registered repo."
+    },
+    {
+      "name": "'# cell-lint-allow: <reason>' line-scoped exception trailer",
+      "quote": "a line whose peer URL matches `orvex.(ai|dev)` passes only if that same line carries `# cell-lint-allow: <reason>` with a non-empty `<reason>`."
+    },
+    {
+      "name": "orvex-wiki crew component (crew-to-crew sibling wiring, first sanctioned exception)",
+      "quote": "Crew-to-crew sibling wiring over public ingress... is the first sanctioned use (`orvex-wiki` crew component, 2026-07-06). Each such site MUST carry the `# cell-lint-allow: <reason>` trailer."
+    }
+  ]
+}

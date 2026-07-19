@@ -1,0 +1,3006 @@
+{
+ "FR-K1": [
+  "ENG-2331",
+  "knowledge-corpus"
+ ],
+ "FR-K16": [
+  "ENG-2331",
+  "ENG-2350",
+  "knowledge-corpus"
+ ],
+ "FR-K2": [
+  "ENG-2332",
+  "knowledge-corpus"
+ ],
+ "FR-K3": [
+  "ENG-2332",
+  "knowledge-corpus"
+ ],
+ "FR-K4": [
+  "ENG-2333",
+  "knowledge-corpus"
+ ],
+ "NFR-K12": [
+  "ENG-2333",
+  "knowledge-corpus"
+ ],
+ "FR-K8": [
+  "ENG-2334",
+  "knowledge-corpus"
+ ],
+ "FR-K10": [
+  "ENG-2334",
+  "knowledge-corpus"
+ ],
+ "FR-K5": [
+  "ENG-2335",
+  "knowledge-corpus"
+ ],
+ "FR-K6": [
+  "ENG-2336",
+  "knowledge-corpus"
+ ],
+ "FR-K28": [
+  "ENG-2337",
+  "knowledge-corpus"
+ ],
+ "NFR-K1": [
+  "ENG-2337",
+  "ENG-2344",
+  "knowledge-corpus"
+ ],
+ "FR-K7": [
+  "ENG-2338",
+  "ENG-2341",
+  "knowledge-corpus"
+ ],
+ "NFR-K6": [
+  "ENG-2338",
+  "knowledge-corpus"
+ ],
+ "FR-K9": [
+  "ENG-2339",
+  "ENG-2340",
+  "knowledge-corpus"
+ ],
+ "NFR-K7": [
+  "ENG-2339",
+  "knowledge-corpus"
+ ],
+ "FR-K12A": [
+  "ENG-2341",
+  "knowledge-corpus"
+ ],
+ "FR-K11": [
+  "ENG-2342",
+  "ENG-2343",
+  "knowledge-corpus"
+ ],
+ "NFR-K13": [
+  "ENG-2344",
+  "knowledge-corpus"
+ ],
+ "FR-K14": [
+  "ENG-2345",
+  "knowledge-corpus"
+ ],
+ "NFR-K10": [
+  "ENG-2345",
+  "knowledge-corpus"
+ ],
+ "NFR-K11": [
+  "ENG-2345",
+  "knowledge-corpus"
+ ],
+ "FR-K12": [
+  "ENG-2346",
+  "ENG-2347",
+  "knowledge-corpus"
+ ],
+ "NFR-K5": [
+  "ENG-2347",
+  "knowledge-corpus"
+ ],
+ "FR-K13": [
+  "ENG-2348",
+  "knowledge-corpus"
+ ],
+ "NFR-K3": [
+  "ENG-2349",
+  "ENG-2368",
+  "knowledge-corpus"
+ ],
+ "NFR-K8": [
+  "ENG-2349",
+  "ENG-2366",
+  "knowledge-corpus"
+ ],
+ "FR-K15": [
+  "ENG-2351",
+  "knowledge-corpus"
+ ],
+ "FR-K15A": [
+  "ENG-2352",
+  "knowledge-corpus"
+ ],
+ "FR-K17": [
+  "ENG-2353",
+  "knowledge-corpus"
+ ],
+ "FR-K18": [
+  "ENG-2354",
+  "knowledge-corpus"
+ ],
+ "FR-K19": [
+  "ENG-2355",
+  "knowledge-corpus"
+ ],
+ "FR-K20": [
+  "ENG-2356",
+  "knowledge-corpus"
+ ],
+ "NFR-K2": [
+  "ENG-2356",
+  "knowledge-corpus"
+ ],
+ "FR-K20A": [
+  "ENG-2357",
+  "knowledge-corpus"
+ ],
+ "FR-K20B": [
+  "ENG-2358",
+  "knowledge-corpus"
+ ],
+ "FR-K21": [
+  "ENG-2359",
+  "knowledge-corpus"
+ ],
+ "FR-K22": [
+  "ENG-2359",
+  "knowledge-corpus"
+ ],
+ "FR-K23": [
+  "ENG-2360",
+  "knowledge-corpus"
+ ],
+ "FR-K24": [
+  "ENG-2361",
+  "knowledge-corpus"
+ ],
+ "NFR-K4": [
+  "ENG-2361",
+  "ENG-2362",
+  "knowledge-corpus"
+ ],
+ "FR-K27": [
+  "ENG-2363",
+  "knowledge-corpus"
+ ],
+ "FR-K25": [
+  "ENG-2364",
+  "knowledge-corpus"
+ ],
+ "FR-K26": [
+  "ENG-2365",
+  "knowledge-corpus"
+ ],
+ "NFR-K9": [
+  "ENG-2365",
+  "knowledge-corpus"
+ ],
+ "FR-K31B": [
+  "ENG-2367",
+  "ENG-2368",
+  "knowledge-corpus"
+ ],
+ "AD-7": [
+  "ENG-2213",
+  "ENG-2240",
+  "ENG-2369",
+  "knowledge-corpus"
+ ],
+ "AD-11": [
+  "ENG-2313",
+  "ENG-2369",
+  "api-corpus",
+  "extsweep",
+  "knowledge-corpus"
+ ],
+ "FR-E1": [
+  "ENG-2370",
+  "knowledge-corpus"
+ ],
+ "FR-E2": [
+  "ENG-2370",
+  "knowledge-corpus"
+ ],
+ "FR-E3": [
+  "ENG-2370",
+  "knowledge-corpus"
+ ],
+ "FR-E4": [
+  "ENG-2370",
+  "knowledge-corpus"
+ ],
+ "AD-9": [
+  "ENG-2211",
+  "ENG-2370",
+  "knowledge-corpus"
+ ],
+ "FR-CLI1": [
+  "ENG-2544",
+  "cli-corpus"
+ ],
+ "NFR-CLI7": [
+  "ENG-2544",
+  "ENG-2547",
+  "ENG-2563",
+  "cli-corpus"
+ ],
+ "FR-CLI3": [
+  "ENG-2545",
+  "ENG-2549",
+  "cli-corpus"
+ ],
+ "FR-CLI11": [
+  "ENG-2546",
+  "ENG-2547",
+  "ENG-2567",
+  "ENG-2568",
+  "ENG-2569",
+  "cli-corpus"
+ ],
+ "NFR-CLI4": [
+  "ENG-2546",
+  "ENG-2575",
+  "cli-corpus"
+ ],
+ "NFR-CLI5": [
+  "ENG-2548",
+  "ENG-2572",
+  "ENG-2573",
+  "cli-corpus"
+ ],
+ "FR-CLI7": [
+  "ENG-2550",
+  "cli-corpus"
+ ],
+ "FR-CLI8": [
+  "ENG-2551",
+  "ENG-2554",
+  "ENG-2564",
+  "cli-corpus"
+ ],
+ "FR-CLI6": [
+  "ENG-2552",
+  "ENG-2561",
+  "cli-corpus"
+ ],
+ "FR-CLI2": [
+  "ENG-2553",
+  "cli-corpus"
+ ],
+ "NFR-CLI1": [
+  "ENG-2553",
+  "cli-corpus"
+ ],
+ "FR-CLI4": [
+  "ENG-2554",
+  "ENG-2555",
+  "ENG-2556",
+  "ENG-2557",
+  "ENG-2558",
+  "ENG-2559",
+  "ENG-2560",
+  "ENG-2561",
+  "cli-corpus"
+ ],
+ "FR-CLI10": [
+  "ENG-2554",
+  "ENG-2555",
+  "ENG-2557",
+  "ENG-2558",
+  "ENG-2559",
+  "cli-corpus"
+ ],
+ "FR-CLI9": [
+  "ENG-2556",
+  "ENG-2562",
+  "cli-corpus"
+ ],
+ "FR-CLI12": [
+  "ENG-2562",
+  "ENG-2566",
+  "cli-corpus"
+ ],
+ "FR-CLI13": [
+  "ENG-2563",
+  "ENG-2564",
+  "ENG-2565",
+  "cli-corpus"
+ ],
+ "FR-CLI21": [
+  "ENG-2564",
+  "cli-corpus"
+ ],
+ "NFR-CLI3": [
+  "ENG-2566",
+  "ENG-2573",
+  "cli-corpus"
+ ],
+ "FR-CLI5": [
+  "ENG-2567",
+  "ENG-2568",
+  "ENG-2569",
+  "ENG-2574",
+  "cli-corpus"
+ ],
+ "FR-CLI14": [
+  "ENG-2570",
+  "ENG-2573",
+  "cli-corpus"
+ ],
+ "FR-CLI15": [
+  "ENG-2571",
+  "cli-corpus"
+ ],
+ "NFR-CLI2": [
+  "ENG-2571",
+  "cli-corpus"
+ ],
+ "FR-CLI16": [
+  "ENG-2572",
+  "cli-corpus"
+ ],
+ "FR-CLI17": [
+  "ENG-2574",
+  "ENG-2575",
+  "cli-corpus"
+ ],
+ "FR-CLI18": [
+  "ENG-2576",
+  "cli-corpus"
+ ],
+ "FR-CLI19": [
+  "ENG-2577",
+  "cli-corpus"
+ ],
+ "FR-CLI20": [
+  "ENG-2578",
+  "cli-corpus"
+ ],
+ "NFR-CLI6": [
+  "ENG-2578",
+  "cli-corpus"
+ ],
+ "A-THIN": [
+  "ENG-2476",
+  "ENG-2477",
+  "wiki-corpus"
+ ],
+ "FR-W23": [
+  "ENG-2477",
+  "ENG-2478",
+  "wiki-corpus"
+ ],
+ "FR-30": [
+  "ENG-2477",
+  "wiki-corpus"
+ ],
+ "FR-W24": [
+  "ENG-2478",
+  "wiki-corpus"
+ ],
+ "A-IMPORT": [
+  "ENG-2478",
+  "wiki-corpus"
+ ],
+ "A-HARDENING": [
+  "ENG-2478",
+  "wiki-corpus"
+ ],
+ "FR-W22": [
+  "ENG-2479",
+  "wiki-corpus"
+ ],
+ "A-BOUNDARY": [
+  "ENG-2479",
+  "ENG-2504",
+  "wiki-corpus"
+ ],
+ "FR-W3": [
+  "ENG-2480",
+  "ENG-2639",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W1": [
+  "ENG-2481",
+  "ENG-2635",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W2": [
+  "ENG-2482",
+  "ENG-2636",
+  "ENG-2637",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-13": [
+  "ENG-2482",
+  "wiki-corpus"
+ ],
+ "FR-W4": [
+  "ENG-2483",
+  "ENG-2640",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-18": [
+  "ENG-2483",
+  "wiki-corpus"
+ ],
+ "FR-38": [
+  "ENG-2483",
+  "wiki-corpus"
+ ],
+ "FR-12": [
+  "ENG-2484",
+  "wiki-corpus"
+ ],
+ "FR-10": [
+  "ENG-2485",
+  "wiki-corpus"
+ ],
+ "FR-40": [
+  "ENG-2486",
+  "wiki-corpus"
+ ],
+ "FR-W18": [
+  "ENG-2487",
+  "ENG-2488",
+  "ENG-2638",
+  "ENG-2639",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "A-DFM": [
+  "ENG-2487",
+  "wiki-corpus"
+ ],
+ "FR-W18B": [
+  "ENG-2488",
+  "wiki-corpus"
+ ],
+ "A-SEAMS": [
+  "ENG-2488",
+  "ENG-2495",
+  "wiki-corpus"
+ ],
+ "FR-W11": [
+  "ENG-2489",
+  "ENG-2650",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W10": [
+  "ENG-2490",
+  "ENG-2647",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W12": [
+  "ENG-2490",
+  "ENG-2492",
+  "wiki-corpus"
+ ],
+ "A-QUOTA": [
+  "ENG-2490",
+  "wiki-corpus"
+ ],
+ "FR-W13": [
+  "ENG-2491",
+  "ENG-2649",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "A-QUOTA-HARDENING": [
+  "ENG-2491",
+  "ENG-2492",
+  "wiki-corpus"
+ ],
+ "FR-W14": [
+  "ENG-2493",
+  "ENG-2620",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W15": [
+  "ENG-2493",
+  "ENG-2629",
+  "ENG-2630",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W5": [
+  "ENG-2494",
+  "ENG-2495",
+  "ENG-2641",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-17": [
+  "ENG-2494",
+  "wiki-corpus"
+ ],
+ "A-EVENTS": [
+  "ENG-2494",
+  "ENG-2495",
+  "wiki-corpus"
+ ],
+ "A-CELL": [
+  "ENG-2296",
+  "ENG-2496",
+  "ENG-2510",
+  "wiki-corpus"
+ ],
+ "A-OBSERVE": [
+  "ENG-2496",
+  "ENG-2510",
+  "wiki-corpus"
+ ],
+ "FR-37": [
+  "ENG-2497",
+  "wiki-corpus"
+ ],
+ "FR-W7": [
+  "ENG-2498",
+  "ENG-2642",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-11": [
+  "ENG-2498",
+  "wiki-corpus"
+ ],
+ "FR-W6": [
+  "ENG-2499",
+  "ENG-2626",
+  "ENG-2627",
+  "ENG-2628",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-15": [
+  "ENG-2499",
+  "wiki-corpus"
+ ],
+ "A-AUTH": [
+  "ENG-2295",
+  "ENG-2499",
+  "ENG-2656",
+  "ui-corpus",
+  "wiki-corpus"
+ ],
+ "FR-W19": [
+  "ENG-2500",
+  "wiki-corpus"
+ ],
+ "FR-W20": [
+  "ENG-2501",
+  "wiki-corpus"
+ ],
+ "FR-W8": [
+  "ENG-2502",
+  "ENG-2645",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "A-TENANCY": [
+  "ENG-2503",
+  "wiki-corpus"
+ ],
+ "FR-W21": [
+  "ENG-2504",
+  "wiki-corpus"
+ ],
+ "FR-22": [
+  "ENG-2505",
+  "wiki-corpus"
+ ],
+ "FR-W9": [
+  "ENG-2506",
+  "ENG-2646",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W18C": [
+  "ENG-2507",
+  "wiki-corpus"
+ ],
+ "FR-W25": [
+  "ENG-2508",
+  "wiki-corpus"
+ ],
+ "FR-W16": [
+  "ENG-2508",
+  "ENG-2621",
+  "ENG-2622",
+  "ENG-2623",
+  "ENG-2624",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "FR-W17": [
+  "ENG-2508",
+  "ENG-2637",
+  "ENG-2643",
+  "ENG-2644",
+  "ENG-2649",
+  "wiki-corpus",
+  "workflows-corpus"
+ ],
+ "A-PORTABLE": [
+  "ENG-2508",
+  "wiki-corpus"
+ ],
+ "A-APIBOUNDARY": [
+  "ENG-2508",
+  "wiki-corpus"
+ ],
+ "A-MOVE": [
+  "ENG-2509",
+  "wiki-corpus"
+ ],
+ "A-ADR": [
+  "ENG-2510",
+  "wiki-corpus"
+ ],
+ "FR-M1": [
+  "ENG-2305",
+  "ENG-2449",
+  "api-corpus",
+  "mcp-corpus"
+ ],
+ "FR-M15": [
+  "ENG-2449",
+  "ENG-2465",
+  "mcp-corpus"
+ ],
+ "FR-M2": [
+  "ENG-2305",
+  "ENG-2450",
+  "api-corpus",
+  "mcp-corpus"
+ ],
+ "FR-M14": [
+  "ENG-2451",
+  "mcp-corpus"
+ ],
+ "FR-M4": [
+  "ENG-2305",
+  "ENG-2452",
+  "api-corpus",
+  "mcp-corpus"
+ ],
+ "FR-M3": [
+  "ENG-2305",
+  "ENG-2453",
+  "ENG-2454",
+  "ENG-2456",
+  "api-corpus",
+  "mcp-corpus"
+ ],
+ "FR-M10": [
+  "ENG-2453",
+  "mcp-corpus"
+ ],
+ "FR-M9": [
+  "ENG-2455",
+  "mcp-corpus"
+ ],
+ "FR-M6": [
+  "ENG-2456",
+  "ENG-2457",
+  "ENG-2458",
+  "mcp-corpus"
+ ],
+ "FR-M8": [
+  "ENG-2458",
+  "mcp-corpus"
+ ],
+ "NFR-M4": [
+  "ENG-2458",
+  "ENG-2475",
+  "mcp-corpus"
+ ],
+ "FR-M7": [
+  "ENG-2459",
+  "ENG-2460",
+  "mcp-corpus"
+ ],
+ "FR-M11": [
+  "ENG-2461",
+  "ENG-2462",
+  "ENG-2467",
+  "mcp-corpus"
+ ],
+ "NFR-M3": [
+  "ENG-2462",
+  "ENG-2463",
+  "ENG-2466",
+  "ENG-2467",
+  "mcp-corpus"
+ ],
+ "FR-M12": [
+  "ENG-2463",
+  "mcp-corpus"
+ ],
+ "FR-M13": [
+  "ENG-2464",
+  "mcp-corpus"
+ ],
+ "FR-M17": [
+  "ENG-2466",
+  "ENG-2468",
+  "mcp-corpus"
+ ],
+ "FR-M18": [
+  "ENG-2468",
+  "ENG-2473",
+  "mcp-corpus"
+ ],
+ "FR-M19": [
+  "ENG-2469",
+  "ENG-2470",
+  "ENG-2471",
+  "mcp-corpus"
+ ],
+ "FR-M5": [
+  "ENG-2472",
+  "mcp-corpus"
+ ],
+ "NFR-M6": [
+  "ENG-2472",
+  "mcp-corpus"
+ ],
+ "NFR-M1": [
+  "ENG-2473",
+  "mcp-corpus"
+ ],
+ "NFR-M5": [
+  "ENG-2474",
+  "mcp-corpus"
+ ],
+ "NFR-M2": [
+  "ENG-2474",
+  "mcp-corpus"
+ ],
+ "FR-M16": [
+  "ENG-2475",
+  "mcp-corpus"
+ ],
+ "A-STRANGLE": [
+  "ENG-2294"
+ ],
+ "FR-SA34": [
+  "ENG-2294",
+  "ENG-2299",
+  "api-corpus"
+ ],
+ "NFR-SA7": [
+  "ENG-2294",
+  "api-corpus"
+ ],
+ "NFR-SA8": [
+  "ENG-2294",
+  "api-corpus"
+ ],
+ "FR-SA29": [
+  "ENG-2295",
+  "api-corpus"
+ ],
+ "A-CELL-COMPLIANCE": [
+  "ENG-2296",
+  "ENG-2298"
+ ],
+ "FR-SA31": [
+  "ENG-2297",
+  "ENG-2298",
+  "api-corpus"
+ ],
+ "FR-SA33": [
+  "ENG-2299",
+  "api-corpus"
+ ],
+ "NFR-SA6": [
+  "ENG-2299",
+  "ENG-2330",
+  "api-corpus"
+ ],
+ "A-SEQ": [
+  "ENG-2300",
+  "api-corpus"
+ ],
+ "FR-SA1": [
+  "ENG-2301",
+  "api-corpus"
+ ],
+ "NFR-SA4": [
+  "ENG-2301",
+  "api-corpus"
+ ],
+ "FR-SA2": [
+  "ENG-2302",
+  "api-corpus"
+ ],
+ "FR-SA3": [
+  "ENG-2303",
+  "api-corpus"
+ ],
+ "FR-SA4": [
+  "ENG-2304",
+  "api-corpus"
+ ],
+ "FR-SA5": [
+  "ENG-2305",
+  "ENG-2306",
+  "api-corpus"
+ ],
+ "AD-2": [
+  "ENG-2305",
+  "api-corpus"
+ ],
+ "FR-SA6": [
+  "ENG-2307",
+  "api-corpus"
+ ],
+ "FR-SA7": [
+  "ENG-2307",
+  "api-corpus"
+ ],
+ "NFR-SA2": [
+  "ENG-2307",
+  "api-corpus"
+ ],
+ "NFR-SA3": [
+  "ENG-2307",
+  "ENG-2329",
+  "api-corpus"
+ ],
+ "FR-L1": [
+  "ENG-2143",
+  "ENG-2308",
+  "api-corpus",
+  "lib-corpus"
+ ],
+ "FR-L2": [
+  "ENG-2144",
+  "ENG-2308",
+  "api-corpus",
+  "lib-corpus"
+ ],
+ "FR-L3": [
+  "ENG-2144",
+  "ENG-2308",
+  "api-corpus",
+  "lib-corpus"
+ ],
+ "FR-L4": [
+  "ENG-2145",
+  "ENG-2308",
+  "api-corpus",
+  "lib-corpus"
+ ],
+ "FR-L5": [
+  "ENG-2146",
+  "ENG-2308",
+  "api-corpus",
+  "extsweep",
+  "lib-corpus"
+ ],
+ "AD-3": [
+  "ENG-2308",
+  "api-corpus"
+ ],
+ "AD-4": [
+  "ENG-2308",
+  "ENG-2318",
+  "api-corpus"
+ ],
+ "FR-SA8": [
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "FR-T1": [
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "FR-T2": [
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "FR-T3": [
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "FR-T4": [
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "AD-1": [
+  "ENG-2210",
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "AD-12": [
+  "ENG-2309",
+  "api-corpus"
+ ],
+ "FR-SA9": [
+  "ENG-2310",
+  "api-corpus"
+ ],
+ "NFR-SA1": [
+  "ENG-2310",
+  "ENG-2315",
+  "api-corpus"
+ ],
+ "FR-SA10": [
+  "ENG-2311",
+  "api-corpus",
+  "extsweep"
+ ],
+ "FR-SA11": [
+  "ENG-2312",
+  "api-corpus"
+ ],
+ "NFR-SA5": [
+  "ENG-2312",
+  "ENG-2330",
+  "api-corpus"
+ ],
+ "FR-SA12": [
+  "ENG-2314",
+  "ENG-2318",
+  "api-corpus"
+ ],
+ "FR-SA13": [
+  "ENG-2315",
+  "api-corpus"
+ ],
+ "FR-SA14": [
+  "ENG-2316",
+  "api-corpus"
+ ],
+ "FR-SA15": [
+  "ENG-2317",
+  "api-corpus"
+ ],
+ "FR-SA16": [
+  "ENG-2317",
+  "api-corpus"
+ ],
+ "FR-SA17": [
+  "ENG-2317",
+  "api-corpus"
+ ],
+ "FR-SA18": [
+  "ENG-2319",
+  "api-corpus"
+ ],
+ "FR-SA19": [
+  "ENG-2320",
+  "api-corpus"
+ ],
+ "FR-SA20": [
+  "ENG-2321",
+  "api-corpus"
+ ],
+ "FR-SA21": [
+  "ENG-2322",
+  "api-corpus"
+ ],
+ "FR-SA22": [
+  "ENG-2323",
+  "api-corpus"
+ ],
+ "FR-SA23": [
+  "ENG-2324",
+  "api-corpus"
+ ],
+ "FR-SA24": [
+  "ENG-2325",
+  "api-corpus"
+ ],
+ "FR-SA25": [
+  "ENG-2326",
+  "api-corpus"
+ ],
+ "FR-SA26": [
+  "ENG-2326",
+  "api-corpus"
+ ],
+ "FR-SA27": [
+  "ENG-2327",
+  "api-corpus"
+ ],
+ "FR-SA28": [
+  "ENG-2328",
+  "api-corpus"
+ ],
+ "FR-SA30": [
+  "ENG-2329",
+  "api-corpus"
+ ],
+ "FR-SA32": [
+  "ENG-2330",
+  "api-corpus"
+ ],
+ "OQ-W1": [
+  "ENG-2615",
+  "workflows-corpus"
+ ],
+ "OQ-W2": [
+  "ENG-2616",
+  "workflows-corpus"
+ ],
+ "NFR-W3": [
+  "ENG-2616",
+  "workflows-corpus"
+ ],
+ "F-CI": [
+  "ENG-2617",
+  "workflows-corpus"
+ ],
+ "NFR-W1": [
+  "ENG-2618",
+  "ENG-2623",
+  "workflows-corpus"
+ ],
+ "A-W5": [
+  "ENG-2618"
+ ],
+ "F-HTTPROUTE": [
+  "ENG-2619",
+  "workflows-corpus"
+ ],
+ "F-SECRETS": [
+  "ENG-2619",
+  "workflows-corpus"
+ ],
+ "F-HOST": [
+  "ENG-2619",
+  "workflows-corpus"
+ ],
+ "F-SEAM": [
+  "ENG-2621",
+  "workflows-corpus"
+ ],
+ "A-W3": [
+  "ENG-2622"
+ ],
+ "NFR-W2": [
+  "ENG-2622",
+  "ENG-2632",
+  "ENG-2633",
+  "workflows-corpus"
+ ],
+ "NFR-W5": [
+  "ENG-2625",
+  "ENG-2629",
+  "workflows-corpus"
+ ],
+ "A-W4": [
+  "ENG-2625",
+  "workflows-corpus"
+ ],
+ "A-W1": [
+  "ENG-2626",
+  "workflows-corpus"
+ ],
+ "NFR-W7": [
+  "ENG-2627",
+  "ENG-2629",
+  "workflows-corpus"
+ ],
+ "A-W8": [
+  "ENG-2628",
+  "workflows-corpus"
+ ],
+ "F-CELL": [
+  "ENG-2631",
+  "ENG-2644",
+  "workflows-corpus"
+ ],
+ "NFR-W6": [
+  "ENG-2631",
+  "ENG-2634",
+  "ENG-2635",
+  "workflows-corpus"
+ ],
+ "F-PAYLOAD": [
+  "ENG-2632",
+  "workflows-corpus"
+ ],
+ "F-DEDUP": [
+  "ENG-2633",
+  "workflows-corpus"
+ ],
+ "A-W10": [
+  "ENG-2647",
+  "ENG-2649",
+  "ENG-2650",
+  "workflows-corpus"
+ ],
+ "NFR-W4": [
+  "ENG-2648",
+  "workflows-corpus"
+ ],
+ "NFR-W8": [
+  "ENG-2648",
+  "ENG-2650",
+  "workflows-corpus"
+ ],
+ "NFR-C6": [
+  "ENG-2111",
+  "ENG-2112",
+  "contracts-corpus"
+ ],
+ "FR-C17": [
+  "ENG-2112",
+  "ENG-2114",
+  "contracts-corpus"
+ ],
+ "NFR-C4": [
+  "ENG-2113",
+  "contracts-corpus",
+  "extsweep"
+ ],
+ "NFR-C2": [
+  "ENG-2114",
+  "contracts-corpus"
+ ],
+ "NFR-C1": [
+  "ENG-2115",
+  "contracts-corpus"
+ ],
+ "FR-C1": [
+  "ENG-2116",
+  "ENG-2117",
+  "ENG-2283",
+  "ai-corpus",
+  "contracts-corpus"
+ ],
+ "FR-C2": [
+  "ENG-2118",
+  "ENG-2283",
+  "ai-corpus",
+  "contracts-corpus"
+ ],
+ "FR-C3": [
+  "ENG-2119",
+  "ENG-2283",
+  "ai-corpus",
+  "contracts-corpus"
+ ],
+ "FR-C4": [
+  "ENG-2120",
+  "contracts-corpus"
+ ],
+ "FR-C19": [
+  "ENG-2121",
+  "contracts-corpus"
+ ],
+ "FR-C22": [
+  "ENG-2122",
+  "contracts-corpus"
+ ],
+ "FR-C24": [
+  "ENG-2123",
+  "contracts-corpus"
+ ],
+ "FR-C6": [
+  "ENG-2124",
+  "contracts-corpus"
+ ],
+ "FR-C7": [
+  "ENG-2125",
+  "contracts-corpus"
+ ],
+ "FR-C8": [
+  "ENG-2126",
+  "contracts-corpus"
+ ],
+ "FR-C9": [
+  "ENG-2127",
+  "contracts-corpus"
+ ],
+ "FR-C10": [
+  "ENG-2128",
+  "contracts-corpus"
+ ],
+ "FR-C11": [
+  "ENG-2129",
+  "contracts-corpus"
+ ],
+ "FR-C13": [
+  "ENG-2130",
+  "contracts-corpus"
+ ],
+ "FR-C12": [
+  "ENG-2131",
+  "contracts-corpus"
+ ],
+ "FR-C14": [
+  "ENG-2132",
+  "contracts-corpus"
+ ],
+ "FR-C20": [
+  "ENG-2133",
+  "ENG-2140",
+  "contracts-corpus"
+ ],
+ "FR-C23": [
+  "ENG-2134",
+  "contracts-corpus"
+ ],
+ "FR-C5": [
+  "ENG-2135",
+  "contracts-corpus"
+ ],
+ "FR-C21": [
+  "ENG-2136",
+  "contracts-corpus"
+ ],
+ "NFR-C7": [
+  "ENG-2136",
+  "contracts-corpus"
+ ],
+ "FR-C15": [
+  "ENG-2137",
+  "contracts-corpus"
+ ],
+ "FR-C16": [
+  "ENG-2138",
+  "ENG-2139",
+  "ENG-2140",
+  "contracts-corpus"
+ ],
+ "NFR-C5": [
+  "ENG-2138",
+  "contracts-corpus"
+ ],
+ "FR-C18": [
+  "ENG-2141",
+  "contracts-corpus"
+ ],
+ "NFR-C3": [
+  "ENG-2142",
+  "contracts-corpus"
+ ],
+ "FR-B1": [
+  "ENG-2371",
+  "billing-corpus"
+ ],
+ "FR-B2": [
+  "ENG-2372",
+  "billing-corpus"
+ ],
+ "FR-B3": [
+  "ENG-2373",
+  "billing-corpus"
+ ],
+ "FR-B3A": [
+  "ENG-2374",
+  "billing-corpus"
+ ],
+ "FR-B4": [
+  "ENG-2375",
+  "billing-corpus"
+ ],
+ "FR-B5": [
+  "ENG-2376",
+  "ENG-2377",
+  "billing-corpus"
+ ],
+ "NFR-B1": [
+  "ENG-2376",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "NFR-B4": [
+  "ENG-2377",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B6": [
+  "ENG-2378",
+  "billing-corpus"
+ ],
+ "FR-B17": [
+  "ENG-2379",
+  "billing-corpus"
+ ],
+ "FR-B17A": [
+  "ENG-2380",
+  "billing-corpus"
+ ],
+ "FR-B7": [
+  "ENG-2381",
+  "ENG-2382",
+  "ENG-2383",
+  "billing-corpus"
+ ],
+ "FR-B8": [
+  "ENG-2384",
+  "billing-corpus"
+ ],
+ "NFR-B6": [
+  "ENG-2384",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B9": [
+  "ENG-2385",
+  "billing-corpus"
+ ],
+ "FR-B10": [
+  "ENG-2386",
+  "ENG-2387",
+  "billing-corpus"
+ ],
+ "NFR-B3": [
+  "ENG-2386",
+  "ENG-2399",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B11": [
+  "ENG-2388",
+  "billing-corpus"
+ ],
+ "NFR-B2": [
+  "ENG-2388",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B12": [
+  "ENG-2389",
+  "billing-corpus"
+ ],
+ "FR-B13": [
+  "ENG-2390",
+  "billing-corpus"
+ ],
+ "FR-B14": [
+  "ENG-2391",
+  "billing-corpus"
+ ],
+ "FR-B15": [
+  "ENG-2392",
+  "billing-corpus"
+ ],
+ "FR-B16": [
+  "ENG-2393",
+  "billing-corpus"
+ ],
+ "FR-B18": [
+  "ENG-2394",
+  "billing-corpus"
+ ],
+ "FR-B19": [
+  "ENG-2395",
+  "billing-corpus"
+ ],
+ "FR-B20": [
+  "ENG-2396",
+  "billing-corpus"
+ ],
+ "FR-B21": [
+  "ENG-2397",
+  "billing-corpus"
+ ],
+ "NFR-B5": [
+  "ENG-2397",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B24": [
+  "ENG-2398",
+  "billing-corpus"
+ ],
+ "FR-B25": [
+  "ENG-2399",
+  "billing-corpus"
+ ],
+ "FR-B22": [
+  "ENG-2400",
+  "billing-corpus"
+ ],
+ "NFR-B7": [
+  "ENG-2400",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B23": [
+  "ENG-2401",
+  "billing-corpus"
+ ],
+ "FR-B26": [
+  "ENG-2402",
+  "billing-corpus"
+ ],
+ "FR-B27": [
+  "ENG-2403",
+  "billing-corpus"
+ ],
+ "NFR-B8": [
+  "ENG-2404",
+  "ENG-2406",
+  "billing-corpus"
+ ],
+ "FR-B28": [
+  "ENG-2404",
+  "ENG-2405",
+  "billing-corpus"
+ ],
+ "NFR-MEM4": [
+  "ENG-2211",
+  "ENG-2212",
+  "ENG-2232",
+  "workgraph-corpus"
+ ],
+ "AD-6": [
+  "ENG-2211",
+  "ENG-2214",
+  "ENG-2448",
+  "identity-corpus"
+ ],
+ "NFR-MEM5": [
+  "ENG-2213",
+  "ENG-2231",
+  "workgraph-corpus"
+ ],
+ "FR-MEM1": [
+  "ENG-2214",
+  "ENG-2215",
+  "ENG-2234",
+  "workgraph-corpus"
+ ],
+ "FR-MEM2": [
+  "ENG-2216",
+  "workgraph-corpus"
+ ],
+ "FR-MEM3": [
+  "ENG-2217",
+  "workgraph-corpus"
+ ],
+ "FR-MEM7": [
+  "ENG-2217",
+  "workgraph-corpus"
+ ],
+ "NFR-MEM2": [
+  "ENG-2217",
+  "ENG-2220",
+  "workgraph-corpus"
+ ],
+ "FR-MEM6": [
+  "ENG-2218",
+  "workgraph-corpus"
+ ],
+ "FR-MEM26": [
+  "ENG-2219",
+  "workgraph-corpus"
+ ],
+ "FR-MEM4": [
+  "ENG-2221",
+  "ENG-2222",
+  "workgraph-corpus"
+ ],
+ "FR-MEM5": [
+  "ENG-2223",
+  "workgraph-corpus"
+ ],
+ "FR-MEM24": [
+  "ENG-2223",
+  "workgraph-corpus"
+ ],
+ "FR-MEM8": [
+  "ENG-2224",
+  "ENG-2232",
+  "workgraph-corpus"
+ ],
+ "FR-MEM9": [
+  "ENG-2225",
+  "workgraph-corpus"
+ ],
+ "NFR-MEM3": [
+  "ENG-2225",
+  "workgraph-corpus"
+ ],
+ "FR-MEM10": [
+  "ENG-2226",
+  "workgraph-corpus"
+ ],
+ "NFR-MEM1": [
+  "ENG-2227",
+  "workgraph-corpus"
+ ],
+ "FR-MEM11": [
+  "ENG-2228",
+  "workgraph-corpus"
+ ],
+ "FR-MEM12": [
+  "ENG-2229",
+  "workgraph-corpus"
+ ],
+ "FR-MEM13": [
+  "ENG-2230",
+  "workgraph-corpus"
+ ],
+ "NFR-MEM7": [
+  "ENG-2230",
+  "ENG-2231",
+  "extsweep",
+  "gapfix",
+  "workgraph-corpus"
+ ],
+ "FR-MEM23": [
+  "ENG-2232",
+  "workgraph-corpus"
+ ],
+ "FR-MEM21": [
+  "ENG-2232",
+  "ENG-2236",
+  "workgraph-corpus"
+ ],
+ "FR-MEM25": [
+  "ENG-2233",
+  "workgraph-corpus"
+ ],
+ "NFR-MEM6": [
+  "ENG-2235",
+  "workgraph-corpus"
+ ],
+ "FR-MEM14": [
+  "ENG-2236",
+  "workgraph-corpus"
+ ],
+ "FR-MEM22": [
+  "ENG-2236",
+  "workgraph-corpus"
+ ],
+ "FR-MEM15": [
+  "ENG-2237",
+  "workgraph-corpus"
+ ],
+ "FR-MEM16": [
+  "ENG-2238",
+  "workgraph-corpus"
+ ],
+ "FR-MEM27": [
+  "ENG-2239",
+  "gapfix",
+  "workgraph-corpus"
+ ],
+ "FR-MEM17": [
+  "ENG-2241",
+  "workgraph-corpus"
+ ],
+ "FR-MEM18": [
+  "ENG-2242",
+  "workgraph-corpus"
+ ],
+ "FR-MEM19": [
+  "ENG-2243",
+  "workgraph-corpus"
+ ],
+ "FR-MEM20": [
+  "ENG-2244",
+  "workgraph-corpus"
+ ],
+ "FR-CT19": [
+  "ENG-2579",
+  "ENG-2582",
+  "console-corpus"
+ ],
+ "NFR-CT4": [
+  "ENG-2580",
+  "ENG-2581",
+  "ENG-2593",
+  "console-corpus"
+ ],
+ "NFR-CT2": [
+  "ENG-2581",
+  "ENG-2585",
+  "ENG-2587",
+  "console-corpus"
+ ],
+ "NFR-CT3": [
+  "ENG-2583",
+  "ENG-2605",
+  "console-corpus"
+ ],
+ "NFR-CT6": [
+  "ENG-2583",
+  "console-corpus"
+ ],
+ "FR-CT17": [
+  "ENG-2584",
+  "console-corpus"
+ ],
+ "FR-CT18": [
+  "ENG-2584",
+  "console-corpus"
+ ],
+ "NFR-CT7": [
+  "ENG-2584",
+  "console-corpus"
+ ],
+ "FR-CT13": [
+  "ENG-2585",
+  "ENG-2586",
+  "console-corpus"
+ ],
+ "FR-CT16": [
+  "ENG-2587",
+  "console-corpus"
+ ],
+ "FR-CT14": [
+  "ENG-2588",
+  "console-corpus"
+ ],
+ "FR-CT12": [
+  "ENG-2589",
+  "console-corpus"
+ ],
+ "NFR-CT5": [
+  "ENG-2589",
+  "console-corpus"
+ ],
+ "FR-CT6": [
+  "ENG-2590",
+  "console-corpus"
+ ],
+ "NFR-CT1": [
+  "ENG-2590",
+  "console-corpus"
+ ],
+ "FR-CT1": [
+  "ENG-2591",
+  "ENG-2592",
+  "ENG-2593",
+  "console-corpus"
+ ],
+ "FR-CT2": [
+  "ENG-2594",
+  "console-corpus"
+ ],
+ "FR-CT5": [
+  "ENG-2595",
+  "console-corpus"
+ ],
+ "FR-CT4": [
+  "ENG-2596",
+  "console-corpus"
+ ],
+ "FR-CT3": [
+  "ENG-2597",
+  "console-corpus"
+ ],
+ "FR-CT10": [
+  "ENG-2598",
+  "console-corpus"
+ ],
+ "FR-CT11": [
+  "ENG-2599",
+  "console-corpus"
+ ],
+ "FR-CT7": [
+  "ENG-2600",
+  "console-corpus"
+ ],
+ "FR-CT8": [
+  "ENG-2601",
+  "console-corpus"
+ ],
+ "FR-CT9": [
+  "ENG-2602",
+  "console-corpus"
+ ],
+ "FR-CT12A": [
+  "ENG-2603",
+  "console-corpus"
+ ],
+ "FR-CT12B": [
+  "ENG-2604",
+  "console-corpus"
+ ],
+ "FR-CT15": [
+  "ENG-2605",
+  "ENG-2606",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-9": [
+  "ENG-2607",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-3": [
+  "ENG-2607",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-10": [
+  "ENG-2607",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-6": [
+  "ENG-2608",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-1": [
+  "ENG-2609",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-2": [
+  "ENG-2609",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-4": [
+  "ENG-2610",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-5": [
+  "ENG-2611",
+  "console-corpus"
+ ],
+ "NFR-CT-UBA-3": [
+  "ENG-2611",
+  "console-corpus"
+ ],
+ "NFR-CT-UBA-4": [
+  "ENG-2611",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-11": [
+  "ENG-2612",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-12": [
+  "ENG-2613",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-7": [
+  "ENG-2614",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-8": [
+  "ENG-2614",
+  "console-corpus"
+ ],
+ "FR-CT-UBA-8A": [
+  "ENG-2614",
+  "console-corpus"
+ ],
+ "NFR-CT-UBA-1": [
+  "ENG-2614",
+  "console-corpus"
+ ],
+ "NFR-CT-UBA-2": [
+  "ENG-2614",
+  "console-corpus"
+ ],
+ "NFR-CT-UBA-5": [
+  "ENG-2614",
+  "console-corpus"
+ ],
+ "NFR-L1": [
+  "ENG-2143",
+  "lib-corpus"
+ ],
+ "NFR-L6": [
+  "ENG-2145",
+  "lib-corpus"
+ ],
+ "FR-L6": [
+  "ENG-2147",
+  "lib-corpus"
+ ],
+ "FR-L7": [
+  "ENG-2148",
+  "lib-corpus"
+ ],
+ "NFR-L2": [
+  "ENG-2148",
+  "lib-corpus"
+ ],
+ "FR-L8": [
+  "ENG-2149",
+  "lib-corpus"
+ ],
+ "FR-L9": [
+  "ENG-2150",
+  "lib-corpus"
+ ],
+ "FR-L10": [
+  "ENG-2151",
+  "lib-corpus"
+ ],
+ "FR-L11": [
+  "ENG-2152",
+  "lib-corpus"
+ ],
+ "FR-L12": [
+  "ENG-2153",
+  "lib-corpus"
+ ],
+ "FR-L12A": [
+  "ENG-2154",
+  "lib-corpus"
+ ],
+ "FR-L13": [
+  "ENG-2155",
+  "lib-corpus"
+ ],
+ "FR-L14": [
+  "ENG-2155",
+  "lib-corpus"
+ ],
+ "FR-L15": [
+  "ENG-2156",
+  "lib-corpus"
+ ],
+ "FR-L16": [
+  "ENG-2157",
+  "lib-corpus"
+ ],
+ "FR-L17": [
+  "ENG-2158",
+  "lib-corpus"
+ ],
+ "FR-L29": [
+  "ENG-2159",
+  "lib-corpus"
+ ],
+ "FR-L30": [
+  "ENG-2160",
+  "lib-corpus"
+ ],
+ "FR-L18": [
+  "ENG-2161",
+  "lib-corpus"
+ ],
+ "FR-L19": [
+  "ENG-2162",
+  "lib-corpus"
+ ],
+ "FR-L20": [
+  "ENG-2163",
+  "lib-corpus"
+ ],
+ "FR-L21": [
+  "ENG-2164",
+  "lib-corpus"
+ ],
+ "FR-L22": [
+  "ENG-2165",
+  "lib-corpus"
+ ],
+ "FR-L27": [
+  "ENG-2166",
+  "lib-corpus"
+ ],
+ "FR-L26": [
+  "ENG-2167",
+  "lib-corpus"
+ ],
+ "FR-L28": [
+  "ENG-2168",
+  "lib-corpus"
+ ],
+ "FR-L24": [
+  "ENG-2169",
+  "lib-corpus"
+ ],
+ "FR-L23": [
+  "ENG-2170",
+  "lib-corpus"
+ ],
+ "NFR-L3": [
+  "ENG-2170",
+  "lib-corpus"
+ ],
+ "FR-L25": [
+  "ENG-2171",
+  "lib-corpus"
+ ],
+ "NFR-L4": [
+  "ENG-2171",
+  "lib-corpus"
+ ],
+ "NFR-L7": [
+  "ENG-2172",
+  "lib-corpus"
+ ],
+ "NFR-L5": [
+  "ENG-2173",
+  "lib-corpus"
+ ],
+ "NFR-UI2": [
+  "ENG-2651",
+  "ENG-2682",
+  "ui-corpus"
+ ],
+ "NFR-UI3": [
+  "ENG-2651",
+  "ENG-2653",
+  "ui-corpus"
+ ],
+ "NFR-UI5": [
+  "ENG-2651",
+  "ENG-2652",
+  "ENG-2684",
+  "ui-corpus"
+ ],
+ "A-DS": [
+  "ENG-2651",
+  "ENG-2653",
+  "ui-corpus"
+ ],
+ "A-STATELESS": [
+  "ENG-2652",
+  "ui-corpus"
+ ],
+ "NFR-UI4": [
+  "ENG-2652",
+  "ENG-2684",
+  "ui-corpus"
+ ],
+ "A-SHELL": [
+  "ENG-2652",
+  "ENG-2658",
+  "ui-corpus"
+ ],
+ "FR-UI27": [
+  "ENG-2654",
+  "ui-corpus"
+ ],
+ "A-DRAFT": [
+  "ENG-2654",
+  "ui-corpus"
+ ],
+ "FR-UI29": [
+  "ENG-2655",
+  "ui-corpus"
+ ],
+ "FR-UI28": [
+  "ENG-2656",
+  "ui-corpus"
+ ],
+ "NFR-UI10": [
+  "ENG-2656",
+  "ui-corpus"
+ ],
+ "A-GLOBAL": [
+  "ENG-2657",
+  "ui-corpus"
+ ],
+ "NFR-UI1": [
+  "ENG-2657",
+  "ENG-2683",
+  "ui-corpus"
+ ],
+ "FR-UI1": [
+  "ENG-2658",
+  "ui-corpus"
+ ],
+ "NFR-UI8": [
+  "ENG-2658",
+  "ENG-2683",
+  "ui-corpus"
+ ],
+ "FR-UI2": [
+  "ENG-2659",
+  "ui-corpus"
+ ],
+ "FR-UI3": [
+  "ENG-2660",
+  "ui-corpus"
+ ],
+ "FR-UI4": [
+  "ENG-2661",
+  "ui-corpus"
+ ],
+ "FR-UI5": [
+  "ENG-2662",
+  "ui-corpus"
+ ],
+ "A-STREAM": [
+  "ENG-2662",
+  "ENG-2670",
+  "ui-corpus"
+ ],
+ "NFR-UI6": [
+  "ENG-2662",
+  "ENG-2683",
+  "ui-corpus"
+ ],
+ "FR-UI6": [
+  "ENG-2663",
+  "ui-corpus"
+ ],
+ "FR-UI7": [
+  "ENG-2664",
+  "ui-corpus"
+ ],
+ "FR-UI8": [
+  "ENG-2665",
+  "ui-corpus"
+ ],
+ "FR-UI9": [
+  "ENG-2666",
+  "ui-corpus"
+ ],
+ "FR-UI10": [
+  "ENG-2666",
+  "ui-corpus"
+ ],
+ "FR-UI11": [
+  "ENG-2667",
+  "ui-corpus"
+ ],
+ "FR-UI12": [
+  "ENG-2668",
+  "ui-corpus"
+ ],
+ "FR-UI13": [
+  "ENG-2669",
+  "ui-corpus"
+ ],
+ "FR-UI14": [
+  "ENG-2670",
+  "ui-corpus"
+ ],
+ "FR-UI15": [
+  "ENG-2671",
+  "ui-corpus"
+ ],
+ "FR-UI16": [
+  "ENG-2672",
+  "ui-corpus"
+ ],
+ "FR-UI17": [
+  "ENG-2673",
+  "ui-corpus"
+ ],
+ "FR-UI18": [
+  "ENG-2673",
+  "ui-corpus"
+ ],
+ "FR-UI19": [
+  "ENG-2674",
+  "ui-corpus"
+ ],
+ "FR-UI20": [
+  "ENG-2675",
+  "ui-corpus"
+ ],
+ "FR-UI21": [
+  "ENG-2676",
+  "ui-corpus"
+ ],
+ "FR-UI22": [
+  "ENG-2677",
+  "ui-corpus"
+ ],
+ "FR-UI23": [
+  "ENG-2678",
+  "ui-corpus"
+ ],
+ "FR-UI24": [
+  "ENG-2679",
+  "ui-corpus"
+ ],
+ "FR-UI25": [
+  "ENG-2680",
+  "ui-corpus"
+ ],
+ "FR-UI26": [
+  "ENG-2681",
+  "ui-corpus"
+ ],
+ "NFR-UI7": [
+  "ENG-2683",
+  "ui-corpus"
+ ],
+ "NFR-UI9": [
+  "ENG-2684",
+  "ui-corpus"
+ ],
+ "FR-UI30": [
+  "ENG-2685",
+  "ui-corpus"
+ ],
+ "FR-I1": [
+  "ENG-2407",
+  "identity-corpus"
+ ],
+ "FR-I2": [
+  "ENG-2408",
+  "ENG-2409",
+  "identity-corpus"
+ ],
+ "FR-I6": [
+  "ENG-2408",
+  "ENG-2413",
+  "identity-corpus"
+ ],
+ "NFR-I1": [
+  "ENG-2409",
+  "identity-corpus"
+ ],
+ "NFR-I3": [
+  "ENG-2409",
+  "ENG-2414",
+  "ENG-2426",
+  "identity-corpus"
+ ],
+ "FR-I3": [
+  "ENG-2410",
+  "identity-corpus"
+ ],
+ "NFR-I5": [
+  "ENG-2410",
+  "ENG-2425",
+  "ENG-2438",
+  "ENG-2443",
+  "identity-corpus"
+ ],
+ "FR-I4": [
+  "ENG-2411",
+  "identity-corpus"
+ ],
+ "NFR-I4": [
+  "ENG-2411",
+  "ENG-2415",
+  "identity-corpus"
+ ],
+ "FR-I5": [
+  "ENG-2412",
+  "identity-corpus"
+ ],
+ "FR-I7": [
+  "ENG-2414",
+  "identity-corpus"
+ ],
+ "FR-I8": [
+  "ENG-2415",
+  "ENG-2417",
+  "identity-corpus"
+ ],
+ "NFR-I7": [
+  "ENG-2415",
+  "identity-corpus"
+ ],
+ "FR-I9": [
+  "ENG-2416",
+  "ENG-2417",
+  "ENG-2441",
+  "ENG-2442",
+  "ENG-2443",
+  "ENG-2444",
+  "identity-corpus"
+ ],
+ "FR-I10": [
+  "ENG-2418",
+  "identity-corpus"
+ ],
+ "FR-I11": [
+  "ENG-2419",
+  "identity-corpus"
+ ],
+ "FR-I12": [
+  "ENG-2420",
+  "ENG-2421",
+  "identity-corpus"
+ ],
+ "FR-I13": [
+  "ENG-2422",
+  "ENG-2423",
+  "identity-corpus"
+ ],
+ "FR-I17": [
+  "ENG-2424",
+  "identity-corpus"
+ ],
+ "FR-I14": [
+  "ENG-2425",
+  "ENG-2426",
+  "identity-corpus"
+ ],
+ "FR-I15": [
+  "ENG-2427",
+  "ENG-2428",
+  "identity-corpus"
+ ],
+ "FR-I19": [
+  "ENG-2429",
+  "ENG-2430",
+  "ENG-2431",
+  "ENG-2432",
+  "identity-corpus"
+ ],
+ "NFR-I6": [
+  "ENG-2429",
+  "ENG-2436",
+  "identity-corpus"
+ ],
+ "NFR-I2": [
+  "ENG-2431",
+  "ENG-2437",
+  "identity-corpus"
+ ],
+ "FR-I20": [
+  "ENG-2433",
+  "ENG-2434",
+  "ENG-2435",
+  "identity-corpus"
+ ],
+ "FR-I16": [
+  "ENG-2436",
+  "identity-corpus"
+ ],
+ "FR-I18": [
+  "ENG-2437",
+  "ENG-2439",
+  "ENG-2440",
+  "identity-corpus"
+ ],
+ "FR-S1": [
+  "ENG-2445",
+  "identity-corpus"
+ ],
+ "FR-S4": [
+  "ENG-2445",
+  "identity-corpus"
+ ],
+ "FR-S2": [
+  "ENG-2446",
+  "identity-corpus"
+ ],
+ "FR-S3": [
+  "ENG-2447",
+  "identity-corpus"
+ ],
+ "FR-S5": [
+  "ENG-2448",
+  "extsweep",
+  "identity-corpus"
+ ],
+ "FR-S6": [
+  "ENG-2448",
+  "identity-corpus"
+ ],
+ "AD-8": [
+  "ENG-2448",
+  "extsweep",
+  "identity-corpus"
+ ],
+ "NFR-STG6": [
+  "ENG-2174",
+  "ENG-2178",
+  "ENG-2209",
+  "staging-corpus"
+ ],
+ "NFR-STG2": [
+  "ENG-2175",
+  "ENG-2183",
+  "ENG-2208",
+  "staging-corpus"
+ ],
+ "FR-STG26": [
+  "ENG-2175",
+  "ENG-2204",
+  "staging-corpus"
+ ],
+ "NFR-STG5": [
+  "ENG-2176",
+  "ENG-2177",
+  "ENG-2209",
+  "staging-corpus"
+ ],
+ "NFR-STG3": [
+  "ENG-2177",
+  "ENG-2190",
+  "staging-corpus"
+ ],
+ "NFR-STG4": [
+  "ENG-2178",
+  "ENG-2208",
+  "staging-corpus"
+ ],
+ "FR-STG1": [
+  "ENG-2179",
+  "staging-corpus"
+ ],
+ "FR-STG4": [
+  "ENG-2179",
+  "staging-corpus"
+ ],
+ "FR-STG2": [
+  "ENG-2180",
+  "staging-corpus"
+ ],
+ "FR-STG5": [
+  "ENG-2181",
+  "staging-corpus"
+ ],
+ "FR-STG6": [
+  "ENG-2182",
+  "staging-corpus"
+ ],
+ "FR-STG3": [
+  "ENG-2183",
+  "staging-corpus"
+ ],
+ "FR-STG7": [
+  "ENG-2184",
+  "staging-corpus"
+ ],
+ "FR-STG8": [
+  "ENG-2185",
+  "staging-corpus"
+ ],
+ "FR-STG9": [
+  "ENG-2186",
+  "staging-corpus"
+ ],
+ "FR-STG10": [
+  "ENG-2187",
+  "staging-corpus"
+ ],
+ "FR-STG11": [
+  "ENG-2188",
+  "staging-corpus"
+ ],
+ "FR-STG12": [
+  "ENG-2189",
+  "staging-corpus"
+ ],
+ "FR-STG13": [
+  "ENG-2190",
+  "staging-corpus"
+ ],
+ "FR-STG14": [
+  "ENG-2191",
+  "staging-corpus"
+ ],
+ "FR-STG28": [
+  "ENG-2192",
+  "staging-corpus"
+ ],
+ "FR-STG15": [
+  "ENG-2193",
+  "staging-corpus"
+ ],
+ "FR-STG16": [
+  "ENG-2194",
+  "staging-corpus"
+ ],
+ "FR-STG17": [
+  "ENG-2194",
+  "staging-corpus"
+ ],
+ "FR-STG27": [
+  "ENG-2195",
+  "staging-corpus"
+ ],
+ "FR-STG29": [
+  "ENG-2196",
+  "staging-corpus"
+ ],
+ "FR-STG18": [
+  "ENG-2197",
+  "staging-corpus"
+ ],
+ "FR-STG19": [
+  "ENG-2198",
+  "staging-corpus"
+ ],
+ "FR-STG20": [
+  "ENG-2199",
+  "staging-corpus"
+ ],
+ "FR-STG21": [
+  "ENG-2200",
+  "staging-corpus"
+ ],
+ "FR-STG22": [
+  "ENG-2201",
+  "staging-corpus"
+ ],
+ "FR-STG23": [
+  "ENG-2202",
+  "staging-corpus"
+ ],
+ "FR-STG24": [
+  "ENG-2203",
+  "staging-corpus"
+ ],
+ "FR-STG25": [
+  "ENG-2205",
+  "ENG-2206",
+  "staging-corpus"
+ ],
+ "NFR-STG1": [
+  "ENG-2207",
+  "staging-corpus"
+ ],
+ "FR-A15": [
+  "ENG-2511",
+  "ENG-2512",
+  "ENG-2513",
+  "wiki-api-corpus"
+ ],
+ "NFR-A2": [
+  "ENG-2511",
+  "ENG-2539",
+  "wiki-api-corpus"
+ ],
+ "FR-A16": [
+  "ENG-2514",
+  "wiki-api-corpus"
+ ],
+ "FR-A17": [
+  "ENG-2515",
+  "wiki-api-corpus"
+ ],
+ "NFR-A7": [
+  "ENG-2516",
+  "ENG-2517",
+  "wiki-api-corpus"
+ ],
+ "FR-A1": [
+  "ENG-2517",
+  "ENG-2518",
+  "wiki-api-corpus"
+ ],
+ "FR-A2": [
+  "ENG-2519",
+  "wiki-api-corpus"
+ ],
+ "FR-A3": [
+  "ENG-2520",
+  "wiki-api-corpus"
+ ],
+ "NFR-A4": [
+  "ENG-2521",
+  "wiki-api-corpus"
+ ],
+ "FR-A4": [
+  "ENG-2522",
+  "ENG-2523",
+  "wiki-api-corpus"
+ ],
+ "FR-A5": [
+  "ENG-2524",
+  "ENG-2525",
+  "wiki-api-corpus"
+ ],
+ "FR-A11": [
+  "ENG-2526",
+  "wiki-api-corpus"
+ ],
+ "NFR-A5": [
+  "ENG-2526",
+  "ENG-2543",
+  "wiki-api-corpus"
+ ],
+ "FR-A6": [
+  "ENG-2527",
+  "wiki-api-corpus"
+ ],
+ "FR-A7": [
+  "ENG-2528",
+  "wiki-api-corpus"
+ ],
+ "FR-A8": [
+  "ENG-2529",
+  "wiki-api-corpus"
+ ],
+ "FR-A9": [
+  "ENG-2530",
+  "wiki-api-corpus"
+ ],
+ "FR-A10": [
+  "ENG-2530",
+  "wiki-api-corpus"
+ ],
+ "FR-A22": [
+  "ENG-2531",
+  "wiki-api-corpus"
+ ],
+ "FR-A24": [
+  "ENG-2532",
+  "wiki-api-corpus"
+ ],
+ "FR-A12": [
+  "ENG-2533",
+  "wiki-api-corpus"
+ ],
+ "FR-A13": [
+  "ENG-2534",
+  "wiki-api-corpus"
+ ],
+ "FR-A14": [
+  "ENG-2535",
+  "wiki-api-corpus"
+ ],
+ "NFR-A6": [
+  "ENG-2535",
+  "wiki-api-corpus"
+ ],
+ "FR-A20": [
+  "ENG-2536",
+  "wiki-api-corpus"
+ ],
+ "FR-A21": [
+  "ENG-2537",
+  "wiki-api-corpus"
+ ],
+ "FR-A23": [
+  "ENG-2538",
+  "wiki-api-corpus"
+ ],
+ "FR-A18": [
+  "ENG-2539",
+  "wiki-api-corpus"
+ ],
+ "FR-A19": [
+  "ENG-2540",
+  "ENG-2541",
+  "wiki-api-corpus"
+ ],
+ "NFR-A1": [
+  "ENG-2542",
+  "wiki-api-corpus"
+ ],
+ "NFR-A1A": [
+  "ENG-2542",
+  "wiki-api-corpus"
+ ],
+ "NFR-A1B": [
+  "ENG-2542",
+  "wiki-api-corpus"
+ ],
+ "NFR-A2A": [
+  "ENG-2542",
+  "wiki-api-corpus"
+ ],
+ "NFR-A3": [
+  "ENG-2543",
+  "wiki-api-corpus"
+ ],
+ "AD-5A": [
+  "ENG-2711",
+  "ENG-2712",
+  "ENG-2727",
+  "extension-corpus"
+ ],
+ "FR-D5": [
+  "ENG-2713",
+  "ENG-2717",
+  "ENG-2722",
+  "ENG-2723",
+  "ENG-2724",
+  "extension-corpus",
+  "extsweep"
+ ],
+ "FR-D2": [
+  "ENG-2714",
+  "ENG-2716",
+  "ENG-2729",
+  "ENG-2730",
+  "extension-corpus"
+ ],
+ "FR-O4": [
+  "ENG-2714",
+  "ENG-2730",
+  "extension-corpus"
+ ],
+ "FR-D4": [
+  "ENG-2715",
+  "ENG-2721",
+  "ENG-2722",
+  "extension-corpus",
+  "extsweep"
+ ],
+ "FR-D3": [
+  "ENG-2716",
+  "ENG-2720",
+  "extension-corpus",
+  "extsweep"
+ ],
+ "FR-D1": [
+  "ENG-2717",
+  "ENG-2718",
+  "ENG-2719",
+  "ENG-2728",
+  "extension-corpus",
+  "extsweep"
+ ],
+ "FR-D6": [
+  "ENG-2718",
+  "ENG-2720",
+  "extension-corpus",
+  "gapfix"
+ ],
+ "FR-D7": [
+  "ENG-2725",
+  "ENG-2726",
+  "ENG-2728",
+  "extension-corpus",
+  "extsweep"
+ ],
+ "FR-AI1": [
+  "ENG-2245",
+  "ai-corpus"
+ ],
+ "FR-AI2": [
+  "ENG-2246",
+  "ENG-2247",
+  "ai-corpus"
+ ],
+ "FR-AI3": [
+  "ENG-2248",
+  "ai-corpus"
+ ],
+ "NFR-AI2": [
+  "ENG-2249",
+  "ai-corpus"
+ ],
+ "NFR-AI6": [
+  "ENG-2249",
+  "ai-corpus"
+ ],
+ "FR-AI4": [
+  "ENG-2250",
+  "ENG-2253",
+  "ai-corpus"
+ ],
+ "FR-AI9": [
+  "ENG-2251",
+  "ENG-2252",
+  "ai-corpus"
+ ],
+ "NFR-AI5": [
+  "ENG-2252",
+  "ENG-2255",
+  "ai-corpus"
+ ],
+ "FR-AI17": [
+  "ENG-2254",
+  "ai-corpus"
+ ],
+ "FR-AI26": [
+  "ENG-2254",
+  "ai-corpus"
+ ],
+ "FR-AI5": [
+  "ENG-2255",
+  "ENG-2256",
+  "ENG-2291",
+  "ai-corpus"
+ ],
+ "FR-AI6": [
+  "ENG-2257",
+  "ai-corpus"
+ ],
+ "FR-AI7": [
+  "ENG-2258",
+  "ai-corpus"
+ ],
+ "FR-AI8": [
+  "ENG-2259",
+  "ai-corpus"
+ ],
+ "FR-AI12": [
+  "ENG-2260",
+  "ENG-2261",
+  "ENG-2262",
+  "ENG-2264",
+  "ENG-2266",
+  "ai-corpus"
+ ],
+ "FR-AI13": [
+  "ENG-2263",
+  "ENG-2264",
+  "ai-corpus"
+ ],
+ "NFR-AI4": [
+  "ENG-2263",
+  "ENG-2266",
+  "ai-corpus"
+ ],
+ "FR-AI14": [
+  "ENG-2265",
+  "ENG-2287",
+  "ai-corpus"
+ ],
+ "FR-AI15": [
+  "ENG-2266",
+  "ai-corpus"
+ ],
+ "NFR-AI3": [
+  "ENG-2266",
+  "ENG-2284",
+  "ENG-2287",
+  "ai-corpus"
+ ],
+ "FR-20": [
+  "ENG-2266",
+  "ai-corpus"
+ ],
+ "FR-AI18": [
+  "ENG-2267",
+  "ENG-2290",
+  "ENG-2292",
+  "ENG-2293",
+  "ai-corpus"
+ ],
+ "FR-39": [
+  "ENG-2267",
+  "ai-corpus"
+ ],
+ "FR-AI19": [
+  "ENG-2268",
+  "ai-corpus"
+ ],
+ "FR-AI19A": [
+  "ENG-2269",
+  "ai-corpus"
+ ],
+ "FR-AI20": [
+  "ENG-2270",
+  "ai-corpus"
+ ],
+ "FR-AI16": [
+  "ENG-2271",
+  "ai-corpus"
+ ],
+ "FR-AI21": [
+  "ENG-2272",
+  "ENG-2273",
+  "ENG-2274",
+  "ENG-2275",
+  "ai-corpus"
+ ],
+ "FR-AI22": [
+  "ENG-2274",
+  "ENG-2276",
+  "ai-corpus"
+ ],
+ "NFR-AI8": [
+  "ENG-2276",
+  "ai-corpus"
+ ],
+ "FR-AI10": [
+  "ENG-2277",
+  "ai-corpus"
+ ],
+ "FR-AI11": [
+  "ENG-2278",
+  "ai-corpus"
+ ],
+ "FR-X1": [
+  "ENG-2279",
+  "ai-corpus"
+ ],
+ "FR-X5": [
+  "ENG-2279",
+  "ai-corpus"
+ ],
+ "FR-X2": [
+  "ENG-2280",
+  "ai-corpus"
+ ],
+ "FR-X3": [
+  "ENG-2281",
+  "ai-corpus"
+ ],
+ "FR-X6": [
+  "ENG-2281",
+  "ai-corpus"
+ ],
+ "FR-X4": [
+  "ENG-2282",
+  "ai-corpus"
+ ],
+ "FR-O2": [
+  "ENG-2283",
+  "ai-corpus"
+ ],
+ "FR-AI23": [
+  "ENG-2284",
+  "ENG-2285",
+  "ai-corpus"
+ ],
+ "FR-AI24": [
+  "ENG-2286",
+  "ai-corpus"
+ ],
+ "FR-AI25": [
+  "ENG-2288",
+  "ai-corpus"
+ ],
+ "NFR-AI1": [
+  "ENG-2288",
+  "ENG-2289",
+  "ai-corpus"
+ ],
+ "NFR-AI7": [
+  "ENG-2289",
+  "ai-corpus"
+ ],
+ "OQ3": [
+  "gapfix"
+ ],
+ "FR-O1": [
+  "gapfix"
+ ],
+ "FR-O3": [
+  "gapfix"
+ ],
+ "NFR-7": [
+  "extsweep",
+  "gapfix"
+ ],
+ "OQ7": [
+  "gapfix"
+ ],
+ "ADR-0011": [
+  "gapfix"
+ ],
+ "ADR-0015": [
+  "gapfix"
+ ],
+ "ADR-0004": [
+  "gapfix"
+ ],
+ "ADR-0020": [
+  "gapfix"
+ ],
+ "ADR-0035": [
+  "gapfix"
+ ],
+ "FR-BC1": [
+  "extsweep"
+ ],
+ "FR-BC2": [
+  "extsweep"
+ ],
+ "FR-BC5": [
+  "extsweep"
+ ],
+ "FR-BA2": [
+  "extsweep"
+ ],
+ "FR-BC4": [
+  "extsweep"
+ ],
+ "FR-BC3": [
+  "extsweep"
+ ],
+ "FR-PA3": [
+  "extsweep"
+ ],
+ "FR-BC7": [
+  "extsweep"
+ ],
+ "FR-PA1": [
+  "extsweep"
+ ],
+ "FR-PA4": [
+  "extsweep"
+ ],
+ "FR-TS4": [
+  "extsweep"
+ ],
+ "FR-PA6": [
+  "extsweep"
+ ],
+ "OQ-E2": [
+  "extsweep"
+ ],
+ "FR-BC8": [
+  "extsweep"
+ ],
+ "NFR-10": [
+  "extsweep"
+ ],
+ "FR-CF3": [
+  "extsweep"
+ ],
+ "FR-CF1": [
+  "extsweep"
+ ],
+ "FR-CF6": [
+  "extsweep"
+ ],
+ "NFR-6": [
+  "extsweep"
+ ],
+ "FR-CF7": [
+  "extsweep"
+ ],
+ "FR-CF2": [
+  "extsweep"
+ ],
+ "FR-AU2": [
+  "extsweep"
+ ],
+ "FR-AU1": [
+  "extsweep"
+ ],
+ "FR-BA1": [
+  "extsweep"
+ ],
+ "FR-BA3": [
+  "extsweep"
+ ],
+ "FR-BA4": [
+  "extsweep"
+ ],
+ "FR-TS2": [
+  "extsweep"
+ ],
+ "FR-TS5": [
+  "extsweep"
+ ],
+ "NFR-9": [
+  "extsweep"
+ ],
+ "FR-PA5": [
+  "extsweep"
+ ],
+ "NFR-8": [
+  "extsweep"
+ ],
+ "NFR-1": [
+  "extsweep"
+ ],
+ "OQ-E4": [
+  "extsweep"
+ ],
+ "AD-EXT-3": [
+  "extsweep"
+ ],
+ "AD-EXT-6": [
+  "extsweep"
+ ],
+ "AD-EXT-4": [
+  "extsweep"
+ ],
+ "AD-EXT-7": [
+  "extsweep"
+ ],
+ "AD-EXT-5": [
+  "extsweep"
+ ],
+ "OQ1": [
+  "extsweep"
+ ],
+ "FR-BC6": [
+  "extsweep"
+ ],
+ "A-B": [
+  "extsweep"
+ ],
+ "ADR-0008": [
+  "extsweep"
+ ],
+ "A-CODEGEN": [
+  "extsweep"
+ ]
+}

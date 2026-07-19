@@ -1,0 +1,16 @@
+{
+  "slug": "rgZ7PeI93L",
+  "total": 2,
+  "results": [
+    {
+      "id": "FR-30",
+      "verdict": "COVERED",
+      "owner_or_reason": "Direct key in coverage-index.json -> ENG-2477, wiki-corpus."
+    },
+    {
+      "id": "D-S27",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a literal index key; hard-checked. D-S27 is the ADR-0002 wiki-url-host-ordering ruling. wiki/E7-S1 (FR-W20) '[wiki] CLOUD-clean boot ... + hostname resolver label-0 tenant + soft label-2 cell assertion (solo no-op)' implements the load-bearing BUILD obligation (engine resolver split('.')[0] label-0 tenant + soft label-2 cell assertion), unchanged under D-S27 per E7-S1 AC2 text. Confirmed by prior joins join-WWngFAdCYk.json and gap-hunt/gaps-adr-0002-wiki-url-host-ordering.json (verdict: zero BUILD gaps). Remaining ADR obligations (per-cell LE wildcard certs, tenant-free apex guard, cell-lint rule 9) are GitOps/ops-config, not un-homed program work."
+    }
+  ]
+}

@@ -1,0 +1,519 @@
+{
+  "service": "orvex-wiki",
+  "requirement_source": "PRD EPsdD7uK8e (PRD: orvex-wiki) + Architecture twQ3BBzpTE (Architecture: orvex-wiki). FR-W* ids from the PRD §4; A-* rulings from the Architecture §2; legacy FR-11/13/15/17/18/30/38 folded from the referenced Core Wiki Engine PRD.",
+  "sources": [
+    {
+      "slug": "EPsdD7uK8e",
+      "title": "PRD: orvex-wiki"
+    },
+    {
+      "slug": "twQ3BBzpTE",
+      "title": "Architecture: orvex-wiki"
+    },
+    {
+      "slug": "opJLbcaGxU",
+      "title": "Architecture Audit — SE-Arch review (2026-07-05)"
+    },
+    {
+      "slug": "qJojHbWJni",
+      "title": "Orvex Wiki Program — Authoritative Study & Fold-In Plan (plan of record)"
+    },
+    {
+      "slug": "R5OC7z3v3y",
+      "title": "Decision Records — orvex-wiki (engine)"
+    },
+    {
+      "slug": "5uf23v6wIW",
+      "title": "ADR-0001: Transactional outbox to Kafka direct — no Redis bridge"
+    },
+    {
+      "slug": "wpphVwQ3aO",
+      "title": "ADR-0002: Native login removed — identity-only auth"
+    },
+    {
+      "slug": "Nr3WIs0Zpt",
+      "title": "ADR-0003: Quota counters fail-open for cheap resources on Redis loss"
+    },
+    {
+      "slug": "MXKW6srwyD",
+      "title": "ADR-0004: Billing→engine entitlement read — push-evict + pull-on-miss"
+    },
+    {
+      "slug": "sABdrZoQdp",
+      "title": "ADR-0005: Minimal standalone wiki — engine + identity mandatory"
+    }
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] wiki: Thin-fork foundation & upstream-mergeability",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {
+          "id": "E1-S1",
+          "title": "[wiki] Scaffold orvex/* module tree + single OrvexRootModule import + no-@docmost/no-ee import guards",
+          "body_file": "bodies/E1-S1.md",
+          "covers": [
+            "A-THIN"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S2",
+          "title": "[wiki] FR-30 divergence gate CI (weighted hot-file conflict-hunks) + 13-row allow-list ledger",
+          "body_file": "bodies/E1-S2.md",
+          "covers": [
+            "FR-W23",
+            "FR-30",
+            "A-THIN"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S3",
+          "title": "[wiki] Overlay-rebase import runbook + 15-item correctness-hardening allow-list class",
+          "body_file": "bodies/E1-S3.md",
+          "covers": [
+            "FR-W23",
+            "FR-W24",
+            "A-IMPORT",
+            "A-HARDENING"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E1-S4",
+          "title": "[wiki] Boot-migrate advisory lock + renamed-migration duplicate trap + db.d.ts verbatim + orvex_migrations ledger",
+          "body_file": "bodies/E1-S4.md",
+          "covers": [
+            "FR-W22",
+            "A-BOUNDARY"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] wiki: Page-meta side table & write/read/export primitives",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {
+          "id": "E2-S1",
+          "title": "[wiki] orvex_page_meta side table + move 18 product columns off upstream pages + rewrite read sites",
+          "body_file": "bodies/E2-S1.md",
+          "covers": [
+            "FR-W3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S2",
+          "title": "[wiki] apply-ops write chokepoint (typed PM-JSON ops, CAS ifVersion→409, atomic-or-409)",
+          "body_file": "bodies/E2-S2.md",
+          "covers": [
+            "FR-W1"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S3",
+          "title": "[wiki] FR-13 ACL evaluation primitive + evalPage page-level fix + delta-pull-through-ACL",
+          "body_file": "bodies/E2-S3.md",
+          "covers": [
+            "FR-W2",
+            "FR-13"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S4",
+          "title": "[wiki] Export primitive (markdown FR-18 + embed-resolved text_repr FR-38) + export-authz REM-1 IDOR + real audit-service",
+          "body_file": "bodies/E2-S4.md",
+          "covers": [
+            "FR-W4",
+            "FR-18",
+            "FR-38"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S5",
+          "title": "[wiki] Atomic AI-provenance stamp (aiAuthored mark + provenanceChangedById) in-tx on REST + collab via updatePageContent({markAiAuthored})",
+          "body_file": "bodies/E2-S5.md",
+          "covers": [
+            "FR-12"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S6",
+          "title": "[wiki] Transclusion-impact primitive + safeguard interceptor on destructive mutation of a transcluded source",
+          "body_file": "bodies/E2-S6.md",
+          "covers": [
+            "FR-10"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S7",
+          "title": "[wiki] FR-40 page-lifecycle workflow (mark-superseded/archive/status-control + show-superseded tree filter + superseded banner + link-rewrite) riding the orvex_page_meta seam",
+          "body_file": "bodies/E2-S7.md",
+          "covers": [
+            "FR-40"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] wiki: @orvex/dfm shared serializer subsystem",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {
+          "id": "E3-S1",
+          "title": "[wiki] Extract @orvex/dfm standalone package + write-path imports + opaque-fence round-trip / DFM_OPAQUE_UNKNOWN_REF throw",
+          "body_file": "bodies/E3-S1.md",
+          "covers": [
+            "FR-W18",
+            "A-DFM"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S2",
+          "title": "[wiki] DfM import-boundary guard (AGPL TS in-engine only) + golden-fixture conformance vs Go twin",
+          "body_file": "bodies/E3-S2.md",
+          "covers": [
+            "FR-W18",
+            "FR-W18b",
+            "A-SEAMS"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] wiki: Quota enforcement at the write chokepoint",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {
+          "id": "E4-S1",
+          "title": "[wiki] Entitlement-reader interface + billing cache (short-TTL, evict on billing.entitlement.changed) + interim hardcode-Free",
+          "body_file": "bodies/E4-S1.md",
+          "covers": [
+            "FR-W11"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S2",
+          "title": "[wiki] Redis fast-counter pre-flight O(1) quota check at page-create/attachment-upload/member-add over REST + collab paths",
+          "body_file": "bodies/E4-S2.md",
+          "covers": [
+            "FR-W10",
+            "FR-W12",
+            "A-QUOTA"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S3",
+          "title": "[wiki] 402 QUOTA_EXCEEDED verdict as domain fn + controller/collab marshal + deep-link/largest-files + members 110% JIT",
+          "body_file": "bodies/E4-S3.md",
+          "covers": [
+            "FR-W13",
+            "A-QUOTA-HARDENING"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S4",
+          "title": "[wiki] Counter reconciliation sweep (O(changed)) + fail-closed-storage/fail-open-cheap on Redis loss + warn-mode rollout",
+          "body_file": "bodies/E4-S4.md",
+          "covers": [
+            "FR-W12",
+            "A-QUOTA-HARDENING"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E4-S5",
+          "title": "[wiki] History-retention prune cron (singleton) + quota-state query endpoint",
+          "body_file": "bodies/E4-S5.md",
+          "covers": [
+            "FR-W14",
+            "FR-W15"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] wiki: Event spine — transactional outbox → Kafka",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {
+          "id": "E5-S1",
+          "title": "[wiki] Transactional outbox row in same DB tx as each mutation incl the collab onStoreDocument write path",
+          "body_file": "bodies/E5-S1.md",
+          "covers": [
+            "FR-W5",
+            "FR-17",
+            "A-EVENTS"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E5-S2",
+          "title": "[wiki] Worker-role relay drains outbox → Kafka CloudEvents (partitionkey=workspaceId) + own envelope builder on golden fixtures",
+          "body_file": "bodies/E5-S2.md",
+          "covers": [
+            "FR-W5",
+            "A-EVENTS",
+            "A-SEAMS"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E5-S3",
+          "title": "[wiki] Cell-contract producer duties: orvexcell attr + {domain}-events.{cell} single-partition topics + correlation-id + relay liveness/lag heartbeat",
+          "body_file": "bodies/E5-S3.md",
+          "covers": [
+            "A-CELL",
+            "A-OBSERVE"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S4",
+          "title": "[wiki] FR-37 distributed-cleanup contract: emit durable workspace.deleted/user.deleted outbox events on tenant/user removal (replaces cross-service FK cascades)",
+          "body_file": "bodies/E5-S4.md",
+          "covers": [
+            "FR-37"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] wiki: Auth spine — identity-only, AGPL-clean",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {
+          "id": "E6-S1",
+          "title": "[wiki] Clean-room AGPL api-key rebuild under orvex/api-key + repoint jwt.strategy off ee/api-key",
+          "body_file": "bodies/E6-S1.md",
+          "covers": [
+            "FR-W7",
+            "FR-11"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S2",
+          "title": "[wiki] Exchange-token session-mint consume (RS256/JWKS) → createSessionAndToken; native login removed fully",
+          "body_file": "bodies/E6-S2.md",
+          "covers": [
+            "FR-W6",
+            "FR-15",
+            "A-AUTH"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S3",
+          "title": "[wiki] AGPL §13 source-offer @Public {sha,sourceRepo} endpoint + git mirror + LICENSE-COMPLIANCE + reconcile conflicting endpoints",
+          "body_file": "bodies/E6-S3.md",
+          "covers": [
+            "FR-W19"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] wiki: Multi-tenant enablement & isolation",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {
+          "id": "E7-S1",
+          "title": "[wiki] CLOUD-clean boot (no exit on absent ee.module) + hostname resolver label-0 tenant + soft label-2 cell assertion (solo no-op)",
+          "body_file": "bodies/E7-S1.md",
+          "covers": [
+            "FR-W20"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S2",
+          "title": "[wiki] Transaction-scoped fail-closed RLS (set_config txn-scoped) + cross-tenant CI probes (bytes=0)",
+          "body_file": "bodies/E7-S2.md",
+          "covers": [
+            "FR-W8"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S3",
+          "title": "[wiki] Polymorphic user-or-org tenant + personal→Teams upgrade-pass re-key + global-uniqueness delegation to registry",
+          "body_file": "bodies/E7-S3.md",
+          "covers": [
+            "A-TENANCY"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S4",
+          "title": "[wiki] Sever upstream Stripe seat-sync → emit billing.* event; retire in-engine billing migration; no Stripe secret",
+          "body_file": "bodies/E7-S4.md",
+          "covers": [
+            "FR-W21",
+            "A-BOUNDARY"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E7-S5",
+          "title": "[wiki] FR-22 tenant suspension enforcement — live/push-invalidated block of all-but-read/export/auth surfaces, near-instant cell-wide (wires the unused tenant status)",
+          "body_file": "bodies/E7-S5.md",
+          "covers": [
+            "FR-22"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] wiki: Collab, React client & API boundary",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {
+          "id": "E8-S1",
+          "title": "[wiki] Collab Yjs/Hocuspocus server-schema node/mark registration (all additive nodes, minus Linear D-S11) + React client native ProseMirror",
+          "body_file": "bodies/E8-S1.md",
+          "covers": [
+            "FR-W9"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E8-S2",
+          "title": "[wiki] Thin-UI AI/MCP/API/api-key affordances as SSE readers with zero server AI logic (D-S4 exception)",
+          "body_file": "bodies/E8-S2.md",
+          "covers": [
+            "FR-W18c"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E8-S3",
+          "title": "[wiki] Engine API internal-only / no /docs Swagger + product-family-agnostic configured endpoints + graceful degrade",
+          "body_file": "bodies/E8-S3.md",
+          "covers": [
+            "FR-W25",
+            "FR-W16",
+            "FR-W17",
+            "A-PORTABLE",
+            "A-APIBOUNDARY"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E9",
+      "title": "[EPIC] wiki: Cross-cell tenant-move contract & observability",
+      "body_file": "bodies/E9.md",
+      "stories": [
+        {
+          "id": "E9-S1",
+          "title": "[wiki] Cross-cell tenant-move typed step-API (quiesce/export/import/activate, Idempotency-Key, TenantMoveManifest) + coverage-checked TENANT_MOVE.md",
+          "body_file": "bodies/E9-S1.md",
+          "covers": [
+            "A-MOVE"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E9-S2",
+          "title": "[wiki] Per-role liveness (worker relay heartbeat, collab WS probe) + /api/health echoes CELL_ID+CLUSTER_NAME + file load-bearing ADR-NNNN drafts",
+          "body_file": "bodies/E9-S2.md",
+          "covers": [
+            "A-OBSERVE",
+            "A-CELL",
+            "A-ADR"
+          ],
+          "audit": "partial"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-W1",
+      "FR-W2",
+      "FR-W3",
+      "FR-W4",
+      "FR-W5",
+      "FR-W6",
+      "FR-W7",
+      "FR-W8",
+      "FR-W9",
+      "FR-W10",
+      "FR-W11",
+      "FR-W12",
+      "FR-W13",
+      "FR-W14",
+      "FR-W15",
+      "FR-W16",
+      "FR-W17",
+      "FR-W18",
+      "FR-W18b",
+      "FR-W18c",
+      "FR-W19",
+      "FR-W20",
+      "FR-W21",
+      "FR-W22",
+      "FR-W23",
+      "FR-W24",
+      "FR-W25",
+      "FR-10",
+      "FR-11",
+      "FR-12",
+      "FR-13",
+      "FR-15",
+      "FR-17",
+      "FR-18",
+      "FR-22",
+      "FR-30",
+      "FR-37",
+      "FR-38",
+      "FR-40",
+      "A-THIN",
+      "A-DFM",
+      "A-QUOTA",
+      "A-EVENTS",
+      "A-PORTABLE",
+      "A-TENANCY",
+      "A-BOUNDARY",
+      "A-IMPORT",
+      "A-HARDENING",
+      "A-APIBOUNDARY",
+      "A-CELL",
+      "A-MOVE",
+      "A-SEAMS",
+      "A-OBSERVE",
+      "A-QUOTA-HARDENING",
+      "A-ADR",
+      "A-AUTH"
+    ],
+    "uncovered": []
+  }
+}

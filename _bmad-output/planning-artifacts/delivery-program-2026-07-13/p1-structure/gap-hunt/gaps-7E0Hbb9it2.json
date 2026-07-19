@@ -1,0 +1,13 @@
+{
+  "slug": "7E0Hbb9it2",
+  "title": "ADR-0003: Frozen QUOTA_EXCEEDED (402) contract",
+  "verdict_summary": "Canonical (ratified 2026-07-07) ADR that freezes the cross-service over-quota wire contract. It formalizes already-tracked requirements F-QUOTA / A-QUOTA and A-QUOTA-HARDENING F9 — both A-QUOTA and A-QUOTA-HARDENING are present in covers-union.json. Every testable clause maps to an existing BUILD story: clause 1 (402 on both REST + collab write paths) and clause 4 (verdict as orvex/quota domain fn, controller/collab only marshal) are covered by the engine quota-enforcement epic (feature-map lines 622-624); clause 5 (pin QUOTA_EXCEEDED in orvex-studio-contracts errors/vocabulary.yaml, HTTP 402, exitBucket 4) by the contracts error-vocabulary stories (lines 166, 276) plus conformance fixtures (line 119); clause 6 (wiki-api passthrough unchanged) by wiki-api.yaml QUOTA passthrough + verbatim propagation stories (lines 260, 442, 587); clause 7 (member-add 110% JIT grace vs manual block) explicitly by line 624 'members 110% JIT'. Clauses 2 and 3 (never-429/never-destructive; reads/exports/deletes always succeed) are inherent postures of the same domain verdict, not separable build items. No uncovered build obligation. Zero gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex/quota domain service function", "quote": "The over-quota `402 QUOTA_EXCEEDED` verdict MUST be computed by the `orvex/quota` domain/service function."},
+    {"name": "page.controller.ts + collab (Yjs) persistence hook", "quote": "`page.controller.ts` and the collab persistence hook MUST only call the quota service and translate its verdict"},
+    {"name": "orvex-studio-contracts errors/vocabulary.yaml pin", "quote": "`QUOTA_EXCEEDED` MUST be a frozen entry in `orvex-studio-contracts` (`errors/vocabulary.yaml`): HTTP `402`, `exitBucket` 4, `surfaces: [engine, wiki-api]`."},
+    {"name": "contracts golden fixtures", "quote": "The engine's response MUST conform to this entry, proven against the contract's golden fixtures."},
+    {"name": "wiki-api passthrough relay", "quote": "When wiki-api fronts a write that the engine rejects with `402 QUOTA_EXCEEDED`, it MUST relay that status and `errorCode` unchanged"}
+  ]
+}

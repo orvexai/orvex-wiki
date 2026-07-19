@@ -1,0 +1,11 @@
+{
+  "slug": "WWngFAdCYk",
+  "total": 1,
+  "results": [
+    {
+      "id": "D-S27",
+      "verdict": "COVERED",
+      "owner_or_reason": "wiki/E7-S1 (FR-W20) '[wiki] CLOUD-clean boot ... + hostname resolver label-0 tenant + soft label-2 cell assertion (solo no-op)' implements the load-bearing BUILD obligation (engine resolver split('.')[0] label-0 tenant + soft label-2 cell assertion). Remaining ADR obligations (per-cell LE wildcard certs, tenant-free apex guard, cell-lint rule 9 token registry) are GitOps/ops-config already live for eu1 dev cell or covered by cross-service cell-lint stories / explicitly future-additive per gap-hunt/gaps-adr-0002-wiki-url-host-ordering.json (gaps: []); not un-homed program work."
+    }
+  ]
+}

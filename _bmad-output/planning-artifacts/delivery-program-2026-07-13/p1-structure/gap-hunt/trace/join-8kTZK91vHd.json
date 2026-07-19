@@ -1,0 +1,11 @@
+{
+  "slug": "8kTZK91vHd",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0028",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Decision record enrolling staging+workgraph write surfaces into the frozen 402 QUOTA_EXCEEDED vocabulary (per ADR-0003 D5's ADR-lane requirement); introduces no new formal requirement id or build id of its own. Not a key in coverage-index.json (unlike ADR-0011/0015/0004/0020/0035/0008 which were synthetic gapfix/extsweep tickets). All build obligations it implies trace to already-covered requirements per the page's own gap-hunt verdict (gaps=[]): A-ADR, FR-STG3, NFR-STG2 (staging quota - 'Staged proposal intake' epic, admission control & 402 QUOTA_EXCEEDED), FR-MEM1/FR-MEM8/NFR-MEM3 (workgraph quota - 'Block-patch write chokepoint, CAS, human-gating & quota' epic), plus contracts errors/vocabulary.yaml surfaces growth and billing entitlement-catalog dimensions, all already covered elsewhere."
+    }
+  ]
+}

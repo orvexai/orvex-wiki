@@ -1,0 +1,11 @@
+{
+  "slug": "AqXpAlgvIv",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0025",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Naming/ownership-boundary decision ADR (Workgraph supersedes OPS agent-side memory design), not a build spec itself. Its only concrete obligations are FR-MEM21/22/23, all covered in coverage-index.json (ENG-2232, ENG-2236, workgraph-corpus). Prior gap-hunt pass (gaps-AqXpAlgvIv.json) independently concluded zero build gaps for this id."
+    }
+  ]
+}

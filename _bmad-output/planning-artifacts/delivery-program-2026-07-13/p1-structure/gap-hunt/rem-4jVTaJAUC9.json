@@ -1,0 +1,6 @@
+{
+  "slug": "4jVTaJAUC9",
+  "title": "Server Internals (engine)",
+  "classification": "reference/explanation (architecture orientation map — module wiring, DI conventions, request pipeline, auth model, background processing, real-time subsystems; no formal requirement IDs or build-mandating MUSTs)",
+  "gaps": []
+}

@@ -1,0 +1,190 @@
+{
+ "sources_read": [
+  "0NPvDR3C0m",
+  "0mFImku9Gp",
+  "1dFHMUtcKS",
+  "2KrwsvY5zL",
+  "4IF3xjIdAs",
+  "5uf23v6wIW",
+  "7LGGFR5tGE",
+  "85qj2wwU2L",
+  "86CiGucQwU",
+  "8jAiCBifDW",
+  "BE0jTNoweS",
+  "Blcvui4UIn",
+  "C9ufBCuXsy",
+  "CYHyoUd7J1",
+  "Cb0XBkNezd",
+  "CxjFpIVUZY",
+  "DRP67l1a6q",
+  "DmJsnB5Z9Y",
+  "EJ9WgVAuls",
+  "EPsdD7uK8e",
+  "GOacy9kdJz",
+  "Ii9q9kBNms",
+  "JGAUQRsw2g",
+  "JiIyp0RLLJ",
+  "JxnqaaYx3j",
+  "KeREQUiGjA",
+  "Kgp6JT3IOR",
+  "L1NVnmRgpy",
+  "MXKW6srwyD",
+  "NdH4benMGe",
+  "Nr3WIs0Zpt",
+  "P5R7eCXJA0",
+  "PACF13d3I3",
+  "R4AOVBLST7",
+  "R5OC7z3v3y",
+  "TYWAtnvliD",
+  "TpxkDsKTkC",
+  "YuY9XWpKPS",
+  "amendments",
+  "azRwTCZMqw",
+  "bnbRUdCm6R",
+  "cnhla0qRRF",
+  "dCbFzRQGDr",
+  "dQUjrSXhdp",
+  "dcOUbpzE8L",
+  "ekTh7nDQqo",
+  "fG2jKeRGiu",
+  "g9vWbSYplh",
+  "gh6tVUtrwr",
+  "iiCcKhGptV",
+  "j8ZO0NAB2A",
+  "jwF4VLHfNs",
+  "k1sWjtJq3x",
+  "kldiZu93EC",
+  "lR3kpc0Ra2",
+  "mOzNDhn322",
+  "nngOgO0CGO",
+  "o2ZqSrZjE6",
+  "o2waDNw3ix",
+  "oaD5XUHqfb",
+  "opJLbcaGxU",
+  "pG9s9OjqZA",
+  "pbKI3BpQmY",
+  "pf10XC2Qjz",
+  "qJojHbWJni",
+  "referenced",
+  "sABdrZoQdp",
+  "tightening",
+  "twQ3BBzpTE",
+  "ukKiIMWYRg",
+  "unratified",
+  "workstream",
+  "wpphVwQ3aO",
+  "xsRMrju3D1"
+ ],
+ "per_service": {
+  "ai": [
+   "Cb0XBkNezd",
+   "oaD5XUHqfb",
+   "pbKI3BpQmY"
+  ],
+  "api": [
+   "85qj2wwU2L",
+   "TpxkDsKTkC",
+   "ekTh7nDQqo",
+   "g9vWbSYplh",
+   "iiCcKhGptV"
+  ],
+  "billing": [
+   "Blcvui4UIn",
+   "o2ZqSrZjE6",
+   "ukKiIMWYRg"
+  ],
+  "cli": [
+   "EJ9WgVAuls",
+   "PACF13d3I3",
+   "R4AOVBLST7",
+   "pf10XC2Qjz"
+  ],
+  "console": [
+   "Ii9q9kBNms",
+   "L1NVnmRgpy",
+   "TYWAtnvliD",
+   "kldiZu93EC"
+  ],
+  "contracts": [
+   "jwF4VLHfNs",
+   "nngOgO0CGO",
+   "o2waDNw3ix",
+   "tightening"
+  ],
+  "identity": [
+   "CYHyoUd7J1",
+   "YuY9XWpKPS",
+   "cnhla0qRRF",
+   "dQUjrSXhdp"
+  ],
+  "knowledge": [
+   "0mFImku9Gp",
+   "NdH4benMGe",
+   "azRwTCZMqw",
+   "dCbFzRQGDr",
+   "dcOUbpzE8L"
+  ],
+  "lib": [
+   "0NPvDR3C0m",
+   "86CiGucQwU",
+   "CxjFpIVUZY",
+   "EPsdD7uK8e",
+   "JGAUQRsw2g",
+   "JxnqaaYx3j",
+   "fG2jKeRGiu"
+  ],
+  "mcp": [
+   "BE0jTNoweS",
+   "k1sWjtJq3x",
+   "lR3kpc0Ra2"
+  ],
+  "staging": [
+   "GOacy9kdJz",
+   "P5R7eCXJA0",
+   "mOzNDhn322"
+  ],
+  "ui": [
+   "1dFHMUtcKS",
+   "C9ufBCuXsy",
+   "DRP67l1a6q",
+   "DmJsnB5Z9Y",
+   "EPsdD7uK8e",
+   "JGAUQRsw2g",
+   "KeREQUiGjA",
+   "gh6tVUtrwr",
+   "j8ZO0NAB2A",
+   "xsRMrju3D1"
+  ],
+  "wiki-api": [
+   "8jAiCBifDW",
+   "amendments",
+   "pG9s9OjqZA",
+   "tightening",
+   "unratified"
+  ],
+  "wiki": [
+   "5uf23v6wIW",
+   "EPsdD7uK8e",
+   "MXKW6srwyD",
+   "Nr3WIs0Zpt",
+   "R5OC7z3v3y",
+   "opJLbcaGxU",
+   "qJojHbWJni",
+   "referenced",
+   "sABdrZoQdp",
+   "twQ3BBzpTE",
+   "wpphVwQ3aO"
+  ],
+  "workflows": [
+   "4IF3xjIdAs",
+   "7LGGFR5tGE",
+   "JiIyp0RLLJ",
+   "workstream"
+  ],
+  "workgraph": [
+   "2KrwsvY5zL",
+   "Kgp6JT3IOR",
+   "bnbRUdCm6R"
+  ]
+ }
+}

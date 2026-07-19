@@ -1,0 +1,95 @@
+{
+  "method": "Component-birth census. Swept (a) gh repo list orvexai (60 repos), (b) local /home/daniel/repos/orvex*+docmost* (34 dirs), (c) canon grep across the offline wiki mirror /home/daniel/repos/orvex-studio/.cache/docs (orvexstudio umbrella + orvexstudioarch + service spaces), (d) Family Map (XqxC4ayK4v), sources-read.json, feature-map.txt. Baseline = the 17 program components: contracts, lib, staging, workgraph, ai, api, knowledge, billing, identity, mcp, wiki(engine), wiki-api, cli, console, workflows, ui, extension. The Family Map itself only lists 16 spaces (extension already known-missing); every repo/artifact below is NOT one of the 17.",
+  "candidates": [
+    {
+      "name": "orvex-ds (shared Design System / orvex-ds.css)",
+      "classification": "ACTIVE-PRODUCT-COMPONENT-MISSING-FROM-PROGRAM",
+      "evidence": "Canon treats it as a first-class shippable dependency: orvexstudioui PRD/arch — 'The look is the adopted Design System (orvex-ds.css, exact-match token fidelity, light + dark), and WCAG 2.1 AA ... is a hard ship-gate'; console arch — 'exact-match token fidelity to the shared orvex-ds.css design system'; it is a SHARED contract consumed exact-match by BOTH ui and console (and ~35 UI surfaces). Yet it has NO repo (0/60 orvexai repos match ds/design), NO wiki space (absent from Family Map + mirror), and is NOT one of the 17. It physically exists only as a stray file inside legacy/showcase repos (orvex-prompt-studio-poc/design-artifacts/, copied into orvex-studio-gallery). Canon EXPLICITLY leaves its home unresolved: OQ-UI7 — 'decide where the DS file's source-of-truth lives once code consumes it (contracts? this repo? the DS wiki node?)'. Same class of miss as the browser-extension: a program-critical deliverable with no owning component/track.",
+      "action_needed": true
+    },
+    {
+      "name": "orvex-studio-control",
+      "classification": "legacy-being-drained",
+      "evidence": "Not a distinct component — renamed to orvex-studio-console on 2026-07-05 (README: 'Renamed from orvex-studio-control 2026-07-05; this local checkout directory name is unchanged pending a physical rename'); git remote is git@github.com:orvexai/orvex-studio-console.git. Maps to the existing 'console' component. Local dir name is stale only.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-studio-gallery (Orvex Model Gallery)",
+      "classification": "pattern-source",
+      "evidence": "README: 'research/showcase: candidate information models + live per-result portals (extracted from orvex-prompt-studio)' whose point is 'to prove that strong typing buys great UX'. Canon build-state reset lists it among 'deprecated/adjacent repos' debris. A research/showcase + orvex-ds.css carrier, not a shippable program product.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-prompt-studio-poc",
+      "classification": "legacy-being-drained",
+      "evidence": "The live Phase-1 monolith (arch: 'the actual Studio front-end thats shipped and live is the older orvex-prompt-studio-poc monolith; Phase 1: 15/15 milestones, 83/83 stories, shipped 2026-07-02'). It is the strangler SOURCE being extracted into orvex-studio-ui (apps/web) + orvex-studio-api (apps/bff); code reused freely (proprietary, not AGPL). Not a new component — its function lands in ui+api.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-prompt-studio",
+      "classification": "legacy-being-drained",
+      "evidence": "Earlier persona-builder studio ('two UIs you can bring up': Studio + Prototype reference). Predecessor to the poc/strangle line; its behaviour/IA is the reference being drained into orvex-studio-ui. Not a program component of its own.",
+      "action_needed": false
+    },
+    {
+      "name": "docmost",
+      "classification": "legacy-being-drained",
+      "evidence": "The upstream Docmost fork monolith being strangled into the thin AGPL engine (orvex-wiki) + closed satellites (the whole program premise). Deprovision EXECUTION still transiently lives here (orvex-clerk-deprovision README) but it is the drain SOURCE, not a target component.",
+      "action_needed": false
+    },
+    {
+      "name": "docmost-cli",
+      "classification": "legacy-being-drained",
+      "evidence": "orvex-cli repo description: 'Orvex CLI — multi-service command line ... Successor to docmost-cli.' orvex-cli architecture carries a 'docmost-cli behaviour-parity harness as CI gate' + a docmost-cli shim/DOCMOST_* env aliases migration. Maps to the existing 'cli' component; being drained into it.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-clerk-deprovision",
+      "classification": "legacy-being-drained",
+      "evidence": "README: 'Event-driven Clerk deprovisioning orchestrator.' orvex-studio-workflows README states 'The first workflow domain is clerk-deprovision.' — i.e. this standalone orchestrator is folded into the 'workflows' component. Not a separate program component.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-workflows",
+      "classification": "legacy-being-drained",
+      "evidence": "Local checkout whose README literally reads '# orvex-studio-workflows' (Orvex common workflow engine — Temporal control plane). Duplicate/old-name checkout of the 'workflows' component (GitHub: orvex-studio-workflows); canon build-reset flags 'orvex-workflows' among deprecated-adjacent debris.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-ai-engine / orxex-ai-engine",
+      "classification": "legacy-being-drained",
+      "evidence": "README '# orxex-ai-engine' (typo'd); last activity 2026-06-07 'docs: add research and brainstorming artifacts'. Early AI-engine research repo superseded by the program's 'ai' component (orvex-studio-ai). Research artifacts only; no active product surface.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-omk (Orvex Managed Kubernetes)",
+      "classification": "infra-ops",
+      "evidence": "README: 'Product repository for Orvex Managed Kubernetes — a multi-tenant managed-Kubernetes service built on Kamaji.' A SEPARATE Orvex product line (managed k8s), not part of the Orvex Studio family/program. Out of scope for the 17.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-ops (orvex-ops-engine)",
+      "classification": "infra-ops",
+      "evidence": "README '# orvex-ops-engine'; single 'first commit' (2026-04-22), no product surface. Ops/infra scaffold, not a Studio product component.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-sh",
+      "classification": "infra-ops",
+      "evidence": "README: 'Tiny landing page served at https://orvex.sh/. Hosts orvex install endpoints' (curl orvex.sh/install/bmad | bash). Installer/landing infra, not a program product component.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-scripts",
+      "classification": "infra-ops",
+      "evidence": "Repo description: 'Orvex cross-repo ops scripts (crew orchestration, etc.)'; latest commit 'feat(crew): per-developer crew stack orchestration'. Ops tooling, not a product component.",
+      "action_needed": false
+    },
+    {
+      "name": "orvex-studio (local mirror workspace)",
+      "classification": "infra-ops",
+      "evidence": "README: 'Local docs-mirror workspace ... This repo has no application code of its own — it is a docmost-cli-maintained, read-only mirror of every active wiki space.' Documentation-mirror tooling, not a component.",
+      "action_needed": false
+    }
+  ]
+}

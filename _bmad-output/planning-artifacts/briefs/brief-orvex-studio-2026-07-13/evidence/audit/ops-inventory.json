@@ -1,0 +1,997 @@
+[
+{
+"slug": "bAULaFFRIr",
+"title": "ADR-0001: Adopt Clean Architecture (the Dependency Rule)",
+"status": "superseded"
+},
+{
+"slug": "2mAgXg9XEN",
+"title": "ADR-0003: The Skill Composition & Slot Model (Definitive)",
+"status": "superseded"
+},
+{
+"slug": "tEuPbgOgaR",
+"title": "AI Blue Ocean Strategy Canvas \u2014 Prompt Sheetc",
+"status": "superseded"
+},
+{
+"slug": "jpQdkE6J1O",
+"title": "AI Design Process",
+"status": "superseded"
+},
+{
+"slug": "KF2n9jN9BM",
+"title": "AI Playbooks \u2014 Run r2b6fa190",
+"status": "superseded"
+},
+{
+"slug": "PefPaoTXwr",
+"title": "Add-ons & Layers \u2014 SQL Schema",
+"status": "superseded"
+},
+{
+"slug": "XERodsw9d6",
+"title": "Add-ons, Layers & the Cascade",
+"status": "superseded"
+},
+{
+"slug": "Rc8raiGfWg",
+"title": "Addendum \u2014 Phase 1",
+"status": "superseded"
+},
+{
+"slug": "QeyS4DYUrR",
+"title": "Architecture & Engineering",
+"status": "superseded"
+},
+{
+"slug": "zcdMabYUwK",
+"title": "Architecture Overview",
+"status": "superseded"
+},
+{
+"slug": "XeeA4XoUVw",
+"title": "Architecture: Orvex Prompt Studio \u2014 Microservice Platform",
+"status": "superseded"
+},
+{
+"slug": "BPZKB5FGtS",
+"title": "Architecture: orvex-prompt-studio-poc",
+"status": "superseded"
+},
+{
+"slug": "IFgO7DoGMa",
+"title": "BUILD-PLAN \u2014 Memory, Reimagined: the Living Portrait (memory screen only)",
+"status": "superseded"
+},
+{
+"slug": "m2F8tasLCE",
+"title": "Blue Ocean Strategy Canvas \u2014 Orvex AI",
+"status": "superseded"
+},
+{
+"slug": "mb1Hn5ZGiP",
+"title": "Brainstorming \u2014 Initial Ideation",
+"status": "superseded"
+},
+{
+"slug": "i0c9NTMSDq",
+"title": "Build Log",
+"status": "superseded"
+},
+{
+"slug": "4FZPZnPhUG",
+"title": "Build Log \u2014 How This Run Was Produced",
+"status": "superseded"
+},
+{
+"slug": "jp8rEo0ED9",
+"title": "Build Log \u2014 Stage 1",
+"status": "superseded"
+},
+{
+"slug": "k92vkaGZLP",
+"title": "Build Log \u2014 r34929c9d",
+"status": "superseded"
+},
+{
+"slug": "kZtwOq4UJV",
+"title": "Build Log \u2014 r7bbc5ac9",
+"status": "superseded"
+},
+{
+"slug": "BEFuQFJJ9Q",
+"title": "Build \u2014 craft2",
+"status": "superseded"
+},
+{
+"slug": "1XjirJsYjM",
+"title": "Data & Results \u2014 r34929c9d",
+"status": "superseded"
+},
+{
+"slug": "bJ2YoNO8yK",
+"title": "Data & Results \u2014 r7bbc5ac9",
+"status": "superseded"
+},
+{
+"slug": "fHH5M7Nfte",
+"title": "Decision Records",
+"status": "superseded"
+},
+{
+"slug": "D1kbHAqvBN",
+"title": "Design & Experience",
+"status": "superseded"
+},
+{
+"slug": "ADCDZhdD7z",
+"title": "Design System",
+"status": "superseded"
+},
+{
+"slug": "fbdJ3mey0p",
+"title": "Diagrams",
+"status": "superseded"
+},
+{
+"slug": "zu18zBeMep",
+"title": "Engineering Standards: Clean Architecture & Anti-Slop",
+"status": "superseded"
+},
+{
+"slug": "SLTbsGhmiG",
+"title": "Experience Spec",
+"status": "superseded"
+},
+{
+"slug": "X0B8J3UPFv",
+"title": "Factors of Competition \u2014 How Orvex Compares",
+"status": "superseded"
+},
+{
+"slug": "yHnxCDuZ6O",
+"title": "Feature PRD: The Librarian",
+"status": "superseded"
+},
+{
+"slug": "yfeYhMc4Jc",
+"title": "HANDOFF \u2014 Build the Consumer-Grade, Cross-AI Skill SaaS (model-first, full end-to-end build)",
+"status": "superseded"
+},
+{
+"slug": "G1D1aTINlk",
+"title": "HANDOVER \u2014 state and next steps",
+"status": "superseded"
+},
+{
+"slug": "9zbGknV9mu",
+"title": "How It Works \u2014 r34929c9d",
+"status": "superseded"
+},
+{
+"slug": "u7vsUJbf2t",
+"title": "How It Works \u2014 r7bbc5ac9",
+"status": "superseded"
+},
+{
+"slug": "zD8VnvJXW6",
+"title": "How Orvex Works (Technical Companion)",
+"status": "superseded"
+},
+{
+"slug": "DDYdpqRfzD",
+"title": "How Prompt Studio works: skill-agnostic in, agent-agnostic out",
+"status": "superseded"
+},
+{
+"slug": "AjZax93KN1",
+"title": "Ingest Digest \u2014 7-Marketplace Fit-Test",
+"status": "superseded"
+},
+{
+"slug": "5XuOmqkHyv",
+"title": "Ingest Digest \u2014 ADRs and Engineering Standards",
+"status": "superseded"
+},
+{
+"slug": "lsx7hVVV7q",
+"title": "Ingest Digest \u2014 Cascade, Add-ons and Overlay",
+"status": "superseded"
+},
+{
+"slug": "olRa0nwI89",
+"title": "Ingest Digest \u2014 ChatGPT and Claude Responses",
+"status": "superseded"
+},
+{
+"slug": "gP4FyMdAfo",
+"title": "Ingest Digest \u2014 Grok Response (prose)",
+"status": "superseded"
+},
+{
+"slug": "roYdpcvyee",
+"title": "Ingest Digest \u2014 Grok Response (schema)",
+"status": "superseded"
+},
+{
+"slug": "PAaZG0WpDN",
+"title": "Ingest Digest \u2014 Library Schema and Glossary",
+"status": "superseded"
+},
+{
+"slug": "cZyxKmby1P",
+"title": "Ingest Digest \u2014 Persona Model and SQL",
+"status": "superseded"
+},
+{
+"slug": "JDvrKcC0Gp",
+"title": "Ingest Digest \u2014 Prior Art and Landscape",
+"status": "superseded"
+},
+{
+"slug": "S2rB4jq6Fg",
+"title": "Ingest Digest \u2014 Vision and Reasoning",
+"status": "superseded"
+},
+{
+"slug": "tO4JJWy9Sv",
+"title": "Ingest Digest \u2014 Workflow Model and SQL",
+"status": "superseded"
+},
+{
+"slug": "HRofbzwwa9",
+"title": "Library Schema (PostgreSQL) \u2014 Entities, Blocks & Attribution",
+"status": "superseded"
+},
+{
+"slug": "yGAMzHuBJP",
+"title": "Market Research - Orvex Competitive Landscape Deep Dive",
+"status": "superseded"
+},
+{
+"slug": "T0zq9bvrs9",
+"title": "Market Research \u2014 Does Orvex Already Exist? (Consumer Competitive Landscape)",
+"status": "superseded"
+},
+{
+"slug": "UF4Sa334xK",
+"title": "Master Design & Build Brief",
+"status": "superseded"
+},
+{
+"slug": "m93DraUfSE",
+"title": "Memory & The Librarian \u2014 how they work",
+"status": "superseded"
+},
+{
+"slug": "2KIcZG25kq",
+"title": "Model Derivation \u2014 Run blocktree (Typed Block Tree)",
+"status": "superseded"
+},
+{
+"slug": "xPOdzTqdup",
+"title": "Model Run \u2014 r34929c9d (The Almanac of Know-How)",
+"status": "superseded"
+},
+{
+"slug": "Q8dy3WZZyw",
+"title": "Model Run \u2014 r7bbc5ac9 \u00b7 Skillcraft",
+"status": "superseded"
+},
+{
+"slug": "VKfwA7maQS",
+"title": "Open Questions, Non-Negotiables & Out-of-Scope",
+"status": "superseded"
+},
+{
+"slug": "PuZLHOWOT9",
+"title": "Orchestration Plan \u2014 Validating Orvex's v1 Model & Harvesting Phase-2",
+"status": "superseded"
+},
+{
+"slug": "AFGfODrpNF",
+"title": "Orchestrator Prompt \u2014 Delivery (Studio POC)",
+"status": "superseded"
+},
+{
+"slug": "YYkJuKwYPq",
+"title": "Orvex AI Studio \u2014 Manual ",
+"status": "superseded"
+},
+{
+"slug": "G2GbLiYE3J",
+"title": "Orvex for Developers \u2014 the Deferred Product Line",
+"status": "superseded"
+},
+{
+"slug": "b5XE1sgNL1",
+"title": "Outstanding Tasks \u2014 craft2",
+"status": "superseded"
+},
+{
+"slug": "ir9bHu8DPb",
+"title": "Overrides & Rendering",
+"status": "superseded"
+},
+{
+"slug": "qTF4fTd1Wb",
+"title": "PRD: Orvex AI Studio \u2014 Phase 2 \u2014 Addendum",
+"status": "superseded"
+},
+{
+"slug": "S5r6j9Nban",
+"title": "PRD: Orvex \u2014 AI Knowledge & Prompt Manager",
+"status": "superseded"
+},
+{
+"slug": "Ep145q0k4B",
+"title": "Per-Source Ingest Digests",
+"status": "superseded"
+},
+{
+"slug": "QhQLly37ud",
+"title": "Persona",
+"status": "superseded"
+},
+{
+"slug": "ZGY3xrUEdo",
+"title": "Persona Discovery \u2014 Laura Pendleton (Year 9 English Teacher) ",
+"status": "superseded"
+},
+{
+"slug": "Ts48nnY0Xt",
+"title": "Persona \u2014 Import & Normalization (per source)",
+"status": "superseded"
+},
+{
+"slug": "bUlOi76njv",
+"title": "Persona \u2014 SQL Schema (Normalized)",
+"status": "superseded"
+},
+{
+"slug": "zb8gqIeIhO",
+"title": "Phase 0 \u2014 Validation Kit",
+"status": "superseded"
+},
+{
+"slug": "HD9ky5WSVU",
+"title": "Pivot \u2014 Staging Area (the radical rebuild)",
+"status": "superseded"
+},
+{
+"slug": "6D6KIq7jvL",
+"title": "Product",
+"status": "superseded"
+},
+{
+"slug": "WA9A1sEol7",
+"title": "Product Brief: Orvex Prompt Studio",
+"status": "superseded"
+},
+{
+"slug": "FTvQLOYrVH",
+"title": "Product Brief: The Librarian",
+"status": "superseded"
+},
+{
+"slug": "3tFjAG3GV9",
+"title": "Product Ideas, Pricing & Decisions \u2014 Session Capture",
+"status": "superseded"
+},
+{
+"slug": "AGHd9poFiW",
+"title": "Project Guidance: orvex-prompt-studio-poc",
+"status": "superseded"
+},
+{
+"slug": "FAgOW3FVRe",
+"title": "Prototype Component Inventory",
+"status": "superseded"
+},
+{
+"slug": "DRilyaXcs6",
+"title": "Rationale & Model Journey \u2014 r34929c9d",
+"status": "superseded"
+},
+{
+"slug": "3o4Otgdo4G",
+"title": "Rationale & Model Journey \u2014 r7bbc5ac9",
+"status": "superseded"
+},
+{
+"slug": "vSzk9YSeLZ",
+"title": "Readiness Assessment \u2014 Orvex (Diffusion of Innovations)",
+"status": "superseded"
+},
+{
+"slug": "crAXtH6qIc",
+"title": "Research Prompt \u2014 The Best Core Model for AI",
+"status": "superseded"
+},
+{
+"slug": "Hqflejyft9",
+"title": "Research \u2014 Landing Page & Onboarding Tour: Winning Attention Within Seconds",
+"status": "superseded"
+},
+{
+"slug": "zn4GhFZOty",
+"title": "Research \u2014 Messaging & Positioning: The Fletch Framework in Context",
+"status": "superseded"
+},
+{
+"slug": "Z1zqCe15xr",
+"title": "Results",
+"status": "superseded"
+},
+{
+"slug": "K1h0IbSxyK",
+"title": "Roles & Portals",
+"status": "superseded"
+},
+{
+"slug": "sSlV9zkXEA",
+"title": "Schema",
+"status": "superseded"
+},
+{
+"slug": "AyuKIfebxZ",
+"title": "Schema Fit-Test \u2014 7 Marketplaces (Rigorous Report)",
+"status": "superseded"
+},
+{
+"slug": "DfuPwiRg1U",
+"title": "Seeding & Backing Up a Dev Environment \u2014 Runbook",
+"status": "superseded"
+},
+{
+"slug": "CLPseCXJ0G",
+"title": "Services",
+"status": "superseded"
+},
+{
+"slug": "pYnqge4a9r",
+"title": "Skill marketplaces we can standardize on (importable + open-licensed)",
+"status": "superseded"
+},
+{
+"slug": "06Qf9DI3XY",
+"title": "Source Tree & Build System",
+"status": "superseded"
+},
+{
+"slug": "klYZDJsSQr",
+"title": "Source-Neutral Skill Model",
+"status": "superseded"
+},
+{
+"slug": "BE2UiDyiuq",
+"title": "Sources \u2014 r34929c9d",
+"status": "superseded"
+},
+{
+"slug": "2Jy9KQQN5p",
+"title": "Sources \u2014 r7bbc5ac9",
+"status": "superseded"
+},
+{
+"slug": "ULRhRXDSo1",
+"title": "Spike \u2014 Nail the Data Model (Developer Brief)",
+"status": "superseded"
+},
+{
+"slug": "OaBqmwsW6H",
+"title": "System Architecture Diagram",
+"status": "superseded"
+},
+{
+"slug": "7k78cteiH8",
+"title": "System, Data & Infrastructure",
+"status": "superseded"
+},
+{
+"slug": "rb6XvzAbCo",
+"title": "Technical Appendix",
+"status": "superseded"
+},
+{
+"slug": "QTXXaBTKxa",
+"title": "Technical Appendix",
+"status": "superseded"
+},
+{
+"slug": "CLWCHCD9b3",
+"title": "Technical Research: Prior Art & Landscape",
+"status": "superseded"
+},
+{
+"slug": "BzQOCzZHoK",
+"title": "Tests & Results \u2014 Empirical Proof",
+"status": "superseded"
+},
+{
+"slug": "FigQsGN2dT",
+"title": "The Data Model",
+"status": "superseded"
+},
+{
+"slug": "Q1Gy4MpjjM",
+"title": "The Model \u2014 Building Blocks (TBT)",
+"status": "superseded"
+},
+{
+"slug": "vuVpVVsw1g",
+"title": "The Orvex Skills Model \u2014 Reasoning & Evidence",
+"status": "superseded"
+},
+{
+"slug": "2u4eSCvgeE",
+"title": "The REST API",
+"status": "superseded"
+},
+{
+"slug": "Xsnv5MxhKY",
+"title": "The UI",
+"status": "superseded"
+},
+{
+"slug": "rX5EZLwzdm",
+"title": "Thesis & Lead Bets",
+"status": "superseded"
+},
+{
+"slug": "F2ZCmMwoCb",
+"title": "Trigger Map: Target Groups & Personas \u2014 orvex-prompt-studio-poc",
+"status": "superseded"
+},
+{
+"slug": "JT1ZpgGTFx",
+"title": "Unified Skill Data Model \u2014 Build Spec",
+"status": "superseded"
+},
+{
+"slug": "vLYqTsGCIa",
+"title": "Unified Skill Data Model \u2014 Evidence and Red-Team Review",
+"status": "superseded"
+},
+{
+"slug": "i10ZjwaxkT",
+"title": "Value Proposition \u2014 Orvex AI (Workshop Output)",
+"status": "superseded"
+},
+{
+"slug": "8kmKi4sYnZ",
+"title": "Vision \u2014 Knowledge & Prompt Management for AI (for everyone)",
+"status": "superseded"
+},
+{
+"slug": "ApOYJwtWnK",
+"title": "What We Will Not Build",
+"status": "superseded"
+},
+{
+"slug": "71o7AMcrmE",
+"title": "Where content lives: Git, Postgres, and the publish bridges",
+"status": "superseded"
+},
+{
+"slug": "TURhpU808V",
+"title": "Workflow",
+"status": "superseded"
+},
+{
+"slug": "5C28VkHPIz",
+"title": "Workflow \u2014 Import & Normalization (per source)",
+"status": "superseded"
+},
+{
+"slug": "wr0tOagHOZ",
+"title": "Workflow \u2014 SQL Schema (Normalized)",
+"status": "superseded"
+},
+{
+"slug": "tJY890AG7T",
+"title": "orvex-studio-admin \u2014 Admin Console",
+"status": "superseded"
+},
+{
+"slug": "KhVZKcsmYq",
+"title": "orvex-studio-ai \u2014 AI / Jobs & Shared-Knowledge",
+"status": "superseded"
+},
+{
+"slug": "LmSbw8iCyW",
+"title": "orvex-studio-contracts \u2014 Contracts & CI",
+"status": "superseded"
+},
+{
+"slug": "7rpa8zncz6",
+"title": "orvex-studio-control-plane \u2014 Control Plane",
+"status": "superseded"
+},
+{
+"slug": "nlGjdgMZYV",
+"title": "orvex-studio-core \u2014 Core Product API",
+"status": "superseded"
+},
+{
+"slug": "tnxlf5Pq6A",
+"title": "orvex-studio-events \u2014 Event Backbone",
+"status": "superseded"
+},
+{
+"slug": "15kAeEJBUf",
+"title": "orvex-studio-identity \u2014 Identity",
+"status": "superseded"
+},
+{
+"slug": "C7cAYETVoa",
+"title": "orvex-studio-memory \u2014 Knowledge & Memory",
+"status": "superseded"
+},
+{
+"slug": "P9M4KO7MJX",
+"title": "orvex-studio-transport \u2014 Transport / MCP",
+"status": "superseded"
+},
+{
+"slug": "27zfbMzkV9",
+"title": "orvex-studio-web \u2014 UI / BFF",
+"status": "superseded"
+},
+{
+"slug": "3YfyRiq80m",
+"title": "ADR-0002: Composition by combination + AI render at build time",
+"status": "archived"
+},
+{
+"slug": "hHfBG7faIj",
+"title": "Addendum \u2014 Product Brief: The Librarian",
+"status": "archived"
+},
+{
+"slug": "dvQn0HrpOu",
+"title": "Architecture: The Librarian",
+"status": "archived"
+},
+{
+"slug": "cgaZbPaQfK",
+"title": "Archive",
+"status": "archived"
+},
+{
+"slug": "tUOSWHrWE8",
+"title": "Autonomous Build Report \u2014 The Librarian",
+"status": "archived"
+},
+{
+"slug": "TMaaxw0kRZ",
+"title": "BUILD-PLAN \u2014 Memory Portrait: Rich \u00b7 Organised \u00b7 Structured \u00b7 Beautiful \u00b7 Living (memory screen only)",
+"status": "archived"
+},
+{
+"slug": "o5vH9O6xZc",
+"title": "Bare Test Page No Content",
+"status": "archived"
+},
+{
+"slug": "MEcmPZvEdV",
+"title": "Card Contract \u2014 The Librarian (contract_version: 1, FROZEN)",
+"status": "archived"
+},
+{
+"slug": "XgG8EywujM",
+"title": "Delivery Report \u2014 Skill-Studio Review-and-Fix (2026-07-03)",
+"status": "archived"
+},
+{
+"slug": "psnxt8NlAL",
+"title": "Design Brief \u2014 Memory, Reimagined",
+"status": "archived"
+},
+{
+"slug": "C9ufBCuXsy",
+"title": "Design System \u2014 Orvex AI Studio",
+"status": "archived"
+},
+{
+"slug": "fNLRiak4iU",
+"title": "Design System \u2014 Screen Visual Reference (Index)",
+"status": "archived"
+},
+{
+"slug": "j8ZO0NAB2A",
+"title": "Design Tokens \u2014 orvex-ds.css reference",
+"status": "archived"
+},
+{
+"slug": "mYFtkVJxkk",
+"title": "Development Guide",
+"status": "archived"
+},
+{
+"slug": "qmjV5Z5A01",
+"title": "Engine Spike \u2014 emergent / free-form-wiki adaptation",
+"status": "archived"
+},
+{
+"slug": "5LT8G9oFGA",
+"title": "Epics & Stories \u2014 The Librarian",
+"status": "archived"
+},
+{
+"slug": "UsKnPgaZ7u",
+"title": "Epics: Orvex AI Studio",
+"status": "archived"
+},
+{
+"slug": "KeREQUiGjA",
+"title": "First-Run + Home / App-Shell \u2014 Scenario & Spec",
+"status": "archived"
+},
+{
+"slug": "GXIk9t3cOe",
+"title": "Foundations & Engine",
+"status": "archived"
+},
+{
+"slug": "pt4OKaKQZr",
+"title": "Glossary \u2014 Domain Model",
+"status": "archived"
+},
+{
+"slug": "DRP67l1a6q",
+"title": "Improve with AI \u2014 Scenario & Spec",
+"status": "archived"
+},
+{
+"slug": "YkhyZG9UVG",
+"title": "Landing Page and Onboarding Tour Research",
+"status": "archived"
+},
+{
+"slug": "5w6cniZVmA",
+"title": "M0 \u2014 Foundation: frozen contract, paved deploy, render+stream spikes",
+"status": "archived"
+},
+{
+"slug": "mZpdeXsms9",
+"title": "MA1 \u2014 Onboarding & Memory: declare and own your private Memory",
+"status": "archived"
+},
+{
+"slug": "cEda1RHTBQ",
+"title": "MA2 \u2014 Discover & Search: find the right Skill fast",
+"status": "archived"
+},
+{
+"slug": "qyZS8osfJE",
+"title": "MA3 \u2014 Skill Viewer & Builder: read, fork, and edit a Skill",
+"status": "archived"
+},
+{
+"slug": "zRIdQB97Et",
+"title": "MA4 \u2014 Auth & Anonymous access: sign in and the public boundary",
+"status": "archived"
+},
+{
+"slug": "2L8YqtJ01k",
+"title": "MB1 \u2014 Export & Share: take a Skill anywhere",
+"status": "archived"
+},
+{
+"slug": "8ojSFaGMn6",
+"title": "MB2 \u2014 Improve with AI & capture-back: fix a Skill and learn from it",
+"status": "archived"
+},
+{
+"slug": "csVgjetViE",
+"title": "MB3 \u2014 Library & Collections: keep and organize your work",
+"status": "archived"
+},
+{
+"slug": "zniWJKb5cZ",
+"title": "MB4 \u2014 Marketplace, Publish & Lineage: publish and discover real Skills",
+"status": "archived"
+},
+{
+"slug": "Nu970wBBTm",
+"title": "MB5 \u2014 GitHub Import, Stars, Claim & Sync: real external Skills",
+"status": "archived"
+},
+{
+"slug": "ekQhrco6Cd",
+"title": "MB6 \u2014 Community, Suggestions & Reputation: contribute and earn standing",
+"status": "archived"
+},
+{
+"slug": "5F9oRMvxJ4",
+"title": "MB7 \u2014 Your Wiki: capture pages into your private Docmost space",
+"status": "archived"
+},
+{
+"slug": "thnMdaei5U",
+"title": "MC1 \u2014 Design System & UX Polish: AA-clean, on-brand, never-blank",
+"status": "archived"
+},
+{
+"slug": "v232T4tUfy",
+"title": "MC2 \u2014 Observability",
+"status": "archived"
+},
+{
+"slug": "NOiHLttXt4",
+"title": "MC3 \u2014 Demo Hardening & Whole-PRD Dress Rehearsal",
+"status": "archived"
+},
+{
+"slug": "N3IPMiOWix",
+"title": "Marketing / Sales Landing + Sign-Up \u2014 Scenario & Spec",
+"status": "archived"
+},
+{
+"slug": "RpBg6Diub2",
+"title": "Marketplace \u2014 Scenario & UX Spec",
+"status": "archived"
+},
+{
+"slug": "J2n3SeVFB5",
+"title": "Memory Editor \u2014 Scenario & Spec",
+"status": "archived"
+},
+{
+"slug": "pZwAf2vhXF",
+"title": "Memory, Reimagined",
+"status": "archived"
+},
+{
+"slug": "P2mbhAv7SI",
+"title": "Memory, Reimagined \u2014 UX Design (level-up addendum)",
+"status": "archived"
+},
+{
+"slug": "zRGKN3ZWfN",
+"title": "Model Evidence \u2014 the fitting campaign",
+"status": "archived"
+},
+{
+"slug": "JrzfaT2dre",
+"title": "Orvex AI Studio Phase 2 \u2014 Docmost Team Requirements",
+"status": "archived"
+},
+{
+"slug": "QOrMhXrjes",
+"title": "Orvex AI Studio Phase 2 \u2014 MCP Team Requirements",
+"status": "archived"
+},
+{
+"slug": "ZeyAA6S8hg",
+"title": "Orvex AI Studio \u2014 POC \u2014 Delivery",
+"status": "archived"
+},
+{
+"slug": "qPhaIGcAAg",
+"title": "Orvex Prompt Studio \u2014 POC (Demo)",
+"status": "archived"
+},
+{
+"slug": "aAMPKjnYGc",
+"title": "PRD Addendum: orvex-prompt-studio-poc",
+"status": "archived"
+},
+{
+"slug": "gh6tVUtrwr",
+"title": "PRD: Orvex AI Studio \u2014 Phase 2",
+"status": "archived"
+},
+{
+"slug": "2HmR5OvjEP",
+"title": "PRD: orvex-prompt-studio-poc",
+"status": "archived"
+},
+{
+"slug": "lCGVn3XvH8",
+"title": "Phased Plan (P0 \u2192 P\u221e)",
+"status": "archived"
+},
+{
+"slug": "OtOQ1WxxCA",
+"title": "Reference",
+"status": "archived"
+},
+{
+"slug": "EwL9n2cWbZ",
+"title": "Routes & Endpoints",
+"status": "archived"
+},
+{
+"slug": "cQeOClcHj0",
+"title": "Secondary Screens & Shell Components \u2014 Scenario & Spec",
+"status": "archived"
+},
+{
+"slug": "hktI6KP9Fy",
+"title": "Skill Authoring Umbrella \u2014 Scenario & Spec",
+"status": "archived"
+},
+{
+"slug": "JxBsy5ThTt",
+"title": "Skill Rendering & Import Quality \u2014 Process Runbook",
+"status": "archived"
+},
+{
+"slug": "n5WAqVxCgy",
+"title": "Social Features \u2014 Selected Features & Roadmap",
+"status": "archived"
+},
+{
+"slug": "c0E0rjIa82",
+"title": "Sources \u2014 the craft2 corpus",
+"status": "archived"
+},
+{
+"slug": "1BxDC4NwF8",
+"title": "Storyboard \u2014 Orvex AI Studio: the 6-beat journey",
+"status": "archived"
+},
+{
+"slug": "oK7XRmPsn2",
+"title": "Strategy & GTM \u2014 Hub",
+"status": "archived"
+},
+{
+"slug": "V1WeQOMznz",
+"title": "The Librarian",
+"status": "archived"
+},
+{
+"slug": "DzildKswk3",
+"title": "The Librarian \u2014 Comprehensive Feature Brief",
+"status": "archived"
+},
+{
+"slug": "WnbOq8eqRS",
+"title": "The Model \u2014 craft2 v3.2",
+"status": "archived"
+},
+{
+"slug": "ejUVGkIB7G",
+"title": "The Product \u2014 craft2",
+"status": "archived"
+},
+{
+"slug": "zorhg8aCo7",
+"title": "Trigger Map \u2014 orvex-prompt-studio-poc",
+"status": "archived"
+},
+{
+"slug": "JCkeerxYhb",
+"title": "Trigger Map: Feature-Impact Analysis \u2014 orvex-prompt-studio-poc",
+"status": "archived"
+},
+{
+"slug": "eO3CSNGaoU",
+"title": "UX Direction \u2014 Template-Builder Patterns & Task-Based Design",
+"status": "archived"
+},
+{
+"slug": "FFEW7pvlO7",
+"title": "UX Scenarios \u2014 Index & Coverage (Orvex AI Studio)",
+"status": "archived"
+},
+{
+"slug": "3RKKioGvr9",
+"title": "W5.c Live-Confirm Hand-Off \u2014 The Librarian",
+"status": "archived"
+},
+{
+"slug": "TeaMBF6Wz6",
+"title": "W5.d Final Gate \u2014 The Librarian",
+"status": "archived"
+},
+{
+"slug": "dMtLOpeeXL",
+"title": "Your Wiki \u2014 Scenario & Spec (the OUT loop)",
+"status": "archived"
+}
+]

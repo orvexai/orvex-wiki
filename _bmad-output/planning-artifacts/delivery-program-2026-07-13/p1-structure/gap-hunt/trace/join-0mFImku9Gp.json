@@ -1,0 +1,36 @@
+{
+  "slug": "0mFImku9Gp",
+  "total": 6,
+  "results": [
+    {
+      "id": "FR-K31b",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index key FR-K31B (case alias) -> ENG-2367/ENG-2368; also breakdown/knowledge/plan.json E10-S1 'Studio corpora ingestion ... per-corpus chunks/models' covers ['FR-K31b'] with AC3/AC4 citing FR-K31b directly"
+    },
+    {
+      "id": "D-R9-1",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/knowledge/plan.json E10-S1 AC3 explicitly tagged '(D-R9-1)' — knowledge consumes publisher ready-made chunks, does not chunk Studio corpora itself; also referenced in E1-S4 body ('R-9 D-R9-1/2 are BINDING') and E10 epic body"
+    },
+    {
+      "id": "D-R9-2",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/knowledge/plan.json E10-S1 AC4 explicitly tagged '(D-R9-2)' — per-corpus embedding model+version+dimension, RRF fuses by rank not raw score; also E1-S4 AC4 cites D-R9-2 for wiki-corpus embedding model pinning"
+    },
+    {
+      "id": "D-R9-3",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "No story anywhere covers or cites D-R9-3 (no old-vs-new comparison gate; golden sets are a forward-looking tripwire, not a legacy-parity benchmark). grep for 'D-R9-3', 'old-vs-new', 'parity bar', 'SHADOW'/'CANARY' migration gating across all breakdown/*/plan.json and bodies/*.md returns nothing tying this decision to a build story; E10-S4's eval harness (FR-E1..E4/AD-9) is a different eval mandate (Memory recall@10 vs a committed baseline) scoped to the Memory fold-in, not the R-9 three-stack consolidation eval strategy"
+    },
+    {
+      "id": "D-R9-4",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "No story encodes the R-9 migration-train cutover ORDER (wiki first, then Studio skills, then memory/chat, never big-bang). grep for 'D-R9-4', 'cutover order', 'wiki first', 'migration train' across all breakdown/*/plan.json and bodies/*.md finds no hits; wiki-api E3-S1/E3-S5 (search fronting to knowledge) and knowledge E2-S1/E3-S1 (replace tsvector/pgvector) exist but neither states or enforces the three-train sequencing decision"
+    },
+    {
+      "id": "D-R9-5",
+      "verdict": "UNCOVERED",
+      "owner_or_reason": "No story covers the per-corpus golden-query-set ownership model (each app writes its own golden set; knowledge owns/runs the harness and blocks a rollout that fails it) or the accepted no-fallback Turbopuffer outage posture. grep for 'D-R9-5', 'golden query', 'golden set' scoped to R-9/search-consolidation across breakdown finds no hits; E10-S4's eval harness is the separate Memory-fold-in recall@10 gate (FR-E1..E4/AD-9), not this per-corpus rollout-blocking harness"
+    }
+  ]
+}

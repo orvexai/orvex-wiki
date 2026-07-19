@@ -1,0 +1,13 @@
+{
+  "slug": "pYkl7HpOgr",
+  "title": "ADR-0007: CloudEvent envelope for studio-spine",
+  "verdict_summary": "Canonical, ratified decision record (contract-first, Apache-2.0) that pins the single structured-mode CloudEvent envelope (events/schemas/_envelope.json) for every studio-spine event. It mints no new FR-*/NFR- build ids; it references existing engine/cell-contract obligations (FR-C1/C4/C8, D-S13/D-S17/D-CON-*, rules #2/#4/#5/#6) and fixes a contract artifact. Every build obligation it implies — the _envelope.json schema + catalog dataschema pointers, the orvexcell/orvextenant helper stamp with fail-closed consume, partitionkey ordering, the outbox->Kafka relay/bridge, and the drift-gate emitted-event validation — is a definition-phase pack-spine obligation (A-EVENTS/A-SEAMS in covers-union) AND has concrete build stories (pkg/events envelope+orvexcell stamp, events/catalog.yaml catalog, envelope-profiles, transactional-outbox relay direct-to-Kafka, contract-drift emitted-event gate). No uncovered build work. Zero gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "events/schemas/_envelope.json", "quote": "Pin a single structured-mode JSON envelope at `events/schemas/_envelope.json` (JSON Schema 2020-12)."},
+    {"name": "events/catalog.yaml (catalog obligations + dataschema pointers)", "quote": "29 of 35 catalog types now carry a `dataschema` pointer; the other 6 are deliberately schema-less"},
+    {"name": "shared envelope helper (orvexcell/orvextenant stamp, fail-closed consume)", "quote": "the REQUIRED `orvexcell` extension attribute (= `CELL_ID`) ... STAMPED by the shared envelope helper, consumers FAIL CLOSED on mismatch"},
+    {"name": "transactional-outbox relay / outbox->Kafka bridge (SOLE producer)", "quote": "the transactional-outbox relay is the SOLE producer, D-S13; NO Redis bridge ... the outbox->Kafka bridge does not exist yet, so the first bridge run is the verification moment"},
+    {"name": "drift-gate emitted-event validation (gates/drift/gates.yaml)", "quote": "the drift-gate's emitted-event validation (gates/drift/gates.yaml) checks context-attributes against `_envelope.json` and `data` against each `dataschema` independently"}
+  ]
+}

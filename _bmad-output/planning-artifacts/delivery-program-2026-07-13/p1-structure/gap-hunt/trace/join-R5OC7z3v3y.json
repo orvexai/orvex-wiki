@@ -1,0 +1,31 @@
+{
+  "slug": "R5OC7z3v3y",
+  "total": 5,
+  "results": [
+    {
+      "id": "ADR-0001",
+      "verdict": "COVERED",
+      "owner_or_reason": "ADR-0001 (Transactional outbox to Kafka direct — no Redis bridge, formalizes D-S13) is not a direct coverage-index key, but wiki story E5-S1/E5-S2 (\"[wiki] Transactional outbox row...\" / \"[wiki] Worker-role relay drains outbox → Kafka CloudEvents...\") implements the identical decision under ids FR-W5/A-EVENTS, both coverage-index keys owned by ENG-2494/ENG-2495."
+    },
+    {
+      "id": "ADR-0002",
+      "verdict": "COVERED",
+      "owner_or_reason": "ADR-0002 (Native login removed — identity-only auth, formalizes D-S3) is implemented by wiki story E6-S2 (\"[wiki] Exchange-token session-mint consume ... native login removed fully\", feature-map line 634), covering FR-W6/A-AUTH — A-AUTH is a coverage-index key owned by ENG-2295/ENG-2499/ENG-2656."
+    },
+    {
+      "id": "ADR-0003",
+      "verdict": "COVERED",
+      "owner_or_reason": "ADR-0003 (Quota counters fail-open for cheap resources on Redis loss, formalizes A-QUOTA/F6) — A-QUOTA is a direct coverage-index key owned by ENG-2490, and wiki story E4-S2 explicitly covers A-QUOTA (Redis fast-counter pre-flight quota check)."
+    },
+    {
+      "id": "ADR-0004",
+      "verdict": "COVERED",
+      "owner_or_reason": "Direct coverage-index key match: \"ADR-0004\" -> [\"gapfix\"]."
+    },
+    {
+      "id": "ADR-0005",
+      "verdict": "COVERED",
+      "owner_or_reason": "ADR-0005 (Minimal standalone wiki — engine + identity mandatory, formalizes OQ-W4) is implemented by wiki story E8-S3 (\"[wiki] Engine API internal-only ... + product-family-agnostic configured endpoints + graceful degrade\"), which explicitly cites \"ADR-0005 (sABdrZoQdp)\" in its References and tests AC3/AC4 (configured *_URL endpoints, core CRUD survives knowledge/ai outage) — covers A-PORTABLE/A-APIBOUNDARY, both coverage-index keys owned by ENG-2508. The billing-absent Free-constant half of the decision is covered separately by E4-S1 (FR-W11, interim hardcode-Free)."
+    }
+  ]
+}

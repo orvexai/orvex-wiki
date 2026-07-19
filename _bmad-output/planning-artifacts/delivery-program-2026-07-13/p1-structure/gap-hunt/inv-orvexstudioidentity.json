@@ -1,0 +1,37 @@
+{
+ "space": "orvexstudioidentity",
+ "pages": [
+  {
+   "slug": "CYHyoUd7J1",
+   "title": "Anti-Sybil / Free-Tier Abuse — Options & Recommendation",
+   "doc_type": "research",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "YuY9XWpKPS",
+   "title": "Architecture Audit — SE-Arch review (2026-07-05)",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "dQUjrSXhdp",
+   "title": "Architecture: orvex-studio-identity",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "cnhla0qRRF",
+   "title": "PRD: orvex-studio-identity",
+   "doc_type": "prd",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": true
+  }
+ ]
+}

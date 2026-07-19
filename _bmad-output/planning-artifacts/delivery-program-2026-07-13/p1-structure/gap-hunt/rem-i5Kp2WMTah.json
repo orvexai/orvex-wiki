@@ -1,0 +1,6 @@
+{
+  "slug": "i5Kp2WMTah",
+  "title": "CloudEvents",
+  "classification": "reference/pattern-source (technology explainer, scaffold status, Canon — points to ADR-0007/ADR-0010 as authoritative; describes the CloudEvents spec and Orvex's envelope conventions, not a build mandate itself)",
+  "gaps": []
+}

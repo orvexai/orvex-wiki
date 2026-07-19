@@ -1,0 +1,144 @@
+{
+  "_meta": {
+    "task": "Fold-in audit — Memory gap-closure PRD g9vWbSYplh routed by Fold-in Map vBvVDFklZo",
+    "excluded": "F1/extension client compose (FR-D1..D7) — known-fixed ENG-2689/2690",
+    "evidence_basis": "covers-union.json (union of every plan.json covers[]) + per-plan covers[] + feature-map.txt story text",
+    "id_collision_note": "FR-C1-3 (memory F8) collides with contracts' FR-C scheme; FR-L1-5 (memory lifecycle) collides with lib's FR-L scheme; FR-M1-4 (memory) collides with api/mcp FR-M scheme. In every case the correct memory owner (ai/api) DOES carry the memory slice in its covers[], so the collision is cosmetic, not a coverage gap.",
+    "gaps": 4,
+    "new_components_beyond_extension": 0
+  },
+  "slices": [
+    {
+      "slice": "F0 · FR-O1 first-run seeding — profession-aware setup that produces STARTER Memory + a seeded demo world",
+      "destination": "new delivery-client (map routes only 'F0 delivery UX' here) — real home is orvex-studio-ui onboarding + orvex-studio-api Memory/Demo World",
+      "covered": false,
+      "evidence_or_gap": "GAP. FR-O1 is in NO plan.json covers[] (only FR-O2 of the F0 set is). Adjacent-but-untagged stories exist — ui 'Streaming FormSpec onboarding (SSE)' + api 'Demo World / Demo lifecycle orchestration' — but none is tagged as producing profession-aware STARTER Memory. The Fold-in Map under-routes F0: it assigns the new delivery-client only 'F0 delivery UX', leaving onboarding-seeding ownerless. Add/tag a story that writes starter Memory from onboarding."
+    },
+    {
+      "slice": "F0 · FR-O2 inbound import — bulk import from ChatGPT/Claude/Gemini/Grok exports through the confirm gate",
+      "destination": "orvex-studio-api (import wizard) + orvex-studio-ai (import path) + orvex-studio-ui (import wizard)",
+      "covered": true,
+      "evidence_or_gap": "COVERED. FR-O2 in covers-union and in ai plan covers[]. Stories: api 'Import wizard + per-provider parse adapters + workflow legs' + 'Paste-prompt quick import'; ai 'Token-budgeted memory injection ... + inbound import'; ui 'Chat-History Import wizard (per-provider, resumable upload, time window)'."
+    },
+    {
+      "slice": "F0 · FR-O3 designed empty state that teaches next action + demo/real separation",
+      "destination": "orvex-studio-ui",
+      "covered": false,
+      "evidence_or_gap": "GAP. FR-O3 in NO plan.json covers[]. Thematic-but-untagged coverage exists — ui 'Honest-states primitives: skeleton/empty/error trio' (generic empty states) + 'Demo World: banner, demo-mode citations, atomic graduation' (demo/real separation) — but neither is tagged to FR-O3's 'every memory surface teaches the next action' requirement. Borderline: could be absorbed by tagging the honest-states + Demo World stories; currently uncovered by the ledger."
+    },
+    {
+      "slice": "F0 · FR-O4 'connect an assistant in one guided step' concrete acceptance test (≤3 taps, ≤2 min, no config/CLI, first-run usability-tested)",
+      "destination": "orvex-studio-ui (Connections) — acceptance criterion for FR-D2 (extension, excluded)",
+      "covered": false,
+      "evidence_or_gap": "GAP. FR-O4 in NO plan.json covers[]. ui 'Connections & MCP setup (one-time secret, write-mode switch, guided setup)' exists but carries no ≤3-taps/≤2-min non-technical usability acceptance test. FR-O4 is the acceptance gate for FR-D2 (the excluded extension), but the usability-test acceptance itself is a UI/product concern that is unfiled."
+    },
+    {
+      "slice": "F1 · MCP retrieval surface — memory read as a knowledge tool call under I-4",
+      "destination": "orvex-studio-mcp",
+      "covered": true,
+      "evidence_or_gap": "COVERED (F1 client-compose excluded per ENG-2689/2690; this is the separable MCP-read half). Story: mcp 'MCP memory-retrieval surface: memory read as a knowledge tool call (AD-5b, I-4)'. AD-5b in the invariant set; I-4 enforced by knowledge ACL chokepoint."
+    },
+    {
+      "slice": "F2 · proposal/extraction quality FR-X1..X6 (quality bar, beads->staging edge, dedup/reconcile, poisoning defense, continuous eval, async off write-path)",
+      "destination": "orvex-studio-ai",
+      "covered": true,
+      "evidence_or_gap": "COVERED. ai plan covers[] carries FR-X1..X6. Stories: 'Async extraction pipeline off the write path at the proposal quality bar' (X1/X5), 'beads->staging capture edge' (X2), 'Proposal dedup/reconcile + memory-poisoning/prompt-injection defense' (X3/X6), 'Continuous proposal-quality eval (accept/edit/discard) + regression gate' (X4)."
+    },
+    {
+      "slice": "F2 · review queue (Librarian ChangeSets — propose->confirm sole mutation path)",
+      "destination": "orvex-studio-staging",
+      "covered": true,
+      "evidence_or_gap": "COVERED. staging 'Review Queue — filtered bulk decide, buckets, mandatory adjudication lane' + 'ChangeSet lifecycle state machine' + 'Autonomy Dial enforcement'. Confirm gate = sole mutation path honored across api/staging."
+    },
+    {
+      "slice": "F3 · memory data model FR-M1..M4 (frozen versioned legible card schema carrying scope/sensitivity/lifecycle fields)",
+      "destination": "orvex-studio-api (SoR) + contracts (pinned card schema AD-2)",
+      "covered": true,
+      "evidence_or_gap": "COVERED. api plan covers[] carries FR-M1..M4. Stories: api 'Frozen versioned Memory card schema + FormSpec model' (M1/M3), '3-state privacy + consent pipeline' (M4), FormSpec wire contract. AD-2 + AD-11 in covers-union (contract pin). mcp also mirrors FR-M1-4 in its covers."
+    },
+    {
+      "slice": "F4 · memory lifecycle FR-L1..L5 (temporal validity, Reconcile-not-overwrite, active/superseded/archived, retention/decay, deletion-erase-every-copy)",
+      "destination": "orvex-studio-api",
+      "covered": true,
+      "evidence_or_gap": "COVERED (despite FR-L id collision with lib's own FR-L scheme). api plan covers[] carries FR-L1..L5. Story: api 'Bi-temporal lifecycle, Reconcile & confirm-gate sole mutation'. FR-L5 deletion backed by knowledge 'Purge FR-K27: delete every copy + zero-residual probe'."
+    },
+    {
+      "slice": "F4 · projection consistency (per-card ordering + read-your-writes)",
+      "destination": "orvex-studio-knowledge",
+      "covered": true,
+      "evidence_or_gap": "COVERED. knowledge 'Memory retrieval namespace wall (AD-7 owner_scope) + per-card ordering & read-your-writes (AD-11)'. AD-7/AD-11 in covers-union. api 'Composer read-your-writes on just-confirmed Memory + per-card ordering' complements."
+    },
+    {
+      "slice": "F5 · retrieval eval FR-E1..E4 (offline harness recall@10>=0.80, public-comparable benchmark, regression gate, raw wiki store searchable)",
+      "destination": "orvex-studio-knowledge",
+      "covered": true,
+      "evidence_or_gap": "COVERED. knowledge plan covers[] carries FR-E1..E4. Story: 'Retrieval eval harness: recall@10 >= 0.80 + regression gate + raw-store-searchable + public benchmark'. FR-E2 public benchmark present in-story (selection deferred to OQ4 per AD-9 — harness fixed, benchmark choice open; not a coverage gap)."
+    },
+    {
+      "slice": "F5 · proposal-quality eval (precision/recall on labeled golden set)",
+      "destination": "orvex-studio-ai",
+      "covered": true,
+      "evidence_or_gap": "COVERED. ai 'Continuous proposal-quality eval (accept/edit/discard) + regression gate' (FR-X4). AD-9 splits eval ownership: knowledge=retrieval eval, ai=proposal eval; both gate CI."
+    },
+    {
+      "slice": "F6 · BYOK + SOC2/HIPAA + self-host/BYOC FR-S1..S3, firewall+consent FR-S5",
+      "destination": "orvex-studio-identity",
+      "covered": true,
+      "evidence_or_gap": "COVERED. identity plan covers[] carries FR-S1..S6. Stories: 'BYOK customer-managed keys via KMS' (S1), 'SOC 2 Type II + HIPAA BAA compliance path' (S2), 'Self-host / BYOC data-residency option' (S3), 'Personal<->employer firewall + per-use consent + AD-8 mint-boundary delivery token' (S5)."
+    },
+    {
+      "slice": "F6 · memory-corpus isolation grade FR-S4 (stronger namespace wall for regulated tenants)",
+      "destination": "orvex-studio-knowledge",
+      "covered": true,
+      "evidence_or_gap": "COVERED. knowledge 'Isolation probes: cross-tenant + intra-tenant zero-byte + count-oracle' + 'Memory retrieval namespace wall (AD-7 owner_scope)'. AD-7 resolves OQ2 to the namespace wall (stronger grade)."
+    },
+    {
+      "slice": "F6 · memory-poisoning / stored prompt-injection defense FR-S6",
+      "destination": "orvex-studio-ai (+ human-confirm gate structural defense)",
+      "covered": true,
+      "evidence_or_gap": "COVERED. ai 'Proposal dedup/reconcile + memory-poisoning / prompt-injection defense' + provenance capture in card schema (FR-M1). Human-confirm gate (I-3) is the structural defense."
+    },
+    {
+      "slice": "F7 · team-memory minimal v1 FR-T4 (data model minimally team-aware — nullable owner_scope, free CAS, no personal leak)",
+      "destination": "orvex-studio-api (+ knowledge AD-12 shape)",
+      "covered": true,
+      "evidence_or_gap": "COVERED. api plan covers[] carries FR-T1..T4. Story: api 'FR-31 deterministic weave + team-aware schema' (T4 nullable owner_scope). knowledge 'A12 ACL mechanics: owner-scoped admission, employer firewall' carries the AD-12 shape. FR-T1..T3 (RBAC/moderation/governance) are SHOULD/phased/deferred (OQ6) — correctly not-startable, not a gap."
+    },
+    {
+      "slice": "F8 · token-cost efficiency FR-C1..C3 (token-budgeted injection >=50%, measure/surface savings, warm-cache profiles)",
+      "destination": "orvex-studio-ai (+ knowledge)",
+      "covered": true,
+      "evidence_or_gap": "COVERED (despite FR-C id collision with contracts' FR-C scheme). ai plan covers[] carries FR-C1..C3. Story: ai 'Token-budgeted memory injection >=50% + measure/surface + warm-cache + inbound import'. AD-10 makes token-budgeted injection an invariant; measurement tuning deferred (not a gap)."
+    },
+    {
+      "slice": "chat-recall FR-AI11 (ai's ephemeral chat-recall, renamed off 'memory' per AD-1)",
+      "destination": "orvex-studio-ai",
+      "covered": true,
+      "evidence_or_gap": "COVERED. ai plan covers[] carries FR-AI11. Story: ai 'Memories CRUD + chat-recall + GDPR opt-in + space-scoped visibility'. AD-1 keeps this distinct from the product Memory SoR (api)."
+    },
+    {
+      "slice": "Contracts seam — card schema (AD-2), DeliveryAdapter port (AD-5a), MCP additions, memory.* CloudEvent catalog (AD-11)",
+      "destination": "orvex-studio-contracts",
+      "covered": true,
+      "evidence_or_gap": "COVERED (thin). AD-2 + AD-11 in covers-union (owned home is api/knowledge). contracts stories carry the OpenAPI/event-catalog machinery (ai.yaml, Event payload schemas, source-adapter registry). NOTE: no contracts story is explicitly tagged 'memory card schema' or 'memory.* CloudEvent'; the card schema is authored in api's 'Frozen versioned Memory card schema' story. Minor: consider a contracts story that pins the memory card + memory.* catalog so AD-2/AD-11 have an explicit contracts home."
+    },
+    {
+      "slice": "Cross-cutting invariants I-1..I-4 (contracts-only interaction/Postgres-only; three-store model; Librarian confirm ritual human-gated; retrieval = knowledge call under delegated principal)",
+      "destination": "every owner honors",
+      "covered": true,
+      "evidence_or_gap": "COVERED. I-1: every service has contracts codegen + outbox + Postgres RLS (no Mongo). I-2: api=Memory, wiki-engine=wiki, workgraph=beads, knowledge=RAG projection. I-3: api 'confirm-gate sole mutation' + staging Review Queue + wiki-api 'Human-gated transport'. I-4: mcp 'memory read as knowledge tool call (I-4)' + knowledge 'Universal ACL post-filter FR-13 ∩ token-scope' + ai cited-ask under caller's delegated principal."
+    },
+    {
+      "slice": "Cross-cutting NFR-1..6 (latency; privacy/consent runtime-recall-off + GDPR; neutrality/portability; graceful degradation; non-technical accessibility; auditability/reversibility)",
+      "destination": "every owner honors",
+      "covered": true,
+      "evidence_or_gap": "COVERED. NFR-1: knowledge NFR-K13 ~50ms + ai async extraction + NFR-AI1 latency budget. NFR-2: api '3-state privacy + consent pipeline' + ai 'GDPR opt-in'. NFR-3: ui 'Five-AI export' + workgraph 'Claude memory-tool backend' (portability). NFR-4: api 'Degradation-first enrichment fallback' + ui typed degradation/honest-empty. NFR-5: ui guided Connections + accessibility ship-gate. NFR-6: api 'Tiered write modes + reversibility' + staging immutable audit."
+    },
+    {
+      "slice": "Cross-cutting NFR-7 — Localization / i18n (memory surfaces support i18n; English first, EU-beachhead languages phased)",
+      "destination": "orvex-studio-ui (+ product) — OQ7 owner is 'GTM', unnamed in the engineering corpus",
+      "covered": false,
+      "evidence_or_gap": "GAP. NFR-7 in NO plan.json covers[]; grep across feature-map.txt for i18n|locale|localization|language returns NONE. ui accessibility ship-gate is WCAG-only, not i18n. OQ7 (locale priority for the EU beachhead) is owned only by 'GTM' with no engineering owner or story. The memory surfaces have no localization coverage — real uncovered cross-cutting NFR."
+    }
+  ]
+}

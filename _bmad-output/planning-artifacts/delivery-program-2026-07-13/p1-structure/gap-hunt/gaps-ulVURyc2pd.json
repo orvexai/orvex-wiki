@@ -1,0 +1,12 @@
+{
+  "slug": "ulVURyc2pd",
+  "title": "ADR-0024: Agent Staging Area supersedes the OPS Librarian feature specs — Card Contract v1 → Proposal (verbatim superset)",
+  "verdict_summary": "Canonical ADR (ratified 2026-07-10) — a decision record, not a build spec. It records the supersession of the OPS \"Feature PRD: The Librarian\" and the product-feature role of orvex-studio-api FR-SA12–16 into the staging platform canon (PRD MyS79tK0k7 + spine DBA3v1gglh). It introduces NO new requirement ids of its own; every build obligation it enacts is expressed through requirement ids owned by the staging PRD/spine (FR-STG1 capture on-ramp, FR-STG25 hard-cut of all agent wiki-write surfaces, FR-SA12–16 Card Contract authority, AD-12 verbatim-supersession/cut-loud, PRD OQ5 Card→Proposal field-mapping table). All eight referenced ids are in covers-union.json, and the concrete migration obligations each have a dedicated story: \"Curator supersession — Card v1→Proposal verbatim mapping + goldens\", \"Curator→staging supersession (classifyOnSave → staging submit)\", \"Hard-cut migration of ALL agent wiki-write surfaces\", \"MCP staging section — staging_* tools\". The doc-level supersession/amend actions (flip yHnxCDuZ6O, section-amend 85qj2wwU2L, carry-forward MEcmPZvEdV) are definition-phase living-wiki obligations covered by the pack spine. Zero uncovered BUILD gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-staging (Go satellite: Proposals, ChangeSets, Librarian, Autonomy Dial, apply engine)", "quote": "a new Go satellite orvex-studio-staging owning Proposals, ChangeSets, the Librarian (triage/routing/beautify/policy/learning/sweep), the Autonomy Dial, and the apply engine"},
+    {"name": "Card→Proposal field-mapping table (golden-verified against shipped Curator goldens)", "quote": "The Card→Proposal field-mapping table is produced and golden-verified in the migration epic (PRD OQ5); the shipped Curator goldens are the acceptance gate"},
+    {"name": "classifyOnSave capture on-ramp (forwards to staging submit; local classification path removed at cutover)", "quote": "classifyOnSave becomes a capture on-ramp forwarding to staging submit (FR-STG1); its local classification path is removed at cutover with a loud migration error"},
+    {"name": "SM-1 leak alarm (standing verification of zero direct agent wiki writes post-cut)", "quote": "SM-1's leak alarm (any non-zero direct agent wiki write post-cut) becomes the standing verification that this supersession has no holes"}
+  ]
+}

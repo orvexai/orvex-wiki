@@ -1,0 +1,29 @@
+{
+  "space": "orvexstudiolib",
+  "pages": [
+    {
+      "slug": "JxnqaaYx3j",
+      "title": "Architecture Audit — SE-Arch review (2026-07-05)",
+      "doc_type": "architecture",
+      "status": "canonical",
+      "requirement_bearing": true,
+      "already_read": true
+    },
+    {
+      "slug": "0NPvDR3C0m",
+      "title": "Architecture: orvex-studio-lib",
+      "doc_type": "architecture",
+      "status": "canonical",
+      "requirement_bearing": true,
+      "already_read": true
+    },
+    {
+      "slug": "fG2jKeRGiu",
+      "title": "PRD: orvex-studio-lib",
+      "doc_type": "prd",
+      "status": "draft",
+      "requirement_bearing": true,
+      "already_read": true
+    }
+  ]
+}

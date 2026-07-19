@@ -1,0 +1,21 @@
+{
+  "slug": "Ii9q9kBNms",
+  "total": 3,
+  "results": [
+    {
+      "id": "A-UBA-EDGE",
+      "verdict": "COVERED",
+      "owner_or_reason": "Architecture-doc alias of FR-CT-UBA-9/3/10 (BFF deny-by-default edge) + FR-CT-UBA-6 (PostHog credential confinement) -> console E8-S1 'Analytics BFF edge + pkg/posthog port + guardrailed /api/analytics/*' (ENG-2607) and E8-S2 'Analytics authz + PostHog credential confinement + sensitive-read audit' (ENG-2608), per breakdown/console/plan.json covers[] and feature-map.txt UBA pane story list."
+    },
+    {
+      "id": "A-UBA-READONLY",
+      "verdict": "COVERED",
+      "owner_or_reason": "Architecture-doc alias, composite of FR-CT-UBA-6 (sensitive-read audit) -> E8-S2 (ENG-2608) and FR-CT-UBA-7/§5 erasure exception -> E8-S8 'Privacy/residency/erasure fronting + PostHog store binding + cost SLI' (ENG-2614), per breakdown/console/plan.json covers[]."
+    },
+    {
+      "id": "A-UBA-HONESTY",
+      "verdict": "COVERED",
+      "owner_or_reason": "Architecture-doc alias of FR-CT-UBA-5/NFR-CT-UBA-3/4 -> console E8-S5 'Honest, attributed + ILLUSTRATIVE pre-launch-banner panels + typed degradation' (ENG-2611), per breakdown/console/plan.json covers[] and feature-map.txt UBA pane story list."
+    }
+  ]
+}

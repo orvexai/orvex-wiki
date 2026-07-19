@@ -1,0 +1,539 @@
+{
+ "service": "orvex-studio-ui",
+ "requirement_source": "PRD: orvex-studio-ui (xsRMrju3D1, draft) \u2014 FR-UI1..30 + NFR-UI1..10; Architecture: orvex-studio-ui (DmJsnB5Z9Y, canonical) \u2014 A-SHELL/A-STREAM/A-DRAFT/A-DS/A-STATELESS/A-GLOBAL/A-AUTH rulings",
+ "sources": [
+  {
+   "slug": "xsRMrju3D1",
+   "title": "PRD: orvex-studio-ui"
+  },
+  {
+   "slug": "DmJsnB5Z9Y",
+   "title": "Architecture: orvex-studio-ui"
+  },
+  {
+   "slug": "1dFHMUtcKS",
+   "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)"
+  },
+  {
+   "slug": "KeREQUiGjA",
+   "title": "First-Run + App-Shell spec (referenced)"
+  },
+  {
+   "slug": "DRP67l1a6q",
+   "title": "Improve-with-AI spec (referenced)"
+  },
+  {
+   "slug": "gh6tVUtrwr",
+   "title": "Phase-2 PRD FR-39\u201374 (referenced)"
+  },
+  {
+   "slug": "C9ufBCuXsy",
+   "title": "Design System (orvex-ds.css) (referenced)"
+  },
+  {
+   "slug": "j8ZO0NAB2A",
+   "title": "Design System token reference (referenced)"
+  },
+  {
+   "slug": "JGAUQRsw2g",
+   "title": "Day-1 cell contract / cell-lint (referenced)"
+  },
+  {
+   "slug": "EPsdD7uK8e",
+   "title": "orvex-wiki engine PRD \u2014 F-QUOTA (referenced)"
+  }
+ ],
+ "epics": [
+  {
+   "id": "E1",
+   "title": "[EPIC] ui: Foundation, tooling & shared rendering substrate",
+   "body_file": "bodies/E1.md",
+   "stories": [
+    {
+     "id": "E1-S1",
+     "title": "[ui] CI ship-gate harness: vitest + Playwright + eslint + axe + visual + token-lint + cell-lint enrolment",
+     "body_file": "bodies/E1-S1.md",
+     "covers": [
+      "NFR-UI2",
+      "NFR-UI3",
+      "NFR-UI5",
+      "A-DS"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S2",
+     "title": "[ui] Contracts codegen consumer + typed BFF `/api` client + identity session-token attach",
+     "body_file": "bodies/E1-S2.md",
+     "covers": [
+      "A-STATELESS",
+      "NFR-UI4",
+      "NFR-UI5",
+      "A-SHELL"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S3",
+     "title": "[ui] orvex-ds.css exact-match token pipeline + theme-before-first-paint + dual-theme/dual-skin scaffold",
+     "body_file": "bodies/E1-S3.md",
+     "covers": [
+      "NFR-UI3",
+      "A-DS"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S4",
+     "title": "[ui] Shared draft-vs-committed proposal-rendering layer",
+     "body_file": "bodies/E1-S4.md",
+     "covers": [
+      "FR-UI27",
+      "A-DRAFT"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S5",
+     "title": "[ui] Honest-states primitives: skeleton/empty/error trio, '\u2014' loading, Tier-1 Copy, soft-fail",
+     "body_file": "bodies/E1-S5.md",
+     "covers": [
+      "FR-UI29"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S6",
+     "title": "[ui] Entitlement rendering + single SSE entitlement channel + over-quota 402 state",
+     "body_file": "bodies/E1-S6.md",
+     "covers": [
+      "FR-UI28",
+      "NFR-UI10",
+      "A-AUTH"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S7",
+     "title": "[ui] Serving topology & deploy: Workers Static Assets, grey-cloud origins, region-agnostic bundle, runtime CONFIG",
+     "body_file": "bodies/E1-S7.md",
+     "covers": [
+      "A-GLOBAL",
+      "NFR-UI1"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-GAP1",
+     "title": "[ui] orvex-ds design system \u2014 ownership + shipping home (PO must-resolve: fold into orvex-studio-ui vs separate component)",
+     "body_file": "../gap-hunt/fix-bodies/fix-orvex-ds-ownership.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2710"
+    }
+   ]
+  },
+  {
+   "id": "E2",
+   "title": "[EPIC] ui: App shell, routing & first-run state machine",
+   "body_file": "bodies/E2.md",
+   "stories": [
+    {
+     "id": "E2-S1",
+     "title": "[ui] Signed-in shell: sidebar (6 destinations), Create CTA, account footer, \u2318K palette, inbox drawer, responsive breakpoints",
+     "body_file": "bodies/E2-S1.md",
+     "covers": [
+      "FR-UI1",
+      "A-SHELL",
+      "NFR-UI8"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S2",
+     "title": "[ui] First-run state machine ANON/NEW-AUTH/RETURNING + Task Box two-mode in-place morph",
+     "body_file": "bodies/E2-S2.md",
+     "covers": [
+      "FR-UI2"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E2-S3",
+     "title": "[ui] Front door + routing map + client session redirect + deep-link restore",
+     "body_file": "bodies/E2-S3.md",
+     "covers": [
+      "FR-UI3"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S4",
+     "title": "[ui] Dashboard zones (RETURNING/NEW-AUTH, honest-empty, live-fill on transition)",
+     "body_file": "bodies/E2-S4.md",
+     "covers": [
+      "FR-UI4"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "title": "[EPIC] ui: Onboarding & Memory",
+   "body_file": "bodies/E3.md",
+   "stories": [
+    {
+     "id": "E3-S1",
+     "title": "[ui] Streaming FormSpec onboarding (SSE) + byte-identical deterministic fallback",
+     "body_file": "bodies/E3-S1.md",
+     "covers": [
+      "FR-UI5",
+      "A-STREAM",
+      "NFR-UI6"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E3-S2",
+     "title": "[ui] Form\u2192Home morph choreography + reduced-motion instant swap",
+     "body_file": "bodies/E3-S2.md",
+     "covers": [
+      "FR-UI6"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E3-S3",
+     "title": "[ui] Memory wall + full FR-31 provenance (private, no reputation)",
+     "body_file": "bodies/E3-S3.md",
+     "covers": [
+      "FR-UI7"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S4",
+     "title": "[ui] Sensitive-field consent UX + Enrichment Policy setting + hard-delete",
+     "body_file": "bodies/E3-S4.md",
+     "covers": [
+      "FR-UI8"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E3-S5",
+     "title": "[ui] Memory Coach gating render + scale (1k/10k) + Professional Mode skin",
+     "body_file": "bodies/E3-S5.md",
+     "covers": [
+      "FR-UI9",
+      "FR-UI10"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E3-GAP1",
+     "title": "[ui] FR-O3 designed empty states on every memory surface (teach the next action) + demo/real separation",
+     "body_file": "../gap-hunt/fix-bodies/fix-fr-o3-empty-states.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2702"
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "title": "[EPIC] ui: Discover, Skill Viewer & Builder",
+   "body_file": "bodies/E4.md",
+   "stories": [
+    {
+     "id": "E4-S1",
+     "title": "[ui] Marketplace home + search-as-you-type + facets + anon wall-free variant",
+     "body_file": "bodies/E4-S1.md",
+     "covers": [
+      "FR-UI11"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E4-S2",
+     "title": "[ui] Skill Viewer: typed items, per-block provenance, injection slots, raw fallback",
+     "body_file": "bodies/E4-S2.md",
+     "covers": [
+      "FR-UI12"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E4-S3",
+     "title": "[ui] Builder Base+Delta: fork/edit, immutability, toggle, autosave, <50ms weave, concurrency",
+     "body_file": "bodies/E4-S3.md",
+     "covers": [
+      "FR-UI13"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "title": "[EPIC] ui: Improve-with-AI, Export/Share/Launch & Library",
+   "body_file": "bodies/E5.md",
+   "stories": [
+    {
+     "id": "E5-S1",
+     "title": "[ui] Improve panel: five result states + non-optimistic apply + cached-exemplar fallback",
+     "body_file": "bodies/E5-S1.md",
+     "covers": [
+      "FR-UI14",
+      "A-STREAM"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E5-S2",
+     "title": "[ui] Capture-back seam (Save to Memory after Apply, consent-gated)",
+     "body_file": "bodies/E5-S2.md",
+     "covers": [
+      "FR-UI15"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E5-S3",
+     "title": "[ui] Five-AI export + Tier-1 clipboard-blocked fallback",
+     "body_file": "bodies/E5-S3.md",
+     "covers": [
+      "FR-UI16"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E5-S4",
+     "title": "[ui] Share permalinks + prompt-via-us launch + Enrich-this-prompt tick",
+     "body_file": "bodies/E5-S4.md",
+     "covers": [
+      "FR-UI17",
+      "FR-UI18"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E5-S5",
+     "title": "[ui] Library & Collections (Delta-intact reopen, bulk export, cross-device)",
+     "body_file": "bodies/E5-S5.md",
+     "covers": [
+      "FR-UI19"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "title": "[EPIC] ui: Phase-2 curation surfaces (Demo World, Import, Chat History, Curator)",
+   "body_file": "bodies/E6.md",
+   "stories": [
+    {
+     "id": "E6-S1",
+     "title": "[ui] Demo World: banner, guided first-run, demo-mode citations, atomic graduation",
+     "body_file": "bodies/E6-S1.md",
+     "covers": [
+      "FR-UI20"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E6-S2",
+     "title": "[ui] Chat-History Import wizard (per-provider, content-managed instructions, resumable upload, time window)",
+     "body_file": "bodies/E6-S2.md",
+     "covers": [
+      "FR-UI21"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E6-S3",
+     "title": "[ui] Chat History surface (browse, instant search, faithful conversation render, retention controls)",
+     "body_file": "bodies/E6-S3.md",
+     "covers": [
+      "FR-UI22"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E6-S4",
+     "title": "[ui] Curator desk + Curation Queue (grouped, per-group approve, provenance, diff previews)",
+     "body_file": "bodies/E6-S4.md",
+     "covers": [
+      "FR-UI23"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E6-GAP1",
+     "title": "[ui] Task-first wizard \u2014 the interview surface (say the task \u2192 guided Q&A \u2192 marketplace scan \u2192 compose)",
+     "body_file": "../gap-hunt/fix-bodies/fix-wizard-ui.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2698"
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "title": "[EPIC] ui: Your Wiki, Connections & Billing",
+   "body_file": "bodies/E7.md",
+   "stories": [
+    {
+     "id": "E7-S1",
+     "title": "[ui] Your Wiki: omnibox (search+Ask), native read pane, hover cards, wiki activity",
+     "body_file": "bodies/E7-S1.md",
+     "covers": [
+      "FR-UI24"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E7-S2",
+     "title": "[ui] Connections & MCP setup (one-time secret, write-mode switch, guided setup)",
+     "body_file": "bodies/E7-S2.md",
+     "covers": [
+      "FR-UI25"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E7-S3",
+     "title": "[ui] Pricing, billing, trial & upgrade moments (GBP-only, Checkout/Portal redirect, dunning truth)",
+     "body_file": "bodies/E7-S3.md",
+     "covers": [
+      "FR-UI26"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E7-GAP1",
+     "title": "[ui] AI-privacy setup \u2014 verify the connected assistant won't train on your data (connections surface, honest unsupported states)",
+     "body_file": "../gap-hunt/fix-bodies/fix-ai-privacy.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2697"
+    }
+   ]
+  },
+  {
+   "id": "E8",
+   "title": "[EPIC] ui: Cross-cutting quality & NFR ship-gates",
+   "body_file": "bodies/E8.md",
+   "stories": [
+    {
+     "id": "E8-S1",
+     "title": "[ui] Accessibility ship-gate: WCAG 2.1 AA both themes + both skins (axe + contrast + reduced-motion)",
+     "body_file": "bodies/E8-S1.md",
+     "covers": [
+      "NFR-UI2"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E8-S2",
+     "title": "[ui] Performance, scale, streaming-resilience & offline posture",
+     "body_file": "bodies/E8-S2.md",
+     "covers": [
+      "NFR-UI1",
+      "NFR-UI6",
+      "NFR-UI7",
+      "NFR-UI8"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S3",
+     "title": "[ui] Security, BFF-only egress hardening & observability",
+     "body_file": "bodies/E8-S3.md",
+     "covers": [
+      "NFR-UI4",
+      "NFR-UI5",
+      "NFR-UI9"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S4",
+     "title": "[ui] Product-metric instrumentation (SM funnel to BFF ingest, first-party only)",
+     "body_file": "bodies/E8-S4.md",
+     "covers": [
+      "FR-UI30"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E8-GAP1",
+     "title": "[ui] NFR-7 i18n readiness \u2014 memory surfaces i18n-capable, English-first, EU-beachhead locale phasing",
+     "body_file": "../gap-hunt/fix-bodies/fix-nfr7-i18n.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2703"
+    }
+   ]
+  }
+ ],
+ "coverage": {
+  "ids_found": [
+   "FR-UI1",
+   "FR-UI2",
+   "FR-UI3",
+   "FR-UI4",
+   "FR-UI5",
+   "FR-UI6",
+   "FR-UI7",
+   "FR-UI8",
+   "FR-UI9",
+   "FR-UI10",
+   "FR-UI11",
+   "FR-UI12",
+   "FR-UI13",
+   "FR-UI14",
+   "FR-UI15",
+   "FR-UI16",
+   "FR-UI17",
+   "FR-UI18",
+   "FR-UI19",
+   "FR-UI20",
+   "FR-UI21",
+   "FR-UI22",
+   "FR-UI23",
+   "FR-UI24",
+   "FR-UI25",
+   "FR-UI26",
+   "FR-UI27",
+   "FR-UI28",
+   "FR-UI29",
+   "FR-UI30",
+   "NFR-UI1",
+   "NFR-UI2",
+   "NFR-UI3",
+   "NFR-UI4",
+   "NFR-UI5",
+   "NFR-UI6",
+   "NFR-UI7",
+   "NFR-UI8",
+   "NFR-UI9",
+   "NFR-UI10",
+   "A-SHELL",
+   "A-STREAM",
+   "A-DRAFT",
+   "A-DS",
+   "A-STATELESS",
+   "A-GLOBAL",
+   "A-AUTH"
+  ],
+  "uncovered": []
+ }
+}

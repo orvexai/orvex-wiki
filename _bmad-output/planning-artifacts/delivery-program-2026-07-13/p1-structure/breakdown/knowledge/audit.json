@@ -1,0 +1,348 @@
+{
+  "repo": "orvex-studio-knowledge",
+  "audited_ref": "origin/main",
+  "head": "4a20a49 2026-07-14 20:16:24 +0200",
+  "branches_note": "main is at or AHEAD of both origin/dev (30895f6; 0 commits ahead of main) and origin/crew/daniel (a2fc0e2, 2026-07-06; 0 ahead). No ENG-2069 nothing-on-main hazard for this repo -- the default branch is the freshest ref. Audited origin/main HEAD 4a20a49 (Merge PR #50 from orvexai/dev).",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "cmd/indexer/main.go",
+        "internal/indexer/handler.go",
+        "internal/event/event.go",
+        "internal/indexer/handler_test.go",
+        "internal/event/kafkasink_test.go"
+      ],
+      "note": "cmd/indexer/main.go consumes the raw wiki.* Kafka topic via libevents.Consumer; internal/indexer/handler.go cell-guards (CheckCell) fail-closed + DLQs, internal/event/event.go CellMatches; tested internal/indexer/handler_test.go + internal/event/kafkasink_test.go. NB: direct Kafka consumer-group, not Knative Triggers (deliberate M5-AC8 pivot)."
+    },
+    "E1-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/workflow/workflow.go:850",
+        "internal/store/postgres/postgres.go:198",
+        "internal/workflow/ingest_test.go",
+        "internal/store/postgres/postgres_test.go"
+      ],
+      "note": "internal/workflow/workflow.go ingestOnePage does engine export-pull (clients.Engine.ResolveBody via wiki adapter) then content-hash then version-guarded CAS (store/postgres/postgres.go UpsertDocument, WHERE version<EXCLUDED.version) then turbopuffer.Upsert; tested workflow/ingest_test.go + store/postgres/postgres_test.go."
+    },
+    "E1-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:441"
+      ],
+      "note": "internal/server/server.go keywordUpsert is a notImplemented 501 stub; no engine keyword-upsert client method and no breaker."
+    },
+    "E1-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/clients/clients.go:448",
+        "internal/workflow/workflow.go:926",
+        "internal/clients/litellm_test.go"
+      ],
+      "note": "Embeddings (clients.LiteLLM.Embed) + content-hash skip present & tested (workflow.go, clients/litellm_test.go); but no real text_repr chunker (whole-body 8000-rune snippet via workflow.snippetOf) and per-corpus model is a single pinned constant EmbeddingModel, not a per-corpus registry."
+    },
+    "E1-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/tika/tika.go",
+        "internal/workflow/workflow.go:940",
+        "internal/tika/tika_test.go",
+        "internal/workflow/attachment_ingest_test.go"
+      ],
+      "note": "internal/tika/tika.go (MIME allow-list, 32MiB cap, bounded retry, Skipped/Failed states) + workflow.ingestAttachmentCreated/extractAndUpsertAttachment metadata-only fallback; tested tika/tika_test.go + workflow/attachment_ingest_test.go."
+    },
+    "E1-S6": {
+      "status": "absent",
+      "evidence": [
+        "internal/store/postgres/migrations/004_documents_title_space_acl.sql",
+        "internal/workflow/workflow.go:741"
+      ],
+      "note": "No permission-change re-scope flow; workflow.Ingest handles content_updated/page_created/attachment_created/deletes only. acl_meta prefilter column (migration 004) is substrate but nothing re-scopes on a permission event."
+    },
+    "E1-S7": {
+      "status": "partial",
+      "evidence": [
+        "internal/event/deadletter.go",
+        "internal/indexer/handler.go",
+        "internal/clients/clients.go:436"
+      ],
+      "note": "DLQ + retry/backoff real & tested (internal/event/deadletter.go, internal/indexer/handler.go recovery, clients.go 429 backoff); but no freshness watermark and no staleness SLI."
+    },
+    "E2-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/store/postgres/migrations/",
+        "internal/store/postgres/postgres.go",
+        "internal/store/postgres/postgres_test.go"
+      ],
+      "note": "documents projection schema (migrations 001-004) + store methods real & tested (store/postgres/postgres_test.go); tenancy is WHERE tenant=$1, NOT Postgres RLS -- no ROW LEVEL SECURITY/POLICY/SET LOCAL app.tenant despite the doc comment. RLS fail-closed backstop absent."
+    },
+    "E2-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/turbopuffer/turbopuffer.go:55",
+        "internal/turbopuffer/memindex/memindex.go",
+        "internal/turbopuffer/conformance_test.go"
+      ],
+      "note": "turbopuffer.Adapter seam (Upsert/Query/DeleteNamespace/DeleteDocs/AliasSwap) + memindex reference + shared conformance_test.go present; but DeleteNamespace/DeleteDocs are errNotWired stubs in the real Client (turbopuffer.go)."
+    },
+    "E2-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/turbopuffer/turbopuffer.go",
+        "internal/turbopuffer/client_http_test.go",
+        "internal/turbopuffer/turbopuffer.go:594"
+      ],
+      "note": "turbopuffer.go Upsert + Query (BM25/ANN/hybrid RRF) + AliasSwap + per-tenant Namespace real & tested (client_http_test.go, conformance_test.go); DeleteNamespace/DeleteDocs stubbed (errNotWired)."
+    },
+    "E2-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/sources/sources.go",
+        "internal/sources/wiki/wiki.go",
+        "internal/sources/sources_test.go"
+      ],
+      "note": "internal/sources/sources.go Registry (fail-closed Get) + internal/sources/wiki adapter (Resolve/Narrow via engine FR-13); tested sources/sources_test.go + sources/wiki/attachment_test.go."
+    },
+    "E3-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:265",
+        "internal/server/server.go:323",
+        "internal/server/query_test.go",
+        "internal/server/duplicates_test.go"
+      ],
+      "note": "/v1/query (hero.Search), /v1/retrieve, /v1/duplicates (POST+GET), /v1/attachments/search are real handlers & tested (server/query_test.go, retrieve_test.go, duplicates_test.go, attachments_search_test.go); /v1/related is a notImplemented 501 stub."
+    },
+    "E3-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/ranking/ranking.go",
+        "internal/clients/clients.go:559",
+        "internal/ranking/ranking_test.go",
+        "internal/clients/reranker_test.go"
+      ],
+      "note": "internal/ranking/ranking.go FuseRRF + ComputeFreshnessBonus real; nil-safe optional rerank (clients.Reranker, workflow.Search step 5); tested ranking/ranking_test.go + clients/reranker_test.go."
+    },
+    "E3-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/cache/cache.go",
+        "internal/workflow/workflow.go:854",
+        "internal/cache/redis_cache_test.go"
+      ],
+      "note": "internal/cache/cache.go RedisCache Get/Set/Evict/EvictTenant real; event-driven eviction is the indexer's first action (workflow ingestOnePage Evict); tested cache/redis_cache_test.go (NFR-K13 p95)."
+    },
+    "E3-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/metrics/metrics.go",
+        "internal/workflow/nfr_latency_probe_test.go"
+      ],
+      "note": "Query-latency budget probe real (internal/metrics + workflow/nfr_latency_probe_test.go NFR-K11); per-principal/tenant QoS fairness/rate limits absent."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/workflow/workflow.go:363",
+        "internal/admission/admission.go",
+        "internal/workflow/isolation_probe_test.go"
+      ],
+      "note": "workflow.narrow (engine FR-13 per-source) + internal/admission.Admit (token-scope, deny-by-default) + quarantine prefilter, facets computed post-admission (no count oracle); tested workflow/isolation_probe_test.go + retrieve_test.go + admission tests."
+    },
+    "E4-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/clients/clients.go:61"
+      ],
+      "note": "Only the aclBatchCeiling (500) batch bulkhead in clients.go + fail-closed FR-13; no single-flight, no interactive/bulk bulkhead split, no rate contract (grep for singleflight/bulkhead empty)."
+    },
+    "E4-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/auth/verifier.go",
+        "internal/clients/clients.go:312",
+        "internal/auth/verifier_test.go"
+      ],
+      "note": "internal/auth/verifier.go (lib MultiIssuerVerifier + JWKS) + clients.Identity.Verify (JWT-shaped->JWKS, else opaque introspection), no-anonymous opaque-401; tested auth/verifier_test.go + clients/engine_test.go."
+    },
+    "E4-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/workflow/isolation_probe_test.go"
+      ],
+      "note": "internal/workflow/isolation_probe_test.go runs cross-tenant + intersective-admission + namespace/scope-from-principal probes in CI (TestCrossTenantIsolationBytesZero, TestNamespaceDerivedFromPrincipalOnly, TestScopeFromVerifiedPrincipalOnly, TestAdmissionIsIntersectiveGolden). NB: unit/replay-fixture level; no separate per-deploy runtime probe job."
+    },
+    "E5-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/event/spine_consumer.go",
+        "internal/event/content_stream.go",
+        "internal/event/kafkasink_test.go",
+        "internal/sse/sse.go"
+      ],
+      "note": "KafkaSink spine consumer (internal/event/spine_consumer.go durable Redis-stream append + cross-pod fanout) real & tested (kafkasink_test.go); but the raw-topic SSE consumer is a consumer-group (event.NewSpineSubscriber -> libevents.NewConsumer), NOT the specified standalone assign/seek per-pod consumer; internal/sse Kafka consume is a stub."
+    },
+    "E5-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/sse/sse.go",
+        "cmd/sse/main.go:152"
+      ],
+      "note": "Cursor v2 parse + stream.gap control frame + cross-pod fanout tail real (internal/sse/sse.go, cmd/sse/main.go /events); replay-then-tail historical replay is TODO and there is no periodic heartbeat loop."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/sse/sse.go:37",
+        "cmd/sse/main.go:140",
+        "internal/sse/sse_test.go"
+      ],
+      "note": "Cursor semantics (ParseCursor/IsLegacyRedis/Compare) + legacy unprefixed names (gen.LegacySSEName) real & tested (sse/sse_test.go); /events/head is a stub (returns empty StreamHead), 1 MiB frame cap + backoff not enforced in code."
+    },
+    "E5-S4": {
+      "status": "absent",
+      "evidence": [
+        "cmd/sse/main.go:114"
+      ],
+      "note": "No /api/orvex/events/{connections,log,settings} routes; cmd/sse mux only exposes /events, /events/head, /healthz, /readyz."
+    },
+    "E6-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:433"
+      ],
+      "note": "server.createBundle is a notImplemented 501 stub; no bundle_registry/bundle_audit migration and no egress-audit / export-policy code."
+    },
+    "E6-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:437"
+      ],
+      "note": "server.getBundle is a notImplemented 501 stub; no ownership/IDOR check."
+    },
+    "E7-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:429",
+        "internal/store/postgres/postgres.go:479"
+      ],
+      "note": "server.projectionDelta is a notImplemented 501 stub; store.Delta returns 'Delta not implemented'."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/store/postgres/postgres.go:479"
+      ],
+      "note": "No projection delta field set; store.Delta unimplemented. (internal/onboard page.md gives DfM markdown but that is a distinct llms.txt surface, not the CLI projection field set.)"
+    },
+    "E7-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/store/postgres/postgres.go:479",
+        "internal/corpus/reconcile.go:50"
+      ],
+      "note": "No ACL-tombstone/delta path; store.Delta unimplemented. internal/corpus ReconcileDelete hard-deletes on delete EVENTS only, not permission-loss delta tombstones."
+    },
+    "E7-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:265",
+        "internal/store/postgres/postgres.go:479"
+      ],
+      "note": "Direct-to-query read surface exists & works (/v1/query, /v1/retrieve real handlers); but no CLI in this repo and the projection-parity claim substrate (/v1/projection/delta, store.Delta) is unimplemented."
+    },
+    "E8-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/workflow/rebuild.go",
+        "internal/server/server.go:506",
+        "internal/workflow/rebuild_test.go",
+        "internal/turbopuffer/rebuild_replay_test.go"
+      ],
+      "note": "internal/workflow/rebuild.go implements all 6 idempotent step-APIs (namespace/walk/index-batch/delta-repull/alias-swap/retire) + RunRebuild + server handlers; tested rebuild_test.go + rebuild_replay_test.go. NB: RebuildNamespace/RebuildRetire call turbopuffer.DeleteNamespace, errNotWired against the real Client (passes against memindex in tests)."
+    },
+    "E8-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/workflow/rebuild.go:180",
+        "internal/workflow/rebuild.go:45",
+        "internal/workflow/rebuild_test.go"
+      ],
+      "note": "Resumable rebuild (walk offset cursor) + delta-repull + RTO-budget assertion (NFRK4RebuildRTOBudget, rebuild_test.go) present; projection epochs + delta full-resync (store.Delta/cursors) absent."
+    },
+    "E8-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/event/event.go:88",
+        "internal/store/postgres/postgres.go:492"
+      ],
+      "note": "internal/event/event.go ArchiveSink.Append returns 'not implemented'; store.AppendEventArchive returns 'not implemented'; no event_archive migration."
+    },
+    "E9-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/corpus/reconcile.go",
+        "internal/store/postgres/postgres.go:469",
+        "internal/cache/cache.go:110",
+        "internal/turbopuffer/turbopuffer.go:594"
+      ],
+      "note": "Delete-reconcile hard-deletes the Postgres documents row (internal/corpus/reconcile.go + store.DeleteBySource) real & tested; but store.DeleteTenant unimplemented, turbopuffer DeleteNamespace/DeleteDocs stubbed, cache.EvictTenant exists yet there is no orchestrated multi-store purge and no zero-residual probe."
+    },
+    "E9-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/workflow/rebuild.go",
+        "internal/workflow/workflow.go:1048"
+      ],
+      "note": "Rebuild step-APIs + ReextractAttachment/RebuildIndexBatch (extraction retry) present; but no admin API to enqueue/inspect indexing lag or DLQ (no /admin/reindex route, no lag/DLQ inspection endpoint)."
+    },
+    "E9-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:227",
+        "cmd/sse/main_test.go",
+        "internal/metrics/metrics.go",
+        "deploy/kustomize/app-manifests/deployment-indexer.yaml"
+      ],
+      "note": "Liveness/readiness split on all 3 binaries + cell echo real & tested (server healthz/readyz, cmd/indexer, cmd/sse/main_test.go); Prometheus scrape annotations in deploy/ but no /metrics endpoint or OTel export in code (internal/metrics is an in-process p95 recorder only)."
+    },
+    "E9-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:227",
+        "internal/event/event.go:60",
+        "internal/server/server.go:469"
+      ],
+      "note": "healthz echoes CELL_ID+CLUSTER_NAME, cell-guard fail-closed (CheckCell/CellMatches), Idempotency-Key required on rebuild step-APIs (decodeRebuildStep) -- all real & tested; but no 421 cell-misdirect HTTP response and no tenant-move step-API."
+    },
+    "E10-S1": {
+      "status": "absent",
+      "evidence": [
+        "gen/document.go:21",
+        "gen/events.go:31",
+        "internal/workflow/workflow.go:776"
+      ],
+      "note": "gen types + event prefixes exist (SourceStudioSkill/SourceMemory/SourceChatMessage, TypeStudioSkillPrefix etc.) but no studio/memory/chat source-adapter package; workflow.Ingest leaves studio.* as ErrNotImplemented."
+    },
+    "E10-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/admission/admission.go"
+      ],
+      "note": "No owner-scoped admission / employer-firewall / delegated-only / ingestion privacy-exclusion logic; internal/admission.Admit is space-based only (gen.Principal has a Delegated flag but nothing consumes it for A12)."
+    },
+    "E10-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No memory retrieval namespace wall (AD-7 owner_scope), no per-card ordering, no read-your-writes path."
+    },
+    "E10-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No retrieval eval harness -- no recall@10 metric, regression gate, raw-store-searchable assertion, or public benchmark anywhere in the tree/tests."
+    }
+  },
+  "summary": "orvex-studio-knowledge is a substantial, heavily-tested Go service (91 .go files): the ingest->index pipeline (Kafka consume, engine export-pull, version-guarded CAS, embeddings, Tika attachments, DLQ recovery), the query/retrieve/duplicates/attachment-search surfaces, hybrid RRF ranking, the engine-FR13-intersect-token-scope ACL choke point, auth via the shared lib, the Redis read-path cache, the 6 idempotent rebuild step-APIs, and cross-tenant isolation probes are all REAL and tested. Structural gaps concentrate in later epics: Postgres RLS backstop, /v1/related, keyword-upsert hook, CLI projection delta (E7), bundles/egress (E6), event-archive sink (E8-S3), Prometheus/OTel export, full FR-K27 purge across stores, and the entire Studio-corpora / Memory-retrieval / eval-harness epic (E10) are stub or absent. turbopuffer DeleteNamespace/DeleteDocs are errNotWired stubs, weakening rebuild-retire and purge against the real store even though the orchestration logic passes against the memindex reference."
+}

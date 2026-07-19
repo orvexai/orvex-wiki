@@ -1,0 +1,21 @@
+{
+  "slug": "W613jcEl3k",
+  "total": 3,
+  "results": [
+    {
+      "id": "F-QUOTA",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a literal index key (index has A-QUOTA/A-QUOTA-HARDENING); hard-checked. F-QUOTA is the engine-PRD 402 QUOTA_EXCEEDED contract, explicitly referenced by name across the breakdown: wiki E4-S2/E4-S3 implement the enforcement mechanic under covers=[A-QUOTA]/[A-QUOTA-HARDENING] (Redis fast-counter pre-flight + 402 verdict domain fn); contracts E2-S1 AC3 defines the F-QUOTA envelope (FR-C1); and consumer surfaces carry it in titles/ACs — ai ('F-QUOTA 402 QUOTA_EXCEEDED surfaced verbatim as a typed tool-error frame'), cli (QUOTA_EXCEEDED verb grammar), console ('billing SoR + engine F-QUOTA'), lib ('pkg/engineclient: F-QUOTA 402 as first-class terminal non-retryable error'), mcp ('402 QUOTA verbatim'), wiki-api E4-S5 (covers FR-A22, verbatim 402 propagation). Fully built, just tracked via title/Source rather than a literal covers-array id."
+    },
+    {
+      "id": "D-S7",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a literal index key; hard-checked. D-S7 is the billing-is-SoR-for-quota/cap-values ruling. contracts E2-S7 (covers=[FR-C24]) builds billing.yaml plan/entitlements JSON schemas returning quota values + AI spend-cap per D-S7 Source cite; contracts E2-S1 AC3 (covers=[FR-C1]) has the engine READ (not own) limit values from billing per D-S7; contracts E2-S6 AC3 (FR-C22) enforces the same read-not-own split for the ai spend-cap; billing E3-S2 (FR-B17a) builds the Personal-plan caps{} values per D-S7 (pending-freeze flagged, OQ-B10); console E6-S2 wires the entitlement/quota-usage pane against the same D-S7 billing SoR. Fully built across contracts+billing+console, tracked via Source citations rather than a literal covers-array id."
+    },
+    {
+      "id": "D-S27",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a literal index key; hard-checked, and confirmed by prior joins join-WWngFAdCYk.json and join-rgZ7PeI93L.json plus gap-hunt/gaps-adr-0002-wiki-url-host-ordering.json (verdict: zero BUILD gaps). D-S27 is ADR-0002 (tenant wiki host ordering {tenant}.wiki.{cell}.orvex.{tld}, label-0 tenant). wiki E7-S1 (covers=[FR-W20]) implements the load-bearing BUILD obligation: CLOUD-clean boot + domain.middleware.ts hostname resolver staying at split('.')[0] label-0 tenant, with a soft label-2 cell assertion that no-ops under 'solo' — explicitly 'unchanged under D-S27' per E7-S1 AC2 text. wiki E9-S2 AC4 also files D-S27 as one of the load-bearing rulings to be drafted as ADR-NNNN. Remaining ADR obligations (per-cell LE wildcard certs, tenant-free apex guard, cell-lint rule 9) are GitOps/ops-config, not un-homed program work."
+    }
+  ]
+}

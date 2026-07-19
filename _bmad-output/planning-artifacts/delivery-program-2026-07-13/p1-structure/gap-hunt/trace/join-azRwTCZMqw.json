@@ -1,0 +1,32 @@
+{
+ "slug": "azRwTCZMqw",
+ "total": 26,
+ "results": [
+  {"id": "A1", "verdict": "COVERED", "owner_or_reason": "E4-S1 (FR-K12, ENG-2346) — 'no-cached-allow' invariant; also referenced in E3.md/E3-S1/E1-S6/E4-S4/E4.md"},
+  {"id": "A1a", "verdict": "COVERED", "owner_or_reason": "E4-S2 (FR-K12/NFR-K5, ENG-2347) — bulk bulkhead; also E7-S1/E8-S1/E6/E6-S1"},
+  {"id": "A2", "verdict": "COVERED", "owner_or_reason": "E2-S1 (FR-K7, ENG-2338) — two-store write order / CAS invariant; also E2.md/E2-S3/E1.md/E8-S3"},
+  {"id": "A2a", "verdict": "COVERED", "owner_or_reason": "E1-S2 (FR-K2/FR-K3, ENG-2332) — Postgres CAS wins first, then Turbopuffer"},
+  {"id": "A2b", "verdict": "COVERED", "owner_or_reason": "E2-S1 (FR-K7, ENG-2338) — RLS fail-closed tenancy backstop; also E9-S2"},
+  {"id": "A3", "verdict": "COVERED", "owner_or_reason": "E2-S2 (FR-K9/NFR-K7, ENG-2339) — vendor-neutral store-adapter seam + conformance suite; also E2-S3"},
+  {"id": "A4", "verdict": "COVERED", "owner_or_reason": "E2-S4 (FR-K12A, ENG-2341) — source-adapter contract registry, fail-closed on undeclared primitive"},
+  {"id": "A5", "verdict": "COVERED", "owner_or_reason": "E1-S3 (FR-K4, ENG-2333) — tenant/page-id coherence + over-far-version rejection; also E7-S4"},
+  {"id": "A5a", "verdict": "COVERED", "owner_or_reason": "E4-S3 (FR-K13, ENG-2348) — IdP-agnostic auth verifier, polymorphic principal"},
+  {"id": "A6", "verdict": "COVERED", "owner_or_reason": "E5-S1 (FR-K16, ENG-2334) — KafkaSink raw topic + standalone SSE consumer; also E5-S2/E1-S1"},
+  {"id": "A6a", "verdict": "COVERED", "owner_or_reason": "E5-S3 (FR-K15a, ENG-2352) — cursor monotonic/epoch-ms scheme + legacy event names"},
+  {"id": "A7", "verdict": "COVERED", "owner_or_reason": "E1-S4 (FR-K8/FR-K10, ENG-2334) — chunking + embeddings pipeline; also E1-S7/E3-S2/E1-S5"},
+  {"id": "A8", "verdict": "COVERED", "owner_or_reason": "E8-S1 (FR-K23, ENG-2360) — idempotent rebuild step-APIs; also E7-S1/E8-S2/E9-S2/E8-S3"},
+  {"id": "A9", "verdict": "COVERED", "owner_or_reason": "E3-S4 (FR-K14/NFR-K10/NFR-K11, ENG-2345) — query latency + per-principal/tenant fairness; also E4-S2"},
+  {"id": "A10", "verdict": "COVERED", "owner_or_reason": "E9-S3 (FR-K26/NFR-K9, ENG-2365) — liveness/readiness split + Prometheus/OTel SLIs; also E9.md/E4-S2"},
+  {"id": "A11", "verdict": "COVERED", "owner_or_reason": "E3-S3 (NFR-K13/NFR-K1, ENG-2344) — Redis read-path cache, event-driven eviction; also E9-S1"},
+  {"id": "A12", "verdict": "COVERED", "owner_or_reason": "E10-S2 (FR-K31b/NFR-K3, ENG-2367) — Studio-corpora confidentiality controls (owner-scoped/employer-firewall/delegated-only/ingestion-exclusion); also E10.md/E2-S4/E4-S4/E9-S1"},
+  {"id": "A-bundle", "verdict": "COVERED", "owner_or_reason": "E6-S1 (FR-K18, ENG-2353) — bundle builder, pre-stream egress audit, fail-closed export policy, bulk bulkhead"},
+  {"id": "AD-7", "verdict": "COVERED", "owner_or_reason": "coverage-index direct key: ENG-2213/ENG-2240/ENG-2369 — E10-S3 Memory retrieval namespace wall (owner_scope)"},
+  {"id": "AD-9", "verdict": "COVERED", "owner_or_reason": "coverage-index direct key: ENG-2211/ENG-2370 — E10-S4 retrieval eval harness (recall@10 gate)"},
+  {"id": "AD-11", "verdict": "COVERED", "owner_or_reason": "coverage-index direct key: ENG-2313/ENG-2369 — E10-S3 per-card ordering & read-your-writes"},
+  {"id": "ADR-0001", "verdict": "NOT-BUILD", "owner_or_reason": "Page's own §7 table: '0001 — Turbopuffer search/RAG store' is explicitly an unfiled ADR-drafting action ('this architecture names the triggers, it does not create the ADR pages... filing them is an OPEN action' — human Studio Act-1 step, not an engineering ticket). Coverage-index's literal 'ADR-0004'->['gapfix'] key is a false-alias for a different, unrelated contracts-space ADR (cell-lint trailer rule, GABwtTr4pp) — confirmed no matching key exists for ADR-0001. Underlying trigger (D-S9/A2/A3, Turbopuffer commitment) IS built via E2-S1/E2-S2/E2-S3, but the ADR-filing artifact itself is out of build scope."},
+  {"id": "ADR-0002", "verdict": "NOT-BUILD", "owner_or_reason": "Page's own §7 table: '0002 — single-Postgres datastore, Mongo struck' is an unfiled ADR-drafting action (same OPEN-action governance step as ADR-0001/0003/0004/0005). No coverage-index key. Underlying trigger (D-S12/A2) IS built via E2-S1, but ADR filing is a human doc action outside this delivery program's ticket scope."},
+  {"id": "ADR-0003", "verdict": "NOT-BUILD", "owner_or_reason": "Page's own §7 table: '0003 — SSE cursor wire-format' is the same unfiled OPEN-action governance step (E5-S3 calls it 'an ADR trigger pinned by the pack' / blocked on ENG-2099 contract tag, not a filed ADR page). No coverage-index key for ADR-0003. Underlying decision (A6a) IS built via E5-S3 (ENG-2352), but the ADR document itself remains unfiled per the page's own §7 OPEN-action note."},
+  {"id": "ADR-0004", "verdict": "NOT-BUILD", "owner_or_reason": "Page's own §7 table: '0004 — source-adapter contract' is the same unfiled OPEN-action governance step (A4/A12). The literal coverage-index key 'ADR-0004'->['gapfix'] is a false positive: it resolves to fix-adr0004-celllint.md, an unrelated cell-lint-allow-trailer fix for a DIFFERENT ADR-0004 (GABwtTr4pp, orvex-studio-contracts space), not this page's local ADR numbering. Underlying trigger (A4/A12) IS built via E2-S4/E10-S2, but this page's ADR-0004 document is unfiled."},
+  {"id": "ADR-0005", "verdict": "NOT-BUILD", "owner_or_reason": "Page's own §7 table: '0005 — central-Temporal / no in-service worker' is the same unfiled OPEN-action governance step (D-WF-1/A8; E8-S1 references 'ADR 0005 (central-Temporal)' as a design-note citation, not a filed page). No coverage-index key. Underlying trigger (A8) IS built via E8-S1 (ENG-2360), but the ADR document itself remains unfiled."}
+ ]
+}

@@ -1,0 +1,11 @@
+{
+  "slug": "UWJzZBVDng",
+  "title": "ADR-0017: @clerk/react client SDK dependency",
+  "verdict_summary": "Proposed decision record (pending doc-ratify) that retroactively RATIFIES an already-shipped surface built under ENG-1387: the @clerk/react@6.12.2 client dependency plus its two adapter modules (ClerkAppProvider, ClerkLoginPage), all of which already EXIST in apps/client. The ADR contains no formal requirement ids and mandates no new build work — its decision points (1-4) are scoping/invariant constraints on existing code (sole-adapter seam, no client-side authority, version pin 6.12.2, single-route blast radius), not new features. The one forward-looking MUST ('real-tree provider-wiring tests required for any new Clerk-mounting route') is a going-forward testing policy, not a discrete build obligation, and the existing Clerk client login/exchange surface is already covered (feature-map lines 305 exchange, 676 shipped Clerk pipeline; FR-15 in covers-union). Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "@clerk/react@6.12.2 (client SDK dependency, apps/client/package.json)", "quote": "@clerk/react@6.12.2 added as a first-class client dependency (apps/client/package.json)."},
+    {"name": "ClerkAppProvider (apps/client/src/features/clerk/clerk-app-provider.tsx)", "quote": "ClerkAppProvider (apps/client/src/features/clerk/clerk-app-provider.tsx) conditionally mounts Clerk's <ClerkProvider> around the /clerk route, gated by isClerkTenancy()"},
+    {"name": "ClerkLoginPage (apps/client/src/pages/auth/clerk-login.tsx)", "quote": "ClerkLoginPage (apps/client/src/pages/auth/clerk-login.tsx) renders Clerk's own <SignIn> and <OrganizationList> components and calls Clerk's useAuth/useOrganization hooks in-browser"}
+  ]
+}

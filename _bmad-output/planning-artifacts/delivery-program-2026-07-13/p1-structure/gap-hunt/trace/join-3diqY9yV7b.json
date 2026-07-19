@@ -1,0 +1,46 @@
+{
+  "slug": "3diqY9yV7b",
+  "total": 8,
+  "results": [
+    {
+      "id": "ADR-0001",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity/E3-S1 + E3-S3 (Tenant registry idp-tagged polymorphic user|org mapping; Personal→Teams upgrade pass) implement the polymorphic user-or-org tenancy this ADR records; not in coverage-index but confirmed by concept match in plan.json + feature-map.txt L299-300,639"
+    },
+    {
+      "id": "ADR-0009",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity/E4-S1 'POST /v1/exchange — Clerk verify → exchange-token → engine session mint (FR-15)' is exactly this ADR's exchange-token contract; feature-map.txt L305"
+    },
+    {
+      "id": "ADR-0011",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key ADR-0011 -> [\"gapfix\"]"
+    },
+    {
+      "id": "ADR-0012",
+      "verdict": "COVERED",
+      "owner_or_reason": "Family-wide re-confirmation that polymorphic {user|org} tenancy is settled canon — same underlying capability as ADR-0001, built by identity/E3-S1 + E3-S3; no separate build item needed since it only reconfirms an already-implemented decision"
+    },
+    {
+      "id": "ADR-0015",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key ADR-0015 -> [\"gapfix\"]"
+    },
+    {
+      "id": "ADR-0029",
+      "verdict": "COVERED",
+      "owner_or_reason": "mcp/E4-S1 (TS verifier binding: multi-issuer JWKS → deny-by-default scope gate → principal) + E4-S3 (Token pass-through, no service credential = no shared-secret bridge) + E5-S2 (Raw in-process Kafka revocation consumer → deny-list apply) jointly implement 'MCP gateway cutover to identity-minted, edge-verified bearer tokens with push-revocation via Kafka, no bridge/shared-secret fallback'"
+    },
+    {
+      "id": "ADR-0030",
+      "verdict": "COVERED",
+      "owner_or_reason": "lib/E1-S1 '[lib] pkg/auth: dual-IdP multi-issuer JWKS verify → canonical principal (+ cell-claim parse)' implements the cell/cell_epoch additive-claims-on-principal change this ADR records (covers FR-L1, NFR-L1)"
+    },
+    {
+      "id": "F2",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity/E5-S4 '[identity] Reconcile deprovisioner ownership (F2): retire CloudEvent worker, REST callee only' (covers FR-I15) — the open question is directly resolved by a titled story; feature-map.txt L315"
+    }
+  ]
+}

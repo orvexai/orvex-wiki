@@ -1,0 +1,61 @@
+{
+  "slug": "dQUjrSXhdp",
+  "total": 11,
+  "results": [
+    {
+      "id": "A-IDP",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E1-S1 (FR-I1, multi-issuer IdentityResolver -> IdP-agnostic principal); also referenced by E3-S4/FR-I10, E4-S4/FR-I13. Not a coverage-index key because covers[] is FR/NFR-scoped, but the architecture id is directly cited as the story's Source."
+    },
+    {
+      "id": "A-VERIFY",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E1-S2 (FR-I2/FR-I6, orvex-studio-lib/auth local JWKS verifier, deny-by-default); E1 epic body cites A-VERIFY explicitly. ADR authoring for the decision also tracked separately by E8-S5 (FR-I18)."
+    },
+    {
+      "id": "A-TOKEN",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E2 epic 'Token authority (mint/scope/lifecycle)' — E2-S1 (FR-I4), E2-S2 (FR-I5), E2-S3 (FR-I6), E2-S4 (FR-I7). ADR authoring for the decision also tracked by E8-S5 (FR-I18)."
+    },
+    {
+      "id": "A-SESSION",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E4-S1 (FR-I11, POST /v1/exchange Clerk-verify -> engine session mint); E4 epic body cites A-SESSION; E4-S4 (FR-I13) also references it. ADR authoring tracked by E8-S5 (FR-I18), cross-linked to orvexwiki."
+    },
+    {
+      "id": "A-LIFECYCLE",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E5 epic 'Lifecycle callee & event spine' — E5-S1 (FR-I14, provision/deprovision step API + workload identity), E5-S2 (FR-I14), E5-S3/E5-S4 (FR-I15, two-phase deprovision + outbox relay)."
+    },
+    {
+      "id": "A-BREAKGLASS",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E4-S3 (FR-I12, offline-sealed break-glass admin credential, console-only) — audit: already implemented, story is verify+harden."
+    },
+    {
+      "id": "A-DATA",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E3-S1 (FR-I8/NFR-I4/NFR-I7, two schema-isolated registry stores — PII-free routing core + in-jurisdiction sensitive shard); also referenced by E3-S3 (FR-I8/I9), E5-S3 (FR-I15), E8-S1 (FR-I16)."
+    },
+    {
+      "id": "A-CELL-REGISTRY",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Explicitly flagged in E8-S5 (identity plan.json/bodies) as 'a flagged family-space human action, NOT authored here' — deliberately out of this delivery program's build scope, deferred to a human action in the family (orvexstudioarch) space."
+    },
+    {
+      "id": "A-JIT",
+      "verdict": "COVERED",
+      "owner_or_reason": "identity E3-S2 (FR-I9, gated rate-limited JIT provisioning); also referenced by E3-S3 (FR-I8/I9) and E3 epic body (Architecture A-DATA/A-JIT)."
+    },
+    {
+      "id": "AD-6",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index key AD-6 -> ['ENG-2211', 'ENG-2214', 'ENG-2448', 'identity-corpus']."
+    },
+    {
+      "id": "AD-8",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index key AD-8 -> ['ENG-2448', 'extsweep', 'identity-corpus']."
+    }
+  ]
+}

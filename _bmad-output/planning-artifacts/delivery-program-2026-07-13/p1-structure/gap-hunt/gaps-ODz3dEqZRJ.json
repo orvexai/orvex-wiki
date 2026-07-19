@@ -1,0 +1,24 @@
+{
+  "slug": "ODz3dEqZRJ",
+  "title": "ADR-0019: Studio BFF cell-compliance 421 signal",
+  "verdict_summary": "ADR (decision record) for ENG-1428, recording the cellGuard 421 cell-compliance self-heal signal in orvex-studio-api. The decision is already landed (PR #18, commit a4e71f4) and its single build obligation — the inbound cellGuard middleware emitting the typed 421 CELL_MISMATCH/CELL_UNRESOLVED self-heal body via resolveCellCompliance — is covered by A-CELL-COMPLIANCE in covers-union plus the orvex-studio-api stories 'Cell-guard middleware + CELL_ID + same-cell service resolution' and 'Cell-contract compliance — healthz CELL_ID+CLUSTER_NAME, 421 guard'. It conforms to (does not define) the cell-discovery-contracts (ENG-1364) 421 shape and reads the ADR-0011 registry concept, both of which have their own homes. No un-covered build obligations. Zero gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "orvex-studio-api cellGuard inbound middleware",
+      "quote": "The inbound `cellGuard` middleware in `orvex-studio-api` reads the verified `cell`/`cell_epoch` claim and applies a pure, synchronous decision function `resolveCellCompliance`"
+    },
+    {
+      "name": "resolveCellCompliance (src/cell/compliance.ts)",
+      "quote": "applies a pure, synchronous decision function `resolveCellCompliance` (`src/cell/compliance.ts`)"
+    },
+    {
+      "name": "cell-discovery-contracts 421 self-heal body shape (ENG-1364)",
+      "quote": "typed `421` body conforming to the `cell-discovery-contracts` self-heal shape ... { \"error\": \"CELL_MISMATCH\", \"cell\": \"<deployment cell>\", \"cellEpoch\": \"<presented epoch>\", \"reDiscover\": true }"
+    },
+    {
+      "name": "ADR-0011 Tenant-to-cell registry",
+      "quote": "The tenant-to-cell registry (ADR-0011) is the platform's sole global routing component; a tenant can move cells, bumping `cell_epoch`."
+    }
+  ]
+}

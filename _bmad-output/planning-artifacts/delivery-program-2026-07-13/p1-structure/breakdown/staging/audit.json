@@ -1,0 +1,276 @@
+{
+  "repo": "orvex-studio-staging",
+  "audited_ref": "origin/dev",
+  "head": "0dc7780 2026-07-10 21:00:05 +0200",
+  "branches_note": "Default branch is `dev` (0dc7780, 2026-07-10 21:00), one commit AHEAD of `main` (e74e2f3, 2026-07-10 20:39) — dev carries a Postgres-claim 18->17 fix not on main. Only two branches exist (dev, main); no night-fix feature branch is ahead of the audited default, so the ENG-2069 hazard does not apply here — dev IS the freshest ref.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "partial",
+      "evidence": [
+        "cmd/api/main.go",
+        "cmd/triage/main.go",
+        "cmd/relay/main.go",
+        "cmd/sweep/main.go",
+        "internal/config/config.go",
+        "internal/server/server.go:71",
+        "internal/server/server.go:87"
+      ],
+      "note": "six-tier tree, four thin binaries (`cmd/{api,triage,relay,sweep}/main.go`), env-only `internal/config/config.go` and the `/healthz`+`/readyz` cell-split (`internal/server/server.go` `Health`/`Ready` echo CELL_ID+CLUSTER_NAME) all exist and compile. Missing: the named DoD test `TestHealthzEchoesCellIdentity` is absent (only the store RLS test is in-tree; health/config handlers untested), and AC3 loud-fail-on-missing-env is NOT met — `config.Load` uses silent dev-convenience defaults (`getenv`/bare `os.Getenv`), never fatals."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        ".golangci.yml:81",
+        "gen/contract.go",
+        "gen/doc.go"
+      ],
+      "note": "the AGPL import-denylist IS present and enforced (`.golangci.yml` depguard `agpl-import-guard` denies `github.com/docmost` across `$all`). Missing: contracts CODEGEN is not wired — `gen/*.go` shapes are hand-authored (gen/doc.go: \"Until the generator lands they are hand-authored\"), and there is NO contracts drift gate (the only drift check, scripts/check-context-freshness.sh, guards the Coding-Standards copy, not the contract)."
+    },
+    "E1-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/auth/auth.go:21",
+        "internal/auth/auth.go:27"
+      ],
+      "note": "only the cell-contract seam exists — `internal/auth/auth.go` re-exports `libauth.Cell` and `LocalCell()` (CellFromEnv). The token `Middleware`/`Verifier` over identity JWKS, the per-request tenant GUC (`app.tenant`) injection, and `VerifyFresh` on high-privilege transitions are all ABSENT (the package doc explicitly defers them until a real caller lands)."
+    },
+    "E1-S4": {
+      "status": "present",
+      "evidence": [
+        "migrations/0001_baseline.sql",
+        "internal/store/postgres/postgres.go",
+        "internal/store/postgres/postgres_test.go:20"
+      ],
+      "note": "fully implemented AND tested. `migrations/0001_baseline.sql` ships RLS ENABLED+FORCED, fail-closed on `current_setting('app.tenant')`, with uuidv7() PKs on `proposal`+`outbox`; `internal/store/postgres/postgres.go` is the advisory-locked embedded-migration applier; `postgres_test.go` `TestBaselineRLSFailsClosed` proves fail-closed + per-tenant isolation against a REAL testcontainers Postgres 18 as a non-superuser role, and CI asserts it ran (not skipped)."
+    },
+    "E1-S5": {
+      "status": "partial",
+      "evidence": [
+        "migrations/0001_baseline.sql",
+        "cmd/relay/main.go",
+        "internal/event/doc.go"
+      ],
+      "note": "the transactional `outbox` table (event_type/payload/published_at + unpublished index) is in the baseline migration and `cmd/relay` boots a poll-loop skeleton with a health split. Missing: the drain/publish itself is a TODO (relay logs \"publish TODO\"), `internal/event` is a doc-only stub, and there is NO spine consumer and NO OTel instrumentation."
+    },
+    "E2-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/intake/doc.go",
+        "internal/server/server.go:108"
+      ],
+      "note": "`internal/intake` is a doc-only stub and `POST /v1/proposals` returns the typed 501 `not_implemented` sentinel. No submit operations, DfM/PM validation, base-version stamp, or receipt logic."
+    },
+    "E2-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/lifecycle/doc.go",
+        "migrations/0001_baseline.sql"
+      ],
+      "note": "`internal/lifecycle` is a doc-only stub; the `proposal` table carries only id/tenant/state columns and no ChangeSet table or state-machine transitions exist."
+    },
+    "E2-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/intake/doc.go"
+      ],
+      "note": "provenance/attribution is not implemented — no provenance table, no two-sided immutable record keyed on verified principal."
+    },
+    "E2-S4": {
+      "status": "absent",
+      "evidence": [
+        "internal/intake/doc.go",
+        "internal/config/config.go"
+      ],
+      "note": "pointer-state S3 payloads are not implemented — S3 config fields exist in `internal/config` but there is no client, no tenant-keyed body write, and no sha256-in-queue-row."
+    },
+    "E2-S5": {
+      "status": "absent",
+      "evidence": [
+        "internal/quota/doc.go"
+      ],
+      "note": "`internal/quota` is a doc-only stub — no in-flight caps, no 402 QUOTA_EXCEEDED, no depth/age alerting."
+    },
+    "E3-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/triage/doc.go",
+        "cmd/triage/main.go"
+      ],
+      "note": "`internal/triage` is a doc-only stub and `cmd/triage` is a health-only skeleton (drain loop TODO). No disposition production."
+    },
+    "E3-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/routing/doc.go"
+      ],
+      "note": "`internal/routing` is a doc-only stub — no find-before-create dedup, duplicate-of, or divert-to-workgraph routing."
+    },
+    "E3-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/routing/doc.go"
+      ],
+      "note": "hard conflict detection is not implemented — no authoritative read, anchor re-resolution, or no-auto-merge guard."
+    },
+    "E4-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/policy/doc.go"
+      ],
+      "note": "`internal/policy` is a doc-only stub — no Autonomy Dial server-side policy verdict."
+    },
+    "E4-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/policy/doc.go"
+      ],
+      "note": "trust tiers are not implemented — no per-producer acceptance history or auto-apply gating."
+    },
+    "E4-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:124"
+      ],
+      "note": "review queue is not implemented — `GET /v1/changesets/{id}` and `POST /v1/changesets/{id}/decide` return typed 501; no bulk-decide, buckets, or adjudication lane."
+    },
+    "E5-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/apply/doc.go",
+        "internal/server/server.go:120",
+        "internal/server/server.go:128"
+      ],
+      "note": "`internal/apply` is a doc-only stub; `apply` and `internalApplyStep` routes return typed 501. No wiki-api CAS writes, receipts, pause/rollback, or step-APIs."
+    },
+    "E5-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/beautify/doc.go"
+      ],
+      "note": "`internal/beautify` is a doc-only stub — no triage-time re-author, mechanical done-bar, or sha256 artifact."
+    },
+    "E5-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:132"
+      ],
+      "note": "scheduled publishing is not implemented — `internalPublishScheduled` returns typed 501; no UTC-instant+tzid, cancel, or conflict re-run."
+    },
+    "E6-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/learning/doc.go"
+      ],
+      "note": "`internal/learning` is a doc-only stub — no append-only feedback events."
+    },
+    "E6-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/learning/doc.go"
+      ],
+      "note": "learning application/transparency is not implemented — no exemplars, tiers, held-out harness, or changelog."
+    },
+    "E6-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/learning/doc.go"
+      ],
+      "note": "cold-start defaults are not implemented — no baseline pack, dial recommendation, or content-free exemplars."
+    },
+    "E6-S4": {
+      "status": "absent",
+      "evidence": [
+        "internal/learning/doc.go"
+      ],
+      "note": "prompt-pack marketplace is not implemented — no publish/install/rate or admin-approval flow."
+    },
+    "E7-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/sweep/doc.go",
+        "cmd/sweep/main.go",
+        "internal/server/server.go:136"
+      ],
+      "note": "`internal/sweep` is a doc-only stub, `cmd/sweep` is a health-only skeleton, and `internalSweepDispatch` returns typed 501. No sweep executor or duplicate/merge sweep."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/sweep/doc.go"
+      ],
+      "note": "staleness & verification queue + retrieval trust-gating contract are not implemented."
+    },
+    "E7-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/sweep/doc.go"
+      ],
+      "note": "structure & link-hygiene sweep is not implemented — no orphan/broken-link/misfiled/IA detection."
+    },
+    "E7-S4": {
+      "status": "absent",
+      "evidence": [
+        "internal/sweep/doc.go",
+        "internal/beautify/doc.go"
+      ],
+      "note": "beautification sweep is not implemented — no mechanical-bar flagging or proposed diffs."
+    },
+    "E7-S5": {
+      "status": "absent",
+      "evidence": [
+        "internal/sweep/doc.go"
+      ],
+      "note": "AI-groundability flag + review-state gate are not implemented — no page-meta write via wiki-api."
+    },
+    "E8-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "MCP staging section lives outside this repo (the MCP server is a separate service); nothing here. No staging_* tools present in this tree."
+    },
+    "E8-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "CLI staging section lives in orvex-cli (separate repo); nothing here."
+    },
+    "E8-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/event/doc.go",
+        "migrations/0001_baseline.sql"
+      ],
+      "note": "the `outbox` table can carry `studio.staging.<resource>.<past-tense>` types, but NO events are ever emitted (relay drain is TODO) and there is no CloudEvents catalog; `internal/event` is a doc-only stub."
+    },
+    "E8-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "the hard-cut migration of agent wiki-write surfaces is not implemented — no loud-error redirection of legacy write paths."
+    },
+    "E8-S5": {
+      "status": "absent",
+      "evidence": [],
+      "note": "curator supersession (Card v1 → Proposal verbatim mapping + goldens) is not implemented."
+    },
+    "E9-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "the 100-Proposal load benchmark / SLO release gate does not exist — no benchmark harness in-tree."
+    },
+    "E9-S2": {
+      "status": "partial",
+      "evidence": [
+        "migrations/0001_baseline.sql",
+        "internal/store/postgres/postgres_test.go:20"
+      ],
+      "note": "the per-tenant ISOLATION floor is present and proven (RLS fail-closed baseline + `TestBaselineRLSFailsClosed`). Missing: the apply-rate throttle, per-tenant fairness scheduler, and immutable audit journal named by this story are all ABSENT."
+    },
+    "E9-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/store/postgres/postgres_test.go:20"
+      ],
+      "note": "no six-surface E2E and no fresh-tenant real-data pass exist; the only isolation probe in-tree is the DB-level store RLS test (E1-S4), not the P8 cross-surface suite."
+    }
+  },
+  "summary": "orvex-studio-staging is an honest, well-documented SCAFFOLD, not a delivered service: 1 story present, 5 partial, 30 absent of 36. Only the Postgres RLS store baseline (E1-S4) is fully implemented and tested (real testcontainers PG18, fail-closed isolation proven + CI-gated); the six-tier skeleton, AGPL denylist, cell-auth seam, and outbox table are partials, and every domain tier (intake/lifecycle/triage/routing/policy/apply/beautify/learning/sweep/event) is a doc-only stub whose routes return typed 501 not_implemented sentinels. No fabricated done: the code openly labels its TODOs and returns honest closed doors."
+}

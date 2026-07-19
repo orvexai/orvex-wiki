@@ -1,0 +1,598 @@
+{
+  "service": "orvex-studio-ai",
+  "requirement_source": "PRD: orvex-studio-ai (pbKI3BpQmY, canonical post-ENG-2036) + Architecture: orvex-studio-ai (Cb0XBkNezd); brief-assigned product-feature backends cited [Brief]/[Map]",
+  "sources": [
+    {
+      "slug": "pbKI3BpQmY",
+      "title": "PRD: orvex-studio-ai"
+    },
+    {
+      "slug": "Cb0XBkNezd",
+      "title": "Architecture: orvex-studio-ai"
+    },
+    {
+      "slug": "oaD5XUHqfb",
+      "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)"
+    }
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] ai: Chat \u2014 sessions, history, branching & streaming SSE",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {
+          "id": "E1-S1",
+          "title": "[ai] SSE chat turn endpoint /api/ai/chat wire-compatible with the AI-SDK data-stream",
+          "body_file": "bodies/E1-S1.md",
+          "covers": [
+            "FR-AI1"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S2",
+          "title": "[ai] Chat session CRUD + search + message lifecycle, fork-at-message & branch listing",
+          "body_file": "bodies/E1-S2.md",
+          "covers": [
+            "FR-AI2"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S3",
+          "title": "[ai] Async auto-titling, history TTL expiry, message reconciler & cost-backfill maintenance",
+          "body_file": "bodies/E1-S3.md",
+          "covers": [
+            "FR-AI2"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S4",
+          "title": "[ai] Per-turn context assembly (prompt + memories + DfM page context + RAG citations)",
+          "body_file": "bodies/E1-S4.md",
+          "covers": [
+            "FR-AI3"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E1-S5",
+          "title": "[ai] Streaming resilience \u2014 incremental turn ledger + reconciler heals severed turns",
+          "body_file": "bodies/E1-S5.md",
+          "covers": [
+            "NFR-AI2",
+            "NFR-AI6"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] ai: Tools, the one write door & in-editor thin-UI",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {
+          "id": "E2-S1",
+          "title": "[ai] Data-driven tool registry + bounded in-request loop + tool-output validation",
+          "body_file": "bodies/E2-S1.md",
+          "covers": [
+            "FR-AI4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E2-S2",
+          "title": "[ai] Page-edit tools via orvex-wiki-api block chokepoint with the caller's token",
+          "body_file": "bodies/E2-S2.md",
+          "covers": [
+            "FR-AI9"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E2-S3",
+          "title": "[ai] F-QUOTA 402 QUOTA_EXCEEDED surfaced verbatim as a typed tool-error frame",
+          "body_file": "bodies/E2-S3.md",
+          "covers": [
+            "FR-AI9",
+            "NFR-AI5"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S4",
+          "title": "[ai] tools-retry surface + SearXNG web-search helper (SSRF-guarded)",
+          "body_file": "bodies/E2-S4.md",
+          "covers": [
+            "FR-AI4"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E2-S5",
+          "title": "[ai] Visual bake + server-side mermaid\u2192drawio/excalidraw conversion; in-editor thin-UI",
+          "body_file": "bodies/E2-S5.md",
+          "covers": [
+            "FR-AI17",
+            "FR-AI26"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] ai: Cited-ask loop, inline & drafts \u2014 one core, every front door",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {
+          "id": "E3-S1",
+          "title": "[ai] Agentic cited-ask core \u2014 retrieval-as-a-tool, multi-hop, under caller's delegated principal",
+          "body_file": "bodies/E3-S1.md",
+          "covers": [
+            "FR-AI5",
+            "NFR-AI5"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S2",
+          "title": "[ai] K5 cited-answer synthesis + grounding rules + citation/deep-link composition",
+          "body_file": "bodies/E3-S2.md",
+          "covers": [
+            "FR-AI5"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S3",
+          "title": "[ai] /api/ai/ask front door (draft-quarantine) + MCP-direct ask/chat/inline/generate",
+          "body_file": "bodies/E3-S3.md",
+          "covers": [
+            "FR-AI6"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S4",
+          "title": "[ai] Inline AI /api/ai/inline \u2014 selection/cursor completions & transforms",
+          "body_file": "bodies/E3-S4.md",
+          "covers": [
+            "FR-AI7"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S5",
+          "title": "[ai] AI draft slot per {workspace,user,page} with server-controlled TTL",
+          "body_file": "bodies/E3-S5.md",
+          "covers": [
+            "FR-AI8"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] ai: Metering & cost protection \u2014 the FR-20 spine (P0)",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {
+          "id": "E4-S1",
+          "title": "[ai] Per-tenant virtual key + hard max_budget backstop provisioning",
+          "body_file": "bodies/E4-S1.md",
+          "covers": [
+            "FR-AI12"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S2",
+          "title": "[ai] Per-caller scoped LiteLLM keys + budgets (cost-center = call-site \u00d7 principal)",
+          "body_file": "bodies/E4-S2.md",
+          "covers": [
+            "FR-AI12"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S3",
+          "title": "[ai] billing.entitlement.changed consumer + entitlement cache + budget reconcile",
+          "body_file": "bodies/E4-S3.md",
+          "covers": [
+            "FR-AI12"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S4",
+          "title": "[ai] Pre-flight spend check \u2014 fail-closed, never zero-on-failure",
+          "body_file": "bodies/E4-S4.md",
+          "covers": [
+            "FR-AI13",
+            "NFR-AI4"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S5",
+          "title": "[ai] Free-tier model-class allowlist gate (frontier denied 402, zero-cost uncounted)",
+          "body_file": "bodies/E4-S5.md",
+          "covers": [
+            "FR-AI13",
+            "FR-AI12"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E4-S6",
+          "title": "[ai] Usage journal \u2014 ai.usage.recorded + Kafka metering consumer \u2192 Postgres + Redis counters + cap alerts",
+          "body_file": "bodies/E4-S6.md",
+          "covers": [
+            "FR-AI14"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E4-S7",
+          "title": "[ai] Usage reporting API + separate nested embedding budget + capped/uncapped black-box CI gate",
+          "body_file": "bodies/E4-S7.md",
+          "covers": [
+            "FR-AI15",
+            "FR-AI12",
+            "NFR-AI4",
+            "NFR-AI3",
+            "FR-20"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] ai: Model gateway, per-tenant config, PII hygiene & images",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {
+          "id": "E5-S1",
+          "title": "[ai] LiteLLM sole-gateway port/adapter + fast tool-model swap + GET /api/ai/models",
+          "body_file": "bodies/E5-S1.md",
+          "covers": [
+            "FR-AI18",
+            "FR-39"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S2",
+          "title": "[ai] Per-tenant model config store (tenant_ai_config, encrypted key) + settings API",
+          "body_file": "bodies/E5-S2.md",
+          "covers": [
+            "FR-AI19"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S3",
+          "title": "[ai] FR-AI19a write-mask \u2014 base-URL/virtual-key read-only, typed rejection on write",
+          "body_file": "bodies/E5-S3.md",
+          "covers": [
+            "FR-AI19a"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S4",
+          "title": "[ai] PII redactor + secret scrubber outbound middleware, fail-closed strictest policy",
+          "body_file": "bodies/E5-S4.md",
+          "covers": [
+            "FR-AI20"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E5-S5",
+          "title": "[ai] Image generation REST + emit-image-from-prompt tool + MCP generate_image (paid-gated)",
+          "body_file": "bodies/E5-S5.md",
+          "covers": [
+            "FR-AI16"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] ai: Durable step-APIs for central Temporal (authors workflows OQ-W4)",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {
+          "id": "E6-S1",
+          "title": "[ai] POST /internal/v1/steps/model-call \u2014 idempotent, workload-identity-only, metered",
+          "body_file": "bodies/E6-S1.md",
+          "covers": [
+            "FR-AI21"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E6-S2",
+          "title": "[ai] POST /internal/v1/steps/tool-exec \u2014 one validated tool execution incl. chokepoint writes",
+          "body_file": "bodies/E6-S2.md",
+          "covers": [
+            "FR-AI21"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E6-S3",
+          "title": "[ai] POST /internal/v1/steps/result-sink + terminal event + ai.job.* enqueue",
+          "body_file": "bodies/E6-S3.md",
+          "covers": [
+            "FR-AI21",
+            "FR-AI22"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E6-S4",
+          "title": "[ai] Delegation-token/handle resolution at tool-exec (no raw caller token in workflow inputs)",
+          "body_file": "bodies/E6-S4.md",
+          "covers": [
+            "FR-AI21"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E6-S5",
+          "title": "[ai] Durable boundary + maintenance schedules + A-RELAY progress (poll fallback) + no in-service worker guard",
+          "body_file": "bodies/E6-S5.md",
+          "covers": [
+            "FR-AI22",
+            "NFR-AI8"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] ai: Prompt library, memories & the memory-extraction gap-closure slice",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {
+          "id": "E7-S1",
+          "title": "[ai] Prompt library CRUD + system-prompt rendering, admin-gated",
+          "body_file": "bodies/E7-S1.md",
+          "covers": [
+            "FR-AI10"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S2",
+          "title": "[ai] Memories CRUD + chat-recall + GDPR opt-in + space-scoped visibility",
+          "body_file": "bodies/E7-S2.md",
+          "covers": [
+            "FR-AI11"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S3",
+          "title": "[ai] Async extraction pipeline off the write path at the proposal quality bar",
+          "body_file": "bodies/E7-S3.md",
+          "covers": [
+            "FR-X1",
+            "FR-X5"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S4",
+          "title": "[ai] beads\u2192staging capture edge as the reliable capture path",
+          "body_file": "bodies/E7-S4.md",
+          "covers": [
+            "FR-X2"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S5",
+          "title": "[ai] Proposal dedup/reconcile + memory-poisoning / prompt-injection defense",
+          "body_file": "bodies/E7-S5.md",
+          "covers": [
+            "FR-X3",
+            "FR-X6"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S6",
+          "title": "[ai] Continuous proposal-quality eval (accept/edit/discard) + regression gate",
+          "body_file": "bodies/E7-S6.md",
+          "covers": [
+            "FR-X4"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E7-S7",
+          "title": "[ai] Token-budgeted memory injection \u226550% + measure/surface + warm-cache + inbound import",
+          "body_file": "bodies/E7-S7.md",
+          "covers": [
+            "FR-C1",
+            "FR-C2",
+            "FR-C3",
+            "FR-O2"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] ai: Platform runtime \u2014 data, auth, event/outbox, health & ops",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {
+          "id": "E8-S1",
+          "title": "[ai] Postgres schema + tenant-RLS + repository-layer tenant GUC",
+          "body_file": "bodies/E8-S1.md",
+          "covers": [
+            "FR-AI23",
+            "NFR-AI3"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E8-S2",
+          "title": "[ai] Range-partitioned usage/journal + step-ledger append tables + partition cronjob + Redis caches",
+          "body_file": "bodies/E8-S2.md",
+          "covers": [
+            "FR-AI23"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E8-S3",
+          "title": "[ai] lib/auth edge verification + RequireFresh + upstream token pass-through (token-first sequencing)",
+          "body_file": "bodies/E8-S3.md",
+          "covers": [
+            "FR-AI24"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E8-S4",
+          "title": "[ai] A-OUTBOX producer outbox+relay + metering ce-id idempotent + orvexcell fail-closed",
+          "body_file": "bodies/E8-S4.md",
+          "covers": [
+            "FR-AI14",
+            "NFR-AI3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E8-S5",
+          "title": "[ai] A-OPS liveness/readiness split + cell-contract echo + OTel SLIs \u2192 LGTM + audit events",
+          "body_file": "bodies/E8-S5.md",
+          "covers": [
+            "FR-AI25",
+            "NFR-AI1"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E8-S6",
+          "title": "[ai] No-AGPL-import CI guard + latency-budget verification (NFR-AI1)",
+          "body_file": "bodies/E8-S6.md",
+          "covers": [
+            "NFR-AI7",
+            "NFR-AI1"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E9",
+      "title": "[EPIC] ai: AI-backed product-feature backends (Composer, Improve-with-AI, Orvex rating)",
+      "body_file": "bodies/E9.md",
+      "stories": [
+        {
+          "id": "E9-S1",
+          "title": "[ai] Improve-with-AI backend \u2014 LLM-driven prompt improvement over the metering/PII spine",
+          "body_file": "bodies/E9-S1.md",
+          "covers": [
+            "FR-AI18"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E9-S2",
+          "title": "[ai] Prompt Composer backend \u2014 compose skill + Memory + wiki RAG into a portable prompt",
+          "body_file": "bodies/E9-S2.md",
+          "covers": [
+            "FR-AI5"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E9-S3",
+          "title": "[ai] Wizard task-first prompt-builder AI-assist backend",
+          "body_file": "bodies/E9-S3.md",
+          "covers": [
+            "FR-AI18"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E9-S4",
+          "title": "[ai] Orvex rating \u2014 structural-quality AI scoring factor (ai's share)",
+          "body_file": "bodies/E9-S4.md",
+          "covers": [
+            "FR-AI18"
+          ],
+          "audit": "absent"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-AI1",
+      "FR-AI2",
+      "FR-AI3",
+      "FR-AI4",
+      "FR-AI5",
+      "FR-AI6",
+      "FR-AI7",
+      "FR-AI8",
+      "FR-AI9",
+      "FR-AI10",
+      "FR-AI11",
+      "FR-AI12",
+      "FR-AI13",
+      "FR-AI14",
+      "FR-AI15",
+      "FR-AI16",
+      "FR-AI17",
+      "FR-AI18",
+      "FR-AI19",
+      "FR-AI19a",
+      "FR-AI20",
+      "FR-AI21",
+      "FR-AI22",
+      "FR-AI23",
+      "FR-AI24",
+      "FR-AI25",
+      "FR-AI26",
+      "NFR-AI1",
+      "NFR-AI2",
+      "NFR-AI3",
+      "NFR-AI4",
+      "NFR-AI5",
+      "NFR-AI6",
+      "NFR-AI7",
+      "NFR-AI8",
+      "FR-X1",
+      "FR-X2",
+      "FR-X3",
+      "FR-X4",
+      "FR-X5",
+      "FR-X6",
+      "FR-C1",
+      "FR-C2",
+      "FR-C3",
+      "FR-O2",
+      "FR-20",
+      "FR-39"
+    ],
+    "uncovered": []
+  }
+}

@@ -1,0 +1,29 @@
+{
+ "space": "orvexwikiapi",
+ "pages": [
+  {
+   "slug": "pG9s9OjqZA",
+   "title": "Architecture: orvex-wiki-api",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "8jAiCBifDW",
+   "title": "PRD: orvex-wiki-api",
+   "doc_type": "prd",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "yB3U1Ui0Zc",
+   "title": "Architecture Audit — SE-Arch review (2026-07-05)",
+   "doc_type": "retrospective",
+   "status": "canonical",
+   "requirement_bearing": false,
+   "already_read": false
+  }
+ ]
+}

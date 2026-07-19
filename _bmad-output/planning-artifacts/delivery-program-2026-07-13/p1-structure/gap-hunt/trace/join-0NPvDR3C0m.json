@@ -1,0 +1,66 @@
+{
+  "slug": "0NPvDR3C0m",
+  "total": 12,
+  "results": [
+    {
+      "id": "A-CEILING",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E1.md epic intro + E1-S6.md \"pkg/auth/authtest: shipped conformance suite as three-way release gate\" — AC2 + footer cite [Source: FR-L7 / NFR-L2 / Arch A-CEILING]"
+    },
+    {
+      "id": "A-VERIFY-IMPL",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E1-S1.md (verifier steps 1-3), E1-S2.md (step 5, bounded introspection), E1-S4.md (step 7, RequireFresh), E1-S5.md (step 6, scope-gate router) all cite Arch A-VERIFY-IMPL"
+    },
+    {
+      "id": "A-CELL",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key A-CELL -> [ENG-2296, ENG-2496, ENG-2510, wiki-corpus]; also cited directly in lib bodies E1.md/E1-S1.md/E1-S5.md (cell-guard 421, cell claim parse)"
+    },
+    {
+      "id": "A-DENYLIST",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E1-S3.md \"pkg/auth: push-revocation deny-list handler\" — AC3/AC5 + footer cite [Source: FR-L4 / Arch A-DENYLIST]"
+    },
+    {
+      "id": "A-CODEGEN",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key A-CODEGEN -> [extsweep]; also breakdown/lib/bodies/E7.md epic intro + E7-S1 \"codegen: pinned gen/ trees + regen-diff CI gate\" cite Arch A-CODEGEN"
+    },
+    {
+      "id": "A-VERSION",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E7-S2.md \"versioning: single module, semver tags, v0 window, apidiff compile-compat\" + E7-S3.md + E7.md all cite Arch A-VERSION"
+    },
+    {
+      "id": "A-STEPAPI",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E3-S6.md (rebuild step-API types), E4-S1.md (temporalutil/worker, D-WF-1 grep gate), E4-S2.md (temporalutil/stepapi idempotency+error envelope), E4.md epic intro all cite Arch A-STEPAPI"
+    },
+    {
+      "id": "A-CLIENTS",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E3.md epic intro (four typed fail-closed clients) + E3-S1/S2/S3/S7/S8 all cite Arch A-CLIENTS"
+    },
+    {
+      "id": "A-KAFKA",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E5.md epic intro (pkg/kafkautil assigned consumers + cell-opaque topics), E2-S3.md (spine publisher, no Redis-Kafka bridge), E5-S3.md (assigned consumers + ErrGap cursors) cite Arch A-KAFKA"
+    },
+    {
+      "id": "A-DFM",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index.json key A-DFM -> [ENG-2487, wiki-corpus]; also lib's own pkg/dfm epic breakdown/lib/bodies/E6.md/E6-S1/E6-S2/E6-S3/E7-S4 all cite Arch A-DFM (clean-room serializer, AGPL provenance audit, parity gate)"
+    },
+    {
+      "id": "A-OBS",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E5-S1.md \"pkg/obs: one Setup() OTLP wiring + /healthz+/livez cell echo\" + E5-S2.md (HTTP middleware/client transports) + E5.md epic intro cite Arch A-OBS; note distinct from wiki-corpus's unrelated A-OBSERVE (engine Architecture twQ3BBzpTE)"
+    },
+    {
+      "id": "A-DEPS",
+      "verdict": "COVERED",
+      "owner_or_reason": "breakdown/lib/bodies/E7-S3.md \"library shape: no cmd/Dockerfile, heavy-SDK package confinement\" + E1-S5.md (plain net/http, no framework adapters) + E7.md epic intro cite Arch A-DEPS"
+    }
+  ]
+}

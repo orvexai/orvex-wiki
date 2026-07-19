@@ -1,0 +1,20 @@
+{
+  "slug": "JLMuwgc9fV",
+  "title": "ADR-0008: Contracts change-authority — layered automated-merge + ADR-gated reshaping",
+  "verdict_summary": "Canonical, ratified ADR (2026-07-07). It is a governance/change-authority policy for the orvex-studio-contracts seam, not a source of new build FRs. Its only load-bearing technical requirement is that the semver/drift-gate act as the MAJOR-vs-MINOR lane classifier (FR-C16/FR-C17) with an additive fast-track + review SLA (NFR-C3) — all COVERED, and directly implemented by the existing orvex-studio-contracts story 'Change-authority governance: ADR-0008 lane classifier + additive-fast-track review SLA'. The one open item (OQ-C1: name the human ratifier before v0.1 freeze) is a definition/ownership decision, not build work. Zero build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "orvex-studio-contracts change-authority lane classifier (drift-gate + semver = MAJOR/MINOR classifier)",
+      "quote": "The classifier is the drift-gate + semver policy (FR-C17). A change the gate/semver classifies MAJOR = breaking → ADR lane; MINOR/PATCH = mechanical → automated lane. Ambiguity resolves to the ADR lane (fail-safe toward review)."
+    },
+    {
+      "name": "Additive fast-track automated lane (CI drift-gates + AGPL import-guard + schema-validation, no human ratify)",
+      "quote": "Agents author; CI drift-gates + AGPL import-guard + schema-validation are the police; no human ratify step; additive fast-track merge."
+    },
+    {
+      "name": "OQ-C1 contracts owner/maintainer naming the human ratifier for the ADR lane (definition obligation, pre-v0.1-freeze)",
+      "quote": "The contracts repo owner/maintainer model (OQ-C1) must name the human ratifier for the ADR lane before the v0.1 freeze."
+    }
+  ]
+}

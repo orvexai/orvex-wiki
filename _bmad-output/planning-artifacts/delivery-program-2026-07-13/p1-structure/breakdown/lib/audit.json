@@ -1,0 +1,301 @@
+{
+  "repo": "orvex-studio-lib",
+  "audited_ref": "origin/main",
+  "head": "8c77c28 2026-07-10 12:10:07 +0200",
+  "branches_note": "Default branch is main (origin/HEAD unset; resolved main). origin/dev is 22 commits AHEAD of main (tip 478355f, 2026-07-13) \u2014 the ENG-2069 nothing-on-main hazard: night-fix work may live on dev; this audit reflects merged origin/main only. origin/crew/daniel is 0 ahead of main.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "pkg/auth/verifier.go:79 (NewMultiIssuerVerifier)",
+        "pkg/auth/principal.go",
+        "pkg/auth/cell_claims.go",
+        "pkg/auth/verifier_test.go",
+        "pkg/auth/verifier_crypto_test.go",
+        "pkg/auth/principal_test.go",
+        "pkg/auth/cell_claims_test.go"
+      ],
+      "note": "MultiIssuerVerifier resolves iss->IssuerConfig, verifies per-issuer JWKS + claims fail-closed, projects the canonical Principal and parses cell/cell_epoch (pkg/auth/verifier.go, principal.go, cell_claims.go); covered by verifier_test.go, verifier_crypto_test.go, principal_test.go, cell_claims_test.go."
+    },
+    "E1-S2": {
+      "status": "present",
+      "evidence": [
+        "pkg/auth/introspect.go:31 (IntrospectionCache)",
+        "pkg/auth/introspect.go:82 (Check)",
+        "pkg/auth/introspect_test.go",
+        "pkg/auth/verifier_introspection_test.go"
+      ],
+      "note": "IntrospectionCache with TTL + MaxStaleness hard wall and ErrStaleIntrospection fail-closed past the wall (introspect.go:82); tested in introspect_test.go + verifier_introspection_test.go."
+    },
+    "E1-S3": {
+      "status": "present",
+      "evidence": [
+        "pkg/auth/denylist.go:29 (DenyStore)",
+        "pkg/auth/denylist.go:82 (RevocationHandler)",
+        "pkg/auth/denylist_test.go"
+      ],
+      "note": "Redis-backed DenyStore keyed deny:{tenant}:{jti} with TTL=remaining exp, RevocationHandler over the outbox->Kafka path, whole-tenant fallback for the frozen identity.token.revoked contract; denylist_test.go covers it."
+    },
+    "E1-S4": {
+      "status": "present",
+      "evidence": [
+        "pkg/auth/introspect.go:125 (Fresh)",
+        "pkg/auth/verifier.go:194 (VerifyFresh)",
+        "pkg/auth/introspect_test.go",
+        "pkg/auth/verifier_introspection_test.go"
+      ],
+      "note": "RequireFresh path implemented: IntrospectionCache.Fresh (no-cache, no-grace) + MultiIssuerVerifier.VerifyFresh; exercised in introspect_test.go + verifier_introspection_test.go."
+    },
+    "E1-S5": {
+      "status": "present",
+      "evidence": [
+        "pkg/auth/scope.go:53 (RequireScope)",
+        "pkg/auth/scope.go:15 (RouteWorkloadIdentityOnly)",
+        "pkg/auth/cell.go:69 (Guard)",
+        "pkg/auth/scope_test.go",
+        "pkg/auth/workload_test.go",
+        "pkg/auth/cell_test.go"
+      ],
+      "note": "Deny-by-default RequireScope + EffectiveScope intersection, RouteWorkloadIdentityOnly route class, and Cell.Guard mapping mismatch to 421 (ErrCellMismatch); scope_test.go, workload_test.go, cell_test.go."
+    },
+    "E1-S6": {
+      "status": "present",
+      "evidence": [
+        "pkg/auth/authtest/authtest.go",
+        "pkg/auth/authtest/fixtures.go",
+        "pkg/auth/authtest/authtest_gate_test.go",
+        "gates via ci.yml TestAuthConformanceV1ToV12 + make authtest-no-skip-gate"
+      ],
+      "note": "Shipped conformance suite (authtest.go 22KB + fixtures.go) with TestAuthConformanceV1ToV12 wired as a CI release gate plus a no-skip gate (ci.yml lines 94-97); authtest_gate_test.go."
+    },
+    "E1-S7": {
+      "status": "partial",
+      "evidence": [
+        "pkg/auth/credential.go:20 (Apply)"
+      ],
+      "note": "APIKeyCredential.Apply sets Authorization: Bearer and rejects an empty key, but rotation is an explicit TODO (credential.go:18) and there is no rotation logic or test; helper exists, rotation missing."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "pkg/events/schema.go:60 (validateAgainstPinnedSchema)",
+        "pkg/events/consumer.go:27 (CheckCell)",
+        "pkg/events/consumer.go:41 (Consume)",
+        "pkg/events/publisher.go:24 (ExtensionOrvexCell)",
+        "pkg/events/events_test.go",
+        "pkg/events/consumer_kafka_test.go",
+        "pkg/events/nodegradation_test.go",
+        "pkg/events/schema_gate_test.go"
+      ],
+      "note": "CloudEvents envelope helpers, orvexcell stamp, pinned-schema validation, and fail-closed Consume/CheckCell that drops foreign-cell events (ErrCellMismatch); events_test.go, consumer_kafka_test.go, nodegradation_test.go, schema_gate_test.go."
+    },
+    "E2-S2": {
+      "status": "partial",
+      "evidence": [
+        "pkg/events/eventtypes_gen.go (generated TypeWiki* constants)",
+        "pkg/events/schema_gate_test.go",
+        "gen/gen_test.go:81 (TestEventTypeConstantsGenerated)"
+      ],
+      "note": "Generated event-type constants (eventtypes_gen.go) + AllEventTypes, gate-tested; but the typed payload structs (thin/rich profiles) are NOT generated (0 payload structs) \u2014 only the type-name constants exist."
+    },
+    "E2-S3": {
+      "status": "partial",
+      "evidence": [
+        "pkg/events/publisher.go:170 (BrokerPublisher)",
+        "pkg/events/publisher.go:194 (Publish)",
+        "pkg/events/publisher_test.go",
+        "pkg/events/publisher_kafka_integration_test.go"
+      ],
+      "note": "BrokerPublisher produces structured-mode JSON to the per-type cell topic with RequireAll acks (kafka-go built-in retries); but OTel trace propagation is absent \u2014 no traceparent/headers injected on the Kafka message."
+    },
+    "E3-S1": {
+      "status": "partial",
+      "evidence": [
+        "pkg/engineclient/doc.go:89 (ResolveSlug)",
+        "pkg/engineclient/client_test.go",
+        "pkg/engineclient/engineclient_test.go"
+      ],
+      "note": "Only the resolve-slug primitive is real (Client.ResolveSlug in doc.go, tested). The chokepoint (GetBlocks/PatchBlocks), ACLEvaluate/ACLNarrow, Export and quota-status primitives are documented as 'not yet built' (doc.go:25) and not implemented."
+    },
+    "E3-S2": {
+      "status": "partial",
+      "evidence": [
+        "pkg/engineclient/errors.go:19 (QuotaExceededError)",
+        "pkg/engineclient/doc.go:106 (402 handling in ResolveSlug)"
+      ],
+      "note": "QuotaExceededError is a first-class non-retryable terminal error (Retryable()=false, Unwrap->ErrQuotaExceeded) and ResolveSlug maps a 402 to it; but NO test exercises the 402 path \u2014 the type is untested behaviourally."
+    },
+    "E3-S3": {
+      "status": "absent",
+      "evidence": [
+        "pkg/engineclient/doc.go:25 (ACL evaluate/narrow listed as not built)",
+        "pkg/httpx/httpx.go (only CheckStatus/DecodeStrict/EncodeJSON)"
+      ],
+      "note": "Narrow-never-widen ACL typing is not implemented (ACLEvaluate/ACLNarrow not built), and there is no client-discipline layer \u2014 httpx offers only status/decode helpers, no deadline/retry/circuit-breaker apparatus."
+    },
+    "E3-S4": {
+      "status": "partial",
+      "evidence": [
+        "pkg/knowledgeclient/doc.go:89 (Search)",
+        "pkg/knowledgeclient/client_test.go",
+        "pkg/knowledgeclient/knowledgeclient_test.go"
+      ],
+      "note": "Only unified Search is real (Client.Search in doc.go, tested). Retrieve, Related, Duplicates and AttachmentsSearch are documented as not built (doc.go:23) and unimplemented."
+    },
+    "E3-S5": {
+      "status": "absent",
+      "evidence": [
+        "pkg/knowledgeclient/ (no projection-delta cursor file/method)"
+      ],
+      "note": "The opaque epoch-bearing projection-delta cursor client does not exist \u2014 no cursor type or method in knowledgeclient."
+    },
+    "E3-S6": {
+      "status": "absent",
+      "evidence": [
+        "pkg/knowledgeclient/ (no rebuild step-API types/client)"
+      ],
+      "note": "The rebuild step-API (namespace/walk/index-batch/alias-swap) types and client are not implemented anywhere in knowledgeclient."
+    },
+    "E3-S7": {
+      "status": "present",
+      "evidence": [
+        "pkg/billingclient/client.go:86 (GetEntitlement)",
+        "pkg/billingclient/client.go:65 (Entitlement)",
+        "pkg/billingclient/billingclient_test.go:17 (TestGetEntitlement)"
+      ],
+      "note": "GetEntitlement is real and fail-closed (typed Entitlement, ErrContractShape on undecodable body, real transport error on unreachable host); TestGetEntitlement covers shape-bind + fail-closed cases."
+    },
+    "E3-S8": {
+      "status": "partial",
+      "evidence": [
+        "pkg/identityclient/client.go:94 (WhoAmI)",
+        "pkg/identityclient/client.go:123 (Introspect)",
+        "pkg/identityclient/client.go:162 (ResolveCell)",
+        "pkg/identityclient/identityclient_test.go"
+      ],
+      "note": "Introspect + WhoAmI + ResolveCell are implemented and tested; but the mint and lifecycle-mirror surfaces of FR-L30 are absent, so the introspect/mint/lifecycle-mirror triad is only partially built."
+    },
+    "E4-S1": {
+      "status": "partial",
+      "evidence": [
+        "pkg/temporalutil/doc.go:30 (WorkerConfig)",
+        "pkg/temporalutil/doc.go:44 (RunWorker stub)",
+        "pkg/temporalutil/temporalutil_test.go"
+      ],
+      "note": "Charter + KEDA-friendly WorkerConfig type exist, but RunWorker is a stdlib-only stub returning ErrNotImplemented (Temporal SDK not added, no activity helpers). The D-WF-1 import ban is enforced in satellite repos, not here."
+    },
+    "E4-S2": {
+      "status": "partial",
+      "evidence": [
+        "pkg/temporalutil/stepapi/stepapi.go:26 (Result/Outcome envelope)",
+        "pkg/temporalutil/stepapi/stepapi.go:48 (Replay skeleton)",
+        "pkg/temporalutil/stepapi/stepapi.go:78 (Invoke stub)",
+        "pkg/temporalutil/stepapi/stepapi_test.go"
+      ],
+      "note": "The typed error envelope (Result + Outcome success/retryable/terminal + IdempotencyStore interface) is defined, but Replay is a pass-through skeleton (TODO, no key lookup/record), Invoke returns ErrNotImplemented, and constant-200 opt-in is not built."
+    },
+    "E5-S1": {
+      "status": "absent",
+      "evidence": [
+        "pkg/obs/doc.go:20 (Setup no-op stub)"
+      ],
+      "note": "obs.Setup is a stdlib-only no-op stub returning a nil-flush shutdown; no OTLP exporter wiring, no /healthz+/livez handlers, no CELL_ID/CLUSTER_NAME echo \u2014 the otel SDK dependency is not added."
+    },
+    "E5-S2": {
+      "status": "absent",
+      "evidence": [
+        "pkg/obs/ (only doc.go stub)"
+      ],
+      "note": "HTTP server middleware and client transports for trace stitching do not exist \u2014 obs contains only the stub Setup; no middleware/transport code."
+    },
+    "E5-S3": {
+      "status": "absent",
+      "evidence": [
+        "pkg/kafkautil/doc.go:44 (ReadFromOffset stub)",
+        "pkg/kafkautil/kafkautil_test.go"
+      ],
+      "note": "kafkautil.ReadFromOffset is a stdlib-only stub returning ErrNotImplemented; no franz-go consumer, no epoch:offset cursors, no cell-scoped topic logic."
+    },
+    "E6-S1": {
+      "status": "present",
+      "evidence": [
+        "pkg/dfm/doc.go:11 (Clean-room provenance section)",
+        "gates/agpl-import/agpl-import-guard.sh",
+        "Makefile agpl-guard + ci.yml agpl-guard job"
+      ],
+      "note": "The AGPL-provenance audit is captured as the load-bearing clean-room-provenance charter in dfm/doc.go (legacy @docmost/editor-ext is licence-inheriting; contributors work only from the public contract) and enforced by the gates/agpl-import guard in CI."
+    },
+    "E6-S2": {
+      "status": "present",
+      "evidence": [
+        "pkg/dfm/dfm.go:55 (New/Serialize/Parse)",
+        "pkg/dfm/pm_to_dfm.go:14 (PmToDfm)",
+        "pkg/dfm/dfm_to_json.go:14 (DfmToJson)",
+        "pkg/dfm/opaque.go (opaque round-trip)",
+        "pkg/dfm/dfm_test.go",
+        "pkg/dfm/equal_test.go",
+        "pkg/dfm/mention_test.go"
+      ],
+      "note": "Four-function clean-room serializer (Serialize/Parse + PmToDfm/DfmToJson) with opaque-node round-trip handles (opaque.go serialize/parse fences) and a type registry; dfm_test.go, equal_test.go, mention_test.go cover it."
+    },
+    "E6-S3": {
+      "status": "present",
+      "evidence": [
+        "pkg/dfm/parity_test.go:12 (TestMutationDetectsDrift)",
+        "pkg/dfm/parity_test.go:92 (TestDeterministicLinearFreeCleanroom)",
+        "pkg/dfm/corpus/ (manifest.json + nodes/marks/mentions/opaque)",
+        "pkg/dfm/corpus_loader.go"
+      ],
+      "note": "Golden-corpus parity harness: corpus/ manifest + node/mark/mention/opaque fixtures loaded by corpus_loader.go, with parity_test.go asserting mutation-detects-drift and the D-S11 linear-free cleanroom invariant (runs under go test ./...)."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "gen/gen_test.go:27 (TestGeneratedTypesMatchContracts)",
+        "gen/gen_test.go:56 (TestGenerationDeterministic)",
+        "scripts/codegen.sh",
+        "gen/contracts/PIN"
+      ],
+      "note": "Pinned gen/ trees regenerated from gen/contracts/ (pinned SHA in PIN) via scripts/codegen.sh, with gen_test.go asserting committed output matches regeneration (drift/stale gate) and deterministic regen \u2014 runs in the CI test job."
+    },
+    "E7-S2": {
+      "status": "partial",
+      "evidence": [
+        "go.mod (single module)",
+        "git tags v0.3.0/v0.3.2 referenced in ci.yml:111",
+        "Makefile (no apidiff target)"
+      ],
+      "note": "Single module + semver tags in the v0 window exist (v0.3.x), but the apidiff compile-compat gate is absent \u2014 no apidiff target in the Makefile and no apidiff job in ci.yml."
+    },
+    "E7-S3": {
+      "status": "present",
+      "evidence": [
+        "(no root Dockerfile/cmd)",
+        "pkg/sealtest/shared_lib_seams_test.go",
+        "ci.yml:216 (ci-success aggregate fan-in)"
+      ],
+      "note": "Library shape holds: no root cmd/ or Dockerfile (repo builds no images per ci.yml), heavy-SDK packages confined, sealtest/shared_lib_seams_test.go locks the seams, and ci-success is the single aggregate fan-in gate."
+    },
+    "E7-S4": {
+      "status": "present",
+      "evidence": [
+        "gates/agpl-import/agpl-import-guard.sh",
+        "ci.yml:69 (agpl-guard job)",
+        "Makefile:60 (agpl-guard)"
+      ],
+      "note": "AGPL-import CI guard implemented as gates/agpl-import/agpl-import-guard.sh, invoked by the ci.yml agpl-guard job and the make agpl-guard target, forbidding any @docmost/* import in-module."
+    },
+    "E7-S5": {
+      "status": "partial",
+      "evidence": [
+        "pkg/offlineauth/jwks.go:17 (StaticJWKS)",
+        "pkg/secrets/secrets.go:52 (StaticKeySource)",
+        "pkg/offlineauth/offlinetest/",
+        "pkg/auth/authtest/ (fixtures)"
+      ],
+      "note": "Some packages ship offline fakes/doubles (offlineauth StaticJWKS + offlinetest, secrets StaticKeySource, auth/authtest fixtures), but NFR-L5's 'every package ships fakes' is not met \u2014 the engine/knowledge/billing/identity clients rely on ad-hoc httptest servers in their own tests rather than shipping reusable fakes."
+    }
+  },
+  "summary": "On merged origin/main @ 8c77c28, pkg/auth is fully built (14 present incl. all 6 verifier/introspection/denylist/scope/conformance stories) and pkg/dfm + the library-engineering CI spine (codegen drift gate, AGPL guard, library shape) are real. The typed clients are thin: engine/knowledge expose only resolve-slug/search, billing/identity introspect are real but ACL typing, projection-delta and rebuild clients are absent, and pkg/obs, pkg/kafkautil and the temporal worker are stdlib-only stubs. Net: 14 present, 11 partial, 6 absent of 31 stories; dev is 22 commits ahead of main so some gaps may already be closed off-main (ENG-2069)."
+}

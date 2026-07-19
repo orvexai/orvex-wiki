@@ -1,0 +1,36 @@
+{
+ "slug": "1dFHMUtcKS",
+ "total": 6,
+ "results": [
+  {
+   "id": "F1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ui/plan.json E1-S7 \"Serving topology & deploy: Workers Static Assets, grey-cloud origins, region-agnostic bundle, runtime CONFIG\" covers NFR-UI1/A-GLOBAL — the exact Worker + Workers-Static-Assets end-state F1's fixed-in-draft text names"
+  },
+  {
+   "id": "F2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ui/plan.json E1-S2 \"Contracts codegen consumer + typed BFF /api client + identity session-token attach\" covers A-STATELESS/NFR-UI4/NFR-UI5 — the identity-exchanged, cell-bearing session-token attach F2's fixed-in-draft text specifies"
+  },
+  {
+   "id": "F3",
+   "verdict": "NOT-BUILD",
+   "owner_or_reason": "doc-hygiene only — annotating a stale change-log bullet in the Architecture page itself; disposition is already \"fixed-in-draft\" on the wiki page, no code/story artifact to build"
+  },
+  {
+   "id": "F4",
+   "verdict": "NOT-BUILD",
+   "owner_or_reason": "open-decision, explicitly blocked — CS §9 Studio Decision Records parent + numbering registry is TBD, so the ADR triggers this finding names cannot be filed/numbered yet; nothing buildable until that registry decision lands"
+  },
+  {
+   "id": "F5",
+   "verdict": "COVERED",
+   "owner_or_reason": "ui/plan.json E1-S1 and E1-S2 both cover NFR-UI5 (contracts codegen consumer / pinned wire) — matches F5's fixed-in-draft naming of orvex-studio-contracts as the A-STREAM pin"
+  },
+  {
+   "id": "F6",
+   "verdict": "COVERED",
+   "owner_or_reason": "ui/plan.json E1-S1 \"CI ship-gate harness: vitest + Playwright + eslint + axe + visual + token-lint + cell-lint enrolment\" covers NFR-UI2/NFR-UI3/NFR-UI5/A-DS — the absent-CI / unlanded ship-gates / cell-lint non-enrollment F6 tracks"
+  }
+ ]
+}

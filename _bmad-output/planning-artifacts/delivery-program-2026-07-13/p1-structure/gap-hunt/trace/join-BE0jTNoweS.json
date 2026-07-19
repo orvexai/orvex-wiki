@@ -1,0 +1,71 @@
+{
+  "slug": "BE0jTNoweS",
+  "total": 13,
+  "results": [
+    {
+      "id": "A-RUNTIME",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): page text ties A-RUNTIME's two accepted consequences to built FRs — (a) TS verifier binding = A-AUTH -> FR-M11 -> [mcp] E4-S1/E4-S2 (ENG-2461/2462/2467); (b) FR-C21 AGPL-import guard in CI -> NFR-M5 -> [mcp] E7-S3 'AGPL-import guard in CI + typed-degradation posture' (ENG-2474). The TS-runtime choice itself is stated fact (D-M1, already deployed), not a build item."
+    },
+    {
+      "id": "A-SHIM",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): direct epic match Epic E2 '[EPIC] mcp: Wiki verb shim — read ladder & write chokepoint' (FR-M3/FR-M9/FR-M10 -> ENG-2453/2454/2455/2456) plus the tier-split half via E7-S4 'Decommission embedded packages/orvex-mcp ... via FR-C5 ledger + ADR-0004 tier split' (FR-M16, NFR-M4 -> ENG-2475); page text cross-refs A-SHIM directly at both epics."
+    },
+    {
+      "id": "A-UPSTREAM",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): direct epic match Epic E3 '[EPIC] mcp: Upstream repoint & contracts-pinned codegen' (FR-M6/M7/M8/M9 -> ENG-2456–2460); §4 deploy-deltas text explicitly names 'the A-UPSTREAM name' for the WIKI_API_BASE_URL rename story (E3-S1)."
+    },
+    {
+      "id": "A-AUTH",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit: ENG-2295, ENG-2499, ENG-2656 (ui-corpus, wiki-corpus). mcp-specific slice also hard-confirmed: FR-M11/FR-M12 -> [mcp] E4-S1/E4-S2/E4-S3 (ENG-2461/2462/2463/2467), page §1 'A-AUTH — TS binding of the family verifier, identity as the only authority (FR-M11–M12)'."
+    },
+    {
+      "id": "A-TOKENS",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): story title match [mcp] E4-S3 'Token pass-through: caller token verbatim on every upstream, no service credential' (FR-M12 -> ENG-2463) and E4-S4 'Human-gated actions transport-only: needs_human_*, RATIFY/CONFIRM verbatim, never promote' (FR-M13 -> ENG-2464), matching page text 'A-TOKENS — pass-through and transport-only (FR-M12–M13)' verbatim."
+    },
+    {
+      "id": "A-CLIENT",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): story title match [mcp] E3-S2 'Contracts-tag codegen: fail-loud typed client + one deliberate /v1 regeneration' (FR-M8 -> ENG-2458), matching page text 'A-CLIENT — codegen from the contracts tag, fail-loud (FR-M8)'."
+    },
+    {
+      "id": "A-STATE",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): story title match [mcp] E5-S1 'Stateless shim: no DB, bounded principal-independent caches, jti window retires at R1' (FR-M17 -> ENG-2466/2468), matching page text 'A-STATE — stateless; caches are bounded and never authorization (FR-M17)'."
+    },
+    {
+      "id": "A-REACTIVE",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): page's own verb table cites 'get_changes ... pull-only (A-REACTIVE)' -> [mcp] E2-S3 'get_changes pull-based on the caller's scoped token' (FR-M9 -> ENG-2455); the single-Kafka-consumer half -> [mcp] E5-S2 'Raw in-process Kafka revocation consumer -> deny-list apply (ADR-0013)' (FR-M11 -> ENG-2461/2462/2467)."
+    },
+    {
+      "id": "ADR-0001",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): literal story citations — [mcp] E3-S2 body 'ADR-0001 governs' (contracts codegen, FR-M8 -> ENG-2458), E3 epic body ''ask' cuts over to orvex-studio-ai (D-M7, ADR-0001)' (FR-M7 -> ENG-2459/2460), E3-S4 body 'ADR-0001 decision 5 records the pre-ruling-9 search-via-wiki-api stance' (FR-M7 -> ENG-2459/2460). Matches the actual filed page 'ADR 0001 — MCP /v1 client regeneration + ask→ai upstream' (lR3kpc0Ra2)."
+    },
+    {
+      "id": "ADR-0002",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index, no literal story citation): §7 table names ADR-0002 as 'identity-as-sole-authority + deny-list consumer' scoped to A-AUTH — that concept is built under a different id per the task's renumbering rule: FR-M11/M12 -> [mcp] E4-S1/E4-S2 (ENG-2461/2462/2467), and the deny-list-consumer half is explicitly built and cited under ADR-0013 instead (E5-S2). No separate ADR-0002 page was ever filed for this space (idbearing.json lists only 'ADR 0001' for orvexstudiomcp) — the decision was folded/renumbered, not left unbuilt."
+    },
+    {
+      "id": "ADR-0003",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index, no literal story citation): §7 table names ADR-0003 as 'three-upstream repoint' scoped to A-UPSTREAM — that exact concept is what the actually-filed page 'ADR 0001 — MCP /v1 client regeneration + ask→ai upstream' covers (renumbered from the table's provisional 0003 slot to the real 0001 filing), and is built via Epic E3 (FR-M6/M7/M8/M9 -> ENG-2456–2460). No separate ADR-0003 page exists in orvexstudiomcp (idbearing.json)."
+    },
+    {
+      "id": "ADR-0004",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit: key 'ADR-0004' -> owner 'gapfix'. Also literal story citation: [mcp] E7-S4 'Decommission embedded packages/orvex-mcp (73→parity) via FR-C5 ledger + ADR-0004 tier split' (FR-M16, NFR-M4 -> ENG-2475), matching page §6 'proposed, to be ratified as ADR-0004, §7' for the A-SHIM internal tier model."
+    },
+    {
+      "id": "AD-5",
+      "verdict": "COVERED",
+      "owner_or_reason": "Hard-checked (not in coverage-index): AD-5 ('Delivery is three distinct surfaces, not one port') is instantiated per-surface — its (b) MCP retrieval surface is explicitly built + cited: [mcp] E6-S3 'MCP memory-retrieval surface: memory read as a knowledge tool call (AD-5b, I-4)' (FR-M19 -> ENG-2469/2470/2471); its (a) client-compose-port surface is built in [extension] E1-S1/E1-S2/E6-S1 (covers: AD-5a). Its (c) stateful-sync surface is explicitly gated behind Deferred item OQ3 (not an unbuilt gap — a stated v1 scope decision)."
+    }
+  ]
+}

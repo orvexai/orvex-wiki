@@ -1,0 +1,11 @@
+{
+  "slug": "Nr3WIs0Zpt",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0003",
+      "verdict": "COVERED",
+      "owner_or_reason": "Not a coverage-index key by itself (only ADR-0004/0008/0011/0015/0020/0035 present), but hard-check confirms coverage: this ADR formalizes A-QUOTA (owners ENG-2490, wiki-corpus) and A-QUOTA-HARDENING (owners ENG-2491, ENG-2492, wiki-corpus), both present coverage-index.json keys. QUOTA_EXCEEDED 402 vocabulary is implemented pervasively (lib, wiki, mcp, billing, staging E2-S5, workgraph E6-S3). Confirmed independently and matches prior verdict in join-7E0Hbb9it2.json and re-affirmed in join-32Huug8U4B.json."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "slug": "L1NVnmRgpy",
+  "total": 7,
+  "results": [
+    {
+      "id": "A-EDGE",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E1-S3 (AGPL-import CI guard + LGTM-credential-confinement gate, covers NFR-CT4/NFR-CT2), E2-S2 (lib/auth router: deny-by-default + Clerk admin-org operator gate, covers FR-CT13/NFR-CT2), E2-S3 (operator-token pass-through + LGTM read-only standing-cred separation, covers FR-CT16/NFR-CT2) implement A-EDGE per body_file explicit 'Source: Arch A-EDGE' citations. Not literally keyed in coverage-index.json but implemented under NFR-CT2/NFR-CT4/FR-CT13/FR-CT16."
+    },
+    {
+      "id": "A-PANE",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E3-S1 (guardrailed LGTM proxy /api/obs/*, covers FR-CT6/NFR-CT1), E3-S2 (log-search pane, covers FR-CT1), E3-S3 (trace lookup + waterfall, covers FR-CT1/NFR-CT4), E3-S5 (cross-signal correlation, covers FR-CT2), E3-S6 (alert-state surface, covers FR-CT5) all cite 'Source: Arch A-PANE / D-OBS-UI'. Not literally keyed in coverage-index.json but implemented under FR-CT1/FR-CT2/FR-CT5/FR-CT6/NFR-CT1 (console Observability single-pane epic)."
+    },
+    {
+      "id": "A-ADMIN",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E2-S2 (Clerk admin-org gate, FR-CT13), E2-S4 (audit-before-respond wrap, FR-CT14), E4-S2 (workflow write ops via proxy, FR-CT10), E4-S3 (workspace/user lifecycle state-machine, FR-CT11), E5-S2 (token management, FR-CT8), E6-S1 (AI usage/enforcement pane, FR-CT12a), E6-S2 (plan/entitlement + quota-usage pane, FR-CT12b) all cite 'Source: Arch A-ADMIN'. Not literally keyed in coverage-index.json but implemented under FR-CT8/CT10/CT11/CT12a/CT12b/CT13/CT14."
+    },
+    {
+      "id": "A-FRONTEND",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E1-S2 (go:embed SPA build pipeline + strict CSP, covers NFR-CT4) implements A-FRONTEND per body_file explicit 'Source: Arch A-FRONTEND, D-CT1' citations; also referenced in E1 epic body. Not literally keyed in coverage-index.json but implemented under NFR-CT4/E1-S2. (Precedent: same finding already recorded in join-DjGso9bsgj.json.)"
+    },
+    {
+      "id": "A-BREAKGLASS",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E7-S1 (break-glass route class — identity offline verify only + dependency-direction CI test, covers FR-CT15/NFR-CT3) and E7-S2 (break-glass rate-limit + out-of-band alerting + bounded action allow-list, covers FR-CT15) implement A-BREAKGLASS per body_file citations. Not literally keyed in coverage-index.json but implemented under FR-CT15/NFR-CT3. (Precedent: same finding already recorded in join-DjGso9bsgj.json.)"
+    },
+    {
+      "id": "A-STATE",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E1-S6 (Redis-only state adapter + isolated-client/circuit-breaker honest-render framework, covers FR-CT17/FR-CT18/NFR-CT7) and E2-S5 (audit-trail browse/search pane + sensitive-read auditing + tenant-embedded keys, covers FR-CT12/NFR-CT5) cite 'Source: Arch ... A-STATE'. Distinct from the literal coverage-index.json key A-STATELESS (console's stateless-shim ruling, a different concept/service); A-STATE is implemented under FR-CT12/CT17/CT18/NFR-CT5/CT7."
+    },
+    {
+      "id": "A-HONESTY",
+      "verdict": "COVERED",
+      "owner_or_reason": "console/E1-S6 (Redis-only state adapter + isolated-client/circuit-breaker honest-render framework, covers FR-CT17/FR-CT18/NFR-CT7) cites 'Source: Arch ... A-HONESTY, §6' explicitly. Not literally keyed in coverage-index.json but implemented under FR-CT17/FR-CT18/NFR-CT7."
+    }
+  ]
+}

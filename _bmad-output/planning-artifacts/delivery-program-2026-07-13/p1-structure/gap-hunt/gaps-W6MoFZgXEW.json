@@ -1,0 +1,13 @@
+{
+  "slug": "W6MoFZgXEW",
+  "title": "ADR-0026: studio.staging.* event subdomain — service naming + the per-service producer generalization",
+  "verdict_summary": "Canonical (ratified 2026-07-10) architecture DECISION record, not a build spec. Its four decisions — service name orvex-studio-staging, minting the studio.staging.<resource>.<past-tense> subdomain, the per-service producer generalization, and telemetry-not-truth — are settled-lane definition obligations owned by PRD MyS79tK0k7 (FR-STG*) and spine DBA3v1gglh, both of which carry story packs. Every named BUILD component it references is covered: the orvex-studio-staging service has a full story pack (feature-map L470+), studio.staging.* CloudEvents + contracts catalog is an explicit story (L509), FR-STG26 is in covers-union, and the engine wiki.* outbox producer — which the ADR itself explicitly defers ('rides the staging delivery plan, not this ADR') — is covered by the event-spine stories (L627-629, L53 A-OUTBOX). No uncovered build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-staging (closed Go satellite; cmd/{api,triage,relay,sweep}; own CNPG Postgres)", "quote": "Service name confirmed: orvex-studio-staging (closed Go satellite, six-tier family shape, own CNPG Postgres, cell-local)... the Librarian is the service's domain packages + worker binaries (cmd/{api,triage,relay,sweep})"},
+    {"name": "studio.staging.<resource>.<past-tense> event subdomain (emitted from transactional outbox in ADR-0007 envelope)", "quote": "Subdomain minted: studio.staging.<resource>.<past-tense>, emitted from the service's transactional outbox in the ADR-0007 envelope (required extensions orvexcell/orvextenant, partitionkey = tenant)"},
+    {"name": "orvex-studio-contracts additions: studio.staging.* event types, payload schemas, topic staging-events.{cell}", "quote": "orvex-studio-contracts gains the studio.staging.* event types, payload schemas, and topic-domain addition (staging-events.{cell}, partitions:1, cell-lint conventions) — authored before build, tag-pinned"},
+    {"name": "engine wiki.* outbox producer (named gating prerequisite; deferred to staging delivery plan, not this ADR)", "quote": "The engine outbox becoming a live wiki.* producer is a named gating prerequisite for reindex-on-apply (the engine emits zero events today); it rides the staging delivery plan, not this ADR"},
+    {"name": "console staging queue metrics consumption (depth/age/acceptance-weighted volume)", "quote": "The console consumes staging queue metrics (depth/age/acceptance-weighted volume) from these events; NFR-STG4 audit immutability rides the same stream"}
+  ]
+}

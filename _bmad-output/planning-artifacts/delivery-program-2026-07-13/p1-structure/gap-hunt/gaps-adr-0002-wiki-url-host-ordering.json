@@ -1,0 +1,24 @@
+{
+  "slug": "WWngFAdCYk",
+  "title": "ADR-0002: Wiki URL scheme — service-first host ordering",
+  "verdict_summary": "Canonical, ratified decision ADR (D-S27) that pins tenant wiki host ordering to {tenant}.wiki.{cell}.orvex.{tld} — label-0 tenant, label-1 literal 'wiki', label-2 short cell token. Its load-bearing BUILD obligation (engine resolver stays at split('.')[0] with a soft label-2 cell assertion) is directly covered by the wiki story '[wiki] CLOUD-clean boot ... + hostname resolver label-0 tenant + soft label-2 cell assertion (solo no-op)' (FR-W20). The cell-token/no-cell-id-in-host-template rule (cell-lint rule 9) is covered by the cross-service cell-lint stories. The remaining obligations — one cert-manager LE wildcard per cell (*.wiki.{cell}.orvex.ai/.dev) and the tenant-free apex bring-up host guard — are GitOps/ops config: the wildcard + apex already exist for the live eu1 dev cell (wiki.eu1.orvex.dev), and the tenant wildcard itself is explicitly future-additive ('lands when multi-tenancy ships'), so no un-homed program story is created. Zero BUILD gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "Engine tenant resolver (split('.')[0] label-0, soft label-2 cell assertion)",
+      "quote": "The engine's tenant resolver SHALL continue to read the tenant from split('.')[0]; no resolver change is required. The cell assertion moves to label 2."
+    },
+    {
+      "name": "Per-cell cert-manager LE wildcard certs (*.wiki.{cell}.orvex.ai and *.wiki.{cell}.orvex.dev)",
+      "quote": "TLS SHALL be terminated with one cert-manager LE wildcard per cell: *.wiki.{cell}.orvex.ai and *.wiki.{cell}.orvex.dev."
+    },
+    {
+      "name": "Bare per-cell apex / bring-up host (wiki.{cell}.orvex.{tld}), guarded against tenant routing",
+      "quote": "The bare per-cell apex wiki.{cell}.orvex.{tld} (e.g. wiki.eu1.orvex.dev) is the cell apex / vanilla bring-up host and SHALL NOT be routed to any tenant."
+    },
+    {
+      "name": "token↔AZ global registry (eu1 → eu-central-1a) enforced by cell-lint rule 9",
+      "quote": "The global registry maps token ↔ internal id (eu1 → eu-central-1a); tenant-URL templates use {cell_token}, never the cell id (cell-lint rule 9)."
+    }
+  ]
+}

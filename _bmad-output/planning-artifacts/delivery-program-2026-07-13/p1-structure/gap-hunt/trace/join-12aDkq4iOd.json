@@ -1,0 +1,11 @@
+{
+  "slug": "12aDkq4iOd",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0034",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Governance of the delivery orchestrator's own agent-dispatch credential lanes (control/build/verify, allow-list env, orchestrator-derived scoped-ephemeral mint) — not a product feature of the 575-story Orvex Studio build. Declares no FR/NFR/AD/D/OQ ids of its own; its MUSTs are direct changes to the harness/orchestrator prompt (gkkUDzn277), not tracked as stories. Confirmed zero hits for '0034'/credential-lane/dispatch/broker terms in coverage-index.json, feature-map.txt, and breakdown plan.json 'covers' arrays. Sole product-adjacent artifact (orvex-studio-ai broker-token contract API) is an explicit open follow-up, not decided here."
+    }
+  ]
+}

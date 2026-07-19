@@ -1,0 +1,81 @@
+{
+  "slug": "Cb0XBkNezd",
+  "total": 15,
+  "results": [
+    {
+      "id": "A-RUNTIME",
+      "verdict": "COVERED",
+      "owner_or_reason": "NFR-AI7 (D-AI1 clean-room/no-AGPL-import discipline) -> [ai] E8-S6 'No-AGPL-import CI guard + latency-budget verification' -> ENG-2289"
+    },
+    {
+      "id": "A-STREAM",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit: ENG-2662, ENG-2670 (ui-corpus)"
+    },
+    {
+      "id": "A-METER",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-AI12-15 -> [ai] Epic E4 'Metering & cost protection' stories -> ENG-2260/2261/2262/2263/2264/2265/2266/2287"
+    },
+    {
+      "id": "A-ASK",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-AI5/FR-AI6 -> [ai] Epic E3 'Cited-ask loop, inline & drafts' stories -> ENG-2255/2256/2257/2291"
+    },
+    {
+      "id": "A-TOOLS",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-AI4/FR-AI9 -> [ai] Epic E2 'Tools, the one write door' stories -> ENG-2250/2251/2252/2253"
+    },
+    {
+      "id": "A-LOOP",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-AI21/FR-AI22 -> [ai] Epic E6 'Durable step-APIs for central Temporal' stories -> ENG-2272/2273/2274/2275/2276"
+    },
+    {
+      "id": "A-DATA",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-AI23 -> [ai] E8-S2 'Range-partitioned usage/journal + step-ledger append tables + partition cronjob + Redis caches' -> ENG-2284/2285"
+    },
+    {
+      "id": "A-AUTH",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit: ENG-2295, ENG-2499, ENG-2656 (ui-corpus, wiki-corpus)"
+    },
+    {
+      "id": "A-PII",
+      "verdict": "COVERED",
+      "owner_or_reason": "FR-AI20 -> [ai] E5-S4 'PII redactor + secret scrubber outbound middleware, fail-closed strictest policy' -> ENG-2270"
+    },
+    {
+      "id": "A-OUTBOX",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story title match: [ai] E8-S4 'A-OUTBOX producer outbox+relay + metering ce-id idempotent + orvexcell fail-closed' (covers FR-AI14, NFR-AI3) -> ENG-2265/2287"
+    },
+    {
+      "id": "A-OPS",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story title match: [ai] E8-S5 'A-OPS liveness/readiness split + cell-contract echo + OTel SLIs -> LGTM + audit events' (covers FR-AI25, NFR-AI1) -> ENG-2288/2289"
+    },
+    {
+      "id": "A-GOV",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "genuinely open governance decisions (F6 LiteLLM-confinement carve-out, F8 cap-override break-glass) explicitly stated as unresolved pending an ADR registry that is 'TBD'; ai bodies (E5-S1) only cite A-GOV as context, F6 is explicitly still-open and blocked on ENG-2097 (a definition-pack gate, not a build story) -- OQ-deferred, not a buildable feature"
+    },
+    {
+      "id": "A-DRIFT",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicitly folded into [ai] Epic E8 body ('this epic also carries the SE-Arch audit's build-time corrections A-DRIFT: F1/F5/F-JOURNAL/F9/F10') and individually cited by E2-S2 (F5 write door, FR-AI9 -> ENG-2251/2252) and E8-S2 (F-JOURNAL, FR-AI23 -> ENG-2284/2285); F1 Kafka-consumer topology covered by E4-S6 (FR-AI14 -> ENG-2265/2287)"
+    },
+    {
+      "id": "AD-1",
+      "verdict": "COVERED",
+      "owner_or_reason": "coverage-index direct hit: ENG-2210, ENG-2309 (api-corpus)"
+    },
+    {
+      "id": "AD-10",
+      "verdict": "COVERED",
+      "owner_or_reason": "explicit story citation: [ai] E7-S3 'Async extraction pipeline off the write path at the proposal quality bar' AC3 sources AD-10, D-S15 directly (covers FR-X1, FR-X5) -> ENG-2279"
+    }
+  ]
+}

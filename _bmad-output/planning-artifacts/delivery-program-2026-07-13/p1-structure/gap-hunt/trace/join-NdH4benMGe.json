@@ -1,0 +1,16 @@
+{
+  "slug": "NdH4benMGe",
+  "total": 10,
+  "results": [
+    {"id": "S1", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E10-S2 'A12 ACL mechanics: owner-scoped admission, employer firewall, delegated-only, ingestion-side privacy exclusion' covers FR-K31b (the A12 control S1 flags as missing)"},
+    {"id": "S2", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E4-S2 'FR-13 hot-path overload protection: single-flight + interactive/bulk bulkhead + rate contract' — title matches S2's A1a fix verbatim"},
+    {"id": "R1", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E9-S4 'Cell-contract conformance: ... tenant-move step-API' covers the rule-10 tenant-move gap"},
+    {"id": "R2", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E9-S4 'Cell-contract conformance: cluster-local DNS, ...' covers the rule-1 public-edge-host gap"},
+    {"id": "R3", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E9-S4 'cell-guard/421, healthz echoes, Idempotency-Key' covers rules 3/4/11; rule 6 (orvexcell fail-closed on consume) covered by E1-S1"},
+    {"id": "R4", "verdict": "NOT-BUILD", "owner_or_reason": "audit's own disposition is 'wont-fix-with-reason (wiki-only scope)' — SSE HTTPRoute timeout override is a deploy-repo kustomize correction, out of wiki/story scope; no story targets it"},
+    {"id": "O1", "verdict": "NOT-BUILD", "owner_or_reason": "audit's own disposition is 'open-decision' — filing the Decision Records page + ADRs 0001-0005 is stated as an OPEN human authoring action, not a build item; no story covers it"},
+    {"id": "O2", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E9-S3 'Liveness/readiness split per binary + Prometheus/OTel observability + residency' covers FR-K26/NFR-K9"},
+    {"id": "C1", "verdict": "COVERED", "owner_or_reason": "breakdown/knowledge/plan.json E1-S4 'Chunking + embeddings pipeline (text_repr chunker, per-corpus model, content-hash skip)' implements the reconciled A7 (D-R9-1 wiki-chunks + D-R9-2 per-corpus embedding model)"},
+    {"id": "C2", "verdict": "NOT-BUILD", "owner_or_reason": "doc-only binary-count reconciliation (3-vs-4, cmd/bundler noted as PLANNED), already fixed-in-draft on the arch page itself; the functional bundling capability it references is separately covered by E6-S1/E6-S2"}
+  ]
+}

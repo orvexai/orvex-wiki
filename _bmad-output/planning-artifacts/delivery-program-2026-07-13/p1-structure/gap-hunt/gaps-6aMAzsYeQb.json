@@ -1,0 +1,26 @@
+{
+  "slug": "6aMAzsYeQb",
+  "title": "Coding Standards — Orvex Studio (CS)",
+  "verdict_summary": "CANONICAL cross-cutting POLICY/standards page (not superseded/stub; adapted from Houston but is itself the ratified Studio standard). It carries NO formal requirement ids of its own — no FR-*/NFR-*/A-*/AD-*/D-*/OQ-* — and mandates HOW code is written, not WHAT to build. The A-*/AD-* ids present in covers-union originate from the architecture spine (CxjFpIVUZY), not this page. Its obligations bind every Issue as Definition-of-Done constraints (§0 adversarial review, cited as 'CS §N' in each guidance block), not as standalone build stories. Every concrete buildable artifact it names — per-repo handler-thinness / import-restriction / mock-allowlist / projection-denylist CS lints, contract-vs-golden-fixture round-trip gate, transactional outbox + idempotency gates, AGPL-import guard, adversarial review, ADR process, event-store/CloudEvent path — is already covered across the story program (e.g. 'CI bootstrap: go vet/build/test-race + CS lints + cell-lint required status (F-CI)', 'Per-service typed clients codegen from contracts tag + drift CI gate', outbox/relay + idempotent-dedupe stories, ADR-0008 change-authority story). Items the page frames as OPEN DECISIONS or per-repo bootstrap obligations ('TBD — set during the Studio Act-1 run': project-context.md materialization + multi-repo refresh, canonical exemplars, ADR registry parent, build-agent credential model) are definition/bootstrap-phase obligations, covered by the pack spine. The §13/§14 CI substrate (public-runners ARC scale set in platform/apps/arc, Tekton image pipelines, Harbor, ExternalSecrets, require-approval on fork PRs) is GitOps/platform infrastructure that lives outside the product-story program. Zero genuine build gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-wiki-api", "quote": "the Go services (orvex-wiki-api, orvex-studio-knowledge, orvex-studio-identity, orvex-studio-ai, orvex-studio-mcp, orvex-studio-console, orvex-studio-billing, orvex-studio-workflows)"},
+    {"name": "orvex-studio-knowledge", "quote": "Turbopuffer (orvex-studio-knowledge only) | hybrid search/RAG adapter inside orvex-studio-knowledge only"},
+    {"name": "orvex-studio-identity", "quote": "the dual-IdP auth spine is owned by orvex-studio-identity (tenant-to-cell registry lives there)"},
+    {"name": "orvex-studio-ai", "quote": "No LLM/provider client exists anywhere except orvex-studio-ai's LiteLLM bridge (§3.2)"},
+    {"name": "orvex-studio-mcp", "quote": "the Go services (... orvex-studio-mcp, ...)"},
+    {"name": "orvex-studio-console", "quote": "The LGTM stack is surfaced through orvex-studio-console"},
+    {"name": "orvex-studio-billing", "quote": "billing is the plan-to-entitlement-to-cap system of record"},
+    {"name": "orvex-studio-workflows", "quote": "durable workflows hosted by orvex-studio-workflows (the central Temporal control plane)"},
+    {"name": "orvex-cli", "quote": "orvex-cli (Go/cobra platform CLI) — command files are its 'handler' analogue: thin (parse flags → one internal call → render output)"},
+    {"name": "orvex-studio-contracts", "quote": "orvex-studio-contracts (the pinned seam) — holds OpenAPI specs, the CloudEvent catalog, and golden fixtures"},
+    {"name": "orvex-studio-lib", "quote": "orvex-studio-lib (shared library) — plain Go packages, domain-free infra only (§8)"},
+    {"name": "orvex-wiki (AGPL engine)", "quote": "the TypeScript wiki engine (orvex-wiki — the only AGPL artifact)"},
+    {"name": "React fronts", "quote": "React fronts = shallow presentational adapters. Thin view; no domain logic"},
+    {"name": "studio-spine (Kafka event broker)", "quote": "an internal/event/ publisher/consumer pair speaking CloudEvents to studio-spine through the outbox"},
+    {"name": "project-context.md (per-repo carried doctrine)", "quote": "Each family repo's bootstrap Issue materializes a project-context.md in that repo from this page ... The multi-repo refresh mechanism ... is an OPEN DECISION — settle during the Studio Act-1 run"},
+    {"name": "Per-repo CS enforcement gates (handler-thinness / import-restriction / mock-allowlist / projection denylist / contract round-trip)", "quote": "handler-thinness lint (per-repo CI); ... import-restriction lint per repo; ... mock-allowlist in CI (per repo); ... syntax denylist in projection packages; CI idempotency gate (per repo); ... a service's published OpenAPI/CloudEvent surface round-trips against the pinned orvex-studio-contracts version's golden fixtures"},
+    {"name": "public-runners ARC scale set (platform/apps/arc)", "quote": "Public repo orvex-wiki → dedicated public-runners group (runs-on: public-runners): a separate ARC scale set (platform service in my-idp, platform/apps/arc)"},
+    {"name": "Tekton image pipelines → Harbor (auto-rollout)", "quote": "Every deployable's image is built by a Tekton pipeline pushing to the family registry (Harbor); a successful build automatically rolls the new image out"}
+  ]
+}

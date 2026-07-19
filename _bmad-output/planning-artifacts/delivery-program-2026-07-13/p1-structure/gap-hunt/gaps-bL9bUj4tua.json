@@ -1,0 +1,11 @@
+{
+  "slug": "bL9bUj4tua",
+  "title": "ADR-0014: Knowledge store engine = Turbopuffer (namespace-per-tenant)",
+  "verdict_summary": "Canonical ratified ADR. It is a decision record whose build obligations delegate wholly to the orvex-studio-knowledge module (PRD dCbFzRQGDr / arch azRwTCZMqw), which has a full breakdown at feature-map lines 342-413. Every mandated build item is covered: (1) Turbopuffer-sole adapter at internal/store/turbopuffer/ + conformance seam (fm 353/354); (2) namespace-per-tenant provisioning (fm 354/380/413); (3) the REQUIRED cross-tenant/intra-tenant-restricted bytes=0 isolation probe FR-K31b (fm 365 'Isolation probes: cross-tenant + intra-tenant-restricted zero-byte + count-oracle in CI & per-deploy', fm 515 P8 probes; FR-K31b present in covers-union); (4) ENG-1358 duplicate-detection re-platformed onto Turbopuffer, not pgvector (fm 357 /v1/duplicates, fm 501 duplicate & merge sweep, fm 720 0.98-cosine dedup); (5) knowledge NFR baseline (fm 360 query latency budgets + QoS fairness, fm 154 NFR conformance harness). Key management via OpenBao/External Secrets is infra/definition-phase (pack-covered). No BUILD obligation is left without a story. Zero gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "internal/store/turbopuffer/ adapter seam (vendor-neutral store seam kept as hygiene)", "quote": "the vendor-neutral adapter seam (`internal/store/turbopuffer/`) is kept as hygiene, not a second live store."},
+    {"name": "Turbopuffer namespace-per-tenant knowledge store (sole engine)", "quote": "Turbopuffer is the sole knowledge store engine. ... Each tenant gets its own Turbopuffer namespace; cross-tenant isolation is structural (separate namespaces)."},
+    {"name": "Cross-tenant isolation probe (bytes=0 M5 gate, FR-K31b)", "quote": "Cross-tenant isolation probe is REQUIRED — the top M5 gate. E2E cross-tenant bytes = 0 AND intra-tenant restricted-page bytes = 0 (the ACL ∩ token-scope egress chokepoint, FR-K31b)."}
+  ]
+}

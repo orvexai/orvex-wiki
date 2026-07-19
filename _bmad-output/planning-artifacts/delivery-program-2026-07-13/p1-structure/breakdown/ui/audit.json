@@ -1,0 +1,185 @@
+{
+  "repo": "orvex-studio-ui",
+  "audited_ref": "origin/main",
+  "head": "74c2a39 2026-07-14 16:26:12 +0200",
+  "branches_note": "origin/main is the freshest product code (HEAD 74c2a39, merge of #31 from dev). origin/dev is 1 behind main (already merged). origin/fix/m11-e2e-gate-corrections is 2 ahead of main but touches ONLY e2e test files (e2e/m11SpaE2E.spec.ts + playwright.config.ts) — no product/src code, so no ENG-2069 hidden-feature hazard on it. origin/crew/daniel is 50 behind / 0 ahead of main (stale). Conclusion: no merged-vs-branch product gap; auditing origin/main captures the real state.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "partial",
+      "evidence": [".github/workflows/ci.yml", "scripts/check-no-hardcoded-hex.sh", "e2e/a11y.axe.spec.ts", "vitest.nfr-budget.config.ts", "eslint.config.js"],
+      "note": "CI has vitest+coverage, Playwright e2e, tsc typecheck (app+worker), eslint (A-SHELL import boundary), axe a11y, pnpm audit, NFR-budget gate, worker gate, actionlint, FAIL-never-SKIP grep, no-hardcoded-hex token gate, and a real ci-success fan-in. MISSING vs story: (1) no VISUAL-REGRESSION gate anywhere; (2) no org-level cell-lint required-status enrolment (JGAUQRsw2g) — no cell-lint reference in repo. No named TestCiHarnessBlocksRedBuild fixture-driven gate test."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": ["src/lib/apiClient.ts", "src/lib/apiClient.test.ts", "src/lib/auth.tsx:174", "src/lib/__tests__/cellBearingToken.test.ts", "src/lib/__tests__/oneBffUpstream.contract.test.ts"],
+      "note": "Typed BFF /api client present & well-tested: apiFetch, buildApiUrl, single-upstream assertBffBase SSRF guard, registerTokenGetter/getAuthToken one-seam token attach, 401-only-on-bearer sign-out. Identity session-token attach fully wired in auth.tsx (Clerk->cell exchange, layout-effect getter). MISSING: contracts CODEGEN consumer — there is no generated types package consumed; DTOs are hand-authored mirrors (src/features/search/types.ts explicitly hand-derived from a sibling Go struct; entitlements DTO is 'free-form until orvex-studio-contracts pins it')."
+    },
+    "E1-S3": {
+      "status": "present",
+      "evidence": ["src/styles/orvex-ds.css", "src/lib/theme.ts", "src/lib/skin.ts", "src/lib/theme.test.ts", "src/lib/skin.test.ts", "src/lib/useTheme.test.tsx", "src/lib/useSkin.test.tsx", "index.html", "scripts/check-no-hardcoded-hex.sh"],
+      "note": "Full dual-theme (light/dark) + dual-skin (default/brand-b) scaffold via data-theme/data-skin, pre-first-paint inline blocking script in index.html mirroring theme.ts precedence, orvex-ds.css token layer (465 lines), toggles + hooks, all with unit tests. Caveat: 'exact-match' token fidelity to the canonical DS source (j8ZO0NAB2A) is enforced only by a hex-ban shell lint, not an automated token-diff against the canonical file — verify this at hardening."
+    },
+    "E1-S4": {
+      "status": "present",
+      "evidence": ["src/lib/useDraftState.ts", "src/lib/__tests__/draftVsCommitted.test.tsx", "src/routes/Library.tsx:70"],
+      "note": "Shared draft-vs-committed layer fully implemented: useDraftState owns committed/draft/committing + failure-preserves-edit + server-truth-on-load transitions, field-shape-agnostic, persist injected. Consumed by LibraryItemPane. draftVsCommitted.test.tsx (164 lines) covers the transitions."
+    },
+    "E1-S5": {
+      "status": "present",
+      "evidence": ["src/components/PaneState.tsx", "src/routes/__tests__/productPanes.test.tsx", "src/components/ErrorBoundary.tsx", "src/components/Shell.tsx:60"],
+      "note": "Honest-states trio implemented: PaneState renders exactly one of loading(role=status) / error+retry(role=alert) / honest-empty / content; usePaneData hook drives it; ErrorBoundary soft-fails a crashed surface without dropping shell chrome; '—' honest-loading placeholder in Shell entitlement status. productPanes.test.tsx exercises all branches across the panes."
+    },
+    "E1-S6": {
+      "status": "partial",
+      "evidence": ["src/lib/entitlements.ts", "src/lib/entitlements.test.tsx", "src/components/Shell.tsx:47", "src/routes/Settings.tsx:40", "src/test/fixtures/entitlements.sse.json"],
+      "note": "Single SSE entitlement channel (useEntitlementStream, one EventSource seam with token-as-query, connecting/open/degraded status) present & tested; Shell renders stream status; Settings renders the tier-locked banner from server 'locked' boolean. MISSING: the over-quota 402 upgrade STATE is not implemented (apiFetch throws a generic ApiError on non-2xx; no 402-specific paywall/upgrade surface); the degraded fallback refetch is an explicit TODO no-op — the BFF /entitlements endpoint 'does not exist yet (Build-state: scaffold)'."
+    },
+    "E1-S7": {
+      "status": "present",
+      "evidence": ["worker/index.ts", "worker/__tests__/worker.serving.spec.ts", "worker/__tests__/edgeApiForward.spec.ts", "wrangler.toml", "src/lib/config.ts", "scripts/cutover-worker.sh"],
+      "note": "Cloudflare Workers Static-Assets serving path fully implemented: immutable/no-cache policy, runtime /config.js injection from Worker env (region-agnostic, never build-baked), same-origin /api reverse-proxy with /api->/ prefix strip + edge-shared-secret injection + fail-loud 502s, SPA fallback delegated to the assets binding. Worker Miniflare tests (serving + edge forward) + config.ts runtime CONFIG seam + cutover script."
+    },
+    "E2-S1": {
+      "status": "partial",
+      "evidence": ["src/components/Shell.tsx", "src/components/__tests__/shellComposition.test.tsx", "src/components/OrgSwitcher.tsx"],
+      "note": "Shell chrome exists: a top nav with 6 destinations (Home/Discover/Memory/Library/Search/Settings), org-aware OrgSwitcher (renders only for org principals), theme/skin toggles, entitlement status, signed-in gate. MISSING almost all of the story's shell affordances: no Create CTA, no account footer, no command palette (no cmdk/⌘K), no inbox drawer, no responsive-breakpoint handling. Nav is a header, not a sidebar."
+    },
+    "E2-S2": {
+      "status": "absent",
+      "evidence": ["src/components/Shell.tsx", "src/lib/auth.tsx"],
+      "note": "No first-run state machine (ANON / NEW-AUTH / RETURNING) and no Task Box two-mode in-place morph exist. Shell only distinguishes isLoading / needsSignIn / children; there is no returning-vs-new-auth concept anywhere."
+    },
+    "E2-S3": {
+      "status": "partial",
+      "evidence": ["src/routes/index.tsx", "src/routes/index.test.tsx", "src/routes/NotFound.tsx", "src/components/SignInAffordance.tsx"],
+      "note": "Data-driven routing map (ROUTE_TABLE, 6 surfaces + honest 404) present & tested; SignInAffordance renders under the configured-Clerk signed-out gate. MISSING: no front-door landing surface, no post-auth deep-link restore, no client session-redirect flow (the sign-in gate simply swaps content in place)."
+    },
+    "E2-S4": {
+      "status": "partial",
+      "evidence": ["src/routes/Home.tsx", "src/routes/__tests__/productPanes.test.tsx"],
+      "note": "A single generic Home pane renders honest-empty + BFF-fed list via PaneState/usePaneData (tested). MISSING the story core: no distinct RETURNING vs NEW-AUTH dashboard ZONES and no live-fill-on-transition — Home is the same undifferentiated list adapter as every other pane."
+    },
+    "E3-S1": {
+      "status": "absent",
+      "evidence": ["src/routes/Memory.tsx"],
+      "note": "No streaming FormSpec onboarding (SSE) and no deterministic fallback. Memory.tsx is a thin read-only list adapter over /v1/memory; the onboarding FormSpec flow is not implemented."
+    },
+    "E3-S2": {
+      "status": "absent",
+      "evidence": ["src/routes/Home.tsx", "src/routes/Memory.tsx"],
+      "note": "No Form->Home morph choreography and no reduced-motion instant-swap variant. No onboarding form exists to morph from."
+    },
+    "E3-S3": {
+      "status": "partial",
+      "evidence": ["src/routes/Memory.tsx", "src/routes/__tests__/productPanes.test.tsx"],
+      "note": "A thin Memory list pane (title/description rows over /v1/memory) with honest-empty state exists and is covered by productPanes.test.tsx. MISSING the story: no Memory wall UI and no FR-31 per-entry provenance rendering."
+    },
+    "E3-S4": {
+      "status": "absent",
+      "evidence": ["src/routes/Memory.tsx", "src/routes/Settings.tsx"],
+      "note": "No sensitive-field consent UX, no Enrichment Policy setting, no hard-delete affordance anywhere."
+    },
+    "E3-S5": {
+      "status": "absent",
+      "evidence": ["src/lib/skin.ts", "src/routes/Memory.tsx"],
+      "note": "No Memory Coach gating render and no 1k/10k scale handling. A generic dual-skin scaffold (default/brand-b) exists (E1-S3) but there is no 'Professional Mode' skin bound to Memory nor any Memory Coach surface."
+    },
+    "E4-S1": {
+      "status": "partial",
+      "evidence": ["src/routes/Discover.tsx", "src/routes/__tests__/productPanes.test.tsx"],
+      "note": "A thin Discover list pane over /marketplace with honest-empty state exists and is tested. MISSING the story: no search-as-you-type, no facets, no anon wall-free variant — it is the same undifferentiated list adapter."
+    },
+    "E4-S2": {
+      "status": "absent",
+      "evidence": ["src/routes/Discover.tsx"],
+      "note": "No Skill Viewer: no typed items, no per-block provenance, no injection slots, no raw fallback. Not implemented."
+    },
+    "E4-S3": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No Skill Builder (Base+Delta fork/edit, immutability, toggle, autosave, <50ms weave, concurrency). Not implemented. The generic useDraftState (E1-S4) is unrelated substrate, not a builder."
+    },
+    "E5-S1": {
+      "status": "absent",
+      "evidence": ["src/routes/", "src/lib/entitlements.ts"],
+      "note": "No Improve-with-AI panel: no five result states, no non-optimistic apply, no cached-exemplar fallback. Not implemented."
+    },
+    "E5-S2": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No capture-back seam (Save to Memory after Apply, consent-gated). Not implemented."
+    },
+    "E5-S3": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No five-AI export and no Tier-1 clipboard-blocked fallback. Not implemented."
+    },
+    "E5-S4": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No share permalinks, no prompt-via-us launch, no Enrich-this-prompt tick. Not implemented."
+    },
+    "E5-S5": {
+      "status": "partial",
+      "evidence": ["src/routes/Library.tsx", "src/routes/__tests__/productPanes.test.tsx", "src/lib/useDraftState.ts"],
+      "note": "A thin Library list pane over /library (tested) plus a LibraryItemPane demonstrating draft/commit/discard via useDraftState. MISSING the story: no Collections, no Delta-intact reopen, no bulk export, no cross-device sync semantics."
+    },
+    "E6-S1": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No Demo World (banner, guided first-run, demo-mode citations, atomic graduation). Not implemented (Phase-2 surface)."
+    },
+    "E6-S2": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No Chat-History Import wizard. Not implemented (Phase-2 surface)."
+    },
+    "E6-S3": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No Chat History surface (browse, search, conversation render, retention controls). Not implemented (Phase-2 surface)."
+    },
+    "E6-S4": {
+      "status": "absent",
+      "evidence": ["src/routes/"],
+      "note": "No Curator desk / Curation Queue. Not implemented (Phase-2 surface)."
+    },
+    "E7-S1": {
+      "status": "partial",
+      "evidence": ["src/routes/Search.tsx", "src/features/search/components/search-spotlight.tsx", "src/features/search/types.ts", "src/features/search/components/searchSpotlight.spec.tsx", "src/routes/__tests__/searchRoute.test.tsx"],
+      "note": "A real unified-search SearchSpotlight surface exists (POST /v1/query, idle/loading/success/empty/degraded/error states, fail-closed _note handling, verbatim server citation URLs) with meaningful tests. MISSING the FR-UI24 'Your Wiki' story: no omnibox Ask mode, no native read pane, no hover cards, no wiki-activity feed — only keyword search."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": ["src/routes/Settings.tsx"],
+      "note": "No Connections & MCP setup (one-time secret, write-mode switch, guided setup). Not implemented."
+    },
+    "E7-S3": {
+      "status": "partial",
+      "evidence": ["src/routes/Settings.tsx", "src/lib/entitlements.ts", "src/routes/__tests__/productPanes.test.tsx"],
+      "note": "A thin Settings pane over /billing with an entitlement-driven tier-locked banner (from server 'locked' boolean, one SSE channel) exists and is tested. MISSING the FR-UI26 story: no pricing surface, no GBP-only display, no Stripe Checkout/Portal redirect, no trial/upgrade moments, no dunning-truth rendering."
+    },
+    "E8-S1": {
+      "status": "present",
+      "evidence": ["e2e/a11y.axe.spec.ts", "playwright.config.ts", ".github/workflows/ci.yml"],
+      "note": "WCAG 2.1 AA accessibility ship-gate implemented: axe-core Playwright scan iterating THEMES(light/dark) x SKINS(default/brand-b) x SURFACES against the real built bundle, deterministic theme/skin pinning via localStorage before pre-paint, plus keyboard operability; wired as the required e2e CI job."
+    },
+    "E8-S2": {
+      "status": "partial",
+      "evidence": ["nfr-budget.json", "scripts/checkNfrBudget.ts", "src/lib/__tests__/nfrBudget.test.ts", "vitest.nfr-budget.config.ts"],
+      "note": "A real NFR-budget DoD gate exists (bundle-size <=256KB gz against the real dist/, entitlement-freshness/a11y enum budgets) run in CI. MISSING the rest of the story: no scale-load handling, no explicit streaming-resilience harness, no offline posture; first-paint + availability budgets are explicitly listed 'open/unratified'."
+    },
+    "E8-S3": {
+      "status": "partial",
+      "evidence": ["eslint.config.js", "src/lib/apiClient.ts:80", "src/lib/__tests__/oneBffUpstream.contract.test.ts", "src/lib/__tests__/cellBearingToken.test.ts", "worker/index.ts"],
+      "note": "BFF-only egress hardening is strong: eslint import-boundary bans raw fetch/EventSource/WebSocket/window.CONFIG in view + lib layers, assertBffBase rejects cross-origin/protocol-relative bases (SSRF), oneBffUpstream contract test + cellBearingToken test enforce the one-seam token flow, Worker overwrites x-orvex-edge-secret. MISSING: observability (no OTel/metrics/telemetry/error-reporting seam — ErrorBoundary just console.errors)."
+    },
+    "E8-S4": {
+      "status": "absent",
+      "evidence": ["src/"],
+      "note": "No product-metric instrumentation (SM funnel to BFF ingest, first-party only). No analytics/telemetry/PostHog/instrumentation code anywhere in src/ or worker/."
+    }
+  },
+  "summary": "orvex-studio-ui on origin/main is a well-engineered but thin FOUNDATION: the E1 shared substrate (design-system theme/skin, honest-state primitives, draft-vs-committed layer, typed one-seam BFF client + identity token exchange, Cloudflare Workers serving path) and the E8-S1 a11y ship-gate are genuinely present with meaningful tests, and BFF-only egress is hardened and contract-tested. Everything above the substrate is either a thin undifferentiated list-pane adapter over not-yet-existent BFF domains (Home/Discover/Memory/Library/Settings + a real unified-search spotlight) or entirely unbuilt: the whole product surface area — first-run/onboarding, Memory wall/provenance, Skill Viewer/Builder, Improve-with-AI, export/share/launch, all Phase-2 curation surfaces, Connections/MCP, and billing/pricing — is absent, as is visual-regression, cell-lint enrolment, contracts codegen, and product-metric instrumentation. Net: 5 present, 13 partial, 17 absent of 35 stories."
+}

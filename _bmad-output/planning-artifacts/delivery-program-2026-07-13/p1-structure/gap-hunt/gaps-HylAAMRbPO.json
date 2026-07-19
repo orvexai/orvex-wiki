@@ -1,0 +1,20 @@
+{
+  "slug": "HylAAMRbPO",
+  "title": "ADR-0012: Tenancy model confirmation — polymorphic {user | org}",
+  "verdict_summary": "Confirmation/re-affirmation ADR (Canonical, ratified 2026-07-07). It explicitly 'makes no change to ADR-0001' and introduces NO new build work — it closes the D-P1 → D-S17 → ADR-0001 lineage so no service reintroduces the org-only assumption. Every substantive obligation it restates (polymorphic {user|org} tenant, personal user with no Clerk org, Team as real Clerk org, single principal for identity+billing, personal→Teams UPGRADE-PASS re-key, both-shapes consumer invariant, and CI/isolation probes for a no-org tenant) is already the subject of existing stories: polymorphic tenant spine (feature-map L299-302, L639, L678), OrgUpgrade re-key workflow FR-W13 (L693), polymorphic principal on identity+billing (L65, L117), and cross-tenant/no-org isolation probes in CI & per-deploy (L365, L638, L515). Arch ids A-TENANCY / A-AUTH / A-CELL are all in covers-union. Zero uncovered build gaps.",
+  "gaps": [],
+  "components": [
+    {
+      "name": "orvex-studio-identity — clerk-multitenancy (tenant→cell registry, polymorphic principal resolution)",
+      "quote": "Architecture: orvex-studio-identity — clerk-multitenancy (ENG-1446); billing SoR (D-P3 / D-S7)."
+    },
+    {
+      "name": "personal→Teams UPGRADE-PASS (mint Clerk org, re-key tenant in place, carry data + entitlements)",
+      "quote": "personal→Teams UPGRADE-PASS: mint the Clerk org, re-key the tenant in place, carry data + entitlements across the re-key; workspace_id remains the RLS tenant key, so no RLS-scoped data is migrated."
+    },
+    {
+      "name": "CI / isolation probes asserting a personal (no-org) tenant resolves identically through identity + billing",
+      "quote": "The org-only assumption is now explicitly a family-wide bug class — CI / isolation probes should assert a personal (no-org) tenant resolves identically through identity + billing."
+    }
+  ]
+}

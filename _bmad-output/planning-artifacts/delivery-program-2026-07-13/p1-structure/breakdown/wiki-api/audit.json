@@ -1,0 +1,318 @@
+{
+  "repo": "orvex-wiki-api",
+  "audited_ref": "origin/dev",
+  "head": "44bc54a 2026-07-14 15:06:09 +0200",
+  "branches_note": "ENG-2069 hazard confirmed and INVERTED: origin/dev is the remote default (git remote show origin -> HEAD branch: dev) and is the audited ref, but origin/main is 5 commits AHEAD of dev, carrying prod-wiring/relay fixes not back-merged to dev (cfe5944 relay engine integer meta.version as /v1 CAS version #38; c6628cf repoint prod KNOWLEDGE_URL/AI_URL at in-cluster Service DNS ENG-2082 #37; a11d1f3 point PROD wiki-api at cloud engine + session-exchange #36). Feature branches ahead of dev are all deploy/wiring, not story-behaviour code: fix/relay-integer-version-field (+5), fix/eng-2082-prod-upstream-dns (+4), fix/prod-engine-wiring-acceptance (+3), feat/d15-single-host-fanout (+1, already merged as #34 into dev). No story below flips status on any ahead branch.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/config/config.go",
+        "cmd/wikiapi/router.go",
+        "internal/server/server.go:475-483",
+        "internal/config/config_test.go",
+        "cmd/wikiapi/router_test.go",
+        "internal/server/server_test.go (TestHealthzEchoesCell)"
+      ],
+      "note": "Skeleton, six-tier internal/* layout, config load, and /healthz echoing cell+cluster are present and tested. GAP: AC4 fail-loud on missing CLUSTER_NAME is NOT implemented (config.Load defaults ClusterName to \"\"); router.go's own /healthz echoes only cell (server.Handler()'s echoes both)."
+    },
+    "E1-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/proxy/proxy.go",
+        "cmd/wikiapi/router.go (mux.Handle /api/)",
+        "internal/server/contract_trace_test.go:91-92"
+      ],
+      "note": "Real httputil reverse proxy under /api/*; facade routes return typed 502 when engine unconfigured (contract_trace_test). Byte-identical parity is a stdlib ReverseProxy property, not asserted against a live engine here."
+    },
+    "E1-S3": {
+      "status": "present",
+      "evidence": [
+        "cmd/wikiapi/router.go (/v1/ mount)",
+        "internal/server/server.go (route table)",
+        "internal/server/verbgrammar_test.go",
+        "internal/server/contract_trace_test.go"
+      ],
+      "note": "The /v1 verb-grammar surface is mounted alongside /api/*; any not-yet-composed verb answers a typed 501 X-Stub envelope (draft-marked), never a 404."
+    },
+    "E1-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:392-456 (bearer/rawBearer/requireScope)",
+        "internal/server/tokenpassthrough_test.go",
+        "internal/server/caller_verifier.go"
+      ],
+      "note": "Token pass-through verbatim (bearer) real+tested; requireScope wires orvex-studio-lib/pkg/auth.RequireScope. Edge identity-verify is flag-gated (IDENTITY_VERIFY_ENABLED, default off) with a fail-closed notImplemented default caller verifier -- the K4 interim posture the story names."
+    },
+    "E1-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:628-663 (classifyReadLadderError)",
+        "internal/server/contract_trace_test.go",
+        "internal/server/readladder_test.go"
+      ],
+      "note": "401/403/404 propagate verbatim from engine/knowledge via a typed mapping; no existence-oracle laundering into a generic 5xx. tested."
+    },
+    "E1-S6": {
+      "status": "present",
+      "evidence": [
+        ".github/workflows/ci.yml",
+        "scripts/contract-gates/no-agpl-import.sh",
+        "scripts/contract-gates/handler-thinness.sh",
+        "scripts/contract-gates/no-linear-in-grammar.sh",
+        "scripts/contract-gates/openapi-drift.sh"
+      ],
+      "note": "Blocking CI gates present: gofmt/golangci/gosec/govulncheck/test + a real no-AGPL-import guard + handler-thinness + route-table drift. The DfM golden-corpus 'parity job' is the one gate not in this repo (see E2-S5)."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/dfm/dfm.go",
+        "internal/dfm/dfm_test.go",
+        "internal/dfm/doc.go"
+      ],
+      "note": "DfM->PM conversion composed in-process from orvex-studio-lib/pkg/dfm (the clean-room serializer lives in the lib, re-exported here as type aliases + New()); wiki-api never reimplements or mocks it."
+    },
+    "E2-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/dfm/fidelity.go",
+        "internal/dfm/fidelity_test.go"
+      ],
+      "note": "PM->DfM reverse conversion + fidelity check via the lib serializer; opaque nodes are fenced (:::dfm-opaque:::) not dropped. tested. Reverse logic lives in the lib."
+    },
+    "E2-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/dfm/dfm.go:15-16 (OpaqueHandle alias)",
+        "internal/dfm/fidelity.go:95",
+        "internal/dfm/fidelity_test.go:15 (excalidraw opaque round-trip)"
+      ],
+      "note": "Opaque-node typed handles round-trip byte-identically (excalidraw exemplar tested); reattach-from-base logic lives in orvex-studio-lib/pkg/dfm and is exercised via the fidelity tests."
+    },
+    "E2-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/server/convert_handler.go:34-115",
+        "internal/server/convert_test.go",
+        "internal/server/server.go:249-252 (routes)"
+      ],
+      "note": "/v1/convert/to-prosemirror|to-dfm|fidelity are real in-process handlers backed by the embedded serializer + tests (the older /v1/convert/dfm-to-json draft paths remain typed 501 stubs)."
+    },
+    "E2-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/dfm/fidelity_test.go",
+        "scripts/contract-gates/openapi-drift.sh",
+        "scripts/contract-gates/route-table.snapshot.txt"
+      ],
+      "note": "Round-trip fidelity tests exist, but there is NO golden-corpus CI parity gate in THIS repo against the engine catalog+fixtures (that corpus lives in orvex-studio-lib); the in-repo contract gate is a route-table snapshot only, and a full external-contract diff is a disclosed cross-repo follow-up."
+    },
+    "E3-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/verbs/verbs.go (Search/Get/Save/Edit/List Dispatcher)",
+        "internal/verbs/verbs_test.go",
+        "internal/server/verbgrammar_test.go"
+      ],
+      "note": "Verb dispatch over {resource_type,locator} for search/get/save/edit/list is real+tested; no ask verb (by design)."
+    },
+    "E3-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/verbs/verbs.go:178 (ResolveLocator)",
+        "internal/verbs/verbs.go:81-88 (ErrLocatorKindUnsupported)"
+      ],
+      "note": "Locator resolution composes engine resolvers for id|slug|auto|url. title/NL dialects are PERMANENTLY refused with a typed error (no engine resolver primitive exists) -- so the story's url/slug/title/NL set is only partially served, by design."
+    },
+    "E3-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/server/readladder_test.go",
+        "internal/verbs/verbs.go:443 (TokenEstimate)",
+        "internal/verbs/verbs.go:504 (pageblocks.ReadRanged)"
+      ],
+      "note": "info->outline(token_estimate)->blocks/{id}?format=dfm read ladder plus ranged block reads, all real+tested."
+    },
+    "E3-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:803 (v1Nav)",
+        "internal/verbs/verbs.go:625 (Nav)",
+        "internal/server/contract_trace_test.go:101-102"
+      ],
+      "note": "Space tree, backlinks, breadcrumbs delegate to engine primitives (cursor-paginated); tested."
+    },
+    "E3-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/verbs/verbs.go:299 (Search->knowledge)",
+        "internal/server/legacy_mcp_routes.go (related link-graph)",
+        "internal/server/legacy_mcp_routes_test.go"
+      ],
+      "note": "search fronts knowledge and related is real engine link-graph adjacency; typed-error degradation via classifyReadLadderError. No distinct 'duplicates' surface is implemented."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/blockpatch/blockpatch.go:206 (applyOpsBatch)",
+        "internal/blockpatch/blockpatch_test.go",
+        "internal/clients/applyops_test.go"
+      ],
+      "note": "DfM->apply-ops translation with anchor/heading resolution and a single atomic apply-ops call; tested against recorded engine fixtures."
+    },
+    "E4-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/blockpatch/blockpatch.go (ErrVersionMismatch, read-after-write receipt)",
+        "internal/blockpatch/testdata/engine_apply_ops_error_version_mismatch.json",
+        "internal/server/write_contract_test.go"
+      ],
+      "note": "CAS ifVersion->409 VERSION_MISMATCH plus a verified read-after-write receipt {url,id,version,persisted:true}, incl per-type block-authoring; tested."
+    },
+    "E4-S3": {
+      "status": "partial",
+      "evidence": [
+        "gen/errors.go:23-24 (CodeNeedsHumanPublish/Confirm)",
+        "gen/errors.go:147 (DeepLink)",
+        "internal/specgate/specgate.go:44-53"
+      ],
+      "note": "Typed needs_human_publish/needs_human_confirm codes + the DeepLink envelope are DEFINED, but no live path emits them: specgate.Check (which would transport the engine-minted RATIFY/CONFIRM token verbatim) returns ErrNotImplemented, and blockpatch human-gating is comment-only. Human-gated transport is scaffolded, not wired."
+    },
+    "E4-S4": {
+      "status": "present",
+      "evidence": [
+        "internal/verbs/verbs.go:10 (ai writes via standard chokepoint)",
+        "internal/server/tokenpassthrough_test.go"
+      ],
+      "note": "ai-origin writes have NO privileged path -- they traverse the same /v1 block-patch chokepoint with the caller's delegated token; the token-passthrough/no-amplification property is proven by test."
+    },
+    "E4-S5": {
+      "status": "present",
+      "evidence": [
+        "internal/clients/clients.go:209-216 (QuotaError/ErrQuotaExceeded)",
+        "internal/server/server.go:762-769 (402 verbatim + deep-link)",
+        "internal/bulkops/apply.go",
+        "internal/bulkops/apply_test.go"
+      ],
+      "note": "QUOTA_EXCEEDED 402 relayed verbatim with the Studio upgrade deep-link (never masked as 5xx); a batch write fails whole via bulkops. tested."
+    },
+    "E4-S6": {
+      "status": "present",
+      "evidence": [
+        "internal/pageblocks/handlers/handlers.go:43,326 (orvex_dashboard)",
+        "internal/pageblocks/registry.go:15",
+        "internal/pageblocks/handlers/handlers_test.go",
+        "internal/pageblocks/registry_test.go"
+      ],
+      "note": "Generic orvex_dashboard block is registered + validated (dashboardId), decoupled from any linear_* type, and authored through the block chokepoint with a receipt. Scope is a generic dashboard embed, not specifically a milestone-scoped graph builder."
+    },
+    "E5-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/shape/shape.go (Project, verbosity, Cursor)",
+        "internal/shape/shape_test.go",
+        "internal/server/server.go:1158 (projectJSON wired into read ladder)"
+      ],
+      "note": "One shaping layer: field projection (?fields=), concise|detailed verbosity, and cursor pagination -- wired through every read rung via projectJSON; tested."
+    },
+    "E5-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/shape/shape.go (Offload/resource_link + token estimate)",
+        "internal/server/server.go:599 (v1Blocks deref)",
+        "internal/shape/shape_test.go (TestOffloadDecisionThreshold)"
+      ],
+      "note": "Body-offload emits resource_link handles + token estimates above a budget; the offloaded Blocks read derefs through the ACL-gated read route. tested."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:1083 (v1OpenAPI descriptor)",
+        "internal/server/write_contract_test.go",
+        "internal/server/contract_trace_test.go",
+        "scripts/contract-gates/openapi-drift.sh"
+      ],
+      "note": "A served /v1/openapi.json descriptor + write-contract conformance tests + an in-repo route-table drift gate are present. Full conformance against the contracts-authored external OpenAPI (orvex-studio-contracts/openapi/wiki-api.yaml) is a DISCLOSED cross-repo follow-up (CI lacks clone access) -- the descriptor is self-authored here, not yet diffed against the authored contract."
+    },
+    "E6-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/drift/verify.go",
+        "internal/drift/getdrift.go",
+        "internal/drift/forcenewtoken.go",
+        "internal/drift/hash.go",
+        "internal/drift/quarantine.go",
+        "internal/server/server.go:924,936 (v1DriftStatus/Verify)"
+      ],
+      "note": "Living-wiki drift verification (VerifyPage/GetDrift/force-new-token) with a real content-hash drift metric + quarantine; real HTTP handlers and a full per-file test suite."
+    },
+    "E6-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/specgate/specgate.go:44-53 (Check/GateState return ErrNotImplemented)",
+        "internal/server/server.go:1035 (v1SpecGate 501 stub)",
+        "internal/specgate/specgate_test.go"
+      ],
+      "note": "The spec-gate package, wiring, route, and the {satisfied,token,reason} result shape exist, but the core is an explicit stub: Check()/GateState() return ErrNotImplemented and v1SpecGate/v1RatifyGate answer a typed 501. The de-Linearized text-only story-id gate is a documented TODO, not implemented."
+    },
+    "E6-S3": {
+      "status": "present",
+      "evidence": [
+        "internal/audit/writer.go",
+        "internal/audit/writer_test.go",
+        "internal/audit/resolver.go",
+        "internal/store/engine/audit_forward.go",
+        "internal/store/engine/audit_forward_test.go",
+        "internal/server/server.go:843 (v1Audit)"
+      ],
+      "note": "External-agent POST /v1/audit shapes + forwards to the engine WORM sink via AuditForwardClient, with a verified caller-identity seam + correlated request-id + full tests."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/cache/cache.go",
+        "internal/cache/cache_test.go",
+        "internal/events/events.go:11-13 (cell fail-closed Evict)",
+        "internal/events/events_test.go",
+        "internal/server/server.go:1103 (internalEvict)"
+      ],
+      "note": "Event-evicted Redis artifact cache + evict consumer with a fail-closed cross-cell guard; tested. The Kafka evict Trigger is Phase-0-deferred at the deploy layer (kafka-trigger-evict.yaml commented out); the handler is wired ahead of it."
+    },
+    "E7-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/verbs/sli.go (per-verb facade-overhead SLI)",
+        "internal/server/server.go:492-503 (health facade_sli)"
+      ],
+      "note": "Per-verb + facade-overhead SLIs are real (in-process ring, p95, exposed on /health), but there are NO OTel traces and NO Prometheus /metrics endpoint -- both explicitly deferred (sli.go: orvex-studio-lib/pkg/metrics is a closed name-set owned elsewhere). Observability is only partially met."
+    },
+    "E7-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:475 (healthz local-only)",
+        "internal/server/server.go:492 (health w/ upstream + cluster echo)"
+      ],
+      "note": "Health-vs-liveness split is real (/healthz never round-trips upstreams; /health reports upstream state + echoes CLUSTER_NAME). GAP: /health reports only whether each upstream is CONFIGURED (Configured() booleans), NOT a real dependency round-trip probe."
+    },
+    "E7-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/bulkops/nfr_test.go (p95<=20ms per-item budget)",
+        "internal/pageblocks/nfr_test.go",
+        "internal/server/server.go:140 (engineHTTPTimeout 30s non-SSE deadline)"
+      ],
+      "note": "Bulk per-item latency budget + the non-SSE upstream 30s deadline are present and asserted. The full facade/warm-cache/rebuild benchmark suite the story names is not fully evidenced (no warm-cache/rebuild benchmark)."
+    },
+    "E7-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:657-662 (typed 502 A-STANDALONE default arm)",
+        "internal/server/contract_trace_test.go (502 degradation)"
+      ],
+      "note": "Standalone degradation posture (typed 502 on an unconfigured/unreachable engine) is present everywhere. The redaction-below-relocation-line PARITY TEST (NFR-A3) is ABSENT -- no redaction logic exists in the tree."
+    }
+  },
+  "summary": "The origin/dev tree substantially implements the wiki-api PRD: the /v1 verb grammar, read ladder, DfM<->PM convert surface, block-patch write chokepoint with CAS + verified receipts + quota relay, the response-shaping/body-offload layer, drift governance, external audit-write to the engine WORM sink, and the event-evicted cache are all real and meaningfully tested (24/33 present). Nine stories are partial: the spec-gate (Check/GateState are ErrNotImplemented stubs), human-gated transport (codes defined but no live path), observability (in-process SLIs only -- no OTel/Prometheus), dependency round-trip health, redaction parity, the golden-corpus/full-contract gates, and title/NL locator resolution. Nothing is fully absent -- every story has at least real scaffolding."
+}

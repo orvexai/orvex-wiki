@@ -1,0 +1,11 @@
+{
+  "slug": "yOyavcWHEz",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0030",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "Decision record for already-landed additive work (contracts PR #35 identity/principal.schema.json cell+cell_epoch, orvex-studio-identity PR #16/ENG-1944 token surface, orvex-studio-mcp http.ts consumer already reading claims.cell/cell_epoch); page's own gap analysis returns zero gaps/no outstanding BUILD obligation; underlying build tracked under A-CELL/A-CELL-COMPLIANCE/A-CELL-ROUTING/F-CELL (cell-guard/421, tenant->cell registry) in feature-map, not a separate buildable unit under its own id."
+    }
+  ]
+}

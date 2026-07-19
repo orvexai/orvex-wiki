@@ -1,0 +1,295 @@
+{
+  "repo": "orvex-studio-workflows",
+  "audited_ref": "origin/main",
+  "head": "6e56015 2026-07-10 17:45:20 +0200",
+  "branches_note": "origin/dev is the ENG-2069 hazard: 18 commits ahead of main (HEAD 7cdfbee, 2026-07-13), it vendors deps and carries the bulk of the unmerged night-work \u2014 the orvex-workflows\u2192orvex-studio-workflows rename (1cc8b7b), orvexcell CE stamping (39aad7e), FR-W18 Free-entitlement grant (5cc7a87), knowledge-rebuild FR-W8/W9 (291f176), org-upgrade + entitlement + step-API client scaffold (efe0010), billing-lifecycle sagas (837d193), /v1/workflows authorizing proxy ENG-2009 (4da078d), and prove/harden of the Clerk pipeline (5529494). origin/crew/daniel is 3 commits ahead but stale (2026-07-05). NOTHING of the dev work is on main; the audited status below reflects main only.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "absent",
+      "evidence": [
+        "backend/go.mod:1",
+        "README.md:1",
+        "deploy/kustomize/kustomization.yaml:11"
+      ],
+      "note": "Module is still `github.com/orvexai/orvex-workflows/backend`, README still titled `orvex-workflows`, k8s namespace still `studio-clerk-webhook-dev` \u2014 no repo/module/image/OpenBao-path rename to orvex-studio-workflows on main. The rename lands on branch origin/dev (commit 1cc8b7b `redirect repo self-references orvex-workflows \u2192 orvex-studio-workflows (OQ-W1/W2)`)."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        "backend/internal/temporal/signals.go:9",
+        "backend/internal/config/config.go:68",
+        "backend/internal/workflows/deprovision_workflow.go:150"
+      ],
+      "note": "Task-queue is ALREADY a single shared constant `studio-clerk-webhook` (temporal.TaskQueue) used by worker/dispatcher/schedule-init, and the deprovision grace-sleep is carried. But there is no namespace consolidation into a workflows-wide namespace (still per-service); the OQ-W2 consolidation completes on origin/dev."
+    },
+    "E1-S3": {
+      "status": "partial",
+      "evidence": [
+        ".github/workflows/ci.yml:27",
+        "backend/.golangci.yml",
+        ".github/workflows/ci.yml:36"
+      ],
+      "note": "ci.yml runs go vet / go build / go test -race plus a workflow-determinism denylist grep, and .golangci.yml exists. Missing: no golangci-lint step is actually invoked in CI, and there is no cell-lint required status. Partial CI bootstrap."
+    },
+    "E1-S4": {
+      "status": "absent",
+      "evidence": [
+        ".github/workflows/ci.yml:43",
+        "backend/internal/workflows/provision_workflow_test.go:16"
+      ],
+      "note": "No workflow.GetVersion call anywhere, no worker.WorkflowReplayer harness, no recorded/committed histories. ci.yml's comment references TestProvisionEntitlementReplayDeterministic (ENG-1552) but that test does not exist \u2014 provision_workflow_test.go has only HappyPath + RetriesOnActivityError. Replay/versioning foundation is aspirational on main."
+    },
+    "E1-S5": {
+      "status": "absent",
+      "evidence": [
+        "deploy/kustomize/app-manifests/knative-event-ingress.yaml:9",
+        "README.md:1",
+        "deploy/kustomize/app-manifests/kpack-image-worker.yaml"
+      ],
+      "note": "GitOps hygiene not done on main: knative-event-ingress.yaml references an httproute-ingress.yaml that is NOT present in the tree (vestigial reference), per-image kpack manifests (kpack-image-*.yaml) still duplicated, README still clerk-deprovision. The cleanup (kpack consolidation, external-secrets rework) lands on origin/dev."
+    },
+    "E1-S6": {
+      "status": "present",
+      "evidence": [
+        "backend/internal/temporal/signals.go:6",
+        "backend/cmd/schedule-init/main.go:106",
+        "backend/cmd/schedule-init/main_test.go:32"
+      ],
+      "note": "temporal/signals.go centralizes TaskQueue + both schedule-ID constants (no literals). schedule-init generalizes ensureSchedule() to idempotently Create each domain's Schedule, distinguishing serviceerror.AlreadyExists via errors.As (not substring). Meaningful tests: TestEnsureSchedulesIdempotent, TestEnsureSchedulesFirstCreateSucceeds, TestEnsureSchedulesRejectsNonAlreadyExistsErrorMentioningAlready, TestEnsureSchedulesPropagatesOtherErrors."
+    },
+    "E2-S1": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/events/events.go:21"
+      ],
+      "note": "clerk.* CE type constants live as local Go consts in internal/events/events.go \u2014 there is no orvex-studio-contracts catalog, no payload JSON schemas, and no golden-fixture round-trip test. Contract seam not landed."
+    },
+    "E2-S2": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/activities/"
+      ],
+      "note": "No per-domain step-API OpenAPI documents and no retry-class annotations authored anywhere in the repo. Absent."
+    },
+    "E2-S3": {
+      "status": "partial",
+      "evidence": [
+        "backend/internal/events/events.go:56",
+        "backend/internal/workflows/provision_workflow.go:14",
+        "backend/internal/workflows/deprovision_workflow.go:20"
+      ],
+      "note": "Workflow input/result types (ProvisionTarget, DeprovisionInput, DeprovisionResult, etc.) use omitempty and carry 'must stay JSON-stable' comments \u2014 append-safe in practice. But there is no explicit versioning scheme / version field / compatibility test. Partial."
+    },
+    "E2-S4": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/activities/provision_activities.go:39",
+        "backend/internal/activities/deprovision_activities.go:80"
+      ],
+      "note": "All activity clients are hand-rolled net/http (CallWikiProvision, CallWikiDeprovision, CallStudioProvision, CallIdentityRehome\u2026). No lib-codegen clients. The step-API client scaffolding lands on origin/dev (commit efe0010)."
+    },
+    "E3-S1": {
+      "status": "partial",
+      "evidence": [
+        "backend/internal/workflows/provision_workflow.go:24",
+        "backend/internal/workflows/deprovision_workflow.go:58",
+        "backend/internal/workflows/deprovision_workflow.go:74"
+      ],
+      "note": "An AUTHORITATIVE vs BEST-EFFORT split IS implemented: wiki activity options use MaximumAttempts:10 and its failure fails the workflow; studio uses a short 30s timeout / 3 attempts and is log-and-continue. But the authoritative class is bounded at 10 attempts, not the unbounded retry the story calls for, and the classes are ad-hoc per-workflow rather than a shared taxonomy. Partial."
+    },
+    "E3-S2": {
+      "status": "partial",
+      "evidence": [
+        "backend/cmd/dispatcher/main.go:80",
+        "backend/cmd/dispatcher/main.go:116",
+        "backend/cmd/dispatcher/main.go:158"
+      ],
+      "note": "Dispatcher ACKs bad/undecodable data (returns nil to avoid a poison loop) and NACKs (returns error \u2192 Knative redelivers) on ExecuteWorkflow failure. But WorkflowExecutionAlreadyStarted is not special-cased as an ACK \u2014 a start error of any kind currently NACKs. The already-started=ACK refinement is not implemented."
+    },
+    "E3-S3": {
+      "status": "absent",
+      "evidence": [
+        "deploy/kustomize/app-manifests/trigger.yaml"
+      ],
+      "note": "trigger.yaml carries no spec.delivery retry/backoff, no deadLetterSink, no DLQ, and no depth alerting. Absent."
+    },
+    "E3-S4": {
+      "status": "absent",
+      "evidence": [
+        "backend/cmd/dispatcher/main.go:96",
+        "backend/cmd/dispatcher/main.go:137"
+      ],
+      "note": "Malformed / unsupported dispositions are still ACK-and-drop (return nil with a log) \u2014 there is no DLQ-as-record. Absent."
+    },
+    "E3-S5": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/telemetry/otel.go"
+      ],
+      "note": "No long-retry or workflow-failure alerting rules and no operator-replay runbook exist in the repo. Absent."
+    },
+    "E4-S1": {
+      "status": "partial",
+      "evidence": [
+        "backend/internal/telemetry/otel.go:32",
+        "backend/cmd/worker/main.go:145",
+        "backend/cmd/ingress/main.go:35"
+      ],
+      "note": "OTel is wired: telemetry.Init sets up trace + log + metric providers over OTLP, and the worker installs the Temporal OTel tracing interceptor (auto spans per workflow/activity). But there are NO custom per-domain SLIs / metric instruments (counters, histograms) authored. Spans+infra present; domain SLIs missing."
+    },
+    "E4-S2": {
+      "status": "partial",
+      "evidence": [
+        "backend/cmd/ingress/main.go:70",
+        "backend/cmd/worker/main.go"
+      ],
+      "note": "event-ingress exposes GET /healthz. But there is no CELL_ID / CLUSTER_NAME env consumption, no readiness/liveness distinction, and no orvexcell CloudEvents-extension stamping on publish (events.PublishWithID sets id/type/source only). orvexcell stamping + cell env land on origin/dev (commit 39aad7e)."
+    },
+    "E4-S3": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/events/events.go:70",
+        "backend/internal/activities/provision_activities.go:27"
+      ],
+      "note": "OrgName is still a field on ProvisionTarget and is forwarded into the wiki provision request body (wikiProvisionRequest.OrgName). Not dropped \u2014 ID-only payload not enforced. Absent."
+    },
+    "E4-S4": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/events/events.go:116",
+        "backend/internal/api/handlers/clerk_webhook.go:109"
+      ],
+      "note": "Deprovision/provision CE ids are freshly random (PublishData \u2192 uuid.NewString()); the Svix message id is used only to verify the signature, never propagated as the ce-id, and no Idempotency-Key is derived from it. (TenantMove separately uses a deterministic MoveID-derived id, but that is not the F-DEDUP Svix path.) Absent."
+    },
+    "E4-S5": {
+      "status": "absent",
+      "evidence": [
+        "backend/cmd/"
+      ],
+      "note": "No read-only admin Temporal-view endpoint exists on main. The /v1/workflows authorizing proxy server lands on origin/dev (commit 4da078d, ENG-2009)."
+    },
+    "E5-S1": {
+      "status": "present",
+      "evidence": [
+        "backend/internal/api/handlers/clerk_webhook.go:92",
+        "backend/internal/api/handlers/clerk_webhook.go:59",
+        "backend/internal/api/handlers/clerk_webhook_test.go:235"
+      ],
+      "note": "The shipped Clerk pipeline is operable and verified: ClerkWebhookHandler.Handle Svix-verifies \u2192 401 on bad signature, 502 (BadGateway) on publish failure so Clerk retries, 200 otherwise, and bounds the body at MaxWebhookBodySize=1<<20 (1MB) via http.MaxBytesReader. Meaningful tests: TestClerkWebhookHandler_InvalidSignature (401), _PublishFailureReturns502 / _OrgCreated_PublishFailureReturns502 (502), _OrgDeleted/_UserDeleted/_OrgMembershipDeleted_PublishesEvent (200 + forward), _UnsupportedEventType, _MissingSecret."
+    },
+    "E5-S2": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/workflows/provision_workflow.go:41"
+      ],
+      "note": "ProvisionWorkflow has no org-liveness guard \u2014 it never checks whether the Clerk org still exists and never emits a non-retryable stop on a deleted org. Absent."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "backend/cmd/dispatcher/main.go:107",
+        "backend/internal/workflows/provision_workflow.go:97",
+        "backend/internal/api/handlers/clerk_webhook.go:224"
+      ],
+      "note": "Polymorphic workflow-ID IS present: dispatcher builds `provision-org-<org>` vs `provision-org-<org>-user-<user>`, and provisionStudioSelector / membership.created handling derive a user- vs org-scope selector. But there is no user-keyed *personal* tenant (standalone user tenant) provisioning \u2014 provisioning is always org-anchored. Partial (FR-W17 polymorphism yes, personal-tenant no)."
+    },
+    "E5-S4": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/workflows/provision_workflow.go:41",
+        "backend/internal/activities/"
+      ],
+      "note": "No Free-plan entitlement creation on provision and no AUTHORITATIVE billing step-API call \u2014 grep for entitlement/billing finds only a dev-branch test reference. The FR-W18 entitlement grant lands on origin/dev (commit 5cc7a87)."
+    },
+    "E5-S5": {
+      "status": "partial",
+      "evidence": [
+        "backend/internal/workflows/deprovision_workflow.go:100",
+        "backend/internal/workflows/deprovision_workflow.go:149"
+      ],
+      "note": "DeprovisionWorkflow implements disable-now \u2192 workflow.Sleep(GraceHours) \u2192 purge on BOTH wiki (authoritative) and studio (best-effort), tests in deprovision_workflow_test.go. Missing: no entitlement revoke step (FR-W18 half). Partial."
+    },
+    "E5-S6": {
+      "status": "partial",
+      "evidence": [
+        "backend/internal/workflows/reconcile_workflow.go:36",
+        "backend/cmd/schedule-init/main.go:58"
+      ],
+      "note": "ReconcileWorkflow exists and is scheduled hourly, but it only fetches Clerk org/membership counts and logs them for drift observation \u2014 it performs NO corrective remediation, has no dry-run mode, and explicitly has 'no wiki tenant-list dependency'. The FR-W4 remediation behaviour is not implemented; only the observe backstop skeleton is. Partial."
+    },
+    "E5-S7": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/temporal/signals.go",
+        "backend/internal/workflows/deprovision_workflow.go:149"
+      ],
+      "note": "The grace window is a plain workflow.Sleep with no cancel-signal handler (temporal/signals.go holds only string constants; no GetSignalChannel / Selector anywhere) and no purge-confirmation gate. Absent."
+    },
+    "E6-S1": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/activities/provision_activities.go:75"
+      ],
+      "note": "CallWikiProvision still targets the wiki engine directly (a.WikiURL + /api/clerk/provision) \u2014 no re-point at an identity mirror, no workload-identity, no 404-carve-out retirement. The repoint at identity's FR-I14 callee lands on origin/dev (commit 7cdfbee)."
+    },
+    "E6-S2": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/events/events.go:21"
+      ],
+      "note": "No Keycloak-tenant lifecycle and no consumption of identity-emitted CloudEvents on the spine. Only clerk.* + orvex.tenant.move.* CE types exist. Absent."
+    },
+    "E6-S3": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/activities/tenantmove_activities.go:55"
+      ],
+      "note": "CallIdentityRehome talks to identity's registry for tenant-move only; there is no cell-routed activity-target resolution via a tenant\u2192cell registry for general activities. Absent."
+    },
+    "E7-S1": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/workflows/"
+      ],
+      "note": "No RebuildTenant workflow (no namespace\u2192walk\u2192delta-repull\u2192alias-swap\u2192retire checkpointed workflow) on main. The knowledge-rebuild pipeline lands on origin/dev (commit 291f176)."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/workflows/"
+      ],
+      "note": "No RebuildCell parent fan-out / ContinueAsNew / progress-query workflow on main. Lands on origin/dev (commit 291f176)."
+    },
+    "E7-S3": {
+      "status": "absent",
+      "evidence": [
+        "deploy/kustomize/app-manifests/trigger.yaml",
+        "backend/cmd/dispatcher/main.go:80"
+      ],
+      "note": "No CE-on-spine rebuild-enqueue Trigger and no dispatcher registry entry for a rebuild event type \u2014 dispatcher.handle switches only on clerk.* types. Absent."
+    },
+    "E7-S4": {
+      "status": "absent",
+      "evidence": [
+        "deploy/kustomize/app-manifests/deployment-temporal-worker.yaml"
+      ],
+      "note": "No worker fixed-replica-vs-RTO shadow-measurement artifacts and no scale-up runbook exist. Absent."
+    },
+    "E8-S1": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/workflows/"
+      ],
+      "note": "No OrgUpgrade compensating workflow (mint org / re-key tenant in place / carry data+entitlements) on main. The org-upgrade domain scaffold lands on origin/dev (commit efe0010)."
+    },
+    "E8-S2": {
+      "status": "absent",
+      "evidence": [
+        "backend/internal/workflows/"
+      ],
+      "note": "No AI tool-loop durable workflow (loop-state, activity-per-call, caps, ContinueAsNew) anywhere on main. Absent."
+    }
+  },
+  "summary": "orvex-studio-workflows on origin/main is a lean, well-tested single-domain service (the Clerk provision/deprovision pipeline + reconcile/verification/tenant-move workflows) \u2014 but only 2 of 36 planned stories are fully present with tests (E1-S6 schedule-init constants/idempotency, E5-S1 the shipped Clerk Svix pipeline). 10 are partial (auth/best-effort retry split, polymorphic workflow-ID, deprovision grace lifecycle, OTel spans, /healthz, task-queue constant) and 24 are absent. The absent set is concentrated in the ambitious later epics \u2014 contracts seam (E2), DLQ/delivery hardening (E3), cell/residency + admin view (E4), entitlements + liveness guards + cancel signals (E5), identity cutover (E6), knowledge-rebuild (E7), org-upgrade + AI tool-loop (E8). Critically, most of the E5/E6/E7/E8 and rename/observability work already exists on origin/dev (18 commits ahead, ENG-2069) but is entirely unmerged, so main's honest state is 'early'."
+}

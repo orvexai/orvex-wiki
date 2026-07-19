@@ -1,0 +1,414 @@
+{
+  "service": "orvex-studio-lib",
+  "requirement_source": "PRD: orvex-studio-lib (slug fG2jKeRGiu, draft) — FR-L1..L30 incl. FR-L12a + NFR-L1..L7; Architecture: orvex-studio-lib (slug 0NPvDR3C0m, canonical) supplies the A-* decisions and the §3 auth-verifier V1..V12 contract",
+  "sources": [
+    {
+      "slug": "fG2jKeRGiu",
+      "title": "PRD: orvex-studio-lib"
+    },
+    {
+      "slug": "0NPvDR3C0m",
+      "title": "Architecture: orvex-studio-lib"
+    },
+    {
+      "slug": "JxnqaaYx3j",
+      "title": "Architecture Audit — SE-Arch review (2026-07-05)"
+    },
+    {
+      "slug": "JGAUQRsw2g",
+      "title": "Cell contract / cell-lint (referenced)"
+    },
+    {
+      "slug": "CxjFpIVUZY",
+      "title": "Family canon roster / Principles (referenced)"
+    },
+    {
+      "slug": "86CiGucQwU",
+      "title": "URL/env & CELL_ID scheme (referenced)"
+    },
+    {
+      "slug": "EPsdD7uK8e",
+      "title": "Engine PRD — F-QUOTA (referenced)"
+    }
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] lib: pkg/auth — the family security ceiling (dual-IdP verifier, deny-by-default scope, cell apparatus)",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {
+          "id": "E1-S1",
+          "title": "[lib] pkg/auth: dual-IdP multi-issuer JWKS verify → canonical principal (+ cell-claim parse)",
+          "body_file": "bodies/E1-S1.md",
+          "covers": [
+            "FR-L1",
+            "NFR-L1"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S2",
+          "title": "[lib] pkg/auth: bounded introspection client + fail-closed hard staleness wall",
+          "body_file": "bodies/E1-S2.md",
+          "covers": [
+            "FR-L2",
+            "FR-L3"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S3",
+          "title": "[lib] pkg/auth: push-revocation deny-list handler (Redis-backed, exp-driven, tenant-keyed)",
+          "body_file": "bodies/E1-S3.md",
+          "covers": [
+            "FR-L4",
+            "NFR-L6"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S4",
+          "title": "[lib] pkg/auth: RequireFresh no-grace introspection for high-privilege routes",
+          "body_file": "bodies/E1-S4.md",
+          "covers": [
+            "FR-L5"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S5",
+          "title": "[lib] pkg/auth: deny-by-default scope-gate + WorkloadIdentityOnly + cell-guard 421 router",
+          "body_file": "bodies/E1-S5.md",
+          "covers": [
+            "FR-L6"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S6",
+          "title": "[lib] pkg/auth/authtest: shipped conformance suite as three-way release gate",
+          "body_file": "bodies/E1-S6.md",
+          "covers": [
+            "FR-L7",
+            "NFR-L2"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E1-S7",
+          "title": "[lib] pkg/auth: outbound api-key credential helper with rotation",
+          "body_file": "bodies/E1-S7.md",
+          "covers": [
+            "FR-L8"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] lib: pkg/events — CloudEvents envelope, catalog types, publisher, orvexcell cell stamp",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {
+          "id": "E2-S1",
+          "title": "[lib] pkg/events: CloudEvents envelope helpers + orvexcell stamp + fail-closed consume",
+          "body_file": "bodies/E2-S1.md",
+          "covers": [
+            "FR-L9"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E2-S2",
+          "title": "[lib] pkg/events: generated event-type constants + payload types (thin/rich profiles)",
+          "body_file": "bodies/E2-S2.md",
+          "covers": [
+            "FR-L10"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E2-S3",
+          "title": "[lib] pkg/events: publisher helper to studio-spine Broker with retries + OTel propagation",
+          "body_file": "bodies/E2-S3.md",
+          "covers": [
+            "FR-L11"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] lib: typed fail-closed clients (engine / knowledge / billing / identity)",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {
+          "id": "E3-S1",
+          "title": "[lib] pkg/engineclient: typed engine primitives (chokepoint, ACL, export, quota-status)",
+          "body_file": "bodies/E3-S1.md",
+          "covers": [
+            "FR-L12"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S2",
+          "title": "[lib] pkg/engineclient: F-QUOTA 402 as first-class terminal non-retryable error",
+          "body_file": "bodies/E3-S2.md",
+          "covers": [
+            "FR-L12a"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S3",
+          "title": "[lib] pkg/engineclient: narrow-never-widen ACL typing + client discipline (deadlines/retries/breaker)",
+          "body_file": "bodies/E3-S3.md",
+          "covers": [
+            "FR-L13",
+            "FR-L14"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E3-S4",
+          "title": "[lib] pkg/knowledgeclient: query plane (Query/Retrieve/Related/Duplicates/AttachmentsSearch)",
+          "body_file": "bodies/E3-S4.md",
+          "covers": [
+            "FR-L15"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E3-S5",
+          "title": "[lib] pkg/knowledgeclient: opaque epoch-bearing projection-delta cursor client",
+          "body_file": "bodies/E3-S5.md",
+          "covers": [
+            "FR-L16"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E3-S6",
+          "title": "[lib] pkg/knowledgeclient: rebuild step-API types + client (namespace/walk/index-batch/alias-swap)",
+          "body_file": "bodies/E3-S6.md",
+          "covers": [
+            "FR-L17"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E3-S7",
+          "title": "[lib] pkg/billingclient: fail-closed entitlements read (plans/quotas SoR)",
+          "body_file": "bodies/E3-S7.md",
+          "covers": [
+            "FR-L29"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E3-S8",
+          "title": "[lib] pkg/identityclient: introspect/mint/lifecycle-mirror (two-unrelated-types guarantee)",
+          "body_file": "bodies/E3-S8.md",
+          "covers": [
+            "FR-L30"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] lib: pkg/temporalutil — the D-WF-1 split (central worker helpers + satellite step-API server)",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {
+          "id": "E4-S1",
+          "title": "[lib] pkg/temporalutil/worker: workflows-only worker/activity helpers + D-WF-1 import ban",
+          "body_file": "bodies/E4-S1.md",
+          "covers": [
+            "FR-L18"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E4-S2",
+          "title": "[lib] pkg/temporalutil/stepapi: idempotency replay + typed error envelope + constant-200 opt-in",
+          "body_file": "bodies/E4-S2.md",
+          "covers": [
+            "FR-L19"
+          ],
+          "audit": "partial"
+        }
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] lib: pkg/obs + pkg/kafkautil — house observability and Kafka-first raw-topic plumbing",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {
+          "id": "E5-S1",
+          "title": "[lib] pkg/obs: one Setup() OTLP wiring + /healthz+/livez cell echo (CELL_ID/CLUSTER_NAME)",
+          "body_file": "bodies/E5-S1.md",
+          "covers": [
+            "FR-L20"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E5-S2",
+          "title": "[lib] pkg/obs: HTTP server middleware + client transports for end-to-end trace stitching",
+          "body_file": "bodies/E5-S2.md",
+          "covers": [
+            "FR-L21"
+          ],
+          "audit": "absent"
+        },
+        {
+          "id": "E5-S3",
+          "title": "[lib] pkg/kafkautil: assigned consumers + epoch:offset cursors + cell-scoped topics",
+          "body_file": "bodies/E5-S3.md",
+          "covers": [
+            "FR-L22"
+          ],
+          "audit": "absent"
+        }
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] lib: pkg/dfm — clean-room DfM↔ProseMirror serializer (AGPL boundary)",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {
+          "id": "E6-S1",
+          "title": "[lib] pkg/dfm: AGPL-provenance audit gate of the legacy docmost-cli serializer (WS-11 pre-task)",
+          "body_file": "bodies/E6-S1.md",
+          "covers": [
+            "FR-L27"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S2",
+          "title": "[lib] pkg/dfm: four-function clean-room serializer + opaque-node round-trip handles",
+          "body_file": "bodies/E6-S2.md",
+          "covers": [
+            "FR-L26"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E6-S3",
+          "title": "[lib] pkg/dfm: CI parity gate vs engine catalog + expanded contracts golden corpus",
+          "body_file": "bodies/E6-S3.md",
+          "covers": [
+            "FR-L28"
+          ],
+          "audit": "present"
+        }
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] lib: library engineering — codegen pin, versioning, CI gates, AGPL guard, offline fakes",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {
+          "id": "E7-S1",
+          "title": "[lib] codegen: pinned gen/ trees + regen-diff CI gate (no hand-editing generated code)",
+          "body_file": "bodies/E7-S1.md",
+          "covers": [
+            "FR-L24"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S2",
+          "title": "[lib] versioning: single module, semver tags, v0 window, apidiff compile-compat",
+          "body_file": "bodies/E7-S2.md",
+          "covers": [
+            "FR-L23",
+            "NFR-L3"
+          ],
+          "audit": "partial"
+        },
+        {
+          "id": "E7-S3",
+          "title": "[lib] library shape: no cmd/Dockerfile, heavy-SDK package confinement, aggregate CI",
+          "body_file": "bodies/E7-S3.md",
+          "covers": [
+            "FR-L25",
+            "NFR-L4"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S4",
+          "title": "[lib] AGPL-import CI guard (no @docmost/* or AGPL lineage anywhere in the module)",
+          "body_file": "bodies/E7-S4.md",
+          "covers": [
+            "NFR-L7"
+          ],
+          "audit": "present"
+        },
+        {
+          "id": "E7-S5",
+          "title": "[lib] offline testability: fakes/test doubles shipped by every package",
+          "body_file": "bodies/E7-S5.md",
+          "covers": [
+            "NFR-L5"
+          ],
+          "audit": "partial"
+        }
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-L1",
+      "FR-L2",
+      "FR-L3",
+      "FR-L4",
+      "FR-L5",
+      "FR-L6",
+      "FR-L7",
+      "FR-L8",
+      "FR-L9",
+      "FR-L10",
+      "FR-L11",
+      "FR-L12",
+      "FR-L12a",
+      "FR-L13",
+      "FR-L14",
+      "FR-L15",
+      "FR-L16",
+      "FR-L17",
+      "FR-L18",
+      "FR-L19",
+      "FR-L20",
+      "FR-L21",
+      "FR-L22",
+      "FR-L23",
+      "FR-L24",
+      "FR-L25",
+      "FR-L26",
+      "FR-L27",
+      "FR-L28",
+      "FR-L29",
+      "FR-L30",
+      "NFR-L1",
+      "NFR-L2",
+      "NFR-L3",
+      "NFR-L4",
+      "NFR-L5",
+      "NFR-L6",
+      "NFR-L7"
+    ],
+    "uncovered": []
+  }
+}

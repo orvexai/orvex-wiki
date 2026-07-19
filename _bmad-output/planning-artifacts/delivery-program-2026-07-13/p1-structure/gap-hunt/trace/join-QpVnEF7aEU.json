@@ -1,0 +1,271 @@
+{
+ "slug": "QpVnEF7aEU",
+ "total": 53,
+ "results": [
+  {
+   "id": "FR-D1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2717, ENG-2718, ENG-2719, ENG-2728, extension-corpus, extsweep"
+  },
+  {
+   "id": "FR-D2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2714, ENG-2716, ENG-2729, ENG-2730, extension-corpus"
+  },
+  {
+   "id": "FR-D3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2716, ENG-2720, extension-corpus, extsweep"
+  },
+  {
+   "id": "FR-D4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2715, ENG-2721, ENG-2722, extension-corpus, extsweep"
+  },
+  {
+   "id": "FR-D5",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2713, ENG-2717, ENG-2722, ENG-2723, ENG-2724, extension-corpus, extsweep"
+  },
+  {
+   "id": "FR-D6",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2718, ENG-2720, extension-corpus, gapfix"
+  },
+  {
+   "id": "FR-D7",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2725, ENG-2726, ENG-2728, extension-corpus, extsweep"
+  },
+  {
+   "id": "FR-PA1",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-PA2",
+   "verdict": "COVERED",
+   "owner_or_reason": "E1-S1 (MV3 scaffold) implements AD-5a \u2014 'mechanism now RESOLVED = Chrome MV3 browser extension' (ARCHITECTURE-SPINE.md AD-5a); FR-PA2 is that same resolved-mechanism requirement under the AD-5a alias"
+  },
+  {
+   "id": "FR-PA3",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-PA4",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-PA5",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-PA6",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-CN1",
+   "verdict": "COVERED",
+   "owner_or_reason": "E2-S1 'Guided one-step connect ... <=3 taps <=2 min, zero config' + E6-S4 'FR-O4 first-run usability test \u2014 connect <=3 taps <=2 min, no config, verified' \u2014 PRD text itself says FR-CN1 '(Folds FR-O4)' and FR-D2's acceptance is FR-CN1, both covered under the FR-D2/FR-O4 alias"
+  },
+  {
+   "id": "FR-CN2",
+   "verdict": "COVERED",
+   "owner_or_reason": "E2-S3 'Per-assistant connection-status surface + honest not-yet-supported messaging' (covers FR-D2, FR-D3) is verbatim FR-CN2's content (truthful per-assistant status), under the FR-D2/FR-D3 alias"
+  },
+  {
+   "id": "FR-CN3",
+   "verdict": "UNCOVERED",
+   "owner_or_reason": "no story asserts 'no Orvex-held provider credentials / no OAuth to the provider'; E2-S1/E2-S2 build the Orvex-side delegated-principal mint+storage but never test/claim the provider-connection step avoids OAuth or credential collection \u2014 grepped all extension bodies, no hit"
+  },
+  {
+   "id": "FR-CN4",
+   "verdict": "UNCOVERED",
+   "owner_or_reason": "no extension story builds a designed empty/again state on a connection surface; PRD flags it '[ASSUMPTION \u2014 aligns with FR-O3; UI detail owned by ui service]' but the only FR-O3 story found (ui/E3-GAP1, gap-hunt/fix-bodies/fix-fr-o3-empty-states.md) is scoped to memory surfaces (wall/queue/history/coach), not extension connection surfaces \u2014 grepped extension bodies for 'empty state', zero hits"
+  },
+  {
+   "id": "FR-CF1",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-CF2",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-CF3",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-CF4",
+   "verdict": "UNCOVERED",
+   "owner_or_reason": "no story treats retrieved memory as untrusted data vs instructions (stored-prompt-injection defense); E1-S3/E4-S3 'untrusted' hits are about the third-party PROVIDER PAGE being untrusted, a different claim \u2014 grepped for 'untrusted'+memory / 'not instructions', zero hits on the CF4 claim"
+  },
+  {
+   "id": "FR-CF5",
+   "verdict": "UNCOVERED",
+   "owner_or_reason": "no story implements per-assistant disconnect or standing-consent revocation with fail-closed semantics; E2-S2's 'revoke' is the extension's own Orvex auth-token revoke (global), not a per-assistant disconnect or a per-use/private-memory consent revocation \u2014 E4-S1 (the consent-gate story) has zero revoke/disconnect content"
+  },
+  {
+   "id": "FR-CF6",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-CF7",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC1",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC2",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC3",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC4",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC5",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC6",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC7",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BC8",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-TS1",
+   "verdict": "COVERED",
+   "owner_or_reason": "E1-S3 'host_permissions lists only the beachhead provider origins and no <all_urls>' + E6-S1 AC1 'justified minimal permissions' store-review lint \u2014 together are FR-TS1's minimum-host-permissions + store-listing-justification requirement"
+  },
+  {
+   "id": "FR-TS2",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-TS3",
+   "verdict": "COVERED",
+   "owner_or_reason": "E4-S3 AC1 'only page read is via the compose accessor \u2014 no full-page text' + AC2 'only outbound host is Orvex API; provider page content never posted anywhere' is FR-TS3's no-read/no-transmit-beyond-confirming-own-write requirement verbatim"
+  },
+  {
+   "id": "FR-TS4",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-TS5",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BA1",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BA2",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BA3",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-BA4",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-AU1",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "FR-AU2",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "NFR-1",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "NFR-2",
+   "verdict": "COVERED",
+   "owner_or_reason": "cited explicitly as a PRD source in E1-S3 AC2/refs, E3-S1 AC2, E4-S1 refs, E4.md, E4-S3 AC2/refs, E6-S2 AC4/refs \u2014 default-off background recall / user-initiated delivery is asserted across six extension stories"
+  },
+  {
+   "id": "NFR-3",
+   "verdict": "UNCOVERED",
+   "owner_or_reason": "grepped every extension story body for 'neutral'/'lock-in'/'portable' \u2014 zero hits; the multi-provider adapter framework (E3-S1) delivers cross-assistant reach but no story or test asserts 'no lock-in' / 'memory stays portable' as its own claim"
+  },
+  {
+   "id": "NFR-4",
+   "verdict": "COVERED",
+   "owner_or_reason": "cited explicitly in E1-S1 AC4, E2-S1 AC4, E5-S1 AC4/refs, E5-S2 refs, E5-S3 refs, E5.md, E6-S1 AC3 \u2014 graceful degradation / never-white-screen is asserted across seven extension stories"
+  },
+  {
+   "id": "NFR-5",
+   "verdict": "COVERED",
+   "owner_or_reason": "E6-S3 AC1-AC3 (a11y zero-critical, dual-theme, keyboard nav) + E6.md, explicitly cited as NFR-5 non-technical accessibility"
+  },
+  {
+   "id": "NFR-6",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "NFR-7",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep, gapfix"
+  },
+  {
+   "id": "NFR-8",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "NFR-9",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  },
+  {
+   "id": "NFR-10",
+   "verdict": "COVERED",
+   "owner_or_reason": "extsweep"
+  }
+ ]
+}

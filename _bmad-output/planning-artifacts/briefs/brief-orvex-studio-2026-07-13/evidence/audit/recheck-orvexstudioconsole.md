@@ -1,0 +1,10 @@
+# Recheck: orvexstudioconsole vs brief-orvex-studio-2026-07-13
+
+Pages read in full: INDEX.md, `Architecture: orvex-studio-console` (L1NVnmRgpy), `Architecture Audit — SE-Arch review` (XNatvIB169), `PRD: orvex-studio-console` (kldiZu93EC), `ZZ-TEMP-CONVERT-console-arch-DELETE` (I0ifbcSaTZ, archived duplicate of the arch page — no new content). This space is an internal ops/observability admin console (Loki/Mimir/Tempo + cross-satellite admin BFF) — almost entirely engineering/architecture material already out of scope for a product-level recheck per the task framing. One genuine product-level item surfaced:
+
+- **Page:** `PRD: orvex-studio-console` (kldiZu93EC), FR-CT12b.
+  **Missed concept:** concrete, numbered quota ceilings per pricing tier — Free = **200 pages / 1 GiB / 2,000 files / 25 members** (history min(10, 180 d)); £7 Personal (D-S7) = **20,000 pages / 50 GiB / 20,000 files / 25 members** (history min(100, 730 d)).
+  **Quote:** "For a Free org this is the locked Free ceiling — **200 pages / 1 GiB / 2,000 files / 25 members** (history min(10, 180 d)); for £7 Personal the D-S7 ceiling — **20,000 pages / 50 GiB / 20,000 files / 25 members** (history min(100, 730 d))."
+  **Why it matters:** the brief's Scope section names the tier *structure* (free-forever / £5–7 AI tier / teams / free month) and the free-tier cost doctrine, but never states these already-locked (D-S7) numeric packaging ceilings — a concrete pricing/packaging fact a PM would want either folded into the brief or explicitly deferred to the addendum/PRD-time tier work, not left implicit in a satellite console PRD.
+
+No other candidate gaps: the rest of the space (BFF architecture, cell-contract compliance, ADR-filing needs, Temporal-proxy plumbing, break-glass auth mechanics, tier/package model at the Go-service level) is engineering/program detail the brief already covers at the appropriate altitude, or pure infra minutiae out of brief scope. No new persona, user-facing behavior, or scope ruling found — console explicitly serves internal operators only, not end users, so it carries no consumer-facing feature material.

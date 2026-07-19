@@ -1,0 +1,337 @@
+{
+  "repo": "orvex-studio-billing",
+  "audited_ref": "origin/main",
+  "head": "a20d72f 2026-07-14 16:31:21 +0200",
+  "branches_note": "Audited origin/main @ a20d72f (2026-07-14 16:31, 'Merge PR #25 from orvexai/dev'). origin/dev is fully merged into main (0 ahead). ENG-2069 hazard: origin/fix/m11-seed-route-staging is 2 commits AHEAD of main (f9ad57d + 9d38980 — dev-only M11 entitlement-SEED HTTPRoute exposure for billing.orvex.dev, ENG-1571/1951); those are deploy/HTTPRoute-exposure changes only (the seed handler + tests are already on main). origin/crew/daniel is 41 behind, 0 ahead.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "partial",
+      "evidence": [
+        "gen/catalog.go:7-165",
+        "gen/catalog_test.go",
+        "internal/server/server.go:149"
+      ],
+      "note": "Cap-value catalog + CatalogForPlan resolver exist and are tested; the public GET /v1/plans read is still a 501 stub, no versioned plan-catalog DB schema and no server-side enterprise exclusion."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/stripe/stripe.go:34-66,215-236",
+        "internal/stripe/stripe_test.go"
+      ],
+      "note": "Versioned lookup_key scheme is real (LookupKey constants, PlanForLookupKey, resolvePriceID via GET /v1/prices?lookup_keys) with tests; there is NO startup/CI test-vs-live mode-resolution assertion (cmd/api/main.go just loads config and serves)."
+    },
+    "E1-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/stripe/stripe.go:275",
+        "internal/server/checkout_portal_test.go"
+      ],
+      "note": "automatic_tax[enabled]=true is set on the Checkout session and tested; VAT-inclusive GBP-only pricing DISPLAY depends on GET /v1/plans (a stub) and the annual '2 months free' metadata is not modeled in the catalog."
+    },
+    "E1-S4": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:150"
+      ],
+      "note": "POST /v1/plans/teams/interest is a 501 stub; no interest-capture table, no admin export."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "migrations/0001_billing_entitlement.sql",
+        "internal/store/postgres/postgres.go:112-218",
+        "internal/entitlement/entitlement.go:59-113",
+        "internal/store/postgres/postgres_integration_test.go",
+        "internal/store/postgres/entitlement_flip_integration_test.go",
+        "internal/entitlement/entitlement_test.go"
+      ],
+      "note": "entitlement_versions table (migration 0001) + append-only Store.Current/AppendVersion/supersedeCurrent/insertVersion + polymorphic gen.Principal, with integration + unit tests."
+    },
+    "E2-S2": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:266-283",
+        "internal/entitlement/entitlement.go:159-192",
+        "internal/cache/redis.go:46-63",
+        "internal/server/server_test.go",
+        "internal/server/standalone_test.go"
+      ],
+      "note": "GET check primitive (handler + Service.Check + Free/Standalone defaults) is real and tested; the Redis event-evicted cache is a scaffold — cache.Get always misses, Set/Evict return ErrNotImplemented, and Check has a TODO and never consults the cache."
+    },
+    "E2-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/contract/schema.go",
+        "internal/server/contract_golden_test.go",
+        "internal/server/contract_trace_test.go",
+        "internal/server/nfr_b4_dod_test.go"
+      ],
+      "note": "A JSON-schema conformance validator + golden/trace conformance tests + the NFR-B4 fail-consistency DoD test exist; there is NO standalone lib/entitlements Go client package and NO engine TS client in this repo."
+    },
+    "E2-S4": {
+      "status": "partial",
+      "evidence": [
+        "gen/catalog.go:15-27,153-165",
+        "gen/catalog_test.go"
+      ],
+      "note": "The GatedFeature enum + AllFeatures() are present and tested and surface in the check response; act-as-user delegation resolution and per-capability API gate tests are not implemented."
+    },
+    "E3-S1": {
+      "status": "present",
+      "evidence": [
+        "gen/catalog.go:33-152",
+        "gen/catalog_test.go",
+        "gen/catalog_caps_test.go"
+      ],
+      "note": "The cap policy block (two sibling AI cap lines AIMonthlyBudgetGBP + EmbeddingMonthlyBudgetGBP, plus curator/trial/demo caps) per plan with CatalogForPlan resolver, tested. Implemented as a code-constant catalog rather than a per-plan-version DB registry."
+    },
+    "E3-S2": {
+      "status": "present",
+      "evidence": [
+        "gen/catalog.go:53-104",
+        "gen/catalog_caps_test.go"
+      ],
+      "note": "Wiki quota values (max pages/storage/files/members/history) are carried in Caps and served in the check caps{}; Free values locked in FreeCatalog, Personal in PersonalCatalog, with a caps test."
+    },
+    "E3-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/event/event.go:106-133",
+        "internal/event/relay.go",
+        "internal/store/postgres/webhook_ledger.go",
+        "internal/event/event_test.go",
+        "internal/event/relay_integration_test.go"
+      ],
+      "note": "billing.entitlement.changed publish via the transactional outbox + relay drain is real and tested; the Redis cache-evict half is a scaffold (cache.Evict returns ErrNotImplemented) and there is no reconcile-canonical-record path."
+    },
+    "E3-S4": {
+      "status": "absent",
+      "evidence": [
+        "internal/clients/clients.go:44-62"
+      ],
+      "note": "AI.PushCap defines the CapPush shape (two sibling cap lines) but returns 'clients: ai PushCap not implemented' with a TODO — no workload-identity PUT to the ai cap endpoint."
+    },
+    "E3-S5": {
+      "status": "absent",
+      "evidence": [
+        "internal/cache/redis.go",
+        "internal/event/relay.go"
+      ],
+      "note": "No BFF SSE endpoint and no engine cache-evict in this repo; the outbox event is emitted but the <60s paywall-dissolve push mechanism and cache-evict are not implemented."
+    },
+    "E4-S1": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:437-478",
+        "internal/stripe/stripe.go:237-302",
+        "internal/server/checkout_portal_test.go",
+        "internal/stripe/checkout_portal_test.go"
+      ],
+      "note": "POST /v1/checkout: authn → CreateCheckoutSession (automatic_tax, server-set metadata.principal, idempotency key) with the principal taken only from the verified bearer; server + stripe tests."
+    },
+    "E4-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/server/server.go:571-607",
+        "internal/stripe/stripe.go:372-397",
+        "internal/server/checkout_portal_test.go"
+      ],
+      "note": "POST /v1/portal: authn → CreatePortalSession + findCustomerByPrincipal (ErrCustomerNotFound→404) tested. Config-as-code proration policy is not evidenced in-repo."
+    },
+    "E4-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:614-706",
+        "internal/workflow/workflow.go:150-260",
+        "internal/store/postgres/webhook_ledger.go",
+        "internal/server/webhook_v2_test.go",
+        "internal/server/webhook_v2_integration_test.go",
+        "internal/store/postgres/webhook_ledger_integration_test.go"
+      ],
+      "note": "Verify → idempotency-ledger → apply is real: signature verification (both snapshot + v2), dedup-before-apply in one txn, subscription apply, and v2 thin-payload authoritative re-fetch (FetchObject) — all tested. But ApplyStripeEvent only wires customer.subscription.*; checkout.session.completed/invoice.* return ErrNotImplemented, and there is no raw-event journal step."
+    },
+    "E4-S4": {
+      "status": "absent",
+      "evidence": [
+        "cmd/webhook/main.go:7"
+      ],
+      "note": "Only a doc-comment reference to A-CELL-ROUTING; no global-tier thin Stripe forwarder, no home-cell routing, no control-plane registry."
+    },
+    "E4-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/entitlement/entitlement.go:294-317",
+        "internal/store/postgres/entitlement_flip_integration_test.go",
+        "internal/server/server.go:159"
+      ],
+      "note": "One entitlement version per lifecycle transition (BuildVersionFromSubscription + AppendVersion supersede) is real and integration-tested; GET /v1/billing-state is a 501 stub."
+    },
+    "E4-S6": {
+      "status": "partial",
+      "evidence": [
+        "test/e2e/gate_m4_billing_sor_e2e_test.go",
+        "internal/stripe/subscribe_test.go"
+      ],
+      "note": "A real integration E2E (build tag integration) proves subscription → signature-verified webhook → entitlement flip → outbox → cap projection → fail-closed → isolation against REAL Stripe test mode + Postgres. It is NOT a Stripe test-clock harness (no test-clock usage) and omits the dunning/cancel/re-subscribe/annual/retro matrix (those legs are unimplemented)."
+    },
+    "E5-S1": {
+      "status": "absent",
+      "evidence": [
+        "internal/clients/clients.go:80-94",
+        "internal/entitlement/entitlement.go:30-47"
+      ],
+      "note": "Only the SourceTrial enum, trial event-type constants and an unimplemented Identity.VerifiedEmail exist; no trial_grants table (not in migrations), no temporary grant, no email-HMAC dedupe."
+    },
+    "E5-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:174"
+      ],
+      "note": "The step-API surface (POST /internal/v1/steps/{step}) is a 501 stub; no trial-start/trial-expire handlers and no expiry-flip=lapse semantics."
+    },
+    "E5-S3": {
+      "status": "absent",
+      "evidence": [
+        "gen/catalog.go:49-52",
+        "internal/entitlement/entitlement.go:49-57"
+      ],
+      "note": "TrialWeeklyActionsAdvisory/Throttle values live in the catalog and a ThrottleState enum exists, but there is no Redis weekly-counter computation and projectVersion always sets ThrottleNone."
+    },
+    "E5-S4": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:174"
+      ],
+      "note": "No backfill-batch step, no cohort count, no resumable/idempotent backfill anywhere; the step API is a stub."
+    },
+    "E6-S1": {
+      "status": "partial",
+      "evidence": [
+        "cmd/metering/main.go",
+        "internal/server/server.go:707-740",
+        "internal/workflow/workflow.go:305-360",
+        "internal/store/postgres/postgres.go:360-386",
+        "migrations/0004_usage_events.sql",
+        "internal/workflow/record_usage_test.go",
+        "internal/store/postgres/usage_journal_integration_test.go"
+      ],
+      "note": "cmd/metering consumes ai.usage.recorded → RecordUsage → AppendUsageEvent into the Postgres usage_events journal (migration 0004), with admission-throttle annotation, tested. Redis fast counters are NOT implemented — prior spend is summed from Postgres (WorkspaceUsageSince), not a Redis counter."
+    },
+    "E6-S2": {
+      "status": "partial",
+      "evidence": [
+        "migrations/0004_usage_events.sql",
+        "internal/store/postgres/postgres.go:360-386",
+        "gen/events.go:30-33"
+      ],
+      "note": "The usage journal captures cost-center dimensions (workspace, principal_type/id, feature, model); report-only ai.cap.reached/ai.cap.warning journaling is NOT wired — cmd/metering does not special-case those types (documented in gen/events.go)."
+    },
+    "E6-S3": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:160"
+      ],
+      "note": "GET /v1/usage/{principal} is a 501 stub; no usage reporting surface."
+    },
+    "E6-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/spendcap/orphan_sweep.go",
+        "internal/billing/meter.go:56-90",
+        "deploy/kustomize/app-manifests/cronjob-orphan-sweep.yaml",
+        "internal/spendcap/orphan_sweep_test.go",
+        "internal/billing/meter_test.go",
+        "internal/dunning/dunning.go:107-111"
+      ],
+      "note": "The orphan-sweep (cap-row reconcile, cronjob-driven) and the meter-usage reconciliation function are real and tested; the subscription/dunning sweep is unimplemented (dunning.Sweep returns 'not implemented') and there is no journal checksum or drift-alert schedule."
+    },
+    "E7-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/auth/verifier.go",
+        "internal/auth/verifier_test.go",
+        "internal/server/server.go:459-472,144-189",
+        "internal/clients/clients.go:102-112"
+      ],
+      "note": "Edge auth (auth.Verifier NewWithIdentity + authenticatePrincipal) and the three route classes (public / credential-gated internal / workload) are real and heavily tested; but the identity-spine admin backing (Identity.IsWorkspaceAdmin) is unimplemented, so console-fronted admin mutations cannot actually authorize in production."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [
+        "internal/server/server.go:174",
+        "internal/dunning/dunning.go:88-90"
+      ],
+      "note": "POST /internal/v1/steps/{step} is a 501 stub — no WorkloadIdentityOnly gate, no idempotency, no typed retryable/terminal envelope (only doc-comment references to the intended step names)."
+    },
+    "E7-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "No GDPR purge anywhere — no cancel-sub+delete-Customer+pseudonymize flow, no step handler."
+    },
+    "E7-S4": {
+      "status": "partial",
+      "evidence": [
+        "migrations/0003_spend_caps.sql",
+        "internal/store/postgres/spendcap_repo.go:143-188",
+        "internal/entitlement/entitlement.go:26-40,66-71"
+      ],
+      "note": "A cap-change audit ledger (spend_cap_audit table + RecordCapChange/WorkspaceHadCapChange) is real and tested, and entitlement versions carry source+cause_ref as an implicit audit trail; there is no dedicated entitlement-decision audit append table and no admin/destructive audit stream."
+    },
+    "E8-S1": {
+      "status": "partial",
+      "evidence": [
+        "internal/store/postgres/schema.go",
+        "internal/store/postgres/postgres.go",
+        "internal/cache/redis.go"
+      ],
+      "note": "Postgres tables (all five migrations applied idempotently by ensureSchema) are real and integration-tested and there is no Mongo; the Redis half is a scaffold (no go-redis client wired) though cache keys are principal-keyed/purge-safe by design."
+    },
+    "E8-S2": {
+      "status": "present",
+      "evidence": [
+        "internal/event/event.go",
+        "internal/event/relay.go",
+        "internal/event/workspace_delete_consumer.go",
+        "deploy/kustomize/app-manifests/broker.yaml",
+        "deploy/kustomize/app-manifests/kafka-trigger-metering.yaml",
+        "internal/event/event_test.go",
+        "internal/event/relay_integration_test.go",
+        "internal/event/workspace_delete_consumer_test.go"
+      ],
+      "note": "CloudEvents published (transactional outbox → relay → real BrokerPublisher, orvexcell extension stamped) and consumed (metering + workspace.deleted), with Broker + Kafka-Trigger manifests and unit + integration tests."
+    },
+    "E8-S3": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/server.go:253-263",
+        "internal/config/config.go:14-33",
+        "deploy/httproute_exposure_test.go"
+      ],
+      "note": "GET /healthz echoes CELL_ID + CLUSTER_NAME (cell-lint contract) and CellID/ClusterName config exist; there is NO 421 misdirected-request guard, NO tenant-move step class, and NO TENANT_MOVE.md in the repo."
+    },
+    "E8-S4": {
+      "status": "partial",
+      "evidence": [
+        "internal/metrics/metrics.go",
+        "internal/server/server.go:480-482",
+        "deploy/kustomize/app-manifests/servicemonitor.yaml",
+        "deploy/kustomize/app-manifests/prometheusrule.yaml",
+        "deploy/kustomize/app-manifests/grafanadashboard.yaml"
+      ],
+      "note": "An in-memory SLI recorder (times the checkout mint) and the deploy-side ServiceMonitor/PrometheusRule/GrafanaDashboard exist; but the /metrics OTel/Prometheus exposition endpoint is NOT implemented — the ServiceMonitor itself notes /metrics 'lands with the telemetry-split wiring'."
+    },
+    "E8-S5": {
+      "status": "partial",
+      "evidence": [
+        "internal/server/nfr_b4_dod_test.go",
+        "internal/store/postgres/webhook_ledger_integration_test.go",
+        "internal/billing/meter_test.go",
+        "tests/smoke/smoke_test.go"
+      ],
+      "note": "Partial NFR coverage exists — a fail-consistency (NFR-B4) DoD test, idempotency + money-correctness integration tests, and a smoke suite; there is no consolidated harness covering latency/flip-lag SLOs, security, or privacy/GDPR (the last is unimplemented)."
+    }
+  },
+  "summary": "Billing is a well-structured Go scaffold whose SYSTEM-OF-RECORD core is genuinely built and tested — the entitlement versioned store, plan/cap catalog, Stripe checkout/portal/subscribe, the webhook idempotency-ledger apply path, the transactional outbox+relay event spine, the Postgres usage journal, and the spend-cap value SoR are all real with meaningful tests. The gaps are the propagation edges and the lifecycle sagas: the Redis event-evicted cache, the synchronous AI cap push, trials/backfill (entirely absent), the GDPR purge, the workflow step-API surface, GET /v1/plans + billing-state + usage reads (all stubs), cell 421/tenant-move, and the /metrics OTel exposition are unimplemented or stubbed. Net: 6 present, 21 partial, 11 absent of 38 stories."
+}

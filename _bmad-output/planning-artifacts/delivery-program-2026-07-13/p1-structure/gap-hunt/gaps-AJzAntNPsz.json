@@ -1,0 +1,13 @@
+{
+  "slug": "AJzAntNPsz",
+  "title": "ADR-0010: studio.* CloudEvent type taxonomy",
+  "verdict_summary": "Canonical ratified ADR (2026-07-07). It is a naming + envelope-conformance CONVENTION decision, not a schema freeze — it explicitly states 'This ADR does not freeze concrete event schemas' and defers concrete per-type JSON Schemas to as-built contracts (FR-C9). Its three actual build obligations — (1) the ADR-0007 envelope with orvexcell/orvextenant/partitionkey, (2) the Studio producer emitting studio.{skill,memory,chat}.* events, (3) knowledge consuming/ingesting the Studio corpus — are all covered. Envelope: pkg/events stories (CloudEvents envelope helpers + orvexcell stamp + fail-closed consume; generated event-type constants + payload types). Producer: orvex-studio-api 'CloudEvent publish via Postgres transactional outbox + relay' + 'Events published/consumed on studio-spine (CloudEvents, orvexcell fail-closed)'. Consumer: 'Studio corpora ingestion (studio.skill.*/memory.*/chat.*) via owner-scoped source adapters'. Catalog/schemas-as-built land via the contracts CloudEvent type catalog (events/catalog.yaml) + contracts-tag codegen stories. Envelope conformance rules tie to A-EVENTS (in covers-union) and ADR-0007 (separate page). No uncovered BUILD gap.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-api", "quote": "Producer = the Studio product (`orvex-studio-api`); consumer = knowledge (projects the Studio corpus for search/RAG)."},
+    {"name": "orvex-studio-contracts", "quote": "Concrete JSON Schemas (one per type, FR-C9) are authored in `orvex-studio-contracts` when each Studio capability is built."},
+    {"name": "orvex-studio-knowledge (consumer / RAG projection)", "quote": "consumer = knowledge (projects the Studio corpus for search/RAG). Additional consumers register per canon P9 (source-adapter) with no pipeline change."},
+    {"name": "studio-spine Kafka-backed Knative Broker", "quote": "Every mutation lands one typed CloudEvent on the Kafka-backed Knative Broker `studio-spine`"},
+    {"name": "pkg/events (ADR-0007 envelope: specversion/id/source/type/orvexcell/orvextenant/partitionkey)", "quote": "Every `studio.*` event conforms to the ADR-0007 envelope: required `[specversion, id, source, type, orvexcell, orvextenant]`"}
+  ]
+}

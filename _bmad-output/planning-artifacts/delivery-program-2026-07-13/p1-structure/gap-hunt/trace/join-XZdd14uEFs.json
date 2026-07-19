@@ -1,0 +1,26 @@
+{
+ "slug": "XZdd14uEFs",
+ "total": 4,
+ "results": [
+  {
+   "id": "NFR-C6",
+   "verdict": "COVERED",
+   "owner_or_reason": "direct key in coverage-index.json -> ENG-2111, ENG-2112 (contracts-corpus)"
+  },
+  {
+   "id": "NFR-C2",
+   "verdict": "COVERED",
+   "owner_or_reason": "direct key in coverage-index.json -> ENG-2114 (contracts-corpus)"
+  },
+  {
+   "id": "ADR-0007",
+   "verdict": "COVERED",
+   "owner_or_reason": "not a direct coverage-index key, but is the 'CloudEvent envelope for the studio-spine' ADR (reqpages.json/idbearing.json title); its concept is implemented by contracts plan.json stories E3-S1 'CloudEvent type catalog' (covers FR-C6) and E3-S2 'Envelope profiles PROFILES.md' (covers FR-C7), which are COVERED keys -> ENG-2124/ENG-2125 (contracts-corpus)"
+  },
+  {
+   "id": "ADR-0008",
+   "verdict": "COVERED",
+   "owner_or_reason": "direct key in coverage-index.json -> extsweep; also corroborated by feature-map.txt 'Change-authority governance: ADR-0008 lane classifier + additive-fast-track review SLA'"
+  }
+ ]
+}

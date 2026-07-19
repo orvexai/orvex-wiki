@@ -1,0 +1,11 @@
+{
+  "slug": "MQaTt8e22e",
+  "total": 1,
+  "results": [
+    {
+      "id": "ADR-0018",
+      "verdict": "NOT-BUILD",
+      "owner_or_reason": "CI-substrate/infra ADR with no FR-*/NFR-*/D-* ids; mandates ARC scale set in separate my-idp platform repo (gated behind PO ratification per ADR-0005) plus CI-config retargeting in orvex-wiki .github/ + scripts/test/ — none is a product-surface delivery story; absent from coverage-index.json, feature-map.txt (dind/runner/kata/ci-substrate grep = 0), and all breakdown plan.json 'covers' fields"
+    }
+  ]
+}

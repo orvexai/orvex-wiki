@@ -1,0 +1,555 @@
+{
+ "service": "orvex-studio-knowledge",
+ "requirement_source": "PRD: orvex-studio-knowledge (slug dCbFzRQGDr, canonical) \u2014 FR-K1..K28 + FR-K12a/K15a/K20a/K20b/K31b + NFR-K1..K13 (K11-13 draft amendment ENG-1933) + Memory fold-in FR-E1..E4 / AD-7/9/11; Architecture: orvex-studio-knowledge (slug azRwTCZMqw, canonical) A1..A12/A-bundle + cell-contract rules 1/3/4/5/6/10/11/13",
+ "sources": [
+  {
+   "slug": "dCbFzRQGDr",
+   "title": "PRD: orvex-studio-knowledge"
+  },
+  {
+   "slug": "azRwTCZMqw",
+   "title": "Architecture: orvex-studio-knowledge"
+  },
+  {
+   "slug": "0mFImku9Gp",
+   "title": "R-9: Search-Stack Consolidation Design (referenced; binding D-R9-1..5)"
+  },
+  {
+   "slug": "NdH4benMGe",
+   "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05) (referenced)"
+  },
+  {
+   "slug": "dcOUbpzE8L",
+   "title": "PRD Addendum \u2014 orvex-studio-knowledge (referenced, draft)"
+  }
+ ],
+ "epics": [
+  {
+   "id": "E1",
+   "title": "[EPIC] knowledge: Event ingestion & indexing pipeline",
+   "body_file": "bodies/E1.md",
+   "stories": [
+    {
+     "id": "E1-S1",
+     "title": "[knowledge] Kafka Trigger subscription to the wiki.* CloudEvent catalog with orvexcell fail-closed",
+     "body_file": "bodies/E1-S1.md",
+     "covers": [
+      "FR-K1",
+      "FR-K16"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S2",
+     "title": "[knowledge] Thin-event ingest: engine export-pull resolver + version-guarded CAS upsert",
+     "body_file": "bodies/E1-S2.md",
+     "covers": [
+      "FR-K2",
+      "FR-K3"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S3",
+     "title": "[knowledge] Synchronous keyword-upsert hook /internal/v1/keyword-upsert with breaker",
+     "body_file": "bodies/E1-S3.md",
+     "covers": [
+      "FR-K4",
+      "NFR-K12"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E1-S4",
+     "title": "[knowledge] Chunking + embeddings pipeline (text_repr chunker, per-corpus model, content-hash skip)",
+     "body_file": "bodies/E1-S4.md",
+     "covers": [
+      "FR-K8",
+      "FR-K10"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S5",
+     "title": "[knowledge] Attachment ingestion via Tika with MIME allow-list, size cap, metadata-only fallback",
+     "body_file": "bodies/E1-S5.md",
+     "covers": [
+      "FR-K5"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E1-S6",
+     "title": "[knowledge] Permission-change re-scope within freshness SLO (over-narrow only)",
+     "body_file": "bodies/E1-S6.md",
+     "covers": [
+      "FR-K6"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E1-S7",
+     "title": "[knowledge] Ingestion failure handling: retry/backoff/DLQ + freshness watermark + staleness SLI",
+     "body_file": "bodies/E1-S7.md",
+     "covers": [
+      "FR-K28",
+      "NFR-K1"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E2",
+   "title": "[EPIC] knowledge: Projection store, multi-source model & vendor seam",
+   "body_file": "bodies/E2.md",
+   "stories": [
+    {
+     "id": "E2-S1",
+     "title": "[knowledge] Postgres projection schema + RLS fail-closed tenancy backstop",
+     "body_file": "bodies/E2-S1.md",
+     "covers": [
+      "FR-K7",
+      "NFR-K6"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S2",
+     "title": "[knowledge] Store-adapter seam (Upsert/Query/DeleteNamespace/DeleteDocs/AliasSwap) + conformance suite + memindex reference",
+     "body_file": "bodies/E2-S2.md",
+     "covers": [
+      "FR-K9",
+      "NFR-K7"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S3",
+     "title": "[knowledge] Turbopuffer adapter, namespace-per-tenant hybrid store",
+     "body_file": "bodies/E2-S3.md",
+     "covers": [
+      "FR-K9"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S4",
+     "title": "[knowledge] Source-adapter contract registry + wiki source adapter (fail-closed on undeclared primitive)",
+     "body_file": "bodies/E2-S4.md",
+     "covers": [
+      "FR-K7",
+      "FR-K12a"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "title": "[EPIC] knowledge: Query & retrieval API, ranking, and read-path cache",
+   "body_file": "bodies/E3.md",
+   "stories": [
+    {
+     "id": "E3-S1",
+     "title": "[knowledge] Query surface: /v1/query (keyword|semantic|hybrid), /v1/retrieve, /v1/related, /v1/duplicates, /v1/attachments/search",
+     "body_file": "bodies/E3-S1.md",
+     "covers": [
+      "FR-K11"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S2",
+     "title": "[knowledge] Hybrid ranking: RRF fusion + freshness + optional nil-safe rerank stage",
+     "body_file": "bodies/E3-S2.md",
+     "covers": [
+      "FR-K11"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S3",
+     "title": "[knowledge] Redis read-path cache with event-driven tag eviction",
+     "body_file": "bodies/E3-S3.md",
+     "covers": [
+      "NFR-K13",
+      "NFR-K1"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S4",
+     "title": "[knowledge] Query latency budgets + per-principal/tenant QoS fairness limits",
+     "body_file": "bodies/E3-S4.md",
+     "covers": [
+      "FR-K14",
+      "NFR-K10",
+      "NFR-K11"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "title": "[EPIC] knowledge: Universal ACL choke point, auth & isolation",
+   "body_file": "bodies/E4.md",
+   "stories": [
+    {
+     "id": "E4-S1",
+     "title": "[knowledge] Universal ACL post-filter: engine FR-13 \u2229 token-scope, over-narrow prefilter, count-oracle-safe",
+     "body_file": "bodies/E4-S1.md",
+     "covers": [
+      "FR-K12"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S2",
+     "title": "[knowledge] FR-13 hot-path overload protection: single-flight + interactive/bulk bulkhead + rate contract",
+     "body_file": "bodies/E4-S2.md",
+     "covers": [
+      "NFR-K5",
+      "FR-K12"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E4-S3",
+     "title": "[knowledge] Auth verifier via lib: JWKS session + api-key, polymorphic {user|org} principal, no anonymous",
+     "body_file": "bodies/E4-S3.md",
+     "covers": [
+      "FR-K13"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S4",
+     "title": "[knowledge] Isolation probes: cross-tenant + intra-tenant-restricted zero-byte + count-oracle in CI & per-deploy",
+     "body_file": "bodies/E4-S4.md",
+     "covers": [
+      "NFR-K3",
+      "NFR-K8"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "title": "[EPIC] knowledge: SSE gateway & Orvex CLI wire contract",
+   "body_file": "bodies/E5.md",
+   "stories": [
+    {
+     "id": "E5-S1",
+     "title": "[knowledge] KafkaSink raw single-partition topic + standalone assigned SSE consumer (assign/seek)",
+     "body_file": "bodies/E5-S1.md",
+     "covers": [
+      "FR-K16"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E5-S2",
+     "title": "[knowledge] SSE gateway wire contract: replay-then-tail, Last-Event-ID resume, heartbeats, control frames",
+     "body_file": "bodies/E5-S2.md",
+     "covers": [
+      "FR-K15"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E5-S3",
+     "title": "[knowledge] CLI wire-contract deltas: /events/head, cursor semantics, legacy unprefixed names, 1 MiB frames, backoff",
+     "body_file": "bodies/E5-S3.md",
+     "covers": [
+      "FR-K15a"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E5-S4",
+     "title": "[knowledge] Events admin surfaces /api/orvex/events/{connections,log,settings}",
+     "body_file": "bodies/E5-S4.md",
+     "covers": [
+      "FR-K17"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "title": "[EPIC] knowledge: Bulk export & bundles",
+   "body_file": "bodies/E6.md",
+   "stories": [
+    {
+     "id": "E6-S1",
+     "title": "[knowledge] Bundle builder /v1/bundles: pre-stream non-erasable egress audit + fail-closed export policy",
+     "body_file": "bodies/E6-S1.md",
+     "covers": [
+      "FR-K18"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E6-S2",
+     "title": "[knowledge] Principal-bound bundle capability: GET /v1/bundles/:id ownership check (closes IDOR)",
+     "body_file": "bodies/E6-S2.md",
+     "covers": [
+      "FR-K19"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "title": "[EPIC] knowledge: Orvex CLI projection cache-sync",
+   "body_file": "bodies/E7.md",
+   "stories": [
+    {
+     "id": "E7-S1",
+     "title": "[knowledge] /v1/projection/delta cursor download: ACL-narrowed, epoch-bearing, \u226520 pages/s",
+     "body_file": "bodies/E7-S1.md",
+     "covers": [
+      "FR-K20",
+      "NFR-K2"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E7-S2",
+     "title": "[knowledge] Projection field set: content_pm parity ruling + lifecycle/verification/presentational + byte-stable markdown",
+     "body_file": "bodies/E7-S2.md",
+     "covers": [
+      "FR-K20a"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E7-S3",
+     "title": "[knowledge] Page-level ACL tombstones as hard-DELETE records on permission loss",
+     "body_file": "bodies/E7-S3.md",
+     "covers": [
+      "FR-K20b"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E7-S4",
+     "title": "[knowledge] CLI read verbs direct-to-query + projection parity claim",
+     "body_file": "bodies/E7-S4.md",
+     "covers": [
+      "FR-K21",
+      "FR-K22"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E8",
+   "title": "[EPIC] knowledge: Rebuild, backfill & disaster recovery",
+   "body_file": "bodies/E8.md",
+   "stories": [
+    {
+     "id": "E8-S1",
+     "title": "[knowledge] Idempotent rebuild step-APIs (namespace/walk/index-batch/delta-repull/alias-swap/retire) driven by central Temporal",
+     "body_file": "bodies/E8-S1.md",
+     "covers": [
+      "FR-K23"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E8-S2",
+     "title": "[knowledge] Projection epochs + delta full-resync + RTO-budgeted resumable rebuild",
+     "body_file": "bodies/E8-S2.md",
+     "covers": [
+      "FR-K24",
+      "NFR-K4"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E8-S3",
+     "title": "[knowledge] Event-archive sink (S3 + Postgres append table) for long-horizon replay beyond Kafka retention",
+     "body_file": "bodies/E8-S3.md",
+     "covers": [
+      "NFR-K4"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E9",
+   "title": "[EPIC] knowledge: Purge, operations & cell-contract conformance",
+   "body_file": "bodies/E9.md",
+   "stories": [
+    {
+     "id": "E9-S1",
+     "title": "[knowledge] Purge FR-K27: delete every copy on workspace/user/space delete + zero-residual probe",
+     "body_file": "bodies/E9-S1.md",
+     "covers": [
+      "FR-K27"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E9-S2",
+     "title": "[knowledge] Admin reindex API: enqueue rebuilds, inspect indexing lag & DLQ, trigger extraction retries",
+     "body_file": "bodies/E9-S2.md",
+     "covers": [
+      "FR-K25"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E9-S3",
+     "title": "[knowledge] Liveness/readiness split per binary + Prometheus/OTel observability + residency",
+     "body_file": "bodies/E9-S3.md",
+     "covers": [
+      "FR-K26",
+      "NFR-K9"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E9-S4",
+     "title": "[knowledge] Cell-contract conformance: cluster-local DNS, cell-guard/421, healthz echoes, Idempotency-Key, tenant-move step-API",
+     "body_file": "bodies/E9-S4.md",
+     "covers": [
+      "NFR-K8"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E10",
+   "title": "[EPIC] knowledge: Studio corpora & Memory retrieval",
+   "body_file": "bodies/E10.md",
+   "stories": [
+    {
+     "id": "E10-S1",
+     "title": "[knowledge] Studio corpora ingestion (studio.skill.*/memory.*/chat.*) via owner-scoped source adapters, per-corpus chunks/models",
+     "body_file": "bodies/E10-S1.md",
+     "covers": [
+      "FR-K31b"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E10-S2",
+     "title": "[knowledge] A12 ACL mechanics: owner-scoped admission, employer firewall, delegated-only, ingestion-side privacy exclusion",
+     "body_file": "bodies/E10-S2.md",
+     "covers": [
+      "FR-K31b",
+      "NFR-K3"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E10-S3",
+     "title": "[knowledge] Memory retrieval namespace wall (AD-7 owner_scope) + per-card ordering & read-your-writes (AD-11)",
+     "body_file": "bodies/E10-S3.md",
+     "covers": [
+      "AD-7",
+      "AD-11"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E10-S4",
+     "title": "[knowledge] Retrieval eval harness: recall@10 \u2265 0.80 + regression gate + raw-store-searchable + public benchmark",
+     "body_file": "bodies/E10-S4.md",
+     "covers": [
+      "FR-E1",
+      "FR-E2",
+      "FR-E3",
+      "FR-E4",
+      "AD-9"
+     ],
+     "audit": "absent"
+    }
+   ]
+  },
+  {
+   "id": "E11",
+   "title": "[EPIC] knowledge: Outbound memory sync (user-facing, per-vendor)",
+   "body_file": null,
+   "stories": [
+    {
+     "id": "E11-GAP1",
+     "title": "[knowledge] Outbound Memory sync \u2014 user-facing master\u2192replica push to vendor native memories (per-vendor adapters, conflict policy, private-memory exclusion)",
+     "body_file": "../gap-hunt/fix-bodies/fix-outbound-sync.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2696"
+    }
+   ]
+  }
+ ],
+ "coverage": {
+  "ids_found": [
+   "FR-K1",
+   "FR-K2",
+   "FR-K3",
+   "FR-K4",
+   "FR-K5",
+   "FR-K6",
+   "FR-K7",
+   "FR-K8",
+   "FR-K9",
+   "FR-K10",
+   "FR-K11",
+   "FR-K12",
+   "FR-K12a",
+   "FR-K13",
+   "FR-K14",
+   "FR-K15",
+   "FR-K15a",
+   "FR-K16",
+   "FR-K17",
+   "FR-K18",
+   "FR-K19",
+   "FR-K20",
+   "FR-K20a",
+   "FR-K20b",
+   "FR-K21",
+   "FR-K22",
+   "FR-K23",
+   "FR-K24",
+   "FR-K25",
+   "FR-K26",
+   "FR-K27",
+   "FR-K28",
+   "FR-K31b",
+   "NFR-K1",
+   "NFR-K2",
+   "NFR-K3",
+   "NFR-K4",
+   "NFR-K5",
+   "NFR-K6",
+   "NFR-K7",
+   "NFR-K8",
+   "NFR-K9",
+   "NFR-K10",
+   "NFR-K11",
+   "NFR-K12",
+   "NFR-K13",
+   "FR-E1",
+   "FR-E2",
+   "FR-E3",
+   "FR-E4",
+   "AD-7",
+   "AD-9",
+   "AD-11"
+  ],
+  "uncovered": []
+ }
+}

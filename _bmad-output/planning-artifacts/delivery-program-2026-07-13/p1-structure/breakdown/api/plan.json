@@ -1,0 +1,549 @@
+{
+ "service": "orvex-studio-api",
+ "requirement_source": "PRD: orvex-studio-api (85qj2wwU2L) \u2014 status=draft but carries USER-confirmed decisions; primary requirement source. FR-M/FR-L/FR-T ids folded in from Memory gap-closure PRD g9vWbSYplh + spine iiCcKhGptV. Architecture: orvex-studio-api (ekTh7nDQqo, canonical) supplies A-* rulings + AD-1/2/3/4/12.",
+ "sources": [
+  {
+   "slug": "85qj2wwU2L",
+   "title": "PRD: orvex-studio-api"
+  },
+  {
+   "slug": "ekTh7nDQqo",
+   "title": "Architecture: orvex-studio-api"
+  },
+  {
+   "slug": "TpxkDsKTkC",
+   "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)"
+  }
+ ],
+ "epics": [
+  {
+   "id": "E1",
+   "title": "[EPIC] api: Foundation, extraction & platform seams",
+   "body_file": "bodies/E1.md",
+   "stories": [
+    {
+     "id": "E1-S1",
+     "audit": "partial",
+     "title": "[api] Repo extraction, layering, CI, health/readiness split",
+     "body_file": "bodies/E1-S1.md",
+     "covers": [
+      "A-STRANGLE",
+      "FR-SA34",
+      "NFR-SA7",
+      "NFR-SA8"
+     ]
+    },
+    {
+     "id": "E1-S2",
+     "audit": "partial",
+     "title": "[api] Edge auth verify + polymorphic {user|org} principal resolution",
+     "body_file": "bodies/E1-S2.md",
+     "covers": [
+      "FR-SA29",
+      "A-AUTH"
+     ]
+    },
+    {
+     "id": "E1-S3",
+     "audit": "partial",
+     "title": "[api] Cell-guard middleware + CELL_ID + same-cell service resolution",
+     "body_file": "bodies/E1-S3.md",
+     "covers": [
+      "A-CELL",
+      "A-CELL-COMPLIANCE"
+     ]
+    },
+    {
+     "id": "E1-S4",
+     "audit": "partial",
+     "title": "[api] CloudEvent publish via Postgres transactional outbox + relay",
+     "body_file": "bodies/E1-S4.md",
+     "covers": [
+      "FR-SA31"
+     ]
+    },
+    {
+     "id": "E1-S5",
+     "audit": "partial",
+     "title": "[api] CloudEvent consumption + idempotent event dedupe",
+     "body_file": "bodies/E1-S5.md",
+     "covers": [
+      "FR-SA31",
+      "A-CELL-COMPLIANCE"
+     ]
+    },
+    {
+     "id": "E1-S6",
+     "audit": "partial",
+     "title": "[api] Persistence topology + observability + audit stream",
+     "body_file": "bodies/E1-S6.md",
+     "covers": [
+      "FR-SA33",
+      "FR-SA34",
+      "NFR-SA6"
+     ]
+    },
+    {
+     "id": "E1-S7",
+     "audit": "absent",
+     "title": "[api] Strangle sequence order + port-parity cutover gates",
+     "body_file": "bodies/E1-S7.md",
+     "covers": [
+      "A-SEQ"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E2",
+   "title": "[EPIC] api: Skill domain, library, marketplace & social",
+   "body_file": "bodies/E2.md",
+   "stories": [
+    {
+     "id": "E2-S1",
+     "audit": "present",
+     "title": "[api] Skill data model + deterministic byte-stable render",
+     "body_file": "bodies/E2-S1.md",
+     "covers": [
+      "FR-SA1",
+      "NFR-SA4"
+     ]
+    },
+    {
+     "id": "E2-S2",
+     "audit": "partial",
+     "title": "[api] Library, Collections & Builder edit surface",
+     "body_file": "bodies/E2-S2.md",
+     "covers": [
+      "FR-SA2"
+     ]
+    },
+    {
+     "id": "E2-S3",
+     "audit": "absent",
+     "title": "[api] Marketplace, social & append-only reputation ledger",
+     "body_file": "bodies/E2-S3.md",
+     "covers": [
+      "FR-SA3"
+     ]
+    },
+    {
+     "id": "E2-S4",
+     "audit": "absent",
+     "title": "[api] Prompt-Use surfaces (copy, five-AI export, permalinks, launch)",
+     "body_file": "bodies/E2-S4.md",
+     "covers": [
+      "FR-SA4"
+     ]
+    },
+    {
+     "id": "E2-GAP1",
+     "title": "[api] Orvex rating \u2014 multi-factor assembly + serving (structural AI factor \u00d7 usage/popularity \u00d7 upvotes) on every marketplace prompt",
+     "body_file": "../gap-hunt/fix-bodies/fix-rating-assembler.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2699"
+    },
+    {
+     "id": "E2-GAP2",
+     "title": "[api] Marketplace seeding \u2014 GitHub import \u2192 vet \u2192 claim pipeline with the permissive-license two-gate (POC pipeline carried forward)",
+     "body_file": "../gap-hunt/fix-bodies/fix-marketplace-seeding.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2700"
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "title": "[EPIC] api: Memory subsystem (FormSpec, privacy, lifecycle)",
+   "body_file": "bodies/E3.md",
+   "stories": [
+    {
+     "id": "E3-S1",
+     "audit": "partial",
+     "title": "[api] Frozen versioned Memory card schema + FormSpec model",
+     "body_file": "bodies/E3-S1.md",
+     "covers": [
+      "FR-SA5",
+      "FR-M1",
+      "FR-M2",
+      "FR-M3",
+      "FR-M4",
+      "AD-2"
+     ]
+    },
+    {
+     "id": "E3-S2",
+     "audit": "absent",
+     "title": "[api] FormSpec SSE declaration wire contract + PacingGate",
+     "body_file": "bodies/E3-S2.md",
+     "covers": [
+      "FR-SA5"
+     ]
+    },
+    {
+     "id": "E3-S3",
+     "audit": "partial",
+     "title": "[api] 3-state privacy + consent pipeline + exclusion contract",
+     "body_file": "bodies/E3-S3.md",
+     "covers": [
+      "FR-SA6",
+      "FR-SA7",
+      "NFR-SA2",
+      "NFR-SA3"
+     ]
+    },
+    {
+     "id": "E3-S4",
+     "audit": "absent",
+     "title": "[api] Bi-temporal lifecycle, Reconcile & confirm-gate sole mutation",
+     "body_file": "bodies/E3-S4.md",
+     "covers": [
+      "FR-L1",
+      "FR-L2",
+      "FR-L3",
+      "FR-L4",
+      "FR-L5",
+      "AD-3",
+      "AD-4"
+     ]
+    },
+    {
+     "id": "E3-S5",
+     "audit": "absent",
+     "title": "[api] FR-31 deterministic weave + team-aware schema",
+     "body_file": "bodies/E3-S5.md",
+     "covers": [
+      "FR-SA8",
+      "FR-T1",
+      "FR-T2",
+      "FR-T3",
+      "FR-T4",
+      "AD-1",
+      "AD-12"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "title": "[EPIC] api: The Prompt Composer & enrichment",
+   "body_file": "bodies/E4.md",
+   "stories": [
+    {
+     "id": "E4-S1",
+     "audit": "absent",
+     "title": "[api] LLM-free enrichment orchestration under context budget",
+     "body_file": "bodies/E4-S1.md",
+     "covers": [
+      "FR-SA9",
+      "NFR-SA1"
+     ]
+    },
+    {
+     "id": "E4-S2",
+     "audit": "absent",
+     "title": "[api] Private-Memory guard + per-use consent + egress audit",
+     "body_file": "bodies/E4-S2.md",
+     "covers": [
+      "FR-SA10"
+     ]
+    },
+    {
+     "id": "E4-S3",
+     "audit": "absent",
+     "title": "[api] Degradation-first enrichment fallback",
+     "body_file": "bodies/E4-S3.md",
+     "covers": [
+      "FR-SA11",
+      "NFR-SA5"
+     ]
+    },
+    {
+     "id": "E4-S4",
+     "audit": "absent",
+     "title": "[api] Composer read-your-writes on just-confirmed Memory + per-card ordering",
+     "body_file": "bodies/E4-S4.md",
+     "covers": [
+      "AD-11"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "title": "[EPIC] api: The Curator \u2014 engineGate, queue & staging cutover",
+   "body_file": "bodies/E5.md",
+   "stories": [
+    {
+     "id": "E5-S1",
+     "audit": "partial",
+     "title": "[api] engineGate() Card Contract v1 resolution order + invariants",
+     "body_file": "bodies/E5-S1.md",
+     "covers": [
+      "FR-SA12"
+     ]
+    },
+    {
+     "id": "E5-S2",
+     "audit": "absent",
+     "title": "[api] Curation Queue \u2014 grouped proposals, per-group bulk, scale",
+     "body_file": "bodies/E5-S2.md",
+     "covers": [
+      "FR-SA13",
+      "NFR-SA1"
+     ]
+    },
+    {
+     "id": "E5-S3",
+     "audit": "partial",
+     "title": "[api] Tiered write modes + reversibility",
+     "body_file": "bodies/E5-S3.md",
+     "covers": [
+      "FR-SA14"
+     ]
+    },
+    {
+     "id": "E5-S4",
+     "audit": "absent",
+     "title": "[api] Structure evolution + delegated gate primitives + async distillation",
+     "body_file": "bodies/E5-S4.md",
+     "covers": [
+      "FR-SA15",
+      "FR-SA16",
+      "FR-SA17"
+     ]
+    },
+    {
+     "id": "E5-S5",
+     "audit": "partial",
+     "title": "[api] Curator\u2192staging supersession (classifyOnSave \u2192 staging submit)",
+     "body_file": "bodies/E5-S5.md",
+     "covers": [
+      "FR-SA12",
+      "AD-4"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "title": "[EPIC] api: Chat History & Chat-History Import",
+   "body_file": "bodies/E6.md",
+   "stories": [
+    {
+     "id": "E6-S1",
+     "audit": "absent",
+     "title": "[api] Chat History store + retention + purge extensions",
+     "body_file": "bodies/E6-S1.md",
+     "covers": [
+      "FR-SA18"
+     ]
+    },
+    {
+     "id": "E6-S2",
+     "audit": "partial",
+     "title": "[api] Import wizard + per-provider parse adapters + workflow legs",
+     "body_file": "bodies/E6-S2.md",
+     "covers": [
+      "FR-SA19"
+     ]
+    },
+    {
+     "id": "E6-S3",
+     "audit": "absent",
+     "title": "[api] Paste-prompt quick import",
+     "body_file": "bodies/E6-S3.md",
+     "covers": [
+      "FR-SA20"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "title": "[EPIC] api: Demo World",
+   "body_file": "bodies/E7.md",
+   "stories": [
+    {
+     "id": "E7-S1",
+     "audit": "present",
+     "title": "[api] Demo lifecycle orchestration + demo-flag discipline",
+     "body_file": "bodies/E7-S1.md",
+     "covers": [
+      "FR-SA21"
+     ]
+    },
+    {
+     "id": "E7-S2",
+     "audit": "absent",
+     "title": "[api] Graduation central saga step-APIs",
+     "body_file": "bodies/E7-S2.md",
+     "covers": [
+      "FR-SA22"
+     ]
+    },
+    {
+     "id": "E7-GAP1",
+     "title": "[api] FR-O1 first-run seeding \u2014 profession-aware starter Memory + seeded demo world in the first session",
+     "body_file": "../gap-hunt/fix-bodies/fix-fr-o1-seeding.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2701"
+    }
+   ]
+  },
+  {
+   "id": "E8",
+   "title": "[EPIC] api: Your Wiki & the DocmostPort",
+   "body_file": "bodies/E8.md",
+   "stories": [
+    {
+     "id": "E8-S1",
+     "audit": "absent",
+     "title": "[api] DocmostPort typed client + CAS + history + quota-402",
+     "body_file": "bodies/E8-S1.md",
+     "covers": [
+      "FR-SA23"
+     ]
+    },
+    {
+     "id": "E8-S2",
+     "audit": "partial",
+     "title": "[api] Wiki omnibox \u2014 instant search (Free) + Ask (\u00a37 proxy)",
+     "body_file": "bodies/E8-S2.md",
+     "covers": [
+      "FR-SA24"
+     ]
+    },
+    {
+     "id": "E8-S3",
+     "audit": "absent",
+     "title": "[api] Native read pane, hover cards & act-as-user everywhere",
+     "body_file": "bodies/E8-S3.md",
+     "covers": [
+      "FR-SA25",
+      "FR-SA26"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "E9",
+   "title": "[EPIC] api: Tiers, entitlements, MCP & workflow seams",
+   "body_file": "bodies/E9.md",
+   "stories": [
+    {
+     "id": "E9-S1",
+     "audit": "partial",
+     "title": "[api] Entitlement-check primitive client + SSE entitlement channel",
+     "body_file": "bodies/E9-S1.md",
+     "covers": [
+      "FR-SA27"
+     ]
+    },
+    {
+     "id": "E9-S2",
+     "audit": "absent",
+     "title": "[api] Product-edge allowance enforcement + billing/pricing render",
+     "body_file": "bodies/E9-S2.md",
+     "covers": [
+      "FR-SA28"
+     ]
+    },
+    {
+     "id": "E9-S3",
+     "audit": "absent",
+     "title": "[api] MCP-facing domain APIs, tier-enforced + rate-limited",
+     "body_file": "bodies/E9-S3.md",
+     "covers": [
+      "FR-SA30",
+      "NFR-SA3"
+     ]
+    },
+    {
+     "id": "E9-S4",
+     "audit": "absent",
+     "title": "[api] Step-APIs & callbacks for central workflows + degradation matrix",
+     "body_file": "bodies/E9-S4.md",
+     "covers": [
+      "FR-SA32",
+      "NFR-SA5",
+      "NFR-SA6"
+     ]
+    }
+   ]
+  }
+ ],
+ "coverage": {
+  "ids_found": [
+   "FR-SA1",
+   "FR-SA2",
+   "FR-SA3",
+   "FR-SA4",
+   "FR-SA5",
+   "FR-SA6",
+   "FR-SA7",
+   "FR-SA8",
+   "FR-SA9",
+   "FR-SA10",
+   "FR-SA11",
+   "FR-SA12",
+   "FR-SA13",
+   "FR-SA14",
+   "FR-SA15",
+   "FR-SA16",
+   "FR-SA17",
+   "FR-SA18",
+   "FR-SA19",
+   "FR-SA20",
+   "FR-SA21",
+   "FR-SA22",
+   "FR-SA23",
+   "FR-SA24",
+   "FR-SA25",
+   "FR-SA26",
+   "FR-SA27",
+   "FR-SA28",
+   "FR-SA29",
+   "FR-SA30",
+   "FR-SA31",
+   "FR-SA32",
+   "FR-SA33",
+   "FR-SA34",
+   "NFR-SA1",
+   "NFR-SA2",
+   "NFR-SA3",
+   "NFR-SA4",
+   "NFR-SA5",
+   "NFR-SA6",
+   "NFR-SA7",
+   "NFR-SA8",
+   "FR-M1",
+   "FR-M2",
+   "FR-M3",
+   "FR-M4",
+   "FR-L1",
+   "FR-L2",
+   "FR-L3",
+   "FR-L4",
+   "FR-L5",
+   "FR-T1",
+   "FR-T2",
+   "FR-T3",
+   "FR-T4",
+   "AD-1",
+   "AD-2",
+   "AD-3",
+   "AD-4",
+   "AD-11",
+   "AD-12",
+   "A-SEQ"
+  ],
+  "uncovered": []
+ }
+}

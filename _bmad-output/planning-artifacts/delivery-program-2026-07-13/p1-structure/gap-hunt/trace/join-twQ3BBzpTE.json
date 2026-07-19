@@ -1,0 +1,23 @@
+{
+  "slug": "twQ3BBzpTE",
+  "total": 17,
+  "results": [
+    {"id": "A-THIN", "verdict": "COVERED", "owner_or_reason": "ENG-2476, ENG-2477"},
+    {"id": "A-DFM", "verdict": "COVERED", "owner_or_reason": "ENG-2487"},
+    {"id": "A-QUOTA", "verdict": "COVERED", "owner_or_reason": "ENG-2490"},
+    {"id": "A-EVENTS", "verdict": "COVERED", "owner_or_reason": "ENG-2494, ENG-2495"},
+    {"id": "A-AUTH", "verdict": "COVERED", "owner_or_reason": "ENG-2295, ENG-2499, ENG-2656"},
+    {"id": "A-PORTABLE", "verdict": "COVERED", "owner_or_reason": "ENG-2508"},
+    {"id": "A-TENANCY", "verdict": "COVERED", "owner_or_reason": "ENG-2503"},
+    {"id": "A-BOUNDARY", "verdict": "COVERED", "owner_or_reason": "ENG-2479, ENG-2504"},
+    {"id": "A-IMPORT", "verdict": "COVERED", "owner_or_reason": "ENG-2478"},
+    {"id": "A-HARDENING", "verdict": "COVERED", "owner_or_reason": "ENG-2478"},
+    {"id": "A-APIBOUNDARY", "verdict": "COVERED", "owner_or_reason": "ENG-2508"},
+    {"id": "A-CELL", "verdict": "COVERED", "owner_or_reason": "ENG-2296, ENG-2496, ENG-2510"},
+    {"id": "A-MOVE", "verdict": "COVERED", "owner_or_reason": "ENG-2509"},
+    {"id": "A-SEAMS", "verdict": "COVERED", "owner_or_reason": "ENG-2488, ENG-2495"},
+    {"id": "A-OBSERVE", "verdict": "COVERED", "owner_or_reason": "ENG-2496, ENG-2510"},
+    {"id": "A-QUOTA-HARDENING", "verdict": "COVERED", "owner_or_reason": "ENG-2491, ENG-2492"},
+    {"id": "A-ADR", "verdict": "COVERED", "owner_or_reason": "ENG-2510"}
+  ]
+}

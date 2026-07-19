@@ -1,0 +1,283 @@
+{
+  "repo": "orvex-studio-api",
+  "audited_ref": "origin/main",
+  "head": "903e477 2026-07-14 16:55:07 +0200",
+  "branches_note": "origin/HEAD (remote default) points to dev, but origin/main is 1 commit AHEAD of origin/dev (main = dev + merge #37) and is the most complete ref -- audited origin/main per the symbolic-ref-unset fallback. origin/crew/daniel is 35 commits BEHIND main (stale, last commit 2026-07-06). No branch is ahead of main, so the ENG-2069 nothing-on-main hazard does not apply here: main is the tip.",
+  "audited_at": "2026-07-14",
+  "stories": {
+    "E1-S1": {
+      "status": "partial",
+      "evidence": [
+        "src/server.ts:127",
+        "package.json",
+        "Dockerfile",
+        ".github/workflows/ci.yml"
+      ],
+      "note": "extracted, layered `src/` (routes to domain to store/ports), lockfile, distroless `Dockerfile`, real CI (`.github/workflows/ci.yml`: lint/typecheck/coverage/build/audit/integration). Missing: liveness/readiness split (`/healthz` is a single always-200, `src/server.ts`) and the AGPL/@temporalio import grep-gate."
+    },
+    "E1-S2": {
+      "status": "partial",
+      "evidence": [
+        "src/clients/identity.ts:32",
+        "src/middleware/authn.ts:60",
+        "src/middleware/requireAuth.ts",
+        "test/require-auth.test.ts"
+      ],
+      "note": "real network verify + authn-first on every route (`src/clients/identity.ts` verify, `src/middleware/authn.ts` authenticateBearer, `requireAuth.ts`), tested (`test/require-auth.test.ts`, `test/composition/`). Missing: polymorphic {user|org} resolution -- `tenant` collapses to the user id (`authn.ts` Principal), no org principal."
+    },
+    "E1-S3": {
+      "status": "partial",
+      "evidence": [
+        "src/middleware/cellGuard.ts",
+        "src/cell/compliance.ts:59",
+        "test/cell-guard.test.ts"
+      ],
+      "note": "cell-guard cross-cell typed-421 reject fully implemented + tested (`src/middleware/cellGuard.ts`, `src/cell/compliance.ts`, `test/cell-guard.test.ts`); CELL_ID/CLUSTER_NAME in config. Missing: same-cell service resolution (siblings are static ORVEX_*_URL, no cell-aware discovery)."
+    },
+    "E1-S4": {
+      "status": "partial",
+      "evidence": [
+        "src/events/outbox.ts",
+        "src/events/relay.ts",
+        "src/events/envelope.ts",
+        "test/tiers.test.ts"
+      ],
+      "note": "outbox/relay/envelope seams + `parseEnvelope` present (`src/events/`), covered by `test/tiers.test.ts`. Missing: the transactional publish itself -- `NotImplementedOutbox`/`Relay.publishPending` throw; no outbox table, no Kafka relay."
+    },
+    "E1-S5": {
+      "status": "partial",
+      "evidence": [
+        "src/events/entitlement.ts:96",
+        "deploy/kustomize/app-manifests/kafka-trigger-entitlement.yaml"
+      ],
+      "note": "inbound CloudEvent consumption real -- `cloudEventHandler` POST `/internal/events` acks 202 + fans out to SSE (`src/events/entitlement.ts`), plus `deploy/.../kafka-trigger-entitlement.yaml`. Missing: idempotent event-dedupe store."
+    },
+    "E1-S6": {
+      "status": "partial",
+      "evidence": [
+        "src/store/postgres/repository.ts",
+        "src/store/postgres/draftStore.ts",
+        "src/index.ts:28"
+      ],
+      "note": "own Postgres stores real (skills/memory/drafts/demo, inline DDL in `src/store/postgres/`); structured JSON logs. Missing: OTel/observability, an audit stream, and a migration framework."
+    },
+    "E1-S7": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no strangle-sequence ordering or port-parity cutover gates anywhere in the tree."
+    },
+    "E2-S1": {
+      "status": "present",
+      "evidence": [
+        "src/skills/index.ts:65",
+        "src/cards/card.ts:67",
+        "test/cards/CardContractV1RendersStableEnvelope.test.ts",
+        "test/integration/SkillsCrudPersistsAndDeterministicRender.spec.ts"
+      ],
+      "note": "deterministic byte-stable render implemented -- `src/skills/index.ts` renderSkill over the pure `src/cards/card.ts` toCard (Card-Contract-v1), owner-scoped store round-trip. Tested: `test/cards/CardContractV1RendersStableEnvelope.test.ts`, `card-forward-compat`, `test/skills.test.ts`, `test/integration/SkillsCrudPersistsAndDeterministicRender.spec.ts`."
+    },
+    "E2-S2": {
+      "status": "partial",
+      "evidence": [
+        "src/routes/library.ts",
+        "src/drafts/domain.ts",
+        "src/routes/drafts.ts",
+        "test/draft-store.test.ts"
+      ],
+      "note": "own-skills Library feed (`src/routes/library.ts`) + generic draft/commit/discard edit surface (`src/drafts/`, `src/routes/drafts.ts`) present + tested (`test/draft-store.test.ts`, `test/drafts-*.test.ts`). Missing: the Collections model + Builder fork/delta minting."
+    },
+    "E2-S3": {
+      "status": "absent",
+      "evidence": [
+        "src/routes/marketplace.ts:33",
+        "src/routes/discover.ts"
+      ],
+      "note": "`src/routes/marketplace.ts` is a 501 stub, `discover.ts` returns empty; no social graph or append-only reputation ledger."
+    },
+    "E2-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no prompt-use surfaces (copy / five-AI export / permalinks / launch) exist in the tree."
+    },
+    "E3-S1": {
+      "status": "partial",
+      "evidence": [
+        "src/types/domain.ts:36",
+        "src/store/postgres/repository.ts:130",
+        "src/memory/memory.ts"
+      ],
+      "note": "MemoryEntry model + Privacy types + own Postgres `memory` schema (`src/store/postgres/repository.ts`), privacy domain tested. Missing: the FormSpec 9-type palette and a frozen versioned card schema."
+    },
+    "E3-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no FormSpec SSE declaration wire contract or PacingGate (only the entitlement SSE channel exists)."
+    },
+    "E3-S3": {
+      "status": "partial",
+      "evidence": [
+        "src/memory/memory.ts:52",
+        "src/routes/memory.ts",
+        "test/integration/memory-privacy.spec.ts",
+        "test/memory/domain.test.ts"
+      ],
+      "note": "3-state privacy filter fully implemented + tested -- `src/memory/memory.ts` visibleTo (open/private/shared-private), `test/memory/domain.test.ts`, `test/memory/routes.test.ts`, `test/integration/memory-privacy.spec.ts`. Missing: the consent pipeline + knowledge exclusion contract (NFR-SA2/3)."
+    },
+    "E3-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no bi-temporal lifecycle, Reconcile, or confirm-gate sole-mutation logic."
+    },
+    "E3-S5": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no FR-31 deterministic weave or team-aware schema."
+    },
+    "E4-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no Prompt Composer enrichment orchestration / context-budget logic (chat-import enrichTitle is a separate concern)."
+    },
+    "E4-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no private-memory guard / per-use consent / egress audit in a composer."
+    },
+    "E4-S3": {
+      "status": "absent",
+      "evidence": [
+        "src/composition/composeView.ts:59"
+      ],
+      "note": "no composer degradation-first fallback (note: `src/composition/composeView.ts` has a generic per-pane degrade pattern, but that is the ENG-1531 composition tier, not the Composer)."
+    },
+    "E4-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no Composer read-your-writes / per-card ordering."
+    },
+    "E5-S1": {
+      "status": "partial",
+      "evidence": [
+        "src/cards/card.ts",
+        "test/cards/card-multi-kind.test.ts"
+      ],
+      "note": "Card-Contract-v1 resolution present + tested (`src/cards/card.ts`, `test/cards/`). Missing: the `engineGate()` merge resolution-order + invariants."
+    },
+    "E5-S2": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no Curation Queue (grouped proposals / per-group bulk)."
+    },
+    "E5-S3": {
+      "status": "partial",
+      "evidence": [
+        "src/drafts/domain.ts",
+        "src/skills/index.ts:65"
+      ],
+      "note": "generic reversible draft/commit/discard (`src/drafts/`) + zero-LLM deterministic render present + tested. Missing: the tiered write-mode ladder itself."
+    },
+    "E5-S4": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no structure evolution, delegated gate primitives, or async distillation."
+    },
+    "E5-S5": {
+      "status": "partial",
+      "evidence": [
+        "src/curator/classifyOnSave.ts",
+        "test/CuratorClassifiesSkillOnSaveViaAiSibling.test.ts"
+      ],
+      "note": "classify-on-save via the AI sibling implemented + tested -- `src/curator/classifyOnSave.ts`, `test/CuratorClassifiesSkillOnSaveViaAiSibling.test.ts` + `test/curator-*.test.ts`. Missing: the classifyOnSave to staging submit / supersession forwarding."
+    },
+    "E6-S1": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no Chat History store, retention, or purge."
+    },
+    "E6-S2": {
+      "status": "partial",
+      "evidence": [
+        "src/import/parseTranscript.ts",
+        "src/import/enrichTitle.ts",
+        "src/routes/import.ts",
+        "test/integration/ChatImportConvertsTranscriptToSkillDraft.spec.ts"
+      ],
+      "note": "deterministic transcript parse + enrich-degrade + draft staging/commit implemented + tested -- `src/import/parseTranscript.ts`, `enrichTitle.ts`, `src/routes/import.ts`, `test/chat-import-*`, `test/integration/ChatImportConvertsTranscriptToSkillDraft.spec.ts`. Missing: per-provider parse adapters + workflow-orchestrated idempotent import."
+    },
+    "E6-S3": {
+      "status": "absent",
+      "evidence": [
+        "src/routes/import.ts:60"
+      ],
+      "note": "no paste-prompt quick-import per-tier routing (the single `/v1/import/chat` transcript path exists, but not this surface)."
+    },
+    "E7-S1": {
+      "status": "present",
+      "evidence": [
+        "src/demo/seed.ts",
+        "src/demo/guard.ts",
+        "src/routes/demo.ts",
+        "test/integration/demo-world.spec.ts"
+      ],
+      "note": "demo lifecycle + flag discipline implemented -- `src/demo/seed.ts` (DEMO_TENANT_ID, `Demo:`-prefixed fixtures), read-only `src/demo/guard.ts`, `src/routes/demo.ts`, own `demoRepository`. Tested: `test/demo/seed.test.ts`, `guard.test.ts`, `routes.test.ts`, `test/integration/demo-world.spec.ts`."
+    },
+    "E7-S2": {
+      "status": "absent",
+      "evidence": [
+        "src/clients/workflows.ts:22"
+      ],
+      "note": "`WorkflowsClient.startGraduation` throws NotImplemented; no graduation saga step-APIs."
+    },
+    "E8-S1": {
+      "status": "absent",
+      "evidence": [
+        "src/clients/wikiApi.ts:19"
+      ],
+      "note": "`src/clients/wikiApi.ts` is a seam-only scaffold -- `writePage` throws NotImplemented; no CAS, history, or quota-402 handling."
+    },
+    "E8-S2": {
+      "status": "partial",
+      "evidence": [
+        "src/routes/query.ts",
+        "test/query.test.ts"
+      ],
+      "note": "instant-search BFF relay to knowledge POST `/v1/query` present + tested (`src/routes/query.ts`, `test/query.test.ts`). Missing: the Ask (7 pound, gated) proxy half."
+    },
+    "E8-S3": {
+      "status": "absent",
+      "evidence": [
+        "src/clients/identity.ts:43"
+      ],
+      "note": "`IdentityClient.actAsUser` throws NotImplemented; no native read pane or hover cards."
+    },
+    "E9-S1": {
+      "status": "partial",
+      "evidence": [
+        "src/events/entitlement.ts",
+        "test/sse.test.ts",
+        "src/clients/billing.ts:35"
+      ],
+      "note": "SSE entitlement channel fully implemented + tested -- `src/events/entitlement.ts` (EntitlementChannel, sseHandler, cloudEventHandler), `test/sse.test.ts`, `test/tiers.test.ts`. Missing: the entitlement-check client primitive (`BillingClient.checkEntitlement` throws NotImplemented)."
+    },
+    "E9-S2": {
+      "status": "absent",
+      "evidence": [
+        "src/routes/billing.ts"
+      ],
+      "note": "`src/routes/billing.ts` returns honest-empty; no product-edge allowance enforcement or billing/pricing render."
+    },
+    "E9-S3": {
+      "status": "absent",
+      "evidence": [],
+      "note": "no MCP-facing domain APIs, tier-enforcement, or rate-limiting."
+    },
+    "E9-S4": {
+      "status": "absent",
+      "evidence": [
+        "src/clients/workflows.ts"
+      ],
+      "note": "`WorkflowsClient` step methods throw NotImplemented; no step-APIs/callbacks mounted; no degradation matrix."
+    }
+  },
+  "summary": "orvex-studio-api is a thin (~4k LOC) Hono BFF that is mostly an honest scaffold: a real six-tier substrate (config/clients/middleware/routes/store) with a handful of fully-built, well-tested vertical slices -- skills CRUD + deterministic Card-Contract-v1 render (E2-S1), the demo world (E7-S1), 3-state Memory privacy, generic draft/commit, chat-import parse, cell-guard, the SSE entitlement channel, and the composition/query relays. 2 of 37 stories are present, 15 partial, 20 absent. The large domains -- Composer (E4), Curator queue/staging (E5 mostly), Chat History (E6-S1), DocmostPort (E8-S1), tiers/MCP/workflows (E9-S2/3/4), marketplace/reputation (E2-S3/4), and Memory lifecycle/weave (E3-S2/4/5) -- are unbuilt or seam-only, and several sibling clients (billing.checkEntitlement, wikiApi.writePage, identity.actAsUser, workflows.*) still throw NotImplemented."
+}

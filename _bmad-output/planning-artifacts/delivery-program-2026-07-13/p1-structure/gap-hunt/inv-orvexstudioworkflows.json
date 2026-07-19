@@ -1,0 +1,29 @@
+{
+ "space": "orvexstudioworkflows",
+ "pages": [
+  {
+   "slug": "7LGGFR5tGE",
+   "title": "Architecture Audit — SE-Arch review (2026-07-05)",
+   "doc_type": "technical-spec",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "JiIyp0RLLJ",
+   "title": "Architecture: orvex-studio-workflows",
+   "doc_type": "architecture",
+   "status": "canonical",
+   "requirement_bearing": true,
+   "already_read": true
+  },
+  {
+   "slug": "4IF3xjIdAs",
+   "title": "PRD: orvex-studio-workflows",
+   "doc_type": "prd",
+   "status": "draft",
+   "requirement_bearing": true,
+   "already_read": true
+  }
+ ]
+}

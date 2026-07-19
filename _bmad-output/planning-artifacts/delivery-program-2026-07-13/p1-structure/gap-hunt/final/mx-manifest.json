@@ -1,0 +1,37 @@
+[
+  {
+    "file": "mx-1.md",
+    "title": "[extension] Provider-connection requires only in-browser provider sign-in + designed connection empty/again state (FR-CN3, FR-CN4)",
+    "project": "Orvex Studio Extension",
+    "milestone": "B2 — Auth & connection (one-step connect, per-assistant status)",
+    "blocked_by": ["ENG-2690"]
+  },
+  {
+    "file": "mx-2.md",
+    "title": "[extension] Injected memory as untrusted data + fail-closed consent/connection revocation + cross-assistant neutrality (FR-CF4, FR-CF5, NFR-3)",
+    "project": "Orvex Studio Extension",
+    "milestone": "B4 — Consent & firewall gate",
+    "blocked_by": ["ENG-2690"]
+  },
+  {
+    "file": "mx-3.md",
+    "title": "[extension] Tier-as-data signed remote config channel + contracts seam & generated TS client (AD-EXT-2, AD-EXT-8)",
+    "project": "Orvex Studio Extension",
+    "milestone": "B1 — Foundation (MV3 scaffold, build+CI, contracts-codegen client)",
+    "blocked_by": ["ENG-2690"]
+  },
+  {
+    "file": "mx-4.md",
+    "title": "[workflows] Migrate namespace-local default Broker to shared studio-spine + Trigger DLQ/retry + orvexcell cell-suffixed topics (F-BROKER)",
+    "project": "Orvex Studio Workflows",
+    "milestone": "B3 — Retry taxonomy & delivery hardening (G2 loss-window fixes)",
+    "blocked_by": ["ENG-2107"]
+  },
+  {
+    "file": "mx-5.md",
+    "title": "[identity] SE-Arch audit repo-side cleanups (F7 stale comment, F8 topology/binary-name reconcile, F10 config-key alignment)",
+    "project": "Orvex Studio Identity",
+    "milestone": "B8 — Persistence, cell-contract conformance & security ops",
+    "blocked_by": ["ENG-2101"]
+  }
+]

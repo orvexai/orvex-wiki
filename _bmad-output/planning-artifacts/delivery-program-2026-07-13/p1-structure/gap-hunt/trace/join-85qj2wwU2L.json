@@ -1,0 +1,286 @@
+{
+ "slug": "85qj2wwU2L",
+ "total": 56,
+ "results": [
+  {
+   "id": "FR-SA1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2301"
+  },
+  {
+   "id": "FR-SA2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2302"
+  },
+  {
+   "id": "FR-SA3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2303"
+  },
+  {
+   "id": "FR-SA4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2304"
+  },
+  {
+   "id": "FR-SA5",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2305,ENG-2306"
+  },
+  {
+   "id": "FR-SA6",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2307"
+  },
+  {
+   "id": "FR-SA7",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2307"
+  },
+  {
+   "id": "FR-SA8",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2309"
+  },
+  {
+   "id": "FR-SA9",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2310"
+  },
+  {
+   "id": "FR-SA10",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2311"
+  },
+  {
+   "id": "FR-SA11",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2312"
+  },
+  {
+   "id": "FR-SA12",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2314,ENG-2318"
+  },
+  {
+   "id": "FR-SA13",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2315"
+  },
+  {
+   "id": "FR-SA14",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2316"
+  },
+  {
+   "id": "FR-SA15",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2317"
+  },
+  {
+   "id": "FR-SA16",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2317"
+  },
+  {
+   "id": "FR-SA17",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2317"
+  },
+  {
+   "id": "FR-SA18",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2319"
+  },
+  {
+   "id": "FR-SA19",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2320"
+  },
+  {
+   "id": "FR-SA20",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2321"
+  },
+  {
+   "id": "FR-SA21",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2322"
+  },
+  {
+   "id": "FR-SA22",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2323"
+  },
+  {
+   "id": "FR-SA23",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2324"
+  },
+  {
+   "id": "FR-SA24",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2325"
+  },
+  {
+   "id": "FR-SA25",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2326"
+  },
+  {
+   "id": "FR-SA26",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2326"
+  },
+  {
+   "id": "FR-SA27",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2327"
+  },
+  {
+   "id": "FR-SA28",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2328"
+  },
+  {
+   "id": "FR-SA29",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2295"
+  },
+  {
+   "id": "FR-SA30",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2329"
+  },
+  {
+   "id": "FR-SA31",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2297,ENG-2298"
+  },
+  {
+   "id": "FR-SA32",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2330"
+  },
+  {
+   "id": "FR-SA33",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2299"
+  },
+  {
+   "id": "FR-SA34",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2294,ENG-2299"
+  },
+  {
+   "id": "NFR-SA1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2310,ENG-2315"
+  },
+  {
+   "id": "NFR-SA2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2307"
+  },
+  {
+   "id": "NFR-SA3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2307,ENG-2329"
+  },
+  {
+   "id": "NFR-SA4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2301"
+  },
+  {
+   "id": "NFR-SA5",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2312,ENG-2330"
+  },
+  {
+   "id": "NFR-SA6",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2299,ENG-2330"
+  },
+  {
+   "id": "NFR-SA7",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2294"
+  },
+  {
+   "id": "NFR-SA8",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2294"
+  },
+  {
+   "id": "FR-M1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2305,ENG-2449"
+  },
+  {
+   "id": "FR-M2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2305,ENG-2450"
+  },
+  {
+   "id": "FR-M3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2305,ENG-2453,ENG-2454,ENG-2456"
+  },
+  {
+   "id": "FR-M4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2305,ENG-2452"
+  },
+  {
+   "id": "FR-L1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2143,ENG-2308"
+  },
+  {
+   "id": "FR-L2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2144,ENG-2308"
+  },
+  {
+   "id": "FR-L3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2144,ENG-2308"
+  },
+  {
+   "id": "FR-L4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2145,ENG-2308"
+  },
+  {
+   "id": "FR-L5",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2146,ENG-2308"
+  },
+  {
+   "id": "FR-T1",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2309"
+  },
+  {
+   "id": "FR-T2",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2309"
+  },
+  {
+   "id": "FR-T3",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2309"
+  },
+  {
+   "id": "FR-T4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2309"
+  },
+  {
+   "id": "AD-4",
+   "verdict": "COVERED",
+   "owner_or_reason": "ENG-2308,ENG-2318"
+  }
+ ]
+}

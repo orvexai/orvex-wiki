@@ -1,0 +1,425 @@
+{
+ "service": "orvex-studio-contracts",
+ "requirement_source": "PRD: orvex-studio-contracts (jwF4VLHfNs, draft) + Architecture: orvex-studio-contracts (o2waDNw3ix, canonical) \u2014 FR/NFR id scheme is FR-Cn / NFR-Cn; architecture adds ADR-style A-* decisions + SE-Arch tightening T1-T7 (incl. ratified ADR-0008 change-authority).",
+ "sources": [
+  {
+   "slug": "jwF4VLHfNs",
+   "title": "PRD: orvex-studio-contracts"
+  },
+  {
+   "slug": "o2waDNw3ix",
+   "title": "Architecture: orvex-studio-contracts"
+  },
+  {
+   "slug": "nngOgO0CGO",
+   "title": "Architecture Audit \u2014 SE-Arch review (2026-07-05)"
+  }
+ ],
+ "epics": [
+  {
+   "id": "E1",
+   "title": "[EPIC] contracts: Repo foundation, validation CI & versioning keystones",
+   "body_file": "bodies/E1.md",
+   "stories": [
+    {
+     "id": "E1-S1",
+     "title": "[contracts] A-LAYOUT directory scaffold + README layout-table sync",
+     "body_file": "bodies/E1-S1.md",
+     "covers": [
+      "NFR-C6"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S2",
+     "title": "[contracts] Self-validation CI (validate.yaml): OpenAPI/JSON-Schema lint + cross-ref + version-required + $id/servers hygiene",
+     "body_file": "bodies/E1-S2.md",
+     "covers": [
+      "NFR-C6",
+      "FR-C17"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S3",
+     "title": "[contracts] SEAMS.md seam inventory + referenced-but-unpinned build-blocking check",
+     "body_file": "bodies/E1-S3.md",
+     "covers": [
+      "NFR-C4"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S4",
+     "title": "[contracts] Versioning & change policy: VERSION/CHANGELOG/semver tags/x-status + first v0.1.0 tag",
+     "body_file": "bodies/E1-S4.md",
+     "covers": [
+      "FR-C17",
+      "NFR-C2"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S5",
+     "title": "[contracts] Authored-not-generated provenance guard: PR-template attestation + generator-signature lint",
+     "body_file": "bodies/E1-S5.md",
+     "covers": [
+      "NFR-C1"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E1-S6",
+     "title": "[contracts] Shared _components: error envelope, pagination, bearer + workload-identity auth schemes",
+     "body_file": "bodies/E1-S6.md",
+     "covers": [
+      "FR-C1"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E2",
+   "title": "[EPIC] contracts: OpenAPI seam surfaces (engine + satellites)",
+   "body_file": "bodies/E2.md",
+   "stories": [
+    {
+     "id": "E2-S1",
+     "title": "[contracts] engine-primitives.yaml operations (blocks/ACL/export/api-key/exchange/provision/F-QUOTA)",
+     "body_file": "bodies/E2-S1.md",
+     "covers": [
+      "FR-C1"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S2",
+     "title": "[contracts] knowledge-query.yaml + knowledge-projection.yaml",
+     "body_file": "bodies/E2-S2.md",
+     "covers": [
+      "FR-C2"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S3",
+     "title": "[contracts] identity.yaml incl. issuer-registry/JWKS-mirror (x-status: draft)",
+     "body_file": "bodies/E2-S3.md",
+     "covers": [
+      "FR-C3"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S4",
+     "title": "[contracts] internal-tier OpenAPI: keyword-upsert + rebuild step-APIs (workload-identity)",
+     "body_file": "bodies/E2-S4.md",
+     "covers": [
+      "FR-C4"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S5",
+     "title": "[contracts] wiki-api.yaml: verb grammar + receipts + CAS + spec-gate transport + comment/attachment + QUOTA passthrough",
+     "body_file": "bodies/E2-S5.md",
+     "covers": [
+      "FR-C19"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E2-S6",
+     "title": "[contracts] ai.yaml: cited-ask/RAG + K5 answer schema + spend-cap read/enforce",
+     "body_file": "bodies/E2-S6.md",
+     "covers": [
+      "FR-C22"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-S7",
+     "title": "[contracts] billing.yaml + plan/entitlements JSON schemas (plans/entitlements SoR)",
+     "body_file": "bodies/E2-S7.md",
+     "covers": [
+      "FR-C24"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E2-GAP1",
+     "title": "[contracts] ADR-0015 ruling 7b \u2014 engine-primitives.yaml workspace-existence/HEAD read op (closes the orphan-sweep contract hole)",
+     "body_file": "../gap-hunt/fix-bodies/fix-adr0015-existence-read.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2709"
+    }
+   ]
+  },
+  {
+   "id": "E3",
+   "title": "[EPIC] contracts: Event catalog, envelope profiles & SSE wire contract",
+   "body_file": "bodies/E3.md",
+   "stories": [
+    {
+     "id": "E3-S1",
+     "title": "[contracts] CloudEvent type catalog (events/catalog.yaml)",
+     "body_file": "bodies/E3-S1.md",
+     "covers": [
+      "FR-C6"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E3-S2",
+     "title": "[contracts] Envelope profiles PROFILES.md + type\u2194frame mapping table",
+     "body_file": "bodies/E3-S2.md",
+     "covers": [
+      "FR-C7"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S3",
+     "title": "[contracts] Publisher obligations: version-carry + batch fan-out rule",
+     "body_file": "bodies/E3-S3.md",
+     "covers": [
+      "FR-C8"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S4",
+     "title": "[contracts] Event payload schemas (version required, additionalProperties:false)",
+     "body_file": "bodies/E3-S4.md",
+     "covers": [
+      "FR-C9"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S5",
+     "title": "[contracts] SSE wire contract WIRE.md + EVENTS.md authority flip",
+     "body_file": "bodies/E3-S5.md",
+     "covers": [
+      "FR-C10"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-S6",
+     "title": "[contracts] SSE recorded-risk register RISKS.md",
+     "body_file": "bodies/E3-S6.md",
+     "covers": [
+      "FR-C11"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E3-GAP1",
+     "title": "[contracts] ADR-0035 \u00a71/\u00a76 \u2014 TS CloudEvent envelope + per-type payload codegen (json-schema-to-typescript + ajv) \u2014 the second codegen toolchain",
+     "body_file": "../gap-hunt/fix-bodies/fix-adr0035-ts-cloudevents.md",
+     "covers": [],
+     "audit": "absent",
+     "gap_fix": true,
+     "linear": "ENG-2708"
+    }
+   ]
+  },
+  {
+   "id": "E4",
+   "title": "[EPIC] contracts: Shared identity schemas, source registry & golden/DfM fixtures",
+   "body_file": "bodies/E4.md",
+   "stories": [
+    {
+     "id": "E4-S1",
+     "title": "[contracts] identity schemas: principal/token-scope/roles/token-claims + conformance vectors",
+     "body_file": "bodies/E4-S1.md",
+     "covers": [
+      "FR-C13"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E4-S2",
+     "title": "[contracts] source-adapter registry SCHEMA.yaml + wiki.yaml",
+     "body_file": "bodies/E4-S2.md",
+     "covers": [
+      "FR-C12"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E4-S3",
+     "title": "[contracts] golden markdown/text_repr fixture pairs",
+     "body_file": "bodies/E4-S3.md",
+     "covers": [
+      "FR-C14"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E4-S4",
+     "title": "[contracts] DfM round-trip fixtures + pkg/dfm Go API surface + opaque-node handle shape",
+     "body_file": "bodies/E4-S4.md",
+     "covers": [
+      "FR-C20"
+     ],
+     "audit": "present"
+    }
+   ]
+  },
+  {
+   "id": "E5",
+   "title": "[EPIC] contracts: Error/exit-code vocabulary & MCP REST-gap ledger",
+   "body_file": "bodies/E5.md",
+   "stories": [
+    {
+     "id": "E5-S1",
+     "title": "[contracts] Frozen errorCode + CLI exit-code vocabulary (errors/*.yaml)",
+     "body_file": "bodies/E5-S1.md",
+     "covers": [
+      "FR-C23"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E5-S2",
+     "title": "[contracts] MCP REST-gap ledger (mcp/rest-gap-ledger.yaml)",
+     "body_file": "bodies/E5-S2.md",
+     "covers": [
+      "FR-C5"
+     ],
+     "audit": "partial"
+    }
+   ]
+  },
+  {
+   "id": "E6",
+   "title": "[EPIC] contracts: Gates \u2014 divergence, drift, AGPL-import & parity",
+   "body_file": "bodies/E6.md",
+   "stories": [
+    {
+     "id": "E6-S1",
+     "title": "[contracts] AGPL-import guard config (gates/agpl-import/)",
+     "body_file": "bodies/E6-S1.md",
+     "covers": [
+      "FR-C21",
+      "NFR-C7"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E6-S2",
+     "title": "[contracts] FR-30 divergence-gate config (gates/allowlist/baseline/weighting)",
+     "body_file": "bodies/E6-S2.md",
+     "covers": [
+      "FR-C15"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E6-S3",
+     "title": "[contracts] Contract-drift gates: served-OpenAPI diff + emitted-event + fixture reproduction + SSE conformance",
+     "body_file": "bodies/E6-S3.md",
+     "covers": [
+      "FR-C16",
+      "NFR-C5"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E6-S4",
+     "title": "[contracts] Engine-side FR-31 harness defs: api-key parity + crash-injection/replay-completeness",
+     "body_file": "bodies/E6-S4.md",
+     "covers": [
+      "FR-C16"
+     ],
+     "audit": "absent"
+    },
+    {
+     "id": "E6-S5",
+     "title": "[contracts] DfM parity gate definition (Go pkg/dfm + engine TS, fixture-mediated)",
+     "body_file": "bodies/E6-S5.md",
+     "covers": [
+      "FR-C16",
+      "FR-C20"
+     ],
+     "audit": "present"
+    },
+    {
+     "id": "E6-GAP1",
+     "title": "[contracts] ADR-0004 #2 \u2014 cell-lint-allow trailer MUST carry a non-empty reason; empty/missing fails the gate (fix the trailer matcher + test)",
+     "body_file": "../gap-hunt/fix-bodies/fix-adr0004-celllint.md",
+     "covers": [],
+     "audit": "present",
+     "gap_fix": true,
+     "linear": "ENG-2706"
+    }
+   ]
+  },
+  {
+   "id": "E7",
+   "title": "[EPIC] contracts: Observability conventions & change-authority governance",
+   "body_file": "bodies/E7.md",
+   "stories": [
+    {
+     "id": "E7-S1",
+     "title": "[contracts] obs/CONVENTIONS.md family service-name + OTel attribute conventions",
+     "body_file": "bodies/E7-S1.md",
+     "covers": [
+      "FR-C18"
+     ],
+     "audit": "partial"
+    },
+    {
+     "id": "E7-S2",
+     "title": "[contracts] Change-authority governance: ADR-0008 lane classifier + additive-fast-track review SLA",
+     "body_file": "bodies/E7-S2.md",
+     "covers": [
+      "NFR-C3"
+     ],
+     "audit": "partial"
+    }
+   ]
+  }
+ ],
+ "coverage": {
+  "ids_found": [
+   "FR-C1",
+   "FR-C2",
+   "FR-C3",
+   "FR-C4",
+   "FR-C5",
+   "FR-C6",
+   "FR-C7",
+   "FR-C8",
+   "FR-C9",
+   "FR-C10",
+   "FR-C11",
+   "FR-C12",
+   "FR-C13",
+   "FR-C14",
+   "FR-C15",
+   "FR-C16",
+   "FR-C17",
+   "FR-C18",
+   "FR-C19",
+   "FR-C20",
+   "FR-C21",
+   "FR-C22",
+   "FR-C23",
+   "FR-C24",
+   "NFR-C1",
+   "NFR-C2",
+   "NFR-C3",
+   "NFR-C4",
+   "NFR-C5",
+   "NFR-C6",
+   "NFR-C7"
+  ],
+  "uncovered": []
+ }
+}

@@ -1,0 +1,7 @@
+{
+  "slug": "t1lizeJLTy",
+  "title": "Factors of Competition — How Orvex Compares",
+  "verdict_summary": "Positioning/research artifact only — a Blue-Ocean strategy canvas comparing Orvex to competitors (ChatGPT, PromptBase, Mem0/MemoryPlugin, Notion) across ten factors of competition. Explicitly a directional draft ('for positioning, not benchmarked'), AI-authored from the Product Brief (WA9A1sEol7) and PRD (2HmR5OvjEP), pending human ratification. It mandates NO build work: no formal requirement ids (FR/NFR/A/AD/D/OQ), no build-mandating MUSTs, and no components/repos that must be created (the only repo named, orvex-prompt-studio-poc / design-artifacts/competition/, is cited as the existing poster source). Zero gaps.",
+  "gaps": [],
+  "components": []
+}

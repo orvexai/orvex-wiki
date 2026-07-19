@@ -1,0 +1,15 @@
+{
+  "slug": "Iff6l2VvGt",
+  "title": "ADR-0027: studio.workgraph.* event subdomain — workgraph as a P9 content source (source-adapter, rich-event-inline)",
+  "verdict_summary": "Canonical/ratified ADR (2026-07-10). It is a contracts-taxonomy + cross-service indexing-authority decision layered on the workgraph PRD (Kgp6JT3IOR) + spine (bnbRUdCm6R). It mandates concrete build work (workgraph subdomain/producer, P9 source-adapter sources/workgraph.yaml with acl_primitive, rich-event-inline indexing into knowledge, GDPR purge cascade, full sync-verb contract surface, batch deterministic event ids, console anomaly-detector event inputs, retrieval SLO spike). Every one of these obligations is covered by the orvex-studio-workgraph pack (feature-map lines 696-760): Events/projection story (source-adapter + sources/workgraph.yaml + acl_primitive + OTel), authz chokepoint + namespace isolation, Hard cascading delete + knowledge purge, Batch per-resource event fan-out, three anomaly detectors + knowledge projections, Retrieval spike publish SLOs, plus MCP/CLI/prime/recall/ready-stats/handoff/grants verb surfaces. All referenced FR-MEM10/11/13/14/16 and NFR-MEM1 are present in covers-union.json. No build obligation is unmet — zero gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "orvex-studio-workgraph (producer service, studio.workgraph.* subdomain)", "quote": "Subdomain minted: studio.workgraph.<resource>.<past-tense>, producer orvex-studio-workgraph"},
+    {"name": "sources/workgraph.yaml (P9 source-adapter in contracts, acl_primitive)", "quote": "Workgraph registers as a P9 source-adapter (sources/workgraph.yaml in contracts)... acl_primitive is shaped {principal, candidate_ids[]} → allowed_ids[], fail-closed"},
+    {"name": "orvex-studio-knowledge workgraph source-adapter + projection", "quote": "orvex-studio-knowledge gains the workgraph source-adapter + projection (the console fleet view reads knowledge projections)"},
+    {"name": "GDPR purge event (hard delete cascade into knowledge index)", "quote": "A GDPR purge event is shaped alongside the source-adapter (hard delete cascades into knowledge's index, FR-MEM13 — erasure wins over restore promises)"},
+    {"name": "Full sync-verb contract surface (prime, ready, recall, search, stats, handoff, grants, batch)", "quote": "prime, ready, recall, search, stats, handoff, grants, batch request/response schemas — every adapter (MCP workgraph_*, CLI, KG interop, Claude memory-tool backend) and cmd/api codegen from that one tag"},
+    {"name": "Console anomaly-detector event inputs (resolution enum, re-open counter, edge-target status)", "quote": "Event schemas carry the console anomaly-detector inputs: a close resolution enum (including rejected), a per-item re-open counter, and edge-target status on edge events"},
+    {"name": "Retrieval spike validating hybrid/fast-path SLOs (NFR-MEM1)", "quote": "The retrieval spike (NFR-MEM1) validates the ≤500ms hybrid / ≤100ms fast-path SLOs on this topology before GA"}
+  ]
+}

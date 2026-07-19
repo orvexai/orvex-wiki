@@ -1,0 +1,15 @@
+{
+  "slug": "WZWmazrlS0",
+  "title": "ADR-0029: MCP identity edge-verifier cutover (ruling 8 revocation, no bridge)",
+  "verdict_summary": "Draft ADR / decision record for ENG-1405 (AC1-AC8) — it records rulings (verifier repoint, legacy removal, tenant:subject session rebind, caller-token pass-through, deny-by-default scope gate, Kafka revocation consumer) rather than introducing new formal requirements. Every build obligation it captures derives from already-covered FR-M*/FR-I*/FR-C13 ids and is carried by concrete orvex-studio-mcp stories: 'TS verifier binding: multi-issuer JWKS -> deny-by-default scope gate -> principal', 'Token pass-through: caller token verbatim on every upstream, no service credential', 'Stateless shim: no DB... jti window retires at R1', 'Raw in-process Kafka revocation consumer -> deny-list apply (ADR-0013)', and 'Six studio_* product tools with caller-token pass-through + fail-closed scope gate'. FR-M1..M19, FR-I1..I20, FR-C13, FR-L1..L30 are all present in covers-union. No uncovered BUILD obligation. Zero gaps.",
+  "gaps": [],
+  "components": [
+    {"name": "IdentityJwtVerifier (src/auth/identity-verifier.ts)", "quote": "JwtVerifier's Studio-JWKS + resolve flow is replaced at the edge by IdentityJwtVerifier (src/auth/identity-verifier.ts, already built and unit-tested this program)"},
+    {"name": "HttpIntrospector (src/auth/http-introspector.ts)", "quote": "TTL-bounded introspection (HttpIntrospector, src/auth/http-introspector.ts, already built)"},
+    {"name": "requireScope() deny-by-default scope gate", "quote": "requireScope() (src/auth/identity-verifier.ts, built) is a pure function; it must be invoked BEFORE every upstream call site"},
+    {"name": "revocation-consumer.ts (in-process Kafka revocation consumer)", "quote": "wiring the driver into revocation-consumer.ts remains blocked on that shipment"},
+    {"name": "DocmostWrapper / StudioWrapper (egress token pass-through)", "quote": "the MCP's DocmostWrapper/StudioWrapper must forward the caller's own identity-minted bearer token to wiki-api/ai byte-for-byte"},
+    {"name": "transport/http.ts + transport/stdio.ts (session-identity rebind sid -> tenant:subject)", "quote": "transport/stdio.ts's single-principal claims.sid reference repoints to principal.subject"},
+    {"name": "identity/principal.schema.json (frozen Principal)", "quote": "the IdP-agnostic org-scoped Principal {idp, subject, tenant, org_or_realm, roles, token_scope} (pinned, identity/principal.schema.json, FROZEN ENG-1537)"}
+  ]
+}

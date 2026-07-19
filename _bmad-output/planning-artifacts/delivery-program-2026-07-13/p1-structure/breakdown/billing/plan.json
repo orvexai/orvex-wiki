@@ -1,0 +1,113 @@
+{
+  "service": "orvex-studio-billing",
+  "requirement_source": "PRD Blcvui4UIn (PRD: orvex-studio-billing, canonical post-ENG-2036) + Architecture o2ZqSrZjE6 (A-XXX ADR-style rulings)",
+  "sources": [
+    {"slug": "Blcvui4UIn", "title": "PRD: orvex-studio-billing"},
+    {"slug": "o2ZqSrZjE6", "title": "Architecture: orvex-studio-billing"},
+    {"slug": "ukKiIMWYRg", "title": "Architecture Audit — SE-Arch review (2026-07-05)"}
+  ],
+  "epics": [
+    {
+      "id": "E1",
+      "title": "[EPIC] billing: plan catalog, pricing data & Stripe object model",
+      "body_file": "bodies/E1.md",
+      "stories": [
+        {"id": "E1-S1", "title": "[billing] Versioned plan catalog schema + GET /v1/plans public read (enterprise excluded server-side)", "body_file": "bodies/E1-S1.md", "covers": ["FR-B1"], "audit": "partial"},
+        {"id": "E1-S2", "title": "[billing] Stripe Product/Price scheme with versioned lookup_keys + startup/CI mode-resolution assertion", "body_file": "bodies/E1-S2.md", "covers": ["FR-B2"], "audit": "partial"},
+        {"id": "E1-S3", "title": "[billing] VAT-inclusive GBP-only pricing display + automatic_tax + annual '2 months free' metadata", "body_file": "bodies/E1-S3.md", "covers": ["FR-B3"], "audit": "partial"},
+        {"id": "E1-S4", "title": "[billing] Teams interest capture POST /v1/plans/teams/interest + admin interest-list export", "body_file": "bodies/E1-S4.md", "covers": ["FR-B3a"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E2",
+      "title": "[EPIC] billing: the entitlement record & the one check primitive",
+      "body_file": "bodies/E2.md",
+      "stories": [
+        {"id": "E2-S1", "title": "[billing] Append-only entitlement_versions schema + current projection + polymorphic principal (migration 001)", "body_file": "bodies/E2-S1.md", "covers": ["FR-B4"], "audit": "present"},
+        {"id": "E2-S2", "title": "[billing] GET /v1/entitlements/{principal_type}/{principal_id} check primitive + Redis event-evicted cache", "body_file": "bodies/E2-S2.md", "covers": ["FR-B5", "NFR-B1"], "audit": "partial"},
+        {"id": "E2-S3", "title": "[billing] lib/entitlements client + fail-consistent semantics + contracts conformance fixtures (Go + engine TS client)", "body_file": "bodies/E2-S3.md", "covers": ["FR-B5", "NFR-B4"], "audit": "partial"},
+        {"id": "E2-S4", "title": "[billing] Gated-feature-key enum + act-as-user delegation resolution + per-capability API gate tests", "body_file": "bodies/E2-S4.md", "covers": ["FR-B6"], "audit": "partial"}
+      ]
+    },
+    {
+      "id": "E3",
+      "title": "[EPIC] billing: cap/quota policy registry & entitlement-change propagation",
+      "body_file": "bodies/E3.md",
+      "stories": [
+        {"id": "E3-S1", "title": "[billing] cap_policies registry per plan-version (two AI cap lines + curator/trial/demo caps)", "body_file": "bodies/E3-S1.md", "covers": ["FR-B17"], "audit": "present"},
+        {"id": "E3-S2", "title": "[billing] Wiki quota values in the catalog (Free locked, Personal pending-freeze) served in caps{}", "body_file": "bodies/E3-S2.md", "covers": ["FR-B17a"], "audit": "present"},
+        {"id": "E3-S3", "title": "[billing] billing.entitlement.changed publish + Redis cache evict + reconcile canonical-record path", "body_file": "bodies/E3-S3.md", "covers": ["FR-B7"], "audit": "partial"},
+        {"id": "E3-S4", "title": "[billing] Synchronous cap push to ai (workload-identity PUT cap endpoint) — two sibling cap lines", "body_file": "bodies/E3-S4.md", "covers": ["FR-B7"], "audit": "absent"},
+        {"id": "E3-S5", "title": "[billing] Paywall-dissolve UI push <60s both products (BFF SSE + engine cache-evict semantics)", "body_file": "bodies/E3-S5.md", "covers": ["FR-B7"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E4",
+      "title": "[EPIC] billing: the Stripe money path — checkout, portal, webhook & flips",
+      "body_file": "bodies/E4.md",
+      "stories": [
+        {"id": "E4-S1", "title": "[billing] POST /v1/checkout — Stripe Checkout session, server-set metadata.principal, purchase authz", "body_file": "bodies/E4-S1.md", "covers": ["FR-B8", "NFR-B6"], "audit": "present"},
+        {"id": "E4-S2", "title": "[billing] POST /v1/portal — Customer Portal session + config-as-code proration policy", "body_file": "bodies/E4-S2.md", "covers": ["FR-B9"], "audit": "present"},
+        {"id": "E4-S3", "title": "[billing] Webhook receiver pipeline: verify → journal-raw → idempotency ledger → authoritative re-fetch → apply", "body_file": "bodies/E4-S3.md", "covers": ["FR-B10", "NFR-B3"], "audit": "partial"},
+        {"id": "E4-S4", "title": "[billing] Global-tier thin Stripe forwarder + home-cell routing via control-plane registry (A-CELL-ROUTING)", "body_file": "bodies/E4-S4.md", "covers": ["FR-B10"], "audit": "absent"},
+        {"id": "E4-S5", "title": "[billing] Flip semantics — one entitlement version per lifecycle transition + GET /v1/billing-state", "body_file": "bodies/E4-S5.md", "covers": ["FR-B11", "NFR-B2"], "audit": "partial"},
+        {"id": "E4-S6", "title": "[billing] Test-clock money-path E2E CI gate (monthly+annual+dunning+cancel+re-subscribe+retro fixture), red-blocking", "body_file": "bodies/E4-S6.md", "covers": ["FR-B12"], "audit": "partial"}
+      ]
+    },
+    {
+      "id": "E5",
+      "title": "[EPIC] billing: the trial state machine & retroactive backfill",
+      "body_file": "bodies/E5.md",
+      "stories": [
+        {"id": "E5-S1", "title": "[billing] No-card trial temporary entitlement grant + trial_grants email-HMAC dedupe", "body_file": "bodies/E5-S1.md", "covers": ["FR-B13"], "audit": "absent"},
+        {"id": "E5-S2", "title": "[billing] Trial lifecycle step APIs (trial-start / trial-expire) + expiry-flip = lapse semantics", "body_file": "bodies/E5-S2.md", "covers": ["FR-B14"], "audit": "absent"},
+        {"id": "E5-S3", "title": "[billing] Trial fair-use throttle (100/wk advisory → 150) computed from Redis counters, surfaced in check", "body_file": "bodies/E5-S3.md", "covers": ["FR-B15"], "audit": "absent"},
+        {"id": "E5-S4", "title": "[billing] Retroactive trial backfill step (backfill-batch, idempotent, resumable, cohort count)", "body_file": "bodies/E5-S4.md", "covers": ["FR-B16"], "audit": "absent"}
+      ]
+    },
+    {
+      "id": "E6",
+      "title": "[EPIC] billing: metering ingestion, usage journal & reconciliation",
+      "body_file": "bodies/E6.md",
+      "stories": [
+        {"id": "E6-S1", "title": "[billing] cmd/metering worker consumes ai.usage.recorded → Postgres journal append table + Redis counters", "body_file": "bodies/E6-S1.md", "covers": ["FR-B18"], "audit": "partial"},
+        {"id": "E6-S2", "title": "[billing] Cost-center = call-site × principal + report-only ai.cap.* journaling", "body_file": "bodies/E6-S2.md", "covers": ["FR-B19"], "audit": "partial"},
+        {"id": "E6-S3", "title": "[billing] GET /v1/usage/{principal_type}/{principal_id} reporting surface", "body_file": "bodies/E6-S3.md", "covers": ["FR-B20"], "audit": "absent"},
+        {"id": "E6-S4", "title": "[billing] Reconciliation schedules — subscription sweep, cap re-assert, journal checksum + drift alerts", "body_file": "bodies/E6-S4.md", "covers": ["FR-B21", "NFR-B5"], "audit": "partial"}
+      ]
+    },
+    {
+      "id": "E7",
+      "title": "[EPIC] billing: auth, admin, workflow step APIs & GDPR",
+      "body_file": "bodies/E7.md",
+      "stories": [
+        {"id": "E7-S1", "title": "[billing] Edge auth + three route classes + tenant-scoped reads + console-fronted admin mutations", "body_file": "bodies/E7-S1.md", "covers": ["FR-B24"], "audit": "partial"},
+        {"id": "E7-S2", "title": "[billing] Workflow step-API surface — WorkloadIdentityOnly + idempotency + typed retryable/terminal envelope", "body_file": "bodies/E7-S2.md", "covers": ["FR-B25", "NFR-B3"], "audit": "absent"},
+        {"id": "E7-S3", "title": "[billing] GDPR purge step — cancel sub, delete Stripe Customer, pseudonymize journal + entitlement history", "body_file": "bodies/E7-S3.md", "covers": ["FR-B22", "NFR-B7"], "audit": "absent"},
+        {"id": "E7-S4", "title": "[billing] Entitlement-decision audit append table + admin/destructive audit stream", "body_file": "bodies/E7-S4.md", "covers": ["FR-B23"], "audit": "partial"}
+      ]
+    },
+    {
+      "id": "E8",
+      "title": "[EPIC] billing: persistence, event spine, cell-contract & observability platform",
+      "body_file": "bodies/E8.md",
+      "stories": [
+        {"id": "E8-S1", "title": "[billing] Persistence split — Postgres tables + Redis, no Mongo, purge-safe cache keys", "body_file": "bodies/E8-S1.md", "covers": ["FR-B26"], "audit": "partial"},
+        {"id": "E8-S2", "title": "[billing] Events published/consumed on studio-spine (CloudEvents, orvexcell fail-closed extension)", "body_file": "bodies/E8-S2.md", "covers": ["FR-B27"], "audit": "present"},
+        {"id": "E8-S3", "title": "[billing] Cell-contract compliance — healthz CELL_ID+CLUSTER_NAME, 421 guard, tenant-move step class + TENANT_MOVE.md", "body_file": "bodies/E8-S3.md", "covers": ["NFR-B8", "FR-B28"], "audit": "partial"},
+        {"id": "E8-S4", "title": "[billing] Observability & SLIs — OTel/Prometheus flip-lag, check-latency, cache-hit, journal + webhook SLIs, Alertmanager", "body_file": "bodies/E8-S4.md", "covers": ["FR-B28"], "audit": "partial"},
+        {"id": "E8-S5", "title": "[billing] NFR conformance harness — latency, flip-lag, idempotency, fail-consistency, money-correctness, security, privacy", "body_file": "bodies/E8-S5.md", "covers": ["NFR-B1", "NFR-B2", "NFR-B3", "NFR-B4", "NFR-B5", "NFR-B6", "NFR-B7", "NFR-B8"], "audit": "partial"}
+      ]
+    }
+  ],
+  "coverage": {
+    "ids_found": [
+      "FR-B1", "FR-B2", "FR-B3", "FR-B3a", "FR-B4", "FR-B5", "FR-B6", "FR-B7",
+      "FR-B8", "FR-B9", "FR-B10", "FR-B11", "FR-B12", "FR-B13", "FR-B14", "FR-B15",
+      "FR-B16", "FR-B17", "FR-B17a", "FR-B18", "FR-B19", "FR-B20", "FR-B21", "FR-B22",
+      "FR-B23", "FR-B24", "FR-B25", "FR-B26", "FR-B27", "FR-B28",
+      "NFR-B1", "NFR-B2", "NFR-B3", "NFR-B4", "NFR-B5", "NFR-B6", "NFR-B7", "NFR-B8"
+    ],
+    "uncovered": []
+  }
+}
