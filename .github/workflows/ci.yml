@@ -617,18 +617,13 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Family cell-contract gate (reusable workflow from the contracts seam).
-  # NOT in the ci-success fan-in yet: first-ever cross-repo run — promote into
-  # `needs:` once it has run green on real pushes (Houston promote-later
-  # pattern). Repo passes it as of 2026-07-06 (operator ruling 3b: annotated
-  # cell-lint-allow exceptions for crew public-ingress sibling URLs).
+  # Re-enabled 2026-07-19 (M14 org-wide rollout, cell-contract.md): the prior
+  # cross-repo build-time failure (0 jobs created) was an org Actions access-
+  # policy gap on orvex-studio-contracts, now fixed (access_level=organization,
+  # verified live). In ci-success's needs: below.
   # ---------------------------------------------------------------------------
-  # cell-lint (family gate) is temporarily disabled: the cross-repo reusable-
-  # workflow call fails orvex-wiki's whole workflow graph at build time (0 jobs
-  # created), which would block this repo's own gates. Re-enable once the
-  # cross-repo call is proven resolvable (org reusable-workflow access + a
-  # clean cell-lint.yml on contracts' default branch). Tracked in the handoff.
-  # cell-lint:
-  #   uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
+  cell-lint:
+    uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
 
   # ---------------------------------------------------------------------------
   # CI Success Gate — the single required check for branch protection.
@@ -656,6 +651,7 @@ jobs:
       - security
       - sbom-generation
       - workflow-lint
+      - cell-lint
     runs-on: public-runners
     if: always()
     steps:
