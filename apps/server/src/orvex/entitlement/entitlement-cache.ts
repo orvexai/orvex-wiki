@@ -14,6 +14,9 @@ const KEY_PREFIX = 'entitlement';
 // in the PR) evicts this key immediately on a real plan change; the TTL is
 // only the worst-case staleness bound if that eviction is ever missed.
 const CACHE_TTL_SECONDS = 300;
+// ENG-2377 T4 — a unit-conversion constant (ms per second), never a cap
+// ceiling or a freshness knob (❌#10 n/a — this is arithmetic, not policy).
+const MILLISECONDS_PER_SECOND = 1000;
 
 export const ENTITLEMENT_CACHE = Symbol('ENTITLEMENT_CACHE');
 
@@ -98,25 +101,61 @@ export class RedisEntitlementCache implements EntitlementCache {
   }
 }
 
+/** Injected time source (CS ❌#9). Defaults to Date.now — a test injects a
+ * fake to drive TTL-elapsed assertions deterministically, never a real
+ * setTimeout/wall-clock wait. */
+export interface Clock {
+  now(): number;
+}
+
+export const systemClock: Clock = { now: () => Date.now() };
+
 /**
  * A minimal in-memory `EntitlementCache` for unit/integration tests that do
  * not stand up Redis — behaviourally equivalent (get/set/evict), never a
  * mock of the Redis client itself (CS §5).
+ *
+ * ENG-2377 T4 — carries an OPTIONAL injected Clock + TTL so the
+ * fixture-driven conformance spec can prove AC2's within-bound /
+ * past-bound distinction deterministically (a fake clock advanced
+ * explicitly, never `setTimeout`/a real sleep) without touching the real
+ * `RedisEntitlementCache`, which already TTLs server-side via Redis's own
+ * `EX` option and needs no clock injection. The default constructor
+ * (`new InMemoryEntitlementCache()`, no args) behaves EXACTLY as before —
+ * no TTL, no expiry — so every existing call site and spec is unaffected.
  */
 export class InMemoryEntitlementCache implements EntitlementCache {
-  private readonly store = new Map<string, EntitlementCheckResponse>();
+  private readonly store = new Map<
+    string,
+    { value: EntitlementCheckResponse; setAt: number }
+  >();
+
+  constructor(
+    private readonly clock: Clock = systemClock,
+    private readonly ttlSeconds?: number,
+  ) {}
 
   async get(
     principal: Principal,
   ): Promise<EntitlementCheckResponse | undefined> {
-    return this.store.get(buildKey(principal));
+    const entry = this.store.get(buildKey(principal));
+    if (!entry) {
+      return undefined;
+    }
+    if (this.ttlSeconds !== undefined) {
+      const ageSeconds = (this.clock.now() - entry.setAt) / MILLISECONDS_PER_SECOND;
+      if (ageSeconds > this.ttlSeconds) {
+        return undefined; // expired — behaves like an evicted/never-cached entry
+      }
+    }
+    return entry.value;
   }
 
   async set(
     principal: Principal,
     value: EntitlementCheckResponse,
   ): Promise<void> {
-    this.store.set(buildKey(principal), value);
+    this.store.set(buildKey(principal), { value, setAt: this.clock.now() });
   }
 
   async evict(principal: Principal): Promise<void> {

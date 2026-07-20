@@ -1,0 +1,98 @@
+{
+  "id": "unreachable-past-bound",
+  "description": "Billing responds successfully once (warms the cache), then becomes unreachable. A Resolve() call once the cached entry has aged past staleness_bound_seconds (300s, NFR-B4) with billing still unreachable resolves to a typed unavailable result \u2014 the client MUST NOT serve the stale value past its bound and MUST NOT crash / return a blank/zero-value result (CS \u00d7#9, \u00d7#10 \u2014 the bound is a ceiling, never silently widened).",
+  "principal": {
+    "principal_type": "user",
+    "principal_id": "user_fixture_lkg_02"
+  },
+  "billing_server": {
+    "behavior": "succeed_once_then_connection_refused",
+    "response": {
+      "plan": "enterprise",
+      "plan_version": "2026-04-01",
+      "features": [
+        "composer",
+        "ask_wiki",
+        "improve_with_ai",
+        "memory_coach",
+        "curator_distillation"
+      ],
+      "caps": {
+        "ai_monthly_budget_gbp": 0,
+        "embedding_monthly_budget_gbp": 0,
+        "curator_distillation_monthly": 0,
+        "trial_weekly_actions_advisory": 0,
+        "trial_weekly_actions_throttle": 0,
+        "demo_ai_actions": 0,
+        "wiki_max_pages": 0,
+        "wiki_storage_bytes_aggregate": 0,
+        "wiki_max_file_bytes": 0,
+        "wiki_max_files": 0,
+        "wiki_max_members": 0,
+        "wiki_history_retention_versions": 0,
+        "wiki_history_retention_days": 0
+      },
+      "trial": {
+        "state": "none"
+      },
+      "throttle": {
+        "state": "none"
+      },
+      "version": "ent_v3",
+      "evaluatedAt": "2026-07-20T08:00:00Z"
+    }
+  },
+  "steps": [
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 0,
+      "expect": {
+        "result": "success",
+        "plan": "enterprise",
+        "billing_call": true,
+        "cache_state_after": "populated"
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 150,
+      "expect": {
+        "result": "success",
+        "plan": "enterprise",
+        "served_from": "last_known_good",
+        "reason": "within_bound"
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 301,
+      "expect": {
+        "result": "typed_unavailable_error",
+        "billing_call": true,
+        "billing_call_result": "connection_refused",
+        "served_from": "none",
+        "reason": "past_bound_honest_degrade",
+        "must_not": [
+          "stale_value_served",
+          "crash",
+          "blank_or_zero_value_result"
+        ]
+      }
+    },
+    {
+      "action": "evict",
+      "at_clock_offset_seconds": 302
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 302,
+      "expect": {
+        "result": "typed_unavailable_error",
+        "billing_call": true,
+        "billing_call_result": "connection_refused",
+        "served_from": "none",
+        "reason": "evicted_and_unreachable"
+      }
+    }
+  ]
+}

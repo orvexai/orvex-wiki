@@ -53,9 +53,27 @@ export class EntitlementService {
    * the billing port on a miss, and — on a port failure — falling back to
    * whatever last-known projection the cache holds (AC7). Only when BOTH the
    * port fails AND no cached projection exists does this fail closed.
+   *
+   * ENG-2377 AC5 — delegated-principal keying: `actingForPrincipal`, when
+   * given, is the principal this read is keyed on (billing request + cache
+   * key) instead of the workspace's own org principal — the acting
+   * delegated principal (an MCP act-as-user call, an `ai` agentic hop, or a
+   * workload-identity call acting for a user), NEVER the caller/service
+   * identity minting the request. This mirrors the Go
+   * `orvex-studio-lib/entitlements.Client.Resolve(ctx, caller, actingFor)`
+   * design (CS §3.7 design-it-twice, Sketch A: an explicit parameter,
+   * chosen over an implicit context-carried marker, since a
+   * dropped/forgotten context key is the wrong risk profile for a
+   * security-relevant keying decision — see that package's doc.go for the
+   * full two-sketch rationale, authored once and mirrored here rather than
+   * re-litigated). Every existing call site omits this parameter and keeps
+   * resolving on the workspace's own org principal, unchanged.
    */
-  private async resolve(workspaceId: string): Promise<EntitlementCheckResponse> {
-    const principal = this.toPrincipal(workspaceId);
+  private async resolve(
+    workspaceId: string,
+    actingForPrincipal?: Principal,
+  ): Promise<EntitlementCheckResponse> {
+    const principal = actingForPrincipal ?? this.toPrincipal(workspaceId);
 
     const cached = await this.cache.get(principal);
     if (cached) {
@@ -68,7 +86,7 @@ export class EntitlementService {
       return fresh;
     } catch (err) {
       this.logger.warn(
-        `EntitlementService.resolve: billing port unreachable for workspace ${workspaceId}: ${(err as Error).message}`,
+        `EntitlementService.resolve: billing port unreachable for principal ${principal.principal_type}/${principal.principal_id}: ${(err as Error).message}`,
       );
       // Re-check the cache: a concurrent successful resolve may have
       // populated it between our miss above and this failure.
@@ -130,6 +148,28 @@ export class EntitlementService {
    */
   async hasFeature(workspaceId: string, feature: GatedFeature): Promise<boolean> {
     const entitlement = await this.resolve(workspaceId);
+    return entitlement.features.includes(feature);
+  }
+
+  /**
+   * ENG-2377 AC5 — the delegated-call entry point: resolves the effective
+   * entitlement for `actingForPrincipal`, the acting delegated principal
+   * (an MCP act-as-user call, an `ai` agentic hop, or a workload-identity
+   * call acting for a user), never the calling service's own identity.
+   * `workspaceId` is retained ONLY as a diagnostic/log correlation value
+   * (unused for keying) — the request and cache key are keyed exclusively
+   * on `actingForPrincipal`. Callers that are not delegated calls use
+   * `hasFeature`/`assertWithinQuota`/`assertIncrementWithinQuota` directly,
+   * unchanged.
+   */
+  async hasFeatureFor(
+    actingForPrincipal: Principal,
+    feature: GatedFeature,
+  ): Promise<boolean> {
+    const entitlement = await this.resolve(
+      actingForPrincipal.principal_id,
+      actingForPrincipal,
+    );
     return entitlement.features.includes(feature);
   }
 

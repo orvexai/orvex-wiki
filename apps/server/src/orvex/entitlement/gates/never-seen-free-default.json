@@ -1,0 +1,85 @@
+{
+  "id": "never-seen-free-default",
+  "description": "Billing is reachable and returns 200 with a plan=free body for a principal it has never seen before. The client's typed result is Free; every gated-feature check the client exposes over that result resolves deny (fail-closed for paid features), while the free product itself remains usable (fail-open for free). No case in this file encodes a numeric Free AI lifetime-budget counter shape \u2014 Free's AI entitlement is represented ONLY via caps.demo_ai_actions (the ratified entitlements.schema.json shape), never a superseded standalone counter.",
+  "principal": {
+    "principal_type": "user",
+    "principal_id": "user_fixture_never_seen_01"
+  },
+  "billing_server": {
+    "behavior": "always_200",
+    "response": {
+      "plan": "free",
+      "plan_version": "",
+      "features": [],
+      "caps": {
+        "ai_monthly_budget_gbp": 0,
+        "embedding_monthly_budget_gbp": 0,
+        "curator_distillation_monthly": 0,
+        "trial_weekly_actions_advisory": 0,
+        "trial_weekly_actions_throttle": 0,
+        "demo_ai_actions": 5,
+        "wiki_max_pages": 50,
+        "wiki_storage_bytes_aggregate": 104857600,
+        "wiki_max_file_bytes": 10485760,
+        "wiki_max_files": 100,
+        "wiki_max_members": 1,
+        "wiki_history_retention_versions": 5,
+        "wiki_history_retention_days": 7
+      },
+      "trial": {
+        "state": "none"
+      },
+      "throttle": {
+        "state": "none"
+      },
+      "version": "",
+      "evaluatedAt": "2026-07-20T10:05:00Z"
+    }
+  },
+  "steps": [
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 0,
+      "expect": {
+        "result": "success",
+        "plan": "free",
+        "billing_call": true
+      }
+    },
+    {
+      "action": "check_feature",
+      "feature": "composer",
+      "expect": {
+        "result": "deny"
+      }
+    },
+    {
+      "action": "check_feature",
+      "feature": "ask_wiki",
+      "expect": {
+        "result": "deny"
+      }
+    },
+    {
+      "action": "check_feature",
+      "feature": "improve_with_ai",
+      "expect": {
+        "result": "deny"
+      }
+    },
+    {
+      "action": "check_feature",
+      "feature": "memory_coach",
+      "expect": {
+        "result": "deny"
+      }
+    },
+    {
+      "action": "check_feature",
+      "feature": "curator_distillation",
+      "expect": {
+        "result": "deny"
+      }
+    }
+  ]
+}

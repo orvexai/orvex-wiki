@@ -1,0 +1,98 @@
+{
+  "id": "reachable-warm-hit",
+  "description": "Billing reachable. First Resolve() call is a live HTTP round trip (cache miss); every subsequent call within the cache window is served from cache with zero further HTTP calls; a call after the injected clock advances past the staleness bound re-hits the fake server exactly once more.",
+  "principal": {
+    "principal_type": "org",
+    "principal_id": "org_fixture_warmhit_01"
+  },
+  "billing_server": {
+    "behavior": "always_200",
+    "response": {
+      "plan": "personal",
+      "plan_version": "2026-06-01",
+      "features": [
+        "composer",
+        "ask_wiki"
+      ],
+      "caps": {
+        "ai_monthly_budget_gbp": 7,
+        "embedding_monthly_budget_gbp": 1,
+        "curator_distillation_monthly": 20,
+        "trial_weekly_actions_advisory": 0,
+        "trial_weekly_actions_throttle": 0,
+        "demo_ai_actions": 0,
+        "wiki_max_pages": 500,
+        "wiki_storage_bytes_aggregate": 2147483648,
+        "wiki_max_file_bytes": 52428800,
+        "wiki_max_files": 2000,
+        "wiki_max_members": 10,
+        "wiki_history_retention_versions": 50,
+        "wiki_history_retention_days": 90
+      },
+      "trial": {
+        "state": "none"
+      },
+      "throttle": {
+        "state": "none"
+      },
+      "version": "ent_v7",
+      "evaluatedAt": "2026-07-20T10:00:00Z"
+    }
+  },
+  "steps": [
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 0,
+      "expect": {
+        "result": "success",
+        "plan": "personal",
+        "billing_call": true,
+        "cache_state_after": "populated"
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 1,
+      "expect": {
+        "result": "success",
+        "plan": "personal",
+        "billing_call": false,
+        "max_latency_p95_ms": 5
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 2,
+      "expect": {
+        "result": "success",
+        "plan": "personal",
+        "billing_call": false,
+        "max_latency_p95_ms": 5
+      }
+    },
+    {
+      "action": "evict",
+      "at_clock_offset_seconds": 3
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 3,
+      "expect": {
+        "result": "success",
+        "plan": "personal",
+        "billing_call": true,
+        "reason": "explicit_evict_forces_refill"
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 304,
+      "expect": {
+        "result": "success",
+        "plan": "personal",
+        "billing_call": true,
+        "reason": "past_ttl_forces_refill"
+      }
+    }
+  ]
+}

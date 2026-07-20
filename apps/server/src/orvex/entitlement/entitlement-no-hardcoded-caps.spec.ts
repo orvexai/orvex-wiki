@@ -42,11 +42,16 @@ describe('AC6 — no hard-coded cap literal in the enforcement path', () => {
       const numericLiterals = withoutComments.match(/(?<![\w.])\d+(?![\w.])/g) ?? [];
       const suspicious = numericLiterals.filter((n) => !allowed.has(n));
 
-      // CACHE_TTL_SECONDS = 300 is a freshness knob, not a cap ceiling —
-      // explicitly exempted by name-check rather than value, so a real cap
-      // literal slipped in elsewhere still fails this gate.
+      // CACHE_TTL_SECONDS = 300 is a freshness knob, not a cap ceiling.
+      // MILLISECONDS_PER_SECOND = 1000 (ENG-2377 T4) is a unit-conversion
+      // arithmetic constant, not policy of any kind. Both are exempted by
+      // name-check rather than value, so a real cap literal slipped in
+      // elsewhere still fails this gate.
       const suspiciousExcludingKnownConstants = suspicious.filter((n) => {
-        return !(file === 'entitlement-cache.ts' && n === '300');
+        if (file !== 'entitlement-cache.ts') {
+          return true;
+        }
+        return !(n === '300' || n === '1000');
       });
 
       expect({
