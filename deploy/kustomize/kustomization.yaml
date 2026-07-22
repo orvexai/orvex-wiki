@@ -40,6 +40,19 @@ resources:
   - platform-resources/redis-claim.yaml                 # wave 3
 
 # ═══════════════════════════════════════════════════════════════════════════
+# ENG-3103 (AD-25, [verified live]) — the ONE family OTLP endpoint.
+# `telemetry-env` (my-idp-apps, AD-35 shared substrate) injects
+# `OTEL_EXPORTER_OTLP_ENDPOINT` = the single Alloy receiver target onto the
+# server container's `envFrom`; app-manifests/configmap-env.yaml no longer
+# sets it (deleted, not repointed — see that file for the black-hole
+# history). Pinned to `main` — the same ref every other consumer of this
+# substrate resolves (my-idp-apps app-environments ApplicationSet CMP
+# plugin builds this repo's own overlay against the same shared tree).
+# ═══════════════════════════════════════════════════════════════════════════
+components:
+  - github.com/orvexai/my-idp-apps//components/telemetry-env?ref=main
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Replacements — inject cluster-config values at build time.
 # ═══════════════════════════════════════════════════════════════════════════
 replacements:
