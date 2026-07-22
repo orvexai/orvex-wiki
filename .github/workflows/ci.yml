@@ -623,6 +623,9 @@ jobs:
   # verified live). In ci-success's needs: below.
   # ---------------------------------------------------------------------------
   cell-lint:
+    permissions:
+      contents: read
+      id-token: write
     uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
 
   # ---------------------------------------------------------------------------
