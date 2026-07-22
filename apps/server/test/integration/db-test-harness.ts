@@ -18,6 +18,8 @@ import * as postgres from 'postgres';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { DB } from '@docmost/db/types/db';
+import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { UserRepo } from '@docmost/db/repos/user/user.repo';
 
 export interface TestDb {
   db: Kysely<DB>;
@@ -151,6 +153,25 @@ export async function seedGroupUser(
     .values({ groupId: opts.groupId, userId: opts.userId })
     .returningAll()
     .executeTakeFirstOrThrow();
+}
+
+/**
+ * ENG-2482 — additive helper wrapping the real
+ * `UserRepo.linkProviderAccount` write-path (never a raw `authAccounts`
+ * insert) so `InternalApiService.filterAccessiblePages`'s subject->userId
+ * resolution (`UserRepo.findUserIdByProviderUserId`) can be driven
+ * end-to-end. Existing `seed*` exports above are unchanged.
+ */
+export async function seedAuthAccount(
+  db: Kysely<DB>,
+  opts: { userId: string; workspaceId: string; providerUserId: string },
+) {
+  const userRepo = new UserRepo(db as unknown as KyselyDB);
+  await userRepo.linkProviderAccount({
+    userId: opts.userId,
+    providerUserId: opts.providerUserId,
+    workspaceId: opts.workspaceId,
+  });
 }
 
 export async function seedPage(
