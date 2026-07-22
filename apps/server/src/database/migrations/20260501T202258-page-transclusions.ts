@@ -1,8 +1,19 @@
 import { type Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
+  // ENG-2479 AC2 — `.ifNotExists()` on both tables/indexes below: Kysely
+  // tracks "already applied" purely by this file's NAME in `kysely_migration`
+  // (never by inspecting the objects a migration creates). If a target
+  // database ever has these tables already present without a matching
+  // `kysely_migration` row for this exact filename (a v0.95 install whose
+  // ledger recorded them under a different name, a restored/rebuilt ledger,
+  // etc.), a plain `createTable` re-runs `CREATE TABLE` and crash-loops the
+  // boot. `.ifNotExists()` makes re-applying this migration a safe no-op
+  // instead, matching the convention already used by
+  // `20260501T092214-scim.ts` / `20260529T125146-bases.ts`.
   await db.schema
     .createTable('page_transclusions')
+    .ifNotExists()
     .addColumn('id', 'uuid', (col) =>
       col.primaryKey().defaultTo(sql`gen_uuid_v7()`),
     )
@@ -28,12 +39,14 @@ export async function up(db: Kysely<any>): Promise<void> {
 
   await db.schema
     .createIndex('idx_page_transclusions_workspace')
+    .ifNotExists()
     .on('page_transclusions')
     .column('workspace_id')
     .execute();
 
   await db.schema
     .createTable('page_transclusion_references')
+    .ifNotExists()
     .addColumn('id', 'uuid', (col) =>
       col.primaryKey().defaultTo(sql`gen_uuid_v7()`),
     )
@@ -59,12 +72,14 @@ export async function up(db: Kysely<any>): Promise<void> {
 
   await db.schema
     .createIndex('idx_page_transclusion_references_source')
+    .ifNotExists()
     .on('page_transclusion_references')
     .columns(['source_page_id', 'transclusion_id'])
     .execute();
 
   await db.schema
     .createIndex('idx_page_transclusion_references_workspace')
+    .ifNotExists()
     .on('page_transclusion_references')
     .column('workspace_id')
     .execute();
