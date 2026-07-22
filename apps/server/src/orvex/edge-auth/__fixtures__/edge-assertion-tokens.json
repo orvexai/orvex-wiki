@@ -1,0 +1,216 @@
+{
+  "_provenance": {
+    "purpose": "ENG-3074 / ADR-0049 \u2014 the signed ES256 golden corpus the edge-assertion verifier conformance suites (Go pkg/auth ENG-2408, TS @orvexai/auth-node ENG-3062) replay. Canonical home = orvex-studio-contracts.",
+    "authored_synthetic": true,
+    "recorded_real_token": false,
+    "note": "AUTHORED SYNTHETIC test material (matches identity/vectors/example-claims.json policy) \u2014 never recorded real: no real edge/IdP token, key, or issuer. Signed under committed TEST-ONLY keys (scripts/gen_edge_assertion_corpus.py) with ZERO security value. Deterministic (fixed timestamps, no entropy): regenerate byte-identically with `python3 scripts/gen_edge_assertion_corpus.py`.",
+    "issuer": "https://identity.edge.orvex.internal/edge-authn",
+    "kid": "edge-golden-es256-1",
+    "jwks": "edge-assertion-jwks.json",
+    "max_clock_skew_seconds": 30,
+    "expect_semantics": "verify-layer verdict the conformance suite expects (accept|semantic-reject); every token payload is a STRUCTURALLY valid edge-assertion claims object \u2014 a reject is a verifier verdict, never a malformed payload (alg-pin/issuer-kid/signature rejects live in the HEADER/signature, not the claims)."
+  },
+  "now_unix": 1730000060,
+  "tokens": [
+    {
+      "name": "es256-happy",
+      "expect": "accept",
+      "reason": "valid ES256 signature by the golden key; alg ES256, aud matches the verifier, exp==now+120.",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMTIwLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.S3PorW0M_gAA3MXjs7JVyT7A6YS4rrvxFLL-2Y15GDAV-zwGh65YAUYOaBaYl3S1CJRqZbbluiJej7eNEcCoPQ"
+    },
+    {
+      "name": "es256-exp-just-future",
+      "expect": "accept",
+      "reason": "valid ES256; exp==now_unix+1 \u2014 the accept boundary of the zero-leeway exp check for the injected clock.",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000061
+      },
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMDYxLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.2SXCsa9h6sGyf_1n2LR8EepHHkqPG-aOAFGJSaIBfVhcQ0GuCLZWnKD-8bB3YD6lIdyk9QYBKbZCqB-cNXHjTQ"
+    },
+    {
+      "name": "es256-aud-mismatch",
+      "expect": "semantic-reject",
+      "reason": "valid ES256 signature but aud is orvex-studio-ai while the verifier is orvex-studio-api \u2014 audience-value reject.",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-ai"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFpIl0sImNlbGwiOiJldTEiLCJjZWxsX2Vwb2NoIjozLCJleHAiOjE3MzAwMDAxMjAsImlhdCI6MTczMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly9pZGVudGl0eS5lZGdlLm9ydmV4LmludGVybmFsL2VkZ2UtYXV0aG4iLCJzY29wZSI6Indpa2k6cmVhZCB3aWtpOndyaXRlIiwic3ViIjoiZWRnZS1zdWJqZWN0LTEiLCJ0ZW5hbnQiOiJ0bnRfZWRnZV9hIn0.g68QCrf4MoOc7MhhMLV9ePvMScnB6IVPjm7Kw5tjWtMcFRtEwlMmxzRFin9l6k3wK6eq7FGyNC_Tv_8_aPMwvA",
+      "check": "audience-value",
+      "expected_verdict": 401
+    },
+    {
+      "name": "es256-expired",
+      "expect": "semantic-reject",
+      "reason": "valid ES256 signature but exp==now_unix-1 \u2014 the zero-leeway expiry check rejects (no grace on exp).",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000059
+      },
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMDU5LCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.1MMKhC8Gh1fbQS33nvkMX7XNUG-KmsEh7-ExhipE6LUO_d_NlmCDfFQlOz0XTGcrMIjRy7L2b_pyIar10DTHNw",
+      "check": "expiry",
+      "expected_verdict": 401
+    },
+    {
+      "name": "alg-none",
+      "expect": "semantic-reject",
+      "reason": "header alg==none with an empty signature \u2014 the alg-pin check rejects (ES256 only).",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJub25lIiwia2lkIjoiZWRnZS1nb2xkZW4tZXMyNTYtMSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMTIwLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.",
+      "check": "alg-pin",
+      "expected_verdict": 401
+    },
+    {
+      "name": "alg-confusion-hs256",
+      "expect": "semantic-reject",
+      "reason": "header alg==HS256, MAC keyed on the published EC public key (RS/HS-style confusion) \u2014 alg-pin rejects.",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJIUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMTIwLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.xhK45dTNWLK4yYIljKzT_yswFwt4HQaiaN8YLkHc_Ng",
+      "check": "alg-pin",
+      "expected_verdict": 401
+    },
+    {
+      "name": "alg-rs256",
+      "expect": "semantic-reject",
+      "reason": "header alg==RS256, real RSA signature by a key NOT in the JWKS \u2014 the WRONG alg; alg-pin rejects.",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMTIwLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.uaESIt-8RHFot2MBxjfeG-HT31YAkeZXPS_ycii3LEqFetdZ_kaCXhXXbTSr_bT7TRn6SGI9w_utsNJRsMhQmuDRdcQXLSCkK6a5EU4iWrmuTwDDdOP0P1Q-YRJ3V69pOp-U3mih0sIUaVDeWNk6MKDFqEMRRSUBhDb3Rgq2gnLaN2gLBcPwVLaP60jiCkM4pRIHrFupiJxcZPsfK9c2lThAyquxDeSvkH52dBJ_qr8KTS0wr8HPRfXjLT7wcAygC9CZhB4BgJqstIY393oNswEcCrBmi8wYyIphhW4JVGLNlTZxkkkxWjdcTeHGVJ5iHd04apGoNSN0DHvibK26Ig",
+      "check": "alg-pin",
+      "expected_verdict": 401
+    },
+    {
+      "name": "unknown-kid",
+      "expect": "semantic-reject",
+      "reason": "valid ES256 signature but header kid is absent from the committed JWKS \u2014 the issuer-kid check rejects.",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "eu1",
+        "cell_epoch": 3,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVkZ2UtdW5rbm93bi1raWQtOSIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZXUxIiwiY2VsbF9lcG9jaCI6MywiZXhwIjoxNzMwMDAwMTIwLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.1durhc3cQQEU5NAvtqQrhFk_sEHH0vzFq87dyfsWGTU4jrKPx_WvVl3ZD0oYZfi_W2KuPOUguQzOEjqyC4Junw",
+      "check": "issuer-kid",
+      "expected_verdict": 401
+    },
+    {
+      "name": "bad-signature",
+      "expect": "semantic-reject",
+      "reason": "valid ES256 header + last signature byte flipped so it does NOT verify; the (unverified) cell/cell_epoch is stale/foreign, yet the verifier must reject 401 on the bad signature and NEVER read the cell to reach 421 (AD-13).",
+      "verifier_service": "orvex-studio-api",
+      "claims": {
+        "sub": "edge-subject-1",
+        "tenant": "tnt_edge_a",
+        "cell": "foreign-cell",
+        "cell_epoch": 1,
+        "scope": "wiki:read wiki:write",
+        "aud": [
+          "orvex-studio-api"
+        ],
+        "iss": "https://identity.edge.orvex.internal/edge-authn",
+        "iat": 1730000000,
+        "exp": 1730000120
+      },
+      "token": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImVkZ2UtZ29sZGVuLWVzMjU2LTEiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsib3J2ZXgtc3R1ZGlvLWFwaSJdLCJjZWxsIjoiZm9yZWlnbi1jZWxsIiwiY2VsbF9lcG9jaCI6MSwiZXhwIjoxNzMwMDAwMTIwLCJpYXQiOjE3MzAwMDAwMDAsImlzcyI6Imh0dHBzOi8vaWRlbnRpdHkuZWRnZS5vcnZleC5pbnRlcm5hbC9lZGdlLWF1dGhuIiwic2NvcGUiOiJ3aWtpOnJlYWQgd2lraTp3cml0ZSIsInN1YiI6ImVkZ2Utc3ViamVjdC0xIiwidGVuYW50IjoidG50X2VkZ2VfYSJ9.-zmdgMLUrhvCTCge1u95rrogkL6CWvhkicbEKz8XCCF01D0392ebnhjdpS0Cfcv_9DMVFGO8ADnNnlPjNWNBVw",
+      "check": "signature-before-claims",
+      "expected_verdict": 401,
+      "signature_valid": false,
+      "would_be_421": true,
+      "must_not_read": [
+        "cell",
+        "cell_epoch"
+      ]
+    }
+  ]
+}
