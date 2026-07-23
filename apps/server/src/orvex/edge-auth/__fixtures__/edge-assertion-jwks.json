@@ -1,0 +1,13 @@
+{
+  "keys": [
+    {
+      "alg": "ES256",
+      "crv": "P-256",
+      "kid": "edge-golden-es256-1",
+      "kty": "EC",
+      "use": "sig",
+      "x": "pVhxl-FihZ77yyYOfJ2ZsJMNqTy_1d4NJbNX-r2odt0",
+      "y": "e9vBl4sV8dozOESZbJjESo88fVIKfrVuF6zqa9Ji6Gk"
+    }
+  ]
+}

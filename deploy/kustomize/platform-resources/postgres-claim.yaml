@@ -25,7 +25,12 @@ spec:
   # Renders to `<appNamespace>-db-bootstrap` (kustomization replacement), matching
   # the orvex-wiki-db-bootstrap ExternalSecret target name.
   credentialsSecretName: PLACEHOLDER_APP_NAME-db-bootstrap
+  # Migrated to the Barman Cloud Plugin composition (CNPG WAL archiving fix, Path C).
+  # compositionRef is explicit: changing the selector alone does not re-resolve a live XR.
   compositionRef:
     name: postgres-cloudnative-pg-plugin
+  compositionSelector:
+    matchLabels:
+      provider: cloudnative-pg-plugin
   writeConnectionSecretToRef:
     name: orvex-wiki-postgres-conn
