@@ -62,6 +62,31 @@ export class OrvexConfigService {
   }
 
   /**
+   * ORVEX_EDGE_ISSUER — identity's ADR-0049 edge-authn issuer, enforced EXACTLY
+   * as the `iss` of every internal edge assertion this engine verifies (fleet-
+   * uniform `https://identity.edge.orvex.internal/edge-authn`). First consumer:
+   * `OrvexSessionMintModule`'s edge-assertion verifier composition. Null when
+   * unset → that composition binds the fail-closed verifier (deny-by-default),
+   * never a fabricated issuer.
+   */
+  get edgeIssuer(): string | null {
+    return this.read('ORVEX_EDGE_ISSUER');
+  }
+
+  /**
+   * ORVEX_EDGE_JWKS_URL — identity's INTERNAL JWKS endpoint (ENG-3060), the
+   * cluster-DNS source of truth for the ES256 keys that sign edge assertions
+   * (prod default `http://orvex-studio-identity.orvex-studio-identity.svc.
+   * cluster.local/internal/jwks`; per-cell overridden). First consumer:
+   * `OrvexSessionMintModule`'s edge-assertion verifier composition
+   * (`RemoteEdgeAssertionKeySource`). Null when unset → fail-closed verifier,
+   * never a fabricated endpoint. NOT a credential (a public key set).
+   */
+  get edgeJwksUrl(): string | null {
+    return this.read('ORVEX_EDGE_JWKS_URL');
+  }
+
+  /**
    * ORVEX_GIT_SHA — the exact commit the running binary was built from. Powers
    * the AGPL section 13 written-source offer (FR-W19). Null when unset (the
    * controller turns that into a LOUD 500) — never a fabricated SHA.

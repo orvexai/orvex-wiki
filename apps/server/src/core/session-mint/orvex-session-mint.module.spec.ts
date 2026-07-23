@@ -8,7 +8,10 @@ import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { SessionService } from '../session/session.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
-import { OrvexSessionMintModule } from './orvex-session-mint.module';
+import {
+  OrvexEdgeNotConfiguredError,
+  OrvexSessionMintModule,
+} from './orvex-session-mint.module';
 import { OrvexSessionExchangeController } from './orvex-session-exchange.controller';
 import { OrvexSessionMintService } from './orvex-session-mint.service';
 import {
@@ -16,6 +19,8 @@ import {
   HttpIdentityIntrospector,
   NotConfiguredIntrospector,
 } from './identity-introspector';
+import { EDGE_ASSERTION_VERIFIER } from '../../orvex/edge-auth/edge-auth.module';
+import { EdgeAssertionVerifier } from '../../orvex/edge-auth/edge-assertion-verifier';
 
 /**
  * DI-BOOT proof: `nest build` (tsc) does NOT resolve the Nest injection graph —
@@ -44,12 +49,24 @@ class TestGlobalsModule {}
 
 describe('OrvexSessionMintModule (DI boot)', () => {
 
-  const savedIdentityUrl = process.env.ORVEX_IDENTITY_URL;
+  const savedEnv = {
+    ORVEX_IDENTITY_URL: process.env.ORVEX_IDENTITY_URL,
+    ORVEX_EDGE_ISSUER: process.env.ORVEX_EDGE_ISSUER,
+    ORVEX_EDGE_JWKS_URL: process.env.ORVEX_EDGE_JWKS_URL,
+  };
+  // Deterministic edge composition: default every test to the UNCONFIGURED edge
+  // seam; the edge-specific tests set the two vars explicitly before compile.
+  beforeEach(() => {
+    delete process.env.ORVEX_EDGE_ISSUER;
+    delete process.env.ORVEX_EDGE_JWKS_URL;
+  });
   afterEach(() => {
-    if (savedIdentityUrl === undefined) {
-      delete process.env.ORVEX_IDENTITY_URL;
-    } else {
-      process.env.ORVEX_IDENTITY_URL = savedIdentityUrl;
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) {
+        delete process.env[k];
+      } else {
+        process.env[k] = v;
+      }
     }
   });
 
@@ -79,6 +96,36 @@ describe('OrvexSessionMintModule (DI boot)', () => {
 
     expect(moduleRef.get(IDENTITY_INTROSPECTOR)).toBeInstanceOf(
       HttpIdentityIntrospector,
+    );
+    await moduleRef.close();
+  });
+
+  it('composes the FAIL-CLOSED edge verifier when ORVEX_EDGE_ISSUER/ORVEX_EDGE_JWKS_URL are unset (rejects with NOT_CONFIGURED, never a real verifier)', async () => {
+    delete process.env.ORVEX_IDENTITY_URL;
+    // (beforeEach already cleared the two edge vars)
+    const moduleRef = await Test.createTestingModule({
+      imports: [TestGlobalsModule, OrvexSessionMintModule],
+    }).compile();
+
+    const verifier = moduleRef.get(EDGE_ASSERTION_VERIFIER);
+    expect(verifier).not.toBeInstanceOf(EdgeAssertionVerifier);
+    await expect(verifier.verify('any.jws')).rejects.toBeInstanceOf(
+      OrvexEdgeNotConfiguredError,
+    );
+    await moduleRef.close();
+  });
+
+  it('composes the REAL generic ES256 edge verifier when both edge vars are set', async () => {
+    process.env.ORVEX_EDGE_ISSUER =
+      'https://identity.edge.orvex.internal/edge-authn';
+    process.env.ORVEX_EDGE_JWKS_URL =
+      'http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local/internal/jwks';
+    const moduleRef = await Test.createTestingModule({
+      imports: [TestGlobalsModule, OrvexSessionMintModule],
+    }).compile();
+
+    expect(moduleRef.get(EDGE_ASSERTION_VERIFIER)).toBeInstanceOf(
+      EdgeAssertionVerifier,
     );
     await moduleRef.close();
   });

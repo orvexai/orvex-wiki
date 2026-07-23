@@ -21,6 +21,17 @@ import {
   IDENTITY_INTROSPECTOR,
   IdentityIntrospector,
 } from './identity-introspector';
+import { EDGE_ASSERTION_VERIFIER } from '../../orvex/edge-auth/edge-auth.module';
+import type { EdgeAssertionVerifier } from '../../orvex/edge-auth/edge-assertion-verifier';
+import { EdgeAssertionVerificationError } from '../../orvex/edge-auth/edge-assertion.types';
+
+/**
+ * The one behaviour the mint service depends on from the edge-assertion
+ * verifier — `Pick`ed so the composition root may inject either the real
+ * {@link EdgeAssertionVerifier} or a fail-closed NOT_CONFIGURED stand-in
+ * (parity with how `OrvexRootModule` injects the `ExchangeTokenVerifier` port).
+ */
+export type EdgeAssertionVerifierPort = Pick<EdgeAssertionVerifier, 'verify'>;
 
 /** The minted engine session the controller turns into a cookie + result body. */
 export interface MintedSession {
@@ -35,31 +46,43 @@ export interface MintedSession {
 }
 
 /**
- * OrvexSessionMintService (FR-W6 / A-AUTH) — consume an identity-minted exchange
- * token and mint an ENGINE session for the RESOLVED, ALREADY-PROVISIONED
+ * OrvexSessionMintService (FR-W6 / A-AUTH) — consume an identity-issued
+ * credential and mint an ENGINE session for the RESOLVED, ALREADY-PROVISIONED
  * principal.
  *
- * THE THREE STEPS (each a hard deny-by-default gate):
- *  1. VERIFY — introspect the opaque exchange token against identity
- *     (`IdentityIntrospector`). An inactive/unknown/malformed token yields no
- *     principal → 401. (Identity mints an opaque token, not a JWT — see the
- *     introspector's doc for why this is introspection, not local RS256/JWKS.)
- *  2. RESOLVE — map the verified `{subject, tenant}` to an engine user via the
- *     `auth_accounts` linkage (`UserRepo.findUserIdByProviderUserId`, scoped to
- *     the workspace/tenant). NO create-on-resolve: a subject with no linkage is
- *     an UNPROVISIONED principal → 401. Provisioning is the internal-API's
- *     explicit, bearer-guarded act (`PrincipalProvisioningService`); this mint
- *     only issues a session for a principal the registry has already provisioned.
- *  3. MINT — create a real user session + engine ACCESS token
- *     (`SessionService.createSessionAndToken`), the SAME session the password
- *     and (future) OIDC-callback paths mint. Audited on success.
+ * TWO ACCEPTED CREDENTIALS (both deny-by-default, both land on the SAME
+ * resolve→mint tail):
+ *  - {@link mintSessionFromAssertion} (ADR-0049 S2S, PREFERRED) — a short-lived
+ *    ES256 edge assertion (`aud[0] === orvex-wiki`) an upstream obtained from
+ *    identity's delegation-exchange. Verified LOCALLY against identity's internal
+ *    JWKS (no per-request network round-trip), `sub`/`tenant` taken from the
+ *    verified claims. This is the seam wiki-api (and ai) switch to once identity's
+ *    delegate endpoint is live, so the raw caller bearer can be edge-stripped.
+ *  - {@link mintSession} (TRANSIENT — introspect) — an identity-minted OPAQUE
+ *    exchange token, verified by a per-request `POST /v1/introspect`. This is the
+ *    pre-ADR-0049 path; it is retained ONLY for the dual-accept window of the safe
+ *    3-step S2S migration and MUST be removed (hard cut, no fallback) once every
+ *    upstream has switched to sending an assertion. See the module docstring.
  *
- * TENANT ISOLATION: every read is scoped to the introspected `workspaceId`
- * (tenant). A token for tenant A can only ever resolve tenant A's linkage and
- * mint a session in tenant A — there is no cross-tenant path.
+ * THE SHARED TAIL (each a hard deny-by-default gate, {@link resolveAndMint}):
+ *  · RESOLVE — map the verified `{subject, tenant}` to an engine user via the
+ *    `auth_accounts` linkage (`UserRepo.findUserIdByProviderUserId`, scoped to
+ *    the workspace/tenant). NO create-on-resolve: a subject with no linkage is an
+ *    UNPROVISIONED principal → 401. Provisioning is the internal-API's explicit,
+ *    bearer-guarded act (`PrincipalProvisioningService`); this mint only issues a
+ *    session for a principal the registry has already provisioned.
+ *  · MINT — create a real user session + engine ACCESS token
+ *    (`SessionService.createSessionAndToken`), the SAME session the password and
+ *    (future) OIDC-callback paths mint. Audited on success.
  *
- * SECRET DISCIPLINE: the exchange token and the minted access token are never
- * logged; rejections log only the stable reason + workspace scope.
+ * TENANT ISOLATION: every read is scoped to the credential's `workspaceId`
+ * (tenant). A credential for tenant A can only ever resolve tenant A's linkage
+ * and mint a session in tenant A — there is no cross-tenant path. For the
+ * assertion path the `aud`-value bind additionally means an assertion minted for
+ * any OTHER service is rejected before a tenant is even read (confused-deputy).
+ *
+ * SECRET DISCIPLINE: the exchange token, the edge assertion, and the minted
+ * access token are never logged; rejections log only the stable reason + scope.
  */
 @Injectable()
 export class OrvexSessionMintService {
@@ -68,22 +91,76 @@ export class OrvexSessionMintService {
   constructor(
     @Inject(IDENTITY_INTROSPECTOR)
     private readonly introspector: IdentityIntrospector,
+    @Inject(EDGE_ASSERTION_VERIFIER)
+    private readonly edgeVerifier: EdgeAssertionVerifierPort,
     private readonly userRepo: UserRepo,
     private readonly sessionService: SessionService,
     private readonly environmentService: EnvironmentService,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
+  /**
+   * ADR-0049 S2S path — mint an engine session FROM a verified edge assertion.
+   *
+   * VERIFY (deny-by-default): the assertion is verified against identity's
+   * internal JWKS — ES256-pinned, `aud[0] === orvex-wiki` (confused-deputy
+   * bound), `iss` exact, `exp` zero-leeway. ANY verification rejection is a hard
+   * 401 that never leaks the stable code or the claims. A NOT_CONFIGURED /
+   * transport failure is a DISTINCT, honest 5xx (a thrown non-verification
+   * error), never a silent accept — the same discipline as the introspect path.
+   * The principal is reconstructed from the VERIFIED claims (`sub`, and `tenant`
+   * which the ENG-1559 convention pins to be the engine workspace UUID), then
+   * flows through the identical resolve→mint tail.
+   */
+  async mintSessionFromAssertion(assertion: string): Promise<MintedSession> {
+    let claims;
+    try {
+      claims = await this.edgeVerifier.verify(assertion);
+    } catch (err: unknown) {
+      if (err instanceof EdgeAssertionVerificationError) {
+        // A verification verdict is a rejection → 401. Never surface the code
+        // or any claim (signature-before-claims holds at the delivery seam too).
+        throw new UnauthorizedException('edge assertion rejected');
+      }
+      // NOT_CONFIGURED / JWKS transport failure: a genuine inability to verify,
+      // not a token verdict — an honest 5xx, never a silent deny/accept.
+      throw err;
+    }
+    // ENG-1559: identity's `tenant` claim IS the engine workspace UUID.
+    return this.resolveAndMint(claims.sub, claims.tenant, 'session-exchange-assertion');
+  }
+
+  /**
+   * TRANSIENT introspect path — mint an engine session from an OPAQUE identity
+   * exchange token. A null principal is a rejected token (deny → 401). Retained
+   * only for the dual-accept migration window; see the class/module docstrings.
+   */
   async mintSession(exchangeToken: string): Promise<MintedSession> {
-    // 1 · VERIFY — introspect. A null principal is a rejected token (deny).
+    // VERIFY — introspect. A null principal is a rejected token (deny).
     const principal = await this.introspector.introspect(exchangeToken);
     if (!principal) {
       throw new UnauthorizedException('exchange token rejected');
     }
-    const { subject, workspaceId } = principal;
+    return this.resolveAndMint(
+      principal.subject,
+      principal.workspaceId,
+      'session-exchange',
+    );
+  }
 
-    // 2 · RESOLVE — the auth_accounts linkage, scoped to the tenant. No linkage
-    // ⇒ the subject was never provisioned here ⇒ deny (no create-on-resolve).
+  /**
+   * The shared RESOLVE→MINT→audit tail both accepted credentials converge on,
+   * given an ALREADY-VERIFIED `{subject, workspaceId}`. `auditSource` names the
+   * credential seam in the audit record so the trail distinguishes an assertion
+   * mint from a (transient) introspect mint. Never carries token/assertion bytes.
+   */
+  private async resolveAndMint(
+    subject: string,
+    workspaceId: string,
+    auditSource: 'session-exchange' | 'session-exchange-assertion',
+  ): Promise<MintedSession> {
+    // RESOLVE — the auth_accounts linkage, scoped to the tenant. No linkage ⇒
+    // the subject was never provisioned here ⇒ deny (no create-on-resolve).
     const userId = await this.userRepo.findUserIdByProviderUserId(
       subject,
       workspaceId,
@@ -101,19 +178,19 @@ export class OrvexSessionMintService {
       throw new UnauthorizedException('principal not provisioned');
     }
 
-    // 3 · MINT — a real session + engine ACCESS token (the shared session path).
+    // MINT — a real session + engine ACCESS token (the shared session path).
     const accessToken = await this.sessionService.createSessionAndToken(user);
 
     // Audit (best-effort, post-mint). A session was established for a resolved,
     // provisioned principal — the operability record of an identity-federated
     // engine login. `system`-initiated (machine exchange), attributed to the
-    // resolved user; source names the seam. Never carries token bytes.
+    // resolved user; source names the seam. Never carries token/assertion bytes.
     await this.auditService.logWithContext(
       {
         event: AuditEvent.USER_LOGIN,
         resourceType: AuditResource.USER,
         resourceId: user.id,
-        metadata: { source: 'session-exchange', subject },
+        metadata: { source: auditSource, subject },
       },
       { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
     );
