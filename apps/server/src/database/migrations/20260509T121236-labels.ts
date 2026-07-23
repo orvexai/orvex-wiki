@@ -1,8 +1,14 @@
 import { type Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
+  // ENG-2479 AC2 — see the matching comment in
+  // `20260501T202258-page-transclusions.ts`: `.ifNotExists()` guards this
+  // migration against re-running `CREATE TABLE`/`CREATE INDEX` on a
+  // database that already has these objects but lacks a `kysely_migration`
+  // ledger row recorded under this exact filename.
   await db.schema
     .createTable('labels')
+    .ifNotExists()
     .addColumn('id', 'uuid', (col) =>
       col.primaryKey().defaultTo(sql`gen_uuid_v7()`),
     )
@@ -21,6 +27,7 @@ export async function up(db: Kysely<any>): Promise<void> {
 
   await db.schema
     .createIndex('labels_workspace_id_type_name_unique')
+    .ifNotExists()
     .on('labels')
     .columns(['workspace_id', 'type', 'name'])
     .unique()
@@ -28,6 +35,7 @@ export async function up(db: Kysely<any>): Promise<void> {
 
   await db.schema
     .createTable('page_labels')
+    .ifNotExists()
     .addColumn('id', 'uuid', (col) =>
       col.primaryKey().defaultTo(sql`gen_uuid_v7()`),
     )
@@ -48,6 +56,7 @@ export async function up(db: Kysely<any>): Promise<void> {
 
   await db.schema
     .createIndex('page_labels_label_id_idx')
+    .ifNotExists()
     .on('page_labels')
     .column('label_id')
     .execute();

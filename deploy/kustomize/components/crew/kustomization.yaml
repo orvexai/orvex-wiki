@@ -56,6 +56,44 @@ labels:
     includeSelectors: false
 
 patches:
+  # ── ENG-3071 Phase-B / ENG-3063: this crew's FA chain-shell authn ref →
+  # orvex-edge-authn-crew-{name} (base points at -prod; same base→component-
+  # patch technique this file already uses below for every other crew-scoped
+  # value). Index 2 = the authn chain member (0=sanitize, 1=target-wiki,
+  # 2=authn) — see ../../app-manifests/middleware-wiki-edge-forwardauth.yaml.
+  # The PLACEHOLDER segment below is a clean, unambiguous dash-delimited
+  # token (the field's ONLY other content is the fixed "orvex-edge-authn"
+  # prefix, no embedded dashes/dots to collide with) — the `replacements`
+  # block at the end of this file substitutes it with cluster-config.
+  # branchSlug (already exactly "crew-{name}"), same mechanism as every other
+  # per-crew value here. Resolves today to orvex-edge-authn-crew-daniel or
+  # orvex-edge-authn-crew-yafet — the two crew identities my-idp's
+  # middleware-edge.yaml actually defines (confirmed live via `kubectl -n
+  # traefik get middleware`); a hypothetical third crew name would need its
+  # own orvex-edge-authn-crew-<name> added there first (a pre-existing
+  # platform-wide constraint, not something this change introduces).
+  - patch: |-
+      - op: replace
+        path: /spec/chain/middlewares/2/name
+        value: orvex-edge-authn-PLACEHOLDER
+    target:
+      kind: Middleware
+      name: orvex-edge-forwardauth-wiki
+
+  # ── Crew edge-assertion config: NOT overridden here (disclosed limit) ────
+  # ORVEX_EDGE_JWKS_URL is left at base's PROD value in this component
+  # (unlike the dev override in components/staging). EdgeAuthModule.
+  # register() is never called anywhere in app.module.ts today (ENG-3063
+  # left it deliberately inert — see configmap-env.yaml's own comment), so
+  # this key is inert/unconsumed on every cell including crew; getting the
+  # per-crew cluster-DNS namespace segment (orvex-studio-identity-crew-
+  # {name}) through this file's own delimiter-substitution mechanism would
+  # require splitting a value that ALSO contains the literal
+  # "orvex-studio-identity" substring twice (once as the Service name, once
+  # as the namespace prefix) — a genuine index-ambiguity risk not worth
+  # taking for a currently-inert key. Revisit when a real per-request
+  # consumer is wired (a follow-up ticket, not this one).
+
   # ── Crew host on the HTTPRoute: → wiki.crew-{name}.orvex.dev ─────────────
   # Re-pin the Gateway listener to orvex-dev-https (the crew host only
   # intersects the *.orvex.dev listener/cert, same edge as dev). The
@@ -191,3 +229,19 @@ replacements:
         options:
           delimiter: "."
           index: 1
+      # ── ENG-3071 Phase-B / ENG-3063 crew authn substitution ──────────────
+      # "orvex-edge-authn-PLACEHOLDER" split by "-" -> ["orvex","edge",
+      # "authn","PLACEHOLDER"], index 3 replaced with branchSlug
+      # ("crew-daniel"/"crew-yafet") and rejoined by "-" ->
+      # "orvex-edge-authn-crew-daniel". Clean: unlike the ORVEX_*_URL fields
+      # above, this field's ONLY content is the fixed "orvex-edge-authn"
+      # prefix + the placeholder, so there is no other "-"-delimited
+      # substring to collide with.
+      - select:
+          kind: Middleware
+          name: orvex-edge-forwardauth-wiki
+        fieldPaths:
+          - spec.chain.middlewares.2.name
+        options:
+          delimiter: "-"
+          index: 3

@@ -7,6 +7,7 @@ resources:
   - object-storage-claim.yaml       # wave 3
   - configmap-env.yaml              # wave 5
   - service.yaml                    # wave 5
+  - middleware-wiki-edge-forwardauth.yaml  # wave 5 (ENG-3071 Phase-B / ENG-3063)
   - deployment.yaml                 # wave 6 (Deployment + ServiceAccount + PDB)
   - httproute.yaml                  # wave 6
   - observability.yaml              # wave 6 (PrometheusRule + dashboard ConfigMap + GrafanaDashboard)
