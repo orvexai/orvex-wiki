@@ -8,6 +8,7 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { isUserDisabled } from '../../common/helpers';
 import { SessionService } from '../session/session.service';
@@ -159,6 +160,19 @@ export class OrvexSessionMintService {
     workspaceId: string,
     auditSource: 'session-exchange' | 'session-exchange-assertion',
   ): Promise<MintedSession> {
+    // GUARD — the workspaceId/tenant claim binds straight into a `uuid`-typed
+    // column below; a well-formed credential ALWAYS carries a UUID tenant
+    // (ENG-1559), so a non-UUID value is itself proof of an unprovisioned/
+    // invalid principal. Reject it here, before the DB cast, so the failure
+    // is the same deny-by-default 401 as "not provisioned" rather than an
+    // unhandled `invalid input syntax for type uuid` 500 from Postgres.
+    if (!isUUID(workspaceId)) {
+      this.logger.warn(
+        'session-mint denied: credential tenant is not a well-formed UUID',
+      );
+      throw new UnauthorizedException('principal not provisioned');
+    }
+
     // RESOLVE — the auth_accounts linkage, scoped to the tenant. No linkage ⇒
     // the subject was never provisioned here ⇒ deny (no create-on-resolve).
     const userId = await this.userRepo.findUserIdByProviderUserId(
