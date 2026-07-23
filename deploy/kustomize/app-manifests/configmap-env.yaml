@@ -129,3 +129,31 @@ data:
   # components/crew → the crew's own collector, same crew → crew seam as the
   # ORVEX_*_URL block above.
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.orvex-studio-console.svc.cluster.local:4318"
+
+  # ── Edge-assertion config (ADR-0049 / ENG-3063 flip step 1) ──────────────
+  # ORVEX_EDGE_ISSUER / ORVEX_EDGE_JWKS_URL are the two deps
+  # apps/server/src/orvex/edge-auth/edge-assertion-verifier.ts's
+  # EdgeAssertionVerifierDeps needs to verify an X-Orvex-Assertion header
+  # (fleet-uniform issuer + identity's internal JWKS). Carried here so a
+  # future dev->main promotion never ships flipped CODE without its config
+  # (the mcp/ai/knowledge/console/wiki-api precedent's exact "lift to base"
+  # failure mode) — but as of this commit EdgeAuthModule.register() is still
+  # NEVER called anywhere in app.module.ts (ENG-3063 left it deliberately
+  # inert), so these two keys are IGNORED at runtime today, same as every
+  # other ORVEX_* scaffold key above (boot-safe, vanilla env validation drops
+  # unknown keys). See middleware-wiki-edge-forwardauth.yaml + httproute.yaml
+  # for what DOES flip in this pass (the FA chain-shell attach on
+  # `/internal`, additive-only) and why per-request verification of the
+  # engine's own cookie-session product surface is explicitly NOT done here
+  # (docmost has no Clerk verify to cut over — see that file's comment).
+  #
+  # ORVEX_EDGE_ISSUER is identity's fleet-uniform edge-authn `iss` (same
+  # literal value on every cell, unlike every ORVEX_<SVC>_URL sibling seam
+  # above). ORVEX_EDGE_JWKS_URL below is PROD's identity /internal/jwks —
+  # cluster-local Service DNS, DELIBERATELY NOT a public host: identity's
+  # public HTTPRoute excludes /internal/* (the origin-lock verify,
+  # ENG-3068), so JWKS would 404 on any public host. components/staging
+  # overrides this to the dev identity cell (op:replace — base already
+  # carries both keys, so a dev override must replace, not add).
+  ORVEX_EDGE_ISSUER: "https://identity.edge.orvex.internal/edge-authn"
+  ORVEX_EDGE_JWKS_URL: "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local/internal/jwks"

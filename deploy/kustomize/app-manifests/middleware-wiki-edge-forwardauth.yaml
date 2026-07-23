@@ -1,0 +1,56 @@
+---
+# ForwardAuth chain-shell for the wiki engine's public route (ENG-3071
+# Wave-4 Phase-B, ENG-3063 flip step 1 — ADR-0049).
+#
+# Phase-B shape (WAVE-4-EXECUTION-PLAN.md §5 Phase B): sanitize -> target ->
+# authn, NO strip-bearer. The identity-minted assertion is injected
+# ALONGSIDE whatever auth this service already performs on the gated path —
+# this repo does NOT yet consume the assertion anywhere (see
+# apps/server/src/orvex/edge-auth: EdgeAssertionVerifier/EdgeAuthModule are
+# code-complete but deliberately unwired, ENG-3063), so this attach is
+# strictly additive: a request that reaches the gated rule below is
+# unaffected except for one extra header.
+#
+# WHY ONLY `/internal` IS GATED (not the whole route, unlike a pure M2M
+# service): the wiki engine is docmost — the overwhelming majority of its
+# public surface is a BROWSER SESSION product (cookie-based JwtAuthGuard,
+# not a Clerk/bearer scheme), so there is no Clerk verify to cut over here
+# and gating the SPA/API-for-humans surface behind a ForwardAuth mint would
+# lock out every real user session (the same "gating a pre-auth path is a
+# total lockout" hazard the orvex-studio-api /clerk/exchange carve-out and
+# orvex-studio-console's SPA-shell carve-out both document). The ONE subtree
+# that already runs a separate, non-cookie, bearer-token M2M auth
+# (InternalApiAuthGuard, ENG-1957 AC1/AC5 — the engine-internal ACL/export/
+# resolve/ai-search seam `orvex-studio-knowledge` consumes) is `/internal/*`
+# — the wiki analogue of console's already-Gate-wrapped admin/mutation
+# subtree in the ENG-3071 Phase-B precedent (console PR #84). Gating it here
+# is genuinely additive-only: every real caller of `/internal/*` reaches it
+# via cluster-local Service DNS (ORVEX_WIKI_API_URL-shaped seam, mirroring
+# identity's own /internal/jwks convention), never through this public
+# HTTPRoute, so no live traffic is affected either way.
+#
+# `namespace: orvex-wiki` is this repo's own literal convention (every
+# manifest in app-manifests/ uses the same literal, e.g. httproute.yaml,
+# configmap-env.yaml); the root kustomization.yaml's generic `replacements:
+# - select.namespace: orvex-wiki` rewrites it to the real per-env value
+# (orvex-wiki-dev, orvex-wiki-crew-daniel, ...) at ArgoCD build time — no
+# kustomization.yaml namespace-replacement edit needed for this new object.
+#
+# Sync-wave 5 (same wave as configmap-env.yaml/service.yaml), so this
+# Middleware lands before the HTTPRoute (wave 6) that references it via
+# ExtensionRef.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: orvex-edge-forwardauth-wiki
+  namespace: orvex-wiki
+  labels:
+    app.kubernetes.io/name: orvex-wiki
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  chain:
+    middlewares:
+      - {name: orvex-edge-sanitize, namespace: traefik}
+      - {name: orvex-edge-target-wiki, namespace: traefik}
+      - {name: orvex-edge-authn-prod, namespace: traefik}
