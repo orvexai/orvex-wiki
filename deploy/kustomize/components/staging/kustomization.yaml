@@ -26,6 +26,31 @@ labels:
     includeSelectors: false
 
 patches:
+  # ── ENG-3071 Phase-B / ENG-3063: dev's FA chain-shell authn ref →
+  # orvex-edge-authn-dev (base points at -prod; same base→component-patch
+  # technique this file already uses below for every other cross-service/
+  # cell value). Index 2 = the authn chain member (0=sanitize, 1=target-wiki,
+  # 2=authn) — see ../../app-manifests/middleware-wiki-edge-forwardauth.yaml.
+  - patch: |-
+      - op: replace
+        path: /spec/chain/middlewares/2/name
+        value: orvex-edge-authn-dev
+    target:
+      kind: Middleware
+      name: orvex-edge-forwardauth-wiki
+
+  # ── Dev edge-assertion config: PROD identity JWKS → the dev identity cell ──
+  # Base now carries BOTH ORVEX_EDGE_ISSUER/ORVEX_EDGE_JWKS_URL (ENG-3063
+  # flip step 1's base-lift) — op:replace, not op:add. Issuer is
+  # fleet-uniform (no per-cell override); only the JWKS host moves.
+  - patch: |-
+      - op: replace
+        path: /data/ORVEX_EDGE_JWKS_URL
+        value: http://orvex-studio-identity.orvex-studio-identity-dev.svc.cluster.local/internal/jwks
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Dev hostname: wiki.orvex.ai → wiki.CELLTOKEN.orvex.dev ───────────────
   # Also re-pin the Gateway listener: the base attaches to the
   # orvex-CELLTOKEN-https listener; the dev host only intersects the

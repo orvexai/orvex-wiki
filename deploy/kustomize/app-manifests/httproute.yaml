@@ -10,6 +10,23 @@
 # build time by the root `replacements` sourcing cluster-config.yaml's
 # `cellToken` field, the single place the literal token is typed
 # (ENG-1505 fix-pass).
+#
+# ENG-3071 Wave-4 Phase-B / ENG-3063 flip step 1 (ADR-0049): split into two
+# rules by auth posture, mirroring the proven orvex-studio-console precedent
+# (PR #84) for a browser-session product — see middleware-wiki-edge-
+# forwardauth.yaml's own comment for the full rationale of WHY only
+# `/internal` is gated here (the InternalApiAuthGuard-fronted M2M seam,
+# never the cookie-session product surface). Gateway API match precedence is
+# longest-path-match ACROSS ALL rules of the route, not per-rule, so:
+#   - PathPrefix /internal (rule 2) out-matches rule 1's catch-all `/` for
+#     that one subtree.
+#   - Everything else (the docmost SPA/API-for-humans surface, the
+#     `/api/orvex/session/exchange` bootstrap endpoint, health probes) keeps
+#     matching rule 1, unfiltered, exactly as today.
+# No path is dropped: the union of both rules' matches is exactly the prior
+# single `PathPrefix /` (rule 1 alone already covers 100% of it; rule 2 only
+# adds the FA filter on top of the one subtree that already runs its own
+# separate, non-cookie, bearer-token auth).
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -32,6 +49,11 @@ spec:
       namespace: traefik
       sectionName: orvex-CELLTOKEN-https
   rules:
+    # ── Rule 1 · FA-EXEMPT (no filters) ─────────────────────────────────────
+    # The docmost SPA/session-cookie product surface + the session-exchange
+    # bootstrap endpoint + health probes + everything not more specifically
+    # matched by rule 2 below. Unchanged from today's fully-unfiltered
+    # behavior.
     - backendRefs:
         - group: ""
           kind: Service
@@ -42,3 +64,25 @@ spec:
         - path:
             type: PathPrefix
             value: /
+    # ── Rule 2 · FA-GATED (ExtensionRef the chain-shell) ────────────────────
+    # `/internal/*` — InternalApiAuthGuard's own fail-closed bearer-token
+    # seam (ENG-1957 AC1/AC5), never the public/tenant session auth. See
+    # middleware-wiki-edge-forwardauth.yaml for why this attach is
+    # additive-only (real callers reach this subtree via cluster-local
+    # Service DNS, never this public route).
+    - backendRefs:
+        - group: ""
+          kind: Service
+          name: orvex-wiki
+          port: 3000
+          weight: 1
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: traefik.io
+            kind: Middleware
+            name: orvex-edge-forwardauth-wiki
+      matches:
+        - path:
+            type: PathPrefix
+            value: /internal
