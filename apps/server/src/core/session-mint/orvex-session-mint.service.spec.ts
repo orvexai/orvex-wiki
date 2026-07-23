@@ -52,7 +52,7 @@ class FakeEdgeVerifier implements EdgeAssertionVerifierPort {
 // PRINCIPAL below — proving both credentials share the resolve→mint tail.
 const ASSERTION_CLAIMS: EdgeAssertionClaims = {
   sub: 'sub-abc',
-  tenant: 'ws-uuid-A',
+  tenant: '11111111-1111-4111-8111-111111111111',
   cell: 'eu1a',
   cellEpoch: 0,
   scope: '',
@@ -121,7 +121,7 @@ function makeService(opts: {
 
 const PRINCIPAL: IntrospectedPrincipal = {
   subject: 'sub-abc',
-  workspaceId: 'ws-uuid-A',
+  workspaceId: '11111111-1111-4111-8111-111111111111',
 };
 
 describe('OrvexSessionMintService', () => {
@@ -129,7 +129,7 @@ describe('OrvexSessionMintService', () => {
     const t = makeService({
       principal: PRINCIPAL,
       resolvedUserId: 'user-1',
-      user: { id: 'user-1', workspaceId: 'ws-uuid-A' },
+      user: { id: 'user-1', workspaceId: '11111111-1111-4111-8111-111111111111' },
     });
 
     const minted = await t.service.mintSession('opaque-token');
@@ -137,7 +137,7 @@ describe('OrvexSessionMintService', () => {
     expect(minted).toEqual({
       accessToken: 'minted-access-token',
       sub: 'sub-abc',
-      workspaceId: 'ws-uuid-A',
+      workspaceId: '11111111-1111-4111-8111-111111111111',
       expiresAt: t.expiresAt,
     });
     // The token was introspected, not trusted unverified.
@@ -145,9 +145,9 @@ describe('OrvexSessionMintService', () => {
     // TENANT ISOLATION — resolution is scoped to the INTROSPECTED workspace.
     expect(t.findUserIdByProviderUserId).toHaveBeenCalledWith(
       'sub-abc',
-      'ws-uuid-A',
+      '11111111-1111-4111-8111-111111111111',
     );
-    expect(t.findById).toHaveBeenCalledWith('user-1', 'ws-uuid-A');
+    expect(t.findById).toHaveBeenCalledWith('user-1', '11111111-1111-4111-8111-111111111111');
     expect(t.createSessionAndToken).toHaveBeenCalledTimes(1);
   });
 
@@ -155,7 +155,7 @@ describe('OrvexSessionMintService', () => {
     const t = makeService({
       principal: PRINCIPAL,
       resolvedUserId: 'user-1',
-      user: { id: 'user-1', workspaceId: 'ws-uuid-A' },
+      user: { id: 'user-1', workspaceId: '11111111-1111-4111-8111-111111111111' },
     });
     await t.service.mintSession('super-secret-token');
 
@@ -166,7 +166,7 @@ describe('OrvexSessionMintService', () => {
       subject: 'sub-abc',
     });
     expect(context).toMatchObject({
-      workspaceId: 'ws-uuid-A',
+      workspaceId: '11111111-1111-4111-8111-111111111111',
       actorId: 'user-1',
       actorType: 'user',
     });
@@ -193,7 +193,7 @@ describe('OrvexSessionMintService', () => {
     );
     expect(t.findUserIdByProviderUserId).toHaveBeenCalledWith(
       'sub-abc',
-      'ws-uuid-A',
+      '11111111-1111-4111-8111-111111111111',
     );
     expect(t.findById).not.toHaveBeenCalled();
     expect(t.createSessionAndToken).not.toHaveBeenCalled();
@@ -218,7 +218,7 @@ describe('OrvexSessionMintService', () => {
       resolvedUserId: 'user-1',
       user: {
         id: 'user-1',
-        workspaceId: 'ws-uuid-A',
+        workspaceId: '11111111-1111-4111-8111-111111111111',
         deactivatedAt: new Date('2026-01-01T00:00:00.000Z'),
       },
     });
@@ -246,7 +246,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
       principal: () => Promise.reject(new Error('introspect must not be called')),
       assertion: ASSERTION_CLAIMS,
       resolvedUserId: 'user-1',
-      user: { id: 'user-1', workspaceId: 'ws-uuid-A' },
+      user: { id: 'user-1', workspaceId: '11111111-1111-4111-8111-111111111111' },
     });
 
     const minted = await t.service.mintSessionFromAssertion('edge.assertion.jws');
@@ -254,7 +254,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
     expect(minted).toEqual({
       accessToken: 'minted-access-token',
       sub: 'sub-abc',
-      workspaceId: 'ws-uuid-A',
+      workspaceId: '11111111-1111-4111-8111-111111111111',
       expiresAt: t.expiresAt,
     });
     // The assertion was verified, not trusted unverified.
@@ -262,9 +262,9 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
     // TENANT ISOLATION — resolution is scoped to the assertion's `tenant`.
     expect(t.findUserIdByProviderUserId).toHaveBeenCalledWith(
       'sub-abc',
-      'ws-uuid-A',
+      '11111111-1111-4111-8111-111111111111',
     );
-    expect(t.findById).toHaveBeenCalledWith('user-1', 'ws-uuid-A');
+    expect(t.findById).toHaveBeenCalledWith('user-1', '11111111-1111-4111-8111-111111111111');
     expect(t.createSessionAndToken).toHaveBeenCalledTimes(1);
   });
 
@@ -273,7 +273,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
       principal: () => Promise.reject(new Error('introspect must not be called')),
       assertion: ASSERTION_CLAIMS,
       resolvedUserId: 'user-1',
-      user: { id: 'user-1', workspaceId: 'ws-uuid-A' },
+      user: { id: 'user-1', workspaceId: '11111111-1111-4111-8111-111111111111' },
     });
     await t.service.mintSessionFromAssertion('super-secret.assertion.jws');
 
@@ -284,7 +284,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
       subject: 'sub-abc',
     });
     expect(context).toMatchObject({
-      workspaceId: 'ws-uuid-A',
+      workspaceId: '11111111-1111-4111-8111-111111111111',
       actorId: 'user-1',
       actorType: 'user',
     });
@@ -322,7 +322,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(t.findUserIdByProviderUserId).toHaveBeenCalledWith(
       'sub-abc',
-      'ws-uuid-A',
+      '11111111-1111-4111-8111-111111111111',
     );
     expect(t.createSessionAndToken).not.toHaveBeenCalled();
     expect(t.logWithContext).not.toHaveBeenCalled();
@@ -338,5 +338,19 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
     expect(err).not.toBeInstanceOf(UnauthorizedException);
     expect((err as Error).message).toContain('not configured');
     expect(t.createSessionAndToken).not.toHaveBeenCalled();
+  });
+
+  it('DENY — a VALIDLY-SIGNED assertion carrying a non-UUID tenant → clean 401, before the DB read (never a 500 uuid-cast error)', async () => {
+    const t = makeService({
+      principal: null,
+      assertion: { ...ASSERTION_CLAIMS, tenant: 'not-a-uuid' },
+    });
+    await expect(
+      t.service.mintSessionFromAssertion('valid-signature.jws'),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    // The guard trips BEFORE the linkage read reaches the uuid-typed column.
+    expect(t.findUserIdByProviderUserId).not.toHaveBeenCalled();
+    expect(t.createSessionAndToken).not.toHaveBeenCalled();
+    expect(t.logWithContext).not.toHaveBeenCalled();
   });
 });
