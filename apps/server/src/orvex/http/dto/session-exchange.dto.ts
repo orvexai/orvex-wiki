@@ -2,17 +2,22 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 /**
- * FR-W6 session-exchange request — `#/components/schemas/SessionExchangeRequest`.
+ * FR-W6 / ADR-0049 session-exchange request —
+ * `#/components/schemas/SessionExchangeRequest`.
  *
- * Only the one contract field: the identity-minted RS256 exchange token to
- * consume. The token is verified by the built+tested M7 core once the A-THIN
- * session fold-in lands; the endpoint is 501 today.
+ * `exchangeToken` is the identity-minted opaque token for the TRANSIENT
+ * introspect path. It is OPTIONAL because the PREFERRED ADR-0049 S2S path
+ * carries no body token — it presents an `X-Orvex-Assertion` header instead
+ * (see {@link OrvexSessionExchangeController}). When present it must be a
+ * string; the controller enforces that at least one credential (assertion or a
+ * non-blank token) is supplied, denying with a 401 otherwise. `whitelist:true`
+ * on the global pipe still strips any unknown body field.
  */
 export class SessionExchangeRequestDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  exchangeToken!: string;
+  exchangeToken?: string;
 }
