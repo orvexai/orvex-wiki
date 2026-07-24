@@ -4,7 +4,28 @@
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrvexPageMetaDriftController } from './orvex-page-meta-drift.controller';
-import { ENGINE_DRIFT_HEAD_SENTINEL } from './page-meta-verification.service';
+import {
+  DriftedStamp,
+  ENGINE_DRIFT_HEAD_SENTINEL,
+  PageMetaVerificationService,
+  VerifyContextSeed,
+} from './page-meta-verification.service';
+import { PageRepo } from '../../database/repos/page/page.repo';
+import SpaceAbilityFactory from '../../core/casl/abilities/space-ability.factory';
+import { Page, User, Workspace } from '../../database/types/entity.types';
+import {
+  SpaceCaslAction,
+  SpaceCaslSubject,
+} from '../../core/casl/interfaces/space-ability.type';
+
+/** The shape of `AppAbility.can`/`.cannot` this suite's fake CASL ability
+ * needs to match — the two-arg (action, subject) predicate the controller
+ * calls, never the full `MongoAbility` interface (which the plain mock
+ * object below cannot structurally satisfy without over-specifying it). */
+type CanPredicate = (
+  action: SpaceCaslAction,
+  subject: SpaceCaslSubject,
+) => boolean;
 
 /**
  * amazing-MCP drift-502 fix — the engine leg for wiki-api's drift verifier.
@@ -13,15 +34,16 @@ import { ENGINE_DRIFT_HEAD_SENTINEL } from './page-meta-verification.service';
  * the stamps sentinel/drift wiring.
  */
 describe('OrvexPageMetaDriftController', () => {
-  const user = { id: 'u1' } as any;
-  const workspace = { id: 'ws-1' } as any;
+  const user = { id: 'u1' } as unknown as User;
+  const workspace = { id: 'ws-1' } as unknown as Workspace;
 
   function make(opts: {
-    page?: any;
-    can?: (a: any, s: any) => boolean;
-    seed?: any;
-    drifted?: any[];
+    page?: Partial<Page>;
+    can?: CanPredicate;
+    seed?: VerifyContextSeed | null;
+    drifted?: DriftedStamp[];
   }) {
+    const alwaysCan: CanPredicate = () => true;
     const pageRepo = { findById: jest.fn(async () => opts.page) };
     const verificationService = {
       getVerifyContext: jest.fn(async () => opts.seed ?? null),
@@ -29,14 +51,15 @@ describe('OrvexPageMetaDriftController', () => {
       stampVerification: jest.fn(async () => undefined),
     };
     const ability = {
-      can: opts.can ?? (() => true),
-      cannot: (a: any, s: any) => !(opts.can ?? (() => true))(a, s),
+      can: opts.can ?? alwaysCan,
+      cannot: ((action, subject) =>
+        !(opts.can ?? alwaysCan)(action, subject)) as CanPredicate,
     };
     const spaceAbilityFactory = { createForUser: jest.fn(async () => ability) };
     const controller = new OrvexPageMetaDriftController(
-      verificationService as any,
-      pageRepo as any,
-      spaceAbilityFactory as any,
+      verificationService as unknown as PageMetaVerificationService,
+      pageRepo as unknown as PageRepo,
+      spaceAbilityFactory as unknown as SpaceAbilityFactory,
     );
     return { controller, pageRepo, verificationService };
   }
@@ -52,7 +75,7 @@ describe('OrvexPageMetaDriftController', () => {
         lastVerifiedFound: false,
       },
     });
-    const res: any = await controller.verifyContext('p1', user, workspace);
+    const res = await controller.verifyContext('p1', user, workspace);
     expect(res.canEdit).toBe(true);
     expect(res.headSha).toBe('hash-abc');
     expect(res.currentBody).toBe('# body');
@@ -83,12 +106,7 @@ describe('OrvexPageMetaDriftController', () => {
       can: () => false,
     });
     await expect(
-      controller.stamp(
-        'p1',
-        { verifiedAgainst: 'hash-abc' } as any,
-        user,
-        workspace,
-      ),
+      controller.stamp('p1', { verifiedAgainst: 'hash-abc' }, user, workspace),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(verificationService.stampVerification).not.toHaveBeenCalled();
   });
@@ -100,7 +118,7 @@ describe('OrvexPageMetaDriftController', () => {
     });
     const res = await controller.stamp(
       'p1',
-      { verifiedAgainst: 'hash-abc', verifiedAt: '2026-07-16T10:00:00.000Z' } as any,
+      { verifiedAgainst: 'hash-abc', verifiedAt: '2026-07-16T10:00:00.000Z' },
       user,
       workspace,
     );
