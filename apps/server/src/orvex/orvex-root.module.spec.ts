@@ -43,7 +43,7 @@ describe('OrvexRootModule.register', () => {
   });
 
   describe('flag ON (exactly "true")', () => {
-    it('mounts config + http + the session-mint composition (not-configured branch)', () => {
+    it('mounts the seven real Orvex feature modules', () => {
       process.env.ORVEX_MODULES_ENABLED = 'true';
       delete process.env.ORVEX_IDENTITY_URL;
 
@@ -54,24 +54,12 @@ describe('OrvexRootModule.register', () => {
       // OrvexConfigModule + OrvexHttpModule + OrvexEnforceSsoModule (ENG-1432)
       // + OrvexPageBlocksModule (ENG-1412) + OrvexTracingModule (ENG-1599)
       // + OrvexHealthModule (ENG-1604 AC8) + OrvexMetricsModule (ENG-1360)
-      // + the composed SessionMintModule.
       // (OrvexPageMetadataModule/ENG-1371 and OrvexMigratorService/
       // OrvexLlmsModule are deliberately NOT mounted here — see the
       // OrvexRootModule docstring; their real delivery paths are
       // app.module.ts / PageModule.)
-      expect(mod.imports?.length).toBe(8);
+      expect(mod.imports?.length).toBe(7);
     });
 
-    it('composes the REAL remote-JWKS verifier when ORVEX_IDENTITY_URL is set', () => {
-      process.env.ORVEX_MODULES_ENABLED = 'true';
-      process.env.ORVEX_IDENTITY_URL =
-        'https://identity.example/realms/orvex/protocol/openid-connect/certs';
-
-      // Construction only — createRemoteJWKSet does not fetch until first verify,
-      // so this must not throw at register() time.
-      expect(() => OrvexRootModule.register()).not.toThrow();
-      const mod = OrvexRootModule.register();
-      expect(mod.imports?.length).toBe(8);
-    });
   });
 });
