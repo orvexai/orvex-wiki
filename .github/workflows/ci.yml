@@ -616,17 +616,38 @@ jobs:
         run: actionlint
 
   # ---------------------------------------------------------------------------
-  # Family cell-contract gate (reusable workflow from the contracts seam).
-  # Re-enabled 2026-07-19 (M14 org-wide rollout, cell-contract.md): the prior
-  # cross-repo build-time failure (0 jobs created) was an org Actions access-
-  # policy gap on orvex-studio-contracts, now fixed (access_level=organization,
-  # verified live). In ci-success's needs: below.
+  # Family cell-contract gate — REMOVED 2026-07-24 (GH Actions outage RCA).
+  #
+  # The 2026-07-19 "Re-enabled" attempt (and the 2026-07-22 id-token: write
+  # follow-up fix) both assumed the only blocker was orvex-studio-contracts'
+  # Actions access_level. It was not: GitHub does not allow a workflow in a
+  # PUBLIC repository to call a reusable workflow hosted in a PRIVATE
+  # repository at all — access_level policies only govern private/internal
+  # callers (confirmed live: GET /repos/orvexai/orvex-wiki/actions/permissions/access
+  # -> 422 "Access policy only applies to internal and private repositories").
+  # orvex-wiki is the family's only public repo; orvex-studio-contracts is
+  # private. Calling `uses: orvexai/orvex-studio-contracts/.github/workflows/
+  # cell-lint.yml@dev` from here is therefore a hard, permanent GitHub
+  # restriction, not a config gap — every run on every branch failed at
+  # workflow-dispatch time (0 jobs, no logs, conclusion=failure) from the
+  # 2026-07-19T10:00:59Z commit that added it (95fefa4d02a9) onward, ~5 days
+  # of unverified CI on every push.
+  #
+  # cell-lint.yml's jobs also `runs-on: runners` (the private, cluster-admin
+  # + OpenBao-capable group) and its solo-in-promoted-overlay job mints an
+  # OIDC->OpenBao token (id-token: write) — both incompatible with orvex-wiki's
+  # deliberate public-runners-only / no-cluster-secret-reach CI isolation (see
+  # the RUNNERS note at the top of this file), so even a same-visibility fix
+  # would not make this job safe to run against public/fork PRs here.
+  #
+  # orvex-wiki is NOT in the org's `cell-lint-required` ruleset
+  # (orgs/orvexai/rulesets/18692146 targets only orvex-studio-console and
+  # orvex-studio-contracts) — nothing requires this repo to report a cell-lint
+  # status check, so removing the job is a clean revert, not a gate downgrade.
+  # If wiki-level cell-contract enforcement is wanted later, it needs its own
+  # design (e.g. rules inlined locally, or a public contracts mirror) — not a
+  # cross-repo call into a private reusable workflow.
   # ---------------------------------------------------------------------------
-  cell-lint:
-    permissions:
-      contents: read
-      id-token: write
-    uses: orvexai/orvex-studio-contracts/.github/workflows/cell-lint.yml@dev
 
   # ---------------------------------------------------------------------------
   # CI Success Gate — the single required check for branch protection.
@@ -654,7 +675,6 @@ jobs:
       - security
       - sbom-generation
       - workflow-lint
-      - cell-lint
     runs-on: public-runners
     if: always()
     steps:
