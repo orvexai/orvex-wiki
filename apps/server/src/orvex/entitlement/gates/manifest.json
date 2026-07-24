@@ -1,0 +1,21 @@
+{
+  "$comment": "ENG-2377 T1 — normative fail-consistent entitlements-client conformance corpus (gates/entitlements/**). Lists the 5 fixture cases both the Go orvex-studio-lib/entitlements client and the TS engine EntitlementService trio conform to, driven via a fake billing HTTP server (httptest.NewServer / an in-process TS equivalent) — never against either client's own cache/resolve internals. Maps 1:1 to AC1-AC5 (CS ×#6 — no speculative case beyond the five ACs). Vendored here as JSON (source-of-truth in orvex-studio-contracts is YAML; this repo has no direct js-yaml/yaml dependency and this Issue introduces none — same case IDs, same content, JSON-converted losslessly, see gates/PIN).",
+  "cases": [
+    "reachable-warm-hit.json",
+    "unreachable-within-bound.json",
+    "unreachable-past-bound.json",
+    "never-seen-free-default.json",
+    "delegated-principal.json"
+  ],
+  "ac_map": {
+    "AC1": "reachable-warm-hit.json",
+    "AC2": "unreachable-within-bound.json, unreachable-past-bound.json",
+    "AC3": "never-seen-free-default.json",
+    "AC4": "all cases (both Go + TS clients driven against the same file set)",
+    "AC5": "delegated-principal.json"
+  },
+  "route": "GET /v1/entitlements/{principal_type}/{principal_id}",
+  "response_schema": "billing/entitlements.schema.json (frozen, x-status: active, getEntitlement op)",
+  "staleness_bound_seconds": 300,
+  "$notes": "Response bodies in every case use ONLY the ratified entitlements.schema.json shape (plan/plan_version/features/caps/trial/throttle/version/evaluatedAt). No case encodes the superseded draft skeleton (tenantId/quotas{}) or a numeric Free AI budget/lifetime counter shape — that draft was retired at contracts commit 8aed191 and never implemented by any producer or consumer."
+}

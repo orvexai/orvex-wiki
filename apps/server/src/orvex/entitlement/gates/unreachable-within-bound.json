@@ -1,0 +1,79 @@
+{
+  "id": "unreachable-within-bound",
+  "description": "Billing responds successfully once (warms the cache), then becomes unreachable (connection-refused). A Resolve() call while the cached entry is younger than staleness_bound_seconds (300s, NFR-B4) is served the LKG value byte-identical to what billing last actually returned \u2014 never interpolated/guessed (CS \u00a711 ALL-REAL).",
+  "principal": {
+    "principal_type": "user",
+    "principal_id": "user_fixture_lkg_01"
+  },
+  "billing_server": {
+    "behavior": "succeed_once_then_connection_refused",
+    "response": {
+      "plan": "teams",
+      "plan_version": "2026-05-01",
+      "features": [
+        "composer",
+        "ask_wiki",
+        "improve_with_ai"
+      ],
+      "caps": {
+        "ai_monthly_budget_gbp": 25,
+        "embedding_monthly_budget_gbp": 5,
+        "curator_distillation_monthly": 100,
+        "trial_weekly_actions_advisory": 0,
+        "trial_weekly_actions_throttle": 0,
+        "demo_ai_actions": 0,
+        "wiki_max_pages": 5000,
+        "wiki_storage_bytes_aggregate": 21474836480,
+        "wiki_max_file_bytes": 104857600,
+        "wiki_max_files": 20000,
+        "wiki_max_members": 50,
+        "wiki_history_retention_versions": 200,
+        "wiki_history_retention_days": 365
+      },
+      "trial": {
+        "state": "none"
+      },
+      "throttle": {
+        "state": "none"
+      },
+      "version": "ent_v12",
+      "evaluatedAt": "2026-07-20T09:00:00Z"
+    }
+  },
+  "steps": [
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 0,
+      "expect": {
+        "result": "success",
+        "plan": "teams",
+        "billing_call": true,
+        "cache_state_after": "populated"
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 60,
+      "expect": {
+        "result": "success",
+        "plan": "teams",
+        "billing_call": true,
+        "billing_call_result": "connection_refused",
+        "served_from": "last_known_good",
+        "value_byte_identical_to_last_success": true
+      }
+    },
+    {
+      "action": "resolve",
+      "at_clock_offset_seconds": 299,
+      "expect": {
+        "result": "success",
+        "plan": "teams",
+        "billing_call": true,
+        "billing_call_result": "connection_refused",
+        "served_from": "last_known_good",
+        "value_byte_identical_to_last_success": true
+      }
+    }
+  ]
+}

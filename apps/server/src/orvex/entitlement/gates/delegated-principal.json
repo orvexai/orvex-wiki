@@ -1,0 +1,62 @@
+{
+  "id": "delegated-principal",
+  "description": "A service identity (the token minter / calling service) resolves entitlements on behalf of an acting-for principal (a delegated call). The client's Resolve MUST key the billing request (and its cache key) on the acted-for principal's tenant, never the calling service's own identity. A client that keyed on the caller identity would hit the WRONG billing path below and this fixture would observe that wrong path, failing the case.",
+  "caller_principal": {
+    "principal_type": "org",
+    "principal_id": "org_service_identity_mcp_workload",
+    "note": "The token-minting / calling identity \u2014 MUST NOT appear as the request path's principal_id below."
+  },
+  "acting_for_principal": {
+    "principal_type": "user",
+    "principal_id": "user_delegated_acted_for_01",
+    "note": "The delegated end-user \u2014 MUST be the request path's principal_id."
+  },
+  "billing_server": {
+    "behavior": "always_200",
+    "assert_request_path": "/v1/entitlements/user/user_delegated_acted_for_01",
+    "assert_request_path_must_not_contain": "org_service_identity_mcp_workload",
+    "response": {
+      "plan": "personal",
+      "plan_version": "2026-06-01",
+      "features": [
+        "composer"
+      ],
+      "caps": {
+        "ai_monthly_budget_gbp": 7,
+        "embedding_monthly_budget_gbp": 1,
+        "curator_distillation_monthly": 20,
+        "trial_weekly_actions_advisory": 0,
+        "trial_weekly_actions_throttle": 0,
+        "demo_ai_actions": 0,
+        "wiki_max_pages": 500,
+        "wiki_storage_bytes_aggregate": 2147483648,
+        "wiki_max_file_bytes": 52428800,
+        "wiki_max_files": 2000,
+        "wiki_max_members": 10,
+        "wiki_history_retention_versions": 50,
+        "wiki_history_retention_days": 90
+      },
+      "trial": {
+        "state": "none"
+      },
+      "throttle": {
+        "state": "none"
+      },
+      "version": "ent_v9",
+      "evaluatedAt": "2026-07-20T10:10:00Z"
+    }
+  },
+  "steps": [
+    {
+      "action": "resolve_delegated",
+      "at_clock_offset_seconds": 0,
+      "expect": {
+        "result": "success",
+        "plan": "personal",
+        "billing_request_keyed_on": "acting_for_principal",
+        "billing_request_path": "/v1/entitlements/user/user_delegated_acted_for_01",
+        "billing_request_never_keyed_on": "caller_principal"
+      }
+    }
+  ]
+}
