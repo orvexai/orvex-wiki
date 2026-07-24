@@ -123,12 +123,21 @@ data:
 
   # ENG-1599 — OTel trace export (A-OBSERVE "OTel to LGTM (console)"). A
   # configured URL, never a credential (A-PORTABLE); read ONLY by
-  # `initOrvexTracing`, itself gated on ORVEX_MODULES_ENABLED==='true' (off
-  # above, so this key is inert here — VANILLA BYTE-PARITY DOCTRINE). Base =
-  # the prod cluster-local OTLP/HTTP collector; components/staging → dev;
-  # components/crew → the crew's own collector, same crew → crew seam as the
-  # ORVEX_*_URL block above.
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.orvex-studio-console.svc.cluster.local:4318"
+  # `initOrvexTracing`, itself gated on ORVEX_MODULES_ENABLED==='true'.
+  #
+  # ENG-3103 (AD-25, [verified live]) — this key is DELETED from here, not
+  # repointed. It used to hard-set `http://otel-collector.orvex-studio-
+  # console.svc.cluster.local:4318` — a collector that has never existed,
+  # so every trace/metric/log this engine ever exported vanished into a
+  # black hole, undetected. The family's single OTLP target is now
+  # INJECTED by the shared `telemetry-env` kustomize component (see
+  # ../../kustomization.yaml `components:`), which appends
+  # `OTEL_EXPORTER_OTLP_ENDPOINT` onto the server container's `envFrom` —
+  # this repo never hand-sets the value again (AD-25: a service reads it,
+  # never chooses it). ORVEX_MODULES_ENABLED still gates whether the value
+  # is ever consumed by `initOrvexTracing`; the injected value itself is
+  # cell-agnostic (cluster-local Service DNS) so components/staging and
+  # components/crew need no override.
 
   # ── Edge-assertion config (ADR-0049 / ENG-3063 flip step 1) ──────────────
   # ORVEX_EDGE_ISSUER / ORVEX_EDGE_JWKS_URL are the two deps
