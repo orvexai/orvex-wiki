@@ -279,9 +279,8 @@ describe('EdgeAssertionVerifier — ADR-0049 golden corpus replay (contracts v0.
  * Supplementary boundary tests for the `iat`/`nbf` clock-skew half of the
  * expiry check (ADR-0049 check 3). The pinned v0.1.4 corpus does not carry
  * `nbf` vectors and only exercises the `exp` boundary, so these are minted
- * locally against a fresh ES256 keypair — mirroring
- * `../session-mint/exchange-token-verifier.spec.ts`'s own `mint()` pattern —
- * rather than skipped as "not in the corpus".
+ * locally against a fresh ES256 keypair rather than skipped as "not in the
+ * corpus".
  */
 describe('EdgeAssertionVerifier — iat/nbf skew boundaries (ADR-0049 check 3)', () => {
   const ISSUER = 'https://identity.edge.orvex.internal/edge-authn';

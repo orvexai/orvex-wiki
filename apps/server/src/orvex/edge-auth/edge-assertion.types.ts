@@ -71,7 +71,7 @@ export type EdgeAssertionErrorCode =
 
 /**
  * DESIGN-IT-TWICE (CS §4), same shape as {@link ExchangeTokenVerificationError}
- * (`../session-mint/exchange-token.types`) and for the same reason: a thrown
+ * (the retired orvex exchange-token types) and for the same reason: a thrown
  * typed error, not a `{ok,...}` result union, so `verify()` keeps returning
  * `Promise<EdgeAssertionClaims>` directly and the happy path never pays a tag
  * check. Every failure maps to a `401` at the delivery seam (ADR-0049: no

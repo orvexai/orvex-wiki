@@ -265,8 +265,7 @@ function narrowClaims(payload: unknown): EdgeAssertionClaims {
 /**
  * Map a thrown jose error to a stable {@link EdgeAssertionErrorCode}. Codes
  * and class↔code correspondence are pinned by jose's public error taxonomy
- * (verified against jose 6.2.3) — mirrors the sibling mapper in
- * `../session-mint/exchange-token-verifier.ts`.
+ * (verified against jose 6.2.3).
  */
 function mapJoseError(err: unknown): EdgeAssertionErrorCode {
   if (err instanceof errors.JOSEAlgNotAllowed) {

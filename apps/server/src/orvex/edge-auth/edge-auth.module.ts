@@ -24,7 +24,7 @@ export const EDGE_ASSERTION_VERIFIER = Symbol('EDGE_ASSERTION_VERIFIER');
  * proven against the shared conformance corpus.
  *
  * ACCEPT-DON'T-CREATE (CS §3.4), same pattern as the sibling
- * `../session-mint/session-mint.module.ts`: the JWKS source is a network
+ * the retired orvex session-mint module: the JWKS source is a network
  * seam (CS §5), so this module never builds one itself. The caller supplies
  * fully-built deps — in production, an
  * `EdgeAssertionKeySource` backed by identity's internal JWKS endpoint
