@@ -121,14 +121,29 @@ data:
   ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
   ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"
 
-  # ENG-1599 — OTel trace export (A-OBSERVE "OTel to LGTM (console)"). A
-  # configured URL, never a credential (A-PORTABLE); read ONLY by
-  # `initOrvexTracing`, itself gated on ORVEX_MODULES_ENABLED==='true' (off
-  # above, so this key is inert here — VANILLA BYTE-PARITY DOCTRINE). Base =
-  # the prod cluster-local OTLP/HTTP collector; components/staging → dev;
-  # components/crew → the crew's own collector, same crew → crew seam as the
-  # ORVEX_*_URL block above.
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.orvex-studio-console.svc.cluster.local:4318"
+  # ENG-1599 / AD-25 — OTel export (A-OBSERVE "OTel to LGTM"). A configured URL,
+  # never a credential (A-PORTABLE); read ONLY by `initOrvexTracing`, itself
+  # gated on ORVEX_MODULES_ENABLED==='true'.
+  #
+  # This is the platform's ONE OTLP ingest point: the Alloy receiver fans a
+  # single stream out to all three LGTM backends (tempo-distributor for traces,
+  # mimir-gateway for metrics, loki-gateway for logs — see my-idp
+  # platform/apps/observability/k8s-monitoring/values.yaml
+  # applicationObservability.destinations). It is cluster-wide, NOT per-cell, so
+  # this base value is correct for every cell and no component patches it. (The
+  # previous comment here claimed components/staging and components/crew
+  # overrode it — they never did; grep them.)
+  #
+  # In-cluster, so the .svc address is used deliberately: the public route
+  # otlp.eu-central-1.myidp.cloud exists for OFF-CLUSTER producers (browser
+  # SDKs, the Cloudflare Worker UI) and routing internal telemetry through the
+  # edge would add a pointless round trip and make observability depend on
+  # external DNS. Same convention loki/mimir document on their own HTTPRoutes.
+  #
+  # Was http://otel-collector.orvex-studio-console.svc.cluster.local:4318 — a
+  # service that does not exist in any namespace, so every span, metric and log
+  # this engine emitted was silently discarded.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318"
 
   # ── Edge-assertion config (ADR-0049 / ENG-3063 flip step 1) ──────────────
   # ORVEX_EDGE_ISSUER / ORVEX_EDGE_JWKS_URL are the two deps
