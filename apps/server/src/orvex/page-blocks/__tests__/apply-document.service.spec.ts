@@ -4,6 +4,7 @@
 
 import { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import type { Redis } from 'ioredis';
+import type { JSONContent } from '@tiptap/core';
 import { ApplyOpsService } from '../apply-ops.service';
 import { IdempotencyStore } from '../../../integrations/redis/idempotency-store.service';
 import { PageRepo } from '../../../database/repos/page/page.repo';
@@ -83,7 +84,7 @@ describe('ApplyOpsService.applyDocument — whole-doc replace/append/prepend', (
       writeOperation: 'replace',
     });
     const written = pageRepo.updatePage.mock.calls[0][0].content;
-    expect(written.content.map((n: any) => n.content[0].text)).toEqual([
+    expect(written.content.map((n: JSONContent) => n.content[0].text)).toEqual([
       'incoming',
     ]);
   });
@@ -96,7 +97,7 @@ describe('ApplyOpsService.applyDocument — whole-doc replace/append/prepend', (
       writeOperation: 'append',
     });
     const written = pageRepo.updatePage.mock.calls[0][0].content;
-    expect(written.content.map((n: any) => n.content[0].text)).toEqual([
+    expect(written.content.map((n: JSONContent) => n.content[0].text)).toEqual([
       'existing',
       'incoming',
     ]);
@@ -110,7 +111,7 @@ describe('ApplyOpsService.applyDocument — whole-doc replace/append/prepend', (
       writeOperation: 'prepend',
     });
     const written = pageRepo.updatePage.mock.calls[0][0].content;
-    expect(written.content.map((n: any) => n.content[0].text)).toEqual([
+    expect(written.content.map((n: JSONContent) => n.content[0].text)).toEqual([
       'incoming',
       'existing',
     ]);
