@@ -283,11 +283,14 @@ describe('TestGoAndTsCorpusManifestsAgree', () => {
 // ---------------------------------------------------------------------------
 
 describe('TestContractsParityScriptRunsBlockingNotReportOnly', () => {
+  // 30s budget: this spawns the real gate script, which walks the whole
+  // vendored corpus and lands within a few hundred ms of vitest's 5s
+  // default — a flaky timeout, not a slow gate.
   it('the parity gate passes the real vendored corpus (exit 0)', () => {
     const res = runScript(PARITY_GATE, [REPO_ROOT]);
     expect(res.stdout).toContain('blocking mode');
     expect(res.status).toBe(0);
-  });
+  }, 30_000);
 
   it('the parity gate FAILS (exit != 0) on a corpus with a FAIL line — the report-only exit-0 override does not survive this repo', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'dfm-broken-corpus-'));
@@ -305,7 +308,7 @@ describe('TestContractsParityScriptRunsBlockingNotReportOnly', () => {
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it('this repo CI wires both DfM gates as blocking steps (no report-only wrapper)', () => {
     const ci = readFileSync(CI_WORKFLOW, 'utf8');
