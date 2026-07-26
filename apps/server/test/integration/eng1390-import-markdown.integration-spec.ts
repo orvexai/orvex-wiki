@@ -278,6 +278,12 @@ describe('EngineImportKeepsInternalMarkdown (ENG-1390)', () => {
     const pmToDfmAllowlist = new Set([
       'orvex/llms/orvex-llms.service.ts',
       'orvex/llms/orvex-llms.controller.spec.ts',
+      // ENG-2487 AC1 — the sanctioned write-path wiring: the collab layer's
+      // Yjs↔PM↔DfM projection (`jsonToDfm`) imports `pmToDfm` from the same
+      // in-repo `@orvex/dfm` clean-room AGPL twin. Same rationale as the
+      // ENG-1492 entries above: an in-process import of the sanctioned
+      // package, not a relocated public convert/fidelity surface.
+      'collaboration/collaboration.util.ts',
     ]);
     for (const importer of pmToDfmReferences) {
       expect(pmToDfmAllowlist.has(importer)).toBe(true);

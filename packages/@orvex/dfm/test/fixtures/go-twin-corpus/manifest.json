@@ -1,0 +1,28 @@
+{
+  "$comment": "ENG-1598 canonical DfM parity-corpus manifest (fixtures/dfm/**). Supersedes the ENG-1393 corpus at packages/dfm/corpus/** (AC7 — folded here, single source of record). Lists: (1) the 15 registered PM node types + 12 registered marks the TS @orvex/dfm registry proves against (registeredTypes()/registeredMarkTypes()), each authored as a language-neutral <case>.pm.json <-> <case>.dfm.md pair under nodes/ and marks/; (2) opaque reference exemplars under opaque/; (3) the 22 engine block-schema-catalog embed types (GET /api/schemas/blocks, live-enumerated 2026-07-08 from apps/server/src/orvex/page-blocks/handlers/*.ts + schemas-catalog.spec.ts) that are NOT first-class @orvex/dfm node types, each authored as a documented opaque-fence fixture under embeds/ (AC1/AC4); (4) both mention formats under mentions/ (AC5). 'table' and 'callout' are the two catalog types already covered as first-class node fixtures (nodes/table.*, nodes/callout.*) -- they are cross-referenced, not duplicated, in embeds/.",
+  "nodes": [
+    "text", "doc", "hardBreak", "paragraph", "heading", "listItem",
+    "bulletList", "orderedList", "tableCell", "tableRow", "table",
+    "blockquote", "codeBlock", "callout", "horizontalRule"
+  ],
+  "extra_cases": {
+    "table": ["table-cell-marks"]
+  },
+  "marks": [
+    "code", "bold", "underline", "strike", "highlight", "subscript",
+    "superscript", "kbd", "small", "aiAuthored", "italic", "link"
+  ],
+  "opaque_exemplars": ["excalidraw", "drawio"],
+  "internal": ["dfmOpaque", "mention"],
+  "catalog_embed_types_first_class": ["table", "callout"],
+  "catalog_embed_types_opaque": [
+    "attachment", "audio", "chart", "columns", "details", "drawio",
+    "embed", "excalidraw", "excalidraw-scene", "image_from_prompt",
+    "math_block", "math_inline", "mermaid", "orvex_dashboard", "pdf",
+    "section-edit", "status", "subpages", "task_list", "tldr",
+    "transclusion", "video"
+  ],
+  "mentions": ["mention-slug", "mention-label"],
+  "$catalog_count": 24,
+  "$notes": "catalog_embed_types_first_class + catalog_embed_types_opaque = 2 + 22 = 24, the full live GET /api/schemas/blocks enumeration (AC3). internal: parse-only/documented-exclusion type names never returned by registeredTypes()/registeredMarkTypes() (kept for forward-compat). opaque_exemplars: synthetic never-registered type names (excalidraw/drawio) exercising the reference opaque-fence path with the ENG-1393-authored ids, distinct from the embeds/ catalog fixtures which use the live catalog's own type names."
+}

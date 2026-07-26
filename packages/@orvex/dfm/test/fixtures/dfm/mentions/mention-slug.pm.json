@@ -1,0 +1,25 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "See "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "entityType": "page",
+            "slugId": "welcome-abc123"
+          }
+        },
+        {
+          "type": "text",
+          "text": " for details."
+        }
+      ]
+    }
+  ]
+}

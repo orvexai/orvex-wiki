@@ -9,10 +9,11 @@ import { Principal, EntitlementCheckResponse } from './entitlement.types';
 const KEY_PREFIX = 'entitlement';
 // AC7 — this is the "last-known cached entitlement projection" fallback
 // window, not a freshness TTL: on a cache hit within this window we treat
-// the projection as usable even if billing is currently unreachable. A
-// `billing.entitlement.changed` CloudEvent consumer (deferred — see T4 note
-// in the PR) evicts this key immediately on a real plan change; the TTL is
-// only the worst-case staleness bound if that eviction is ever missed.
+// the projection as usable even if billing is currently unreachable. The
+// `billing.entitlement.changed` CloudEvent consumer
+// (`entitlement-changed.consumer.ts`, ENG-2489 — the formerly-deferred PUSH
+// leg) evicts this key immediately on a real plan change; the TTL is only
+// the worst-case staleness bound if that eviction is ever missed.
 const CACHE_TTL_SECONDS = 300;
 // ENG-2377 T4 — a unit-conversion constant (ms per second), never a cap
 // ceiling or a freshness knob (❌#10 n/a — this is arithmetic, not policy).

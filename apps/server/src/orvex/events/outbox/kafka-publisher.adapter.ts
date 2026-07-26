@@ -57,6 +57,32 @@ export class KafkaPublisherAdapter
     });
   }
 
+  /**
+   * ENG-2496 AC2 — the boot-time topic-shape check's metadata read, on the
+   * SAME adapter/client the relay already publishes through (❌#8 — never a
+   * second inline Kafka client). Returns `null` when the broker reports the
+   * topic as unknown; rethrows any other failure (the relay's own
+   * try/catch logs loudly without blocking startup).
+   */
+  async fetchTopicPartitionCount(topic: string): Promise<number | null> {
+    const admin = this.kafka.admin();
+    try {
+      await admin.connect();
+      const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
+      const entry = metadata.topics.find((t) => t.name === topic);
+      return entry ? entry.partitions.length : null;
+    } catch (err) {
+      if (
+        (err as { type?: string })?.type === 'UNKNOWN_TOPIC_OR_PARTITION'
+      ) {
+        return null;
+      }
+      throw err;
+    } finally {
+      await admin.disconnect().catch(() => undefined);
+    }
+  }
+
   async onModuleDestroy(): Promise<void> {
     if (this.producer) {
       try {

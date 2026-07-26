@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { EnvironmentModule } from '../../integrations/environment/environment.module';
 import { OrvexConfigModule } from '../config/orvex-config.module';
 import { OutboxRelayService } from './outbox/outbox-relay.service';
+import { OutboxRelayHeartbeat } from './outbox/outbox-relay-heartbeat.service';
 import { KafkaPublisherAdapter } from './outbox/kafka-publisher.adapter';
 import { KAFKA_PUBLISHER_PORT } from './outbox/kafka-publisher.port';
 
@@ -29,8 +30,12 @@ import { KAFKA_PUBLISHER_PORT } from './outbox/kafka-publisher.port';
   imports: [EnvironmentModule, OrvexConfigModule],
   providers: [
     OutboxRelayService,
+    // ENG-2496 AC4 — the relay liveness/lag heartbeat: gauges on the ONE
+    // shared @orvexai/metrics registry + the backing sample the
+    // /health/orvex/relay probe mirrors.
+    OutboxRelayHeartbeat,
     { provide: KAFKA_PUBLISHER_PORT, useClass: KafkaPublisherAdapter },
   ],
-  exports: [OutboxRelayService],
+  exports: [OutboxRelayService, OutboxRelayHeartbeat],
 })
 export class OrvexEventsModule {}

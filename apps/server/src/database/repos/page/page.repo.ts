@@ -400,7 +400,7 @@ export class PageRepo {
         'in',
         pageIds,
       )
-      .returning(['id', 'slugId', 'workspaceId', 'updatedAt'])
+      .returning(['id', 'slugId', 'workspaceId', 'spaceId', 'updatedAt'])
       .execute();
 
     // ENG-1383 F5 fix-pass-2: gate ONLY on the content change itself. The
@@ -434,6 +434,12 @@ export class PageRepo {
             tenant: row.workspaceId,
             pageIds: [row.id],
             version: new Date(row.updatedAt).getTime(),
+            // ENG-2494 AC3 — `spaceId` captured at the exact write moment
+            // (from the UPDATE's own `.returning(...)`, the same committed
+            // row) for per-tenant/per-space ordering downstream — never
+            // re-derived later by a consumer, never stale relative to the
+            // committed row.
+            spaceId: row.spaceId,
             ...contentOutboxExtra,
           },
         });
@@ -567,6 +573,10 @@ export class PageRepo {
               tenant: row.workspaceId,
               pageIds: [row.id],
               version: new Date(row.createdAt).getTime(),
+              // ENG-2494 AC3 — `spaceId` at emit time (the inserted row's
+              // own value, via `baseFields` returning), mirroring
+              // `runUpdatePages`' content payload.
+              spaceId: row.spaceId,
             },
           });
         }

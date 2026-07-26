@@ -39,4 +39,18 @@ export class CreatePageDto {
   @Transform(({ value }) => value?.toLowerCase() ?? 'json')
   @IsIn(['json', 'markdown', 'html'])
   format?: ContentFormat;
+
+  // ENG-2484 (AC4) — the validated request-surface leg of the atomic
+  // AI-provenance stamp. When true, the content write is tagged as
+  // AI-authored: `PageService.updatePageContent` forwards it into the
+  // collab `updatePageContent` Yjs event, whose handler marks the
+  // AI-changed blocks in the live ydoc and flags the document so the next
+  // debounced store stamps `orvex_page_meta` provenance in the SAME
+  // transaction as the content write (ENG-1447/ENG-1603 mechanism).
+  // Validated here (`@IsBoolean()`), never a bare untyped passthrough; the
+  // acting identity is always the server-derived authenticated user, never
+  // taken from the body.
+  @IsOptional()
+  @IsBoolean()
+  markAiAuthored?: boolean;
 }

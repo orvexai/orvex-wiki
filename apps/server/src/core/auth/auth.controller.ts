@@ -57,10 +57,10 @@ export class AuthController {
   ) {}
 
   // ENG-1490 AC1 — fail-closed BEFORE the ENG-1409 per-member enforce-SSO
-  // check (which still runs below and preserves the owner/admin break-glass
-  // exemption for the flag-off/vanilla and flag-on/SSO-off paths — AC5/AC6).
-  // This guard only ever fires additively when the orvex module tree is
-  // active AND the workspace enforces SSO.
+  // check (which still runs below for flag-off/vanilla deployments and
+  // preserves that path's owner/admin exemption). ENG-2499 AC3 tightened the
+  // guard: whenever the orvex module tree is active it fires UNCONDITIONALLY
+  // (native login removed fully — no enforceSso condition, no break-glass).
   @UseGuards(OrvexNativeLoginGuard)
   @HttpCode(HttpStatus.OK)
   @Post('login')
@@ -168,6 +168,12 @@ export class AuthController {
     return this.authService.forgotPassword(forgotPasswordDto, workspace);
   }
 
+  // ENG-2499 AC3 — the reset sibling of the native-login surface: under the
+  // fold-in (flag ON) a pre-existing reset token must not remain a native
+  // session-minting break-glass, so the same unconditional guard applies.
+  // Flag-off vanilla deployments are untouched (the guard passes through),
+  // where `validateSsoEnforcement` below stays the unconditional 400 path.
+  @UseGuards(OrvexNativeLoginGuard)
   @HttpCode(HttpStatus.OK)
   @Post('password-reset')
   async passwordReset(

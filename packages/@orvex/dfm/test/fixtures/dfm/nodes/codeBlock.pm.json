@@ -1,0 +1,17 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ts"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "const x = 1;"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "entries": [
+    { "name": "app.module OrvexRootModule import", "class": "allowlist" },
+    { "name": "log-level-tuning", "class": "cosmetics" }
+  ]
+}

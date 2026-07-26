@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "attachment",
+      "attrs": {
+        "id": "attachment-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

@@ -12,6 +12,20 @@ import { Principal, EntitlementCheckResponse } from './entitlement.types';
  */
 export const BILLING_ENTITLEMENT_PORT = Symbol('BILLING_ENTITLEMENT_PORT');
 
+/**
+ * ENG-2489 AC3 — thrown by an adapter when the billing SoR is ABSENT
+ * (not configured at all), as opposed to configured-but-unreachable.
+ * `EntitlementService.resolve` distinguishes the two: absent → serve the
+ * disclosed interim hardcode-Free constant behind the same interface;
+ * unreachable → last-known cached projection, else fail closed (503).
+ */
+export class BillingUnconfiguredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BillingUnconfiguredError';
+  }
+}
+
 export interface BillingEntitlementPort {
   /**
    * Resolves the current entitlement for a principal from billing's

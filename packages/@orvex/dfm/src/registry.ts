@@ -1,49 +1,73 @@
-import type { PmNode } from './types';
+import type { MarkEntry, NodeEntry, PmMark } from './types';
 
 /**
- * Recurse into a child node. A {@link NodeSerializer} receives this so a block
- * serializer can serialize its own `content` without owning the dispatch table.
+ * The bidirectional single-source-of-truth registry: every node/mark type's
+ * forward+reverse behaviour is co-located in ONE entry here. Real, mutable
+ * maps — no hidden fallback fabricates output for an unregistered type (the
+ * dispatcher fences it instead; see `pm-to-dfm.ts`).
+ *
+ * Folded in from the upstream clean-room reference serializer (ENG-2487);
+ * equivalence with the Go twin (`orvex-studio-lib/pkg/dfm`) flows ONLY through
+ * the shared contract fixtures, never through shared code (D-CON-8).
  */
-export type SerializeChild = (node: PmNode) => string;
 
-/**
- * A node-type serializer: given the node and a child-recursion callback, return
- * the node's DfM fragment. Must NOT swallow unimplemented children — recursion
- * flows back through {@link SerializeChild}, which throws for unknown types.
- */
-export type NodeSerializer = (node: PmNode, serializeChild: SerializeChild) => string;
+const nodeTable = new Map<string, NodeEntry>();
+const markTable = new Map<string, MarkEntry>();
+/** Ordered so the reverse lexer checks longer/more-specific tokens first (e.g. `**` before `*`). */
+const markOrder: string[] = [];
 
-/**
- * A real, mutable map of node type -> serializer. This is the dispatch table
- * the write path builds on; there is no hidden fallback that fabricates output
- * for an unregistered type (lookup returns `undefined`, and the caller throws).
- */
-export class NodeSerializerRegistry {
-  private readonly table = new Map<string, NodeSerializer>();
+export function registerNode(type: string, entry: NodeEntry): void {
+  nodeTable.set(type, entry);
+}
 
-  /** Register (or replace) the serializer for `nodeType`. Chainable. */
-  register(nodeType: string, serializer: NodeSerializer): this {
-    this.table.set(nodeType, serializer);
-    return this;
+export function getEntry(type: string): NodeEntry | undefined {
+  return nodeTable.get(type);
+}
+
+export function hasEntry(type: string): boolean {
+  return nodeTable.has(type);
+}
+
+export function registeredTypes(): string[] {
+  return [...nodeTable.keys()];
+}
+
+export function registerMark(type: string, entry: MarkEntry): void {
+  markTable.set(type, entry);
+  markOrder.push(type);
+}
+
+export function getMark(type: string): MarkEntry | undefined {
+  return markTable.get(type);
+}
+
+export function registeredMarkTypes(): string[] {
+  return [...markTable.keys()];
+}
+
+/** Mark types ordered longest-open-token-first, for greedy left-to-right lexing. */
+export function markLexOrder(): Array<{ type: string; entry: MarkEntry }> {
+  return [...markOrder]
+    .map((type) => ({ type, entry: markTable.get(type)! }))
+    .sort((a, b) => b.entry.openToken.length - a.entry.openToken.length);
+}
+
+/** Resolve a parsed opening token back to its mark type (used by the reverse lexer). */
+export function markFromToken(
+  openToken: string,
+): { type: string; entry: MarkEntry } | undefined {
+  for (const [type, entry] of markTable.entries()) {
+    if (entry.openToken === openToken) return { type, entry };
   }
+  return undefined;
+}
 
-  /** The serializer for `nodeType`, or `undefined` if none is registered. */
-  lookup(nodeType: string): NodeSerializer | undefined {
-    return this.table.get(nodeType);
-  }
-
-  /** Whether a serializer is registered for `nodeType`. */
-  has(nodeType: string): boolean {
-    return this.table.has(nodeType);
-  }
-
-  /** The registered node types (insertion order). */
-  registeredTypes(): string[] {
-    return [...this.table.keys()];
-  }
-
-  /** Number of registered node types. */
-  get size(): number {
-    return this.table.size;
-  }
+export function buildMark(
+  type: string,
+  openMatch: string,
+  innerCaptures: string[],
+): PmMark {
+  const entry = markTable.get(type);
+  if (!entry) throw new Error(`markFromToken: no registered mark "${type}"`);
+  return entry.markFromToken(openMatch, innerCaptures);
 }

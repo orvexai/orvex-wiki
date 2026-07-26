@@ -1,14 +1,37 @@
-import { Injectable, NestMiddleware, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NestMiddleware,
+  NotFoundException,
+} from '@nestjs/common';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { verify } from 'jsonwebtoken';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import {
+  CELL_SOLO,
+  OrvexConfigService,
+} from '../../orvex/config/orvex-config.service';
+
+/**
+ * ENG-2501 AC3/AC5 — the typed SOFT rejection marker the label-2 cell
+ * assertion surfaces on a mismatch (never a raw thrown `Error` with no code):
+ * a greppable operator signal, distinct from a generic 500.
+ */
+export interface CellLabelMismatch {
+  code: 'CELL_LABEL_MISMATCH';
+  hostLabel2: string;
+  podCellId: string;
+}
 
 @Injectable()
 export class DomainMiddleware implements NestMiddleware {
+  private readonly logger = new Logger(DomainMiddleware.name);
+
   constructor(
     private workspaceRepo: WorkspaceRepo,
     private environmentService: EnvironmentService,
+    private orvexConfigService: OrvexConfigService,
   ) {}
   async use(
     req: FastifyRequest['raw'],
@@ -23,7 +46,6 @@ export class DomainMiddleware implements NestMiddleware {
         return next();
       }
 
-      // TODO: unify
       (req as any).workspaceId = workspace.id;
       (req as any).workspace = workspace;
     } else if (this.environmentService.isCloud()) {
@@ -35,6 +57,29 @@ export class DomainMiddleware implements NestMiddleware {
         : undefined;
 
       if (workspace) {
+        // ENG-2501 AC3 — the SOFT label-2 cell assertion runs immediately
+        // after label-0 resolution succeeds. On a definite mismatch the one
+        // request is rejected with a typed marker; the process never dies.
+        const mismatch = this.assertLabel2CellSoft(
+          header,
+          this.orvexConfigService.cellId,
+        );
+        if (mismatch) {
+          this.logger.warn(
+            `soft cell assertion rejected request: code=${mismatch.code} hostLabel2=${mismatch.hostLabel2} podCellId=${mismatch.podCellId}`,
+          );
+          res.statusCode = 421;
+          res.setHeader('content-type', 'application/json');
+          res.end(
+            JSON.stringify({
+              ...mismatch,
+              message:
+                'Request reached a pod outside its cell (defence-in-depth soft check; the edge routing layer remains authoritative).',
+            }),
+          );
+          return;
+        }
+
         (req as any).workspaceId = workspace.id;
         (req as any).workspace = workspace;
         return next();
@@ -58,6 +103,46 @@ export class DomainMiddleware implements NestMiddleware {
     }
 
     next();
+  }
+
+  /**
+   * ENG-2501 (FR-W20, A-TENANCY) — the SOFT label-2 cell assertion.
+   *
+   * Compares the `Host` header's label-2 segment (the cell segment, e.g.
+   * `eu1` in `acme.wiki.eu1.orvex.ai`) against this pod's own configured
+   * `CELL_ID`. This is EXPLICITLY a soft, defence-in-depth SECOND layer —
+   * the edge/principal-vs-`CELL_ID` check (cell-lint rule 3, an
+   * ingress-level control outside this middleware) remains the
+   * claim-superior, authoritative tenant-isolation gate. This check only
+   * flags a request the edge should never have routed here.
+   *
+   * No-op (returns null) when:
+   *  - the pod runs under the `solo` sentinel (`CELL_ID` unset or the
+   *    literal `"solo"`, mirroring the outbox relay's sentinel semantics) —
+   *    cell enforcement is off entirely in solo mode (AC5);
+   *  - the host does not carry a cell-shaped label-2 (fewer than four
+   *    labels) — a soft check never guesses on an ambiguous host;
+   *  - the label-2 matches the pod's cell.
+   *
+   * Pure in-memory string comparison: no I/O, no store call, no wall-clock.
+   */
+  private assertLabel2CellSoft(
+    host: string | undefined,
+    podCellId: string | null,
+  ): CellLabelMismatch | null {
+    if (podCellId === null || podCellId === CELL_SOLO) {
+      return null;
+    }
+
+    const hostname = host?.split(':')[0];
+    const labels = hostname?.split('.') ?? [];
+    const hostLabel2 = labels.length >= 4 ? labels[2] : undefined;
+
+    if (!hostLabel2 || hostLabel2 === podCellId) {
+      return null;
+    }
+
+    return { code: 'CELL_LABEL_MISMATCH', hostLabel2, podCellId };
   }
 
   /**

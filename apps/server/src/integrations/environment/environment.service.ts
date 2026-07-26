@@ -92,12 +92,11 @@ export class EnvironmentService {
       .filter(Boolean);
   }
 
-  getKafkaOutboxTopic(): string {
-    return this.configService.get<string>(
-      'KAFKA_OUTBOX_TOPIC',
-      'orvex.studio-spine.events',
-    );
-  }
+  // ENG-2496 AC2 — `getKafkaOutboxTopic()` (the single flat
+  // KAFKA_OUTBOX_TOPIC every domain and cell shared) is REPLACED by the
+  // per-cell resolver `resolveWikiEventsTopic(cellId)` in
+  // `orvex/events/outbox/outbox-topic.resolver.ts` (cell-contract rule #5:
+  // `{domain}-events.{cell}`, single partition).
 
   getStorageDriver(): string {
     return this.configService.get<string>('STORAGE_DRIVER', 'local');
@@ -234,23 +233,15 @@ export class EnvironmentService {
     return !this.isCloud();
   }
 
-  getStripePublishableKey(): string {
-    return this.configService.get<string>('STRIPE_PUBLISHABLE_KEY');
-  }
-
   // ENG-1382 — base URL of the `orvex-studio-billing` entitlement seam
   // (`GET /v1/entitlements/{principal_type}/{principal_id}`). Billing owns
   // cap VALUES + Stripe (❌#8/❌#10); the engine only reads this endpoint.
+  // ENG-2504 (FR-W21) — the Stripe secret getters that used to sit around
+  // this one were REMOVED (zero callers, verified): no Stripe secret is
+  // part of this engine's secret set; Stripe lives entirely in
+  // orvex-studio-billing.
   getBillingApiUrl(): string {
     return this.configService.get<string>('ORVEX_BILLING_API_URL');
-  }
-
-  getStripeSecretKey(): string {
-    return this.configService.get<string>('STRIPE_SECRET_KEY');
-  }
-
-  getStripeWebhookSecret(): string {
-    return this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
   }
 
   getBillingTrialDays(): number {

@@ -5,6 +5,15 @@
 import { Injectable, Optional } from '@nestjs/common';
 
 /**
+ * The Solo-sentinel cell id (cell-contract.md; dev/standalone/crew default).
+ * ONE declaration for every consumer (CS §3.1 — reused, never re-declared):
+ * `OutboxRelayService` stamps it as the CloudEvents `orvexcell` fallback, and
+ * `DomainMiddleware`'s soft label-2 cell assertion (ENG-2501) no-ops under it
+ * (cell enforcement is off entirely in solo mode).
+ */
+export const CELL_SOLO = 'solo';
+
+/**
  * OrvexConfigService — a REAL, pure environment reader for the additive orvex
  * surface.
  *
@@ -128,6 +137,18 @@ export class OrvexConfigService {
   }
 
   /**
+   * CLUSTER_NAME — the hosting cluster (cell-contract rule #4: the health
+   * surface echoes BOTH cell params, distinct values). First consumer:
+   * `OrvexHealthService` (ENG-2510 AC3 — `GET /health/orvex` carries
+   * `cellId` + `clusterName` in its body). Mirrors `cellId`'s
+   * trim-and-nullify contract exactly: unset/blank -> `null`, surfaced as
+   * `null` in the health body, never a fabricated cluster name.
+   */
+  get clusterName(): string | null {
+    return this.read('CLUSTER_NAME');
+  }
+
+  /**
    * ENG-1604 AC8 — `health/orvex` dependency probes. `OrvexHealthService` is
    * mounted inside `OrvexRootModule.register()`, so (same constraint as the
    * rest of this service) these getters may ONLY read a plain env bag — no
@@ -180,6 +201,61 @@ export class OrvexConfigService {
           .split(',')
           .map((b) => b.trim())
           .filter(Boolean);
+  }
+
+  /**
+   * ORVEX_OUTBOX_HEARTBEAT_STALENESS_SECONDS (ENG-2496 AC4) — how old the
+   * oldest unrelayed `orvex_event_outbox` row may get before the relay
+   * heartbeat probe (`/health/orvex/relay`) flips red. Defaults to 30s (the
+   * relay polls every 2s — see `outbox-relay-heartbeat.service.ts`
+   * `DEFAULT_RELAY_STALENESS_SECONDS`; the value is duplicated here rather
+   * than imported so this PURE env reader keeps zero non-config imports).
+   * First consumer: `defaultRelayOutboxProbe` (`orvex-health.probes.ts`).
+   */
+  get outboxHeartbeatStalenessSeconds(): number {
+    const raw = this.read('ORVEX_OUTBOX_HEARTBEAT_STALENESS_SECONDS');
+    if (raw === null) {
+      return 30;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  }
+
+  /**
+   * ORVEX_BILLING_EVENTS_TOPIC (ENG-2489 AC2) — the studio-spine Kafka topic
+   * carrying billing's `billing.entitlement.changed` CloudEvents. First
+   * consumer: `EntitlementChangedConsumer` (the PUSH-eviction half of the
+   * dual-transport entitlement read, ADR-0004). Null when unset → the
+   * consumer stays dormant and freshness degrades to the cache-TTL bound —
+   * never a fabricated topic name.
+   */
+  get billingEventsTopic(): string | null {
+    return this.read('ORVEX_BILLING_EVENTS_TOPIC');
+  }
+
+  /**
+   * ORVEX_BILLING_UPGRADE_URL (ENG-2491 AC1) — the billing upgrade-portal
+   * base URL the `402 QUOTA_EXCEEDED` deep-link is built from (same env-only,
+   * no-inline-URL pattern as `ORVEX_BILLING_API_URL`, ❌#8). First consumer:
+   * `EntitlementService`'s rejection enrichment. Null when unset → the
+   * `upgradeUrl` field is omitted from the 402 body — never a fabricated
+   * marketing-homepage fallback.
+   */
+  get billingUpgradeUrl(): string | null {
+    return this.read('ORVEX_BILLING_UPGRADE_URL');
+  }
+
+  /**
+   * ORVEX_QUOTAS_ENFORCE (ENG-2492 AC4) — the quota-calibration rollout
+   * knob. Default (unset or any other value) is full enforcement; the ONE
+   * recognised opt-in is `warn` — over-cap writes are permitted with a
+   * machine-greppable warning, EXCEPT the absolute 200%-of-cap hard stop
+   * (ADR-0003) which rejects even in warn mode. First consumer:
+   * `EntitlementService`'s verdict branch. Enforcing-by-default: a typo'd
+   * value can only ever fall back to ENFORCE, never silently to warn.
+   */
+  get quotasEnforceMode(): 'enforce' | 'warn' {
+    return this.read('ORVEX_QUOTAS_ENFORCE') === 'warn' ? 'warn' : 'enforce';
   }
 
   /**

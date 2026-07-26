@@ -41,7 +41,15 @@ import { KyselyDB } from '@docmost/db/types/kysely.types';
  * PgBouncer-fronted deployment, actively risky per `OrvexMigratorService`'s
  * own session-lock docstring) lock was added on top of it.
  */
-describe('MigrationServiceConcurrency.spec', () => {
+// ENG-2479 DoD binary gate — the named test below is the ticket's
+// `TestBootMigrateAdvisoryLockSerialises` (core-chain half: N>=3 concurrent
+// `MigrationService.migrateToLatest()` callers serialise on Kysely's own
+// `pg_advisory_xact_lock`, exactly-once apply, 4th sequential boot no-ops).
+// The orvex-ledger half of AC1/AC4 is proven by
+// `orvex/extensions/orvex-migrator.concurrency.spec.ts`; AC2/AC3/AC5 by
+// `renamed-migration-duplicate-object.spec.ts`, `db-types-verbatim.spec.ts`
+// and `dead-noop-absent.spec.ts` respectively.
+describe('TestBootMigrateAdvisoryLockSerialises (ENG-2479 DoD) — MigrationServiceConcurrency.spec', () => {
   jest.setTimeout(300_000);
 
   let container: StartedPostgreSqlContainer;

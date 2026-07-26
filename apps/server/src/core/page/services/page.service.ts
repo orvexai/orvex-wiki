@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { CreatePageDto, ContentFormat } from '../dto/create-page.dto';
 import { ContentOperation, UpdatePageDto } from '../dto/update-page.dto';
@@ -38,6 +39,17 @@ import {
   stampBlockIds,
 } from 'src/collaboration/collaboration.util';
 import { computeContentHash as sharedComputeContentHash } from '../../../common/helpers/content-hash';
+// ENG-2487 — the write path's serializer dependency: the standalone AGPL
+// `@orvex/dfm` workspace package (FR-W18 / A-DFM). DfM submitted to the write
+// chokepoint is resolved here (dfmToJson + reattachOpaqueRefs against the
+// base page's opaque bodies); an unresolvable opaque ref is a typed 4xx
+// (`DFM_OPAQUE_UNKNOWN_REF`), never a silent drop or an unhandled 500.
+import {
+  dfmToJson,
+  reattachOpaqueRefs,
+  DfmOpaqueUnknownRefError,
+} from '@orvex/dfm';
+import type { PmDoc } from '@orvex/dfm';
 import {
   CopyPageMapEntry,
   ICopyPageAttachment,
@@ -64,6 +76,7 @@ import {
   toIntegerVersion,
 } from '../if-version.util';
 import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
+import { QuotaFastCounter } from '../../../orvex/entitlement/quota-fast-counter';
 
 @Injectable()
 export class PageService {
@@ -84,6 +97,10 @@ export class PageService {
     private readonly transclusionService: TransclusionService,
     private readonly idempotencyStore: IdempotencyStore,
     private readonly entitlementService: EntitlementService,
+    // ENG-2490 — the O(1) usage source at this chokepoint. @Optional so a
+    // graph without the counter (older test harnesses) degrades to the
+    // store-tier count, exactly the pre-ENG-2490 behaviour.
+    @Optional() private readonly quotaFastCounter?: QuotaFastCounter,
   ) {}
 
   async findById(
@@ -164,17 +181,25 @@ export class PageService {
         async (quotaTrx) => {
           await acquireWorkspaceQuotaLock(quotaTrx, 'pages', workspaceId);
 
-          const currentPageCount = await this.pageRepo.countByWorkspaceId(
-            workspaceId,
-            quotaTrx,
-          );
+          // ENG-2490 AC1/AC2 — the `currentUsage` SOURCE is the O(1)
+          // `quota:pages:{tenant}` fast-counter; the store-tier COUNT runs
+          // only on a counter miss (first read / TTL re-seed / Redis loss —
+          // the declared degrade mode, never a per-request aggregate). The
+          // advisory lock above still serializes the whole
+          // read→assert→insert→increment section, preserving the F1
+          // no-cap-bypass-race discipline with either usage source.
+          const currentPageCount = this.quotaFastCounter
+            ? await this.quotaFastCounter.currentUsage(workspaceId, 'pages', () =>
+                this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx),
+              )
+            : await this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx);
           await this.entitlementService.assertWithinQuota(
             workspaceId,
             'pages',
             currentPageCount,
           );
 
-          return this.pageRepo.insertPage(
+          const insertedPage = await this.pageRepo.insertPage(
             {
               slugId: generateSlugId(),
               title: createPageDto.title,
@@ -192,6 +217,15 @@ export class PageService {
             },
             quotaTrx,
           );
+
+          // ENG-2490 AC1 — INCR-on-write, INSIDE the advisory-locked
+          // section so a serialized concurrent create always observes this
+          // write's delta (no post-commit race window = no cap bypass). A
+          // rolled-back commit leaks at most +1 drift, healed by the
+          // counter TTL / the ENG-2492 reconciliation sweep.
+          await this.quotaFastCounter?.increment(workspaceId, 'pages', 1);
+
+          return insertedPage;
         },
         trx,
       );
@@ -370,6 +404,11 @@ export class PageService {
       preparedContent = await this.parseProsemirrorContent(
         dto.content,
         dto.format ?? 'json',
+        // ENG-2487 — same base-doc rule as `update()`: the found page (when
+        // its content is loaded) is the DfM opaque-reattach base.
+        dto.format === 'dfm'
+          ? { dfmBase: ((existing as any).content as object | undefined) ?? null }
+          : undefined,
       );
       inboundHash = this.computeContentHash(preparedContent);
     }
@@ -415,6 +454,10 @@ export class PageService {
         content: preparedContent,
         operation: dto.operation,
         format: dto.format,
+        // ENG-2484 (AC4) — the upsert update-branch forwards the validated
+        // AI-provenance flag into the same `update` → `updatePageContent`
+        // funnel as a direct `/pages/update` write.
+        markAiAuthored: dto.markAiAuthored,
       } as UpdatePageDto,
       { id: userId } as User,
     );
@@ -540,6 +583,11 @@ export class PageService {
       const parsed = await this.parseProsemirrorContent(
         updatePageDto.content,
         updatePageDto.format,
+        // ENG-2487 — the update leg owns the store round-trip: the current
+        // page document is the base a DfM opaque fence reattaches from.
+        updatePageDto.format === 'dfm'
+          ? { dfmBase: ((page as any).content as object | undefined) ?? null }
+          : undefined,
       );
       nextContentHash = this.computeContentHash(parsed);
     }
@@ -608,6 +656,9 @@ export class PageService {
         updatePageDto.operation,
         updatePageDto.format,
         user,
+        // ENG-2484 (AC4) — forward the validated DTO flag into the collab
+        // funnel; absent/false means a plain human write, unchanged.
+        updatePageDto.markAiAuthored,
       );
     }
 
@@ -658,12 +709,20 @@ export class PageService {
     return result;
   }
 
+  // ENG-2484 (AC4) — `markAiAuthored` is the validated DTO flag threaded
+  // through to the collab handler: the handler marks the AI-changed blocks
+  // in the live ydoc and flags the document so the next debounced store
+  // stamps `orvex_page_meta` provenance atomically with the content write
+  // (ENG-1447/ENG-1603). Optional 6th param so the pre-existing 5-arg call
+  // sites (`orvex-page-provenance.controller.ts`, `page-history.service.ts`)
+  // keep compiling unchanged with the flag defaulted to falsy.
   async updatePageContent(
     pageId: string,
     content: string | object,
     operation: ContentOperation,
     format: ContentFormat,
     user: User,
+    markAiAuthored?: boolean,
   ): Promise<void> {
     const prosemirrorJson = await this.parseProsemirrorContent(content, format);
 
@@ -671,7 +730,7 @@ export class PageService {
     await this.collaborationGateway.handleYjsEvent(
       'updatePageContent',
       documentName,
-      { operation, prosemirrorJson, user },
+      { operation, prosemirrorJson, user, markAiAuthored },
     );
   }
 
@@ -1664,7 +1723,10 @@ export class PageService {
    * AC5/AC6: lossy write formats (markdown/html) and un-resolved dfm are
    * rejected up front with typed codes — this chokepoint only accepts
    * ProseMirror json, so no diagram/callout/column block-id is ever
-   * silently dropped by a lossy round-trip.
+   * silently dropped by a lossy round-trip. Since ENG-2487, `format: 'dfm'`
+   * WITH a caller-supplied resolution context (`opts.dfmBase`) is resolved
+   * for real via `@orvex/dfm` (lossless — an opaque fence either reattaches
+   * from the base doc or throws the typed `DFM_OPAQUE_UNKNOWN_REF`).
    * AC7: malformed ProseMirror json is rejected (`INVALID_CONTENT_FORMAT`).
    * AC2: every configured block-level node is guaranteed an `id` — missing
    * ids are minted, existing ids are NEVER regenerated (`stampBlockIds` /
@@ -1674,17 +1736,47 @@ export class PageService {
   private async parseProsemirrorContent(
     content: string | object,
     format: ContentFormat,
+    opts?: {
+      /**
+       * ENG-2487 — the DfM resolution context. When the caller supplies the
+       * base page document (or `null` for "no base — resolve against an
+       * empty doc"), a `format: 'dfm'` write is genuinely resolved here via
+       * `@orvex/dfm` (`dfmToJson` + `reattachOpaqueRefs`): the caller owns
+       * the store round-trip that fetches the base page (one-adapter rule);
+       * this chokepoint owns the conversion. Without it, `format: 'dfm'`
+       * keeps the ENG-1397 AC6 server-bug guard (`DFM_NOT_PRE_RESOLVED`).
+       */
+      dfmBase?: object | null;
+    },
   ): Promise<any> {
     switch (format) {
-      case 'dfm':
-        // AC6 — a server-bug guard: DfM content must be resolved to
-        // ProseMirror json upstream (the `dfm-contracts-ts-serializer` leg,
-        // blocked-by) before it ever reaches this chokepoint.
-        throw new BadRequestException({
-          code: 'DFM_NOT_PRE_RESOLVED',
-          message:
-            'DfM content must be resolved to ProseMirror json before reaching the write chokepoint',
-        });
+      case 'dfm': {
+        if (typeof content !== 'string' || opts?.dfmBase === undefined) {
+          // ENG-1397 AC6 — a server-bug guard: DfM reaching this chokepoint
+          // without its resolution context is rejected, never half-parsed.
+          throw new BadRequestException({
+            code: 'DFM_NOT_PRE_RESOLVED',
+            message:
+              'DfM content must be resolved to ProseMirror json before reaching the write chokepoint',
+          });
+        }
+        const base: PmDoc =
+          (opts.dfmBase as PmDoc | null) ?? ({ type: 'doc', content: [] } as PmDoc);
+        try {
+          content = reattachOpaqueRefs(dfmToJson(content), base) as object;
+        } catch (err) {
+          if (err instanceof DfmOpaqueUnknownRefError) {
+            // Typed 4xx, catchable by code — never a partial/best-effort
+            // document and never an unhandled 500 (CS §10 / §11).
+            throw new BadRequestException({
+              code: err.code,
+              message: err.message,
+            });
+          }
+          throw err;
+        }
+        break;
+      }
       case 'markdown':
       case 'html':
         // AC5 — lossy write formats are rejected: writes must be

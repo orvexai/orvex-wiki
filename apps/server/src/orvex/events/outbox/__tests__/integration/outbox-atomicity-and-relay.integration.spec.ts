@@ -8,6 +8,7 @@ import {
   FileMigrationProvider,
   Kysely,
   Migrator,
+  sql,
 } from 'kysely';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
@@ -19,7 +20,6 @@ import {
 import { OutboxWriter } from '../../outbox-writer.service';
 import {
   OutboxRelayService,
-  OutboxTopicResolver,
   OutboxCellResolver,
 } from '../../outbox-relay.service';
 import {
@@ -54,13 +54,13 @@ import {
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { ORVEX_CORRELATION_CONTEXT_KEY } from '../../../../obs/orvex-correlation.hook';
 
-const STUB_TOPIC_RESOLVER: OutboxTopicResolver = {
-  getKafkaOutboxTopic: () => 'orvex.studio-spine.events',
-};
-
 const STUB_CELL_RESOLVER: OutboxCellResolver = {
   cellId: 'solo',
+  kafkaBrokersConfigured: false,
 };
+
+/** ENG-2496 AC2 — the per-cell topic the relay now publishes to (solo mode). */
+const SOLO_TOPIC = 'wiki-events.solo';
 
 /**
  * ENG-1383 5a — `OutboxAtomicityAndRelaySpec`, the named binary DoD test.
@@ -325,7 +325,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     }
 
     const publisher = new InMemoryKafkaPublisher();
-    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER, STUB_CELL_RESOLVER);
+    const relay = new OutboxRelayService(db, publisher, STUB_CELL_RESOLVER);
 
     const result = await relay.run();
 
@@ -337,7 +337,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     // CloudEvents envelope's `subject`, which carries the page id
     // (ENG-1559 M5 AC8 — `subject: row.aggregateId`).
     const distinct = publisher.getDistinctMessages(
-      'orvex.studio-spine.events',
+      SOLO_TOPIC,
     );
     for (const id of pageIds) {
       expect(
@@ -405,7 +405,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     }
 
     const publisher = new InMemoryKafkaPublisher();
-    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER, STUB_CELL_RESOLVER);
+    const relay = new OutboxRelayService(db, publisher, STUB_CELL_RESOLVER);
 
     // Simulate a mid-batch crash: the LAST row's publish throws, so it is
     // never marked relayed.
@@ -431,7 +431,7 @@ describe('OutboxAtomicityAndRelaySpec', () => {
     expect(secondRun.failed).toBe(0);
 
     const distinct = publisher.getDistinctMessages(
-      'orvex.studio-spine.events',
+      SOLO_TOPIC,
     );
     const relevant = distinct.filter((m) =>
       pageIds.includes(
@@ -563,6 +563,454 @@ describe('OutboxAtomicityAndRelaySpec', () => {
         (c) => c.workspaceId === workspaceId && c.entity[0] === 'pages',
       ),
     ).toBe(true);
+  });
+
+  // ─── ENG-2494 — the named DoD gate: same-tx outbox row on the collab
+  // (`PersistenceExtension.onStoreDocument`) write path. A thin gate over
+  // the SAME harness/caller shape the ENG-1383 F5 tests above already
+  // exercise (per the ticket: reuse, never duplicate the fixture logic),
+  // plus the AC3 `spaceId`+version-at-emit-time assertion. ────────────────
+  it('TestOutboxRowInSameTxAsCollabWrite — a committed collab-shape content write carries exactly one page.content_updated outbox row (same tx, payload has spaceId+version at emit time); a rolled-back write leaves neither the content nor the row', async () => {
+    // Leg 1 — commit: REAL caller shape (`PageRepo.updatePage` with no
+    // `workspaceId` in the SET — exactly what `onStoreDocument` sends).
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'ENG-2494 gate page' }),
+    );
+    await db
+      .deleteFrom('orvexEventOutbox')
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    await pageRepo.updatePage(
+      { content: { type: 'doc', content: [] } },
+      page.id,
+    );
+
+    const committedRows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', page.id)
+      .execute();
+    expect(committedRows).toHaveLength(1);
+    // AC3 — the payload carries spaceId + the page's version identifier AT
+    // the write moment (from the UPDATE's own `.returning(...)`), never
+    // re-derived later by a consumer.
+    const payload = committedRows[0].payload as {
+      spaceId: string;
+      version: number;
+      tenant: string;
+    };
+    expect(payload.spaceId).toBe(spaceId);
+    expect(typeof payload.version).toBe('number');
+    expect(payload.tenant).toBe(workspaceId);
+
+    // Leg 2 — rollback: the same caller shape inside an aborting trx drops
+    // BOTH the content write and the outbox row (AC2/AC5).
+    const rollbackPage = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'ENG-2494 rollback page' }),
+    );
+    await db
+      .deleteFrom('orvexEventOutbox')
+      .where('aggregateId', '=', rollbackPage.id)
+      .execute();
+
+    await expect(
+      executeTx(db, async (trx) => {
+        await pageRepo.updatePage(
+          { content: { type: 'doc', content: [] } },
+          rollbackPage.id,
+          trx,
+        );
+        throw new Error('ENG-2494 forced rollback');
+      }),
+    ).rejects.toThrow('ENG-2494 forced rollback');
+
+    const rolledBackRows = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('type', '=', EVT_PAGE_CONTENT_UPDATED)
+      .where('aggregateId', '=', rollbackPage.id)
+      .execute();
+    expect(rolledBackRows).toHaveLength(0);
+    const contentRow = await db
+      .selectFrom('pages')
+      .select(['content'])
+      .where('id', '=', rollbackPage.id)
+      .executeTakeFirstOrThrow();
+    expect(contentRow.content).toBeNull();
+  });
+
+  it('ENG-2494 AC4 — no legacy XADD / Redis-stream dual-write remains on the page-content write paths (core/page + collaboration)', async () => {
+    const srcRoot = path.join(__dirname, '../../../../..');
+    const dirsToScan = [
+      path.join(srcRoot, 'core/page'),
+      path.join(srcRoot, 'collaboration'),
+    ];
+    async function collectTsFiles(dir: string): Promise<string[]> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const files: string[] = [];
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...(await collectTsFiles(full)));
+        } else if (entry.name.endsWith('.ts')) {
+          files.push(full);
+        }
+      }
+      return files;
+    }
+    // The banned mechanism is the legacy lossy Redis-STREAMS dual-write
+    // (EventEmitter2 listener → XADD), not Redis itself: the collaboration
+    // tree legitimately uses Redis PUB/SUB for cross-replica Yjs sync
+    // (redis-sync extension) and history caching — an unrelated concern the
+    // AC explicitly tolerates. So: zero Streams API usage anywhere on the
+    // page-content write paths…
+    for (const dir of dirsToScan) {
+      for (const file of await collectTsFiles(dir)) {
+        const content = await fs.readFile(file, 'utf-8');
+        expect(content).not.toMatch(/xadd|xread|xrange/i);
+      }
+    }
+    // …and the collab content-write path itself (persistence.extension.ts,
+    // the exact path this story covers) touches neither Redis nor
+    // EventEmitter2 — its ONLY emission is the same-tx outbox row.
+    const persistenceExt = await fs.readFile(
+      path.join(srcRoot, 'collaboration/extensions/persistence.extension.ts'),
+      'utf-8',
+    );
+    expect(persistenceExt).not.toMatch(/from ['"]ioredis['"]/);
+    expect(persistenceExt).not.toMatch(/EventEmitter2/);
+    // Any remaining EventEmitter2 use in core/page/services or
+    // collaboration/extensions is for an unrelated concern — never an
+    // emission of the page-content-changed event over that path.
+    const emitterDirs = [
+      path.join(srcRoot, 'core/page/services'),
+      path.join(srcRoot, 'collaboration/extensions'),
+    ];
+    for (const dir of emitterDirs) {
+      for (const file of await collectTsFiles(dir)) {
+        const content = await fs.readFile(file, 'utf-8');
+        expect(content).not.toMatch(
+          /\.emit\(\s*['"`][^'"`]*content[_.]?updated/i,
+        );
+      }
+    }
+  });
+
+  it('ENG-2494 NFR (never-white-screen) — a fault-injected outbox enqueue failure inside the content-write transaction rolls back the WHOLE mutation (the page content is NOT updated either)', async () => {
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'ENG-2494 fault page' }),
+    );
+    await db
+      .deleteFrom('orvexEventOutbox')
+      .where('aggregateId', '=', page.id)
+      .execute();
+
+    // REAL DB-level fault injection (never a mock of own code, ❌#4): a
+    // trigger that rejects the outbox INSERT itself, exactly as a jsonb
+    // serialization error / constraint violation would.
+    await sql`
+      CREATE OR REPLACE FUNCTION orvex_test_fail_outbox_insert() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.type = 'page.content_updated' THEN
+          RAISE EXCEPTION 'ENG-2494 fault-injected outbox enqueue failure';
+        END IF;
+        RETURN NEW;
+      END $$ LANGUAGE plpgsql;
+    `.execute(db);
+    await sql`
+      CREATE TRIGGER orvex_test_fail_outbox_insert_trg
+      BEFORE INSERT ON orvex_event_outbox
+      FOR EACH ROW EXECUTE FUNCTION orvex_test_fail_outbox_insert();
+    `.execute(db);
+
+    try {
+      await expect(
+        pageRepo.updatePage(
+          { content: { type: 'doc', content: [] } },
+          page.id,
+        ),
+      ).rejects.toThrow(/fault-injected outbox enqueue failure/);
+
+      // The mutation did NOT half-commit: no outbox row AND no content.
+      const rows = await db
+        .selectFrom('orvexEventOutbox')
+        .selectAll()
+        .where('aggregateId', '=', page.id)
+        .execute();
+      expect(rows).toHaveLength(0);
+      const contentRow = await db
+        .selectFrom('pages')
+        .select(['content'])
+        .where('id', '=', page.id)
+        .executeTakeFirstOrThrow();
+      expect(contentRow.content).toBeNull();
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS orvex_test_fail_outbox_insert_trg ON orvex_event_outbox;`.execute(
+        db,
+      );
+      await sql`DROP FUNCTION IF EXISTS orvex_test_fail_outbox_insert();`.execute(
+        db,
+      );
+    }
+  });
+
+  // ─── ENG-2495 — the named DoD gate: the relay's published CloudEvent
+  // envelope conforms to the VENDORED contracts golden fixtures
+  // (fixtures/contracts/ — verbatim/transcribed copies of
+  // orvexai/orvex-studio-contracts @ be4d2b1d, see the README there). The
+  // envelope is built by this repo's OWN TypeScript (license boundary,
+  // A-CELL rule #2) and compared key-order-independently. ─────────────────
+
+  interface VendoredEnvelopeSchema {
+    required: string[];
+    properties: Record<string, { const?: string; minLength?: number }>;
+  }
+  interface VendoredWikiRegistry {
+    source_id: string;
+    event_types: string[];
+    purge_events: string[];
+  }
+  interface PublishedEnvelope {
+    specversion: string;
+    id: string;
+    source: string;
+    type: string;
+    subject: string;
+    time: string;
+    datacontenttype: string;
+    orvexcell: string;
+    orvextenant: string;
+    traceparent: string | null;
+    tracestate: string | null;
+    data: Record<string, unknown>;
+  }
+
+  const contractsFixtureDir = path.join(__dirname, '../fixtures/contracts');
+  async function loadEnvelopeSchema(): Promise<VendoredEnvelopeSchema> {
+    return JSON.parse(
+      await fs.readFile(path.join(contractsFixtureDir, '_envelope.json'), 'utf-8'),
+    ) as VendoredEnvelopeSchema;
+  }
+  async function loadWikiRegistry(): Promise<VendoredWikiRegistry> {
+    return JSON.parse(
+      await fs.readFile(
+        path.join(contractsFixtureDir, 'wiki-source-registry.json'),
+        'utf-8',
+      ),
+    ) as VendoredWikiRegistry;
+  }
+
+  it('TestRelayEnvelopeConformsToGoldenFixtures — a drained outbox row publishes a CloudEvent whose envelope conforms to the vendored contracts golden fixtures (required set, const specversion, exact field set, key-order-independent) with partitionkey/orvextenant = workspaceId and Kafka key = CloudEvents id', async () => {
+    const schema = await loadEnvelopeSchema();
+    const registry = await loadWikiRegistry();
+
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'ENG-2495 golden page' }),
+    );
+    const outboxRow = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('aggregateId', '=', page.id)
+      .executeTakeFirstOrThrow();
+
+    const publisher = new InMemoryKafkaPublisher();
+    const relay = new OutboxRelayService(db, publisher, STUB_CELL_RESOLVER);
+    const result = await relay.run();
+    expect(result.failed).toBe(0);
+
+    const message = publisher
+      .getAllDistinctMessages()
+      .find(
+        (m) =>
+          (JSON.parse(m.value) as { subject: string }).subject === page.id,
+      );
+    expect(message).toBeDefined();
+    const envelope = JSON.parse(message!.value) as PublishedEnvelope;
+
+    // The Kafka message key doubles as the CloudEvents `id` — BOTH are the
+    // outbox row's own id (AC1, the dedupe/idempotency mechanism).
+    expect(message!.key).toBe(outboxRow.id);
+    expect(envelope.id).toBe(outboxRow.id);
+
+    // Golden-fixture conformance leg 1 — every field the vendored schema
+    // REQUIRES is present and non-empty; `specversion` matches the schema's
+    // own pinned const (read from the fixture, not re-hardcoded here).
+    for (const field of schema.required) {
+      const value = (envelope as unknown as Record<string, unknown>)[field];
+      expect(value).toBeDefined();
+      expect(value).not.toBeNull();
+      if (typeof value === 'string') {
+        expect(value.length).toBeGreaterThan(0);
+      }
+    }
+    expect(envelope.specversion).toBe(schema.properties.specversion.const);
+
+    // Golden-fixture conformance leg 2 — the published field SET matches
+    // the pinned envelope shape exactly (key-order-independent; the
+    // vendored schema's additionalProperties:true permits these, and this
+    // pins what the relay actually emits so an accidental field add/drop
+    // fails here).
+    expect(Object.keys(envelope).sort()).toEqual(
+      [
+        'data',
+        'datacontenttype',
+        'id',
+        'orvexcell',
+        'orvextenant',
+        'source',
+        'specversion',
+        'subject',
+        'time',
+        'traceparent',
+        'tracestate',
+        'type',
+      ].sort(),
+    );
+
+    // AC1 — the tenant-routing attribute (`orvextenant`, the CloudEvents
+    // carrier of partitionkey per the vendored schema: "Same value carried
+    // in partitionkey") equals the row's workspaceId.
+    expect(envelope.orvextenant).toBe(workspaceId);
+    expect(envelope.orvexcell).toBe('solo');
+
+    // AC3 — the published `type` is a REGISTERED wiki.* event_type in the
+    // vendored sources/wiki.yaml transcription.
+    expect(registry.event_types).toContain(envelope.type);
+    expect(envelope.type).toBe('wiki.page.created');
+    expect(envelope.source).toBe('//orvex-wiki');
+    expect(envelope.datacontenttype).toBe('application/json');
+    // `time` derives from the ROW's own createdAt (never Date.now()).
+    expect(envelope.time).toBe(new Date(outboxRow.createdAt).toISOString());
+  });
+
+  it('ENG-2495 AC3 — a representative sample of published wiki.* types resolves to registered event_types in the vendored contracts registry', async () => {
+    const registry = await loadWikiRegistry();
+    const sampleTypes = [
+      EVT_PAGE_CONTENT_UPDATED,
+      'comment.created',
+      'attachment.created',
+      'attachment.deleted',
+    ];
+    const aggregateIds: string[] = [];
+    await executeTx(db, async (trx) => {
+      for (const type of sampleTypes) {
+        const page = await insertPageWithOutbox(trx, {
+          title: `ENG-2495 sample ${type}`,
+        });
+        // Isolate: drop the helper's own page.created row; keep only the
+        // sample-typed row for this aggregate.
+        await trx
+          .deleteFrom('orvexEventOutbox')
+          .where('aggregateId', '=', page.id)
+          .execute();
+        await outboxWriter.enqueue(trx, {
+          type,
+          aggregateId: page.id,
+          workspaceId,
+          payload: { id: page.id, workspaceId },
+        });
+        aggregateIds.push(page.id);
+      }
+    });
+
+    const publisher = new InMemoryKafkaPublisher();
+    const relay = new OutboxRelayService(db, publisher, STUB_CELL_RESOLVER);
+    const result = await relay.run();
+    expect(result.failed).toBe(0);
+
+    for (const aggregateId of aggregateIds) {
+      const message = publisher
+        .getAllDistinctMessages()
+        .find(
+          (m) =>
+            (JSON.parse(m.value) as { subject: string }).subject ===
+            aggregateId,
+        );
+      expect(message).toBeDefined();
+      const envelope = JSON.parse(message!.value) as { type: string };
+      expect(registry.event_types).toContain(envelope.type);
+    }
+  });
+
+  it('ENG-2495 AC5 — Kafka unavailability leaves the row unpublished (relayed_at stays NULL), poll() never throws, and a later run republishes the SAME key/id (at-least-once, idempotent)', async () => {
+    const page = await executeTx(db, (trx) =>
+      insertPageWithOutbox(trx, { title: 'ENG-2495 retry page' }),
+    );
+    const outboxRow = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('aggregateId', '=', page.id)
+      .executeTakeFirstOrThrow();
+
+    const publisher = new InMemoryKafkaPublisher();
+    const relay = new OutboxRelayService(db, publisher, STUB_CELL_RESOLVER);
+
+    // Broker down: the publish rejects; poll() swallows and logs (never an
+    // unhandled rejection on the scheduler path).
+    publisher.failNext(1);
+    await expect(relay.poll()).resolves.toBeUndefined();
+
+    const afterFailure = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('id', '=', outboxRow.id)
+      .executeTakeFirstOrThrow();
+    expect(afterFailure.relayedAt).toBeNull();
+
+    // Broker back: the SAME row publishes with the SAME Kafka key (= the
+    // CloudEvents id = the outbox row id) — the cursor never advanced past
+    // the unacknowledged row.
+    const secondRun = await relay.run();
+    expect(secondRun.failed).toBe(0);
+    const message = publisher
+      .getAllDistinctMessages()
+      .find((m) => m.key === outboxRow.id);
+    expect(message).toBeDefined();
+    expect((JSON.parse(message!.value) as { id: string }).id).toBe(
+      outboxRow.id,
+    );
+    const afterRetry = await db
+      .selectFrom('orvexEventOutbox')
+      .selectAll()
+      .where('id', '=', outboxRow.id)
+      .executeTakeFirstOrThrow();
+    expect(afterRetry.relayedAt).not.toBeNull();
+  });
+
+  it('ENG-2495 AC2 — no Apache-2.0 contracts helper is imported across the license boundary anywhere under src/orvex/events (grep gate)', async () => {
+    const eventsRoot = path.join(__dirname, '../../..');
+    // Built via concatenation so this spec's own source can never
+    // self-match the pattern it scans for.
+    const contractsPkgPattern = new RegExp('@orvex-studio-' + 'contracts');
+    const contractsImportPattern = new RegExp(
+      "from ['\"][^'\"]*" + "contracts[^'\"]*['\"]",
+    );
+    async function collectProdTsFiles(dir: string): Promise<string[]> {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const files: string[] = [];
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === '__tests__') continue;
+          files.push(...(await collectProdTsFiles(full)));
+        } else if (
+          entry.name.endsWith('.ts') &&
+          !entry.name.endsWith('.spec.ts')
+        ) {
+          files.push(full);
+        }
+      }
+      return files;
+    }
+    const files = await collectProdTsFiles(eventsRoot);
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const content = await fs.readFile(file, 'utf-8');
+      expect(content).not.toMatch(contractsPkgPattern);
+      expect(content).not.toMatch(contractsImportPattern);
+    }
   });
 });
 
@@ -799,12 +1247,12 @@ describe('ENG-1600 — outbox trace-context persist/restore (AC1/AC2/AC4/AC5)', 
     expect(outboxRows[0].correlationId).toBe(correlationId);
 
     const publisher = new InMemoryKafkaPublisher();
-    const relay = new OutboxRelayService(db, publisher, STUB_TOPIC_RESOLVER, STUB_CELL_RESOLVER);
+    const relay = new OutboxRelayService(db, publisher, STUB_CELL_RESOLVER);
     const result = await relay.run();
     expect(result.failed).toBe(0);
     expect(result.published).toBeGreaterThanOrEqual(1);
 
-    const distinct = publisher.getDistinctMessages('orvex.studio-spine.events');
+    const distinct = publisher.getDistinctMessages(SOLO_TOPIC);
     const message = distinct.find(
       (m) => (JSON.parse(m.value) as { subject: string }).subject === pageId,
     );

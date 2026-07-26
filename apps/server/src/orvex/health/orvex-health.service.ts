@@ -5,13 +5,17 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { OrvexConfigService } from '../config/orvex-config.service';
 import {
+  ORVEX_HEALTH_COLLAB_WS_PROBE,
   ORVEX_HEALTH_KAFKA_PROBE,
   ORVEX_HEALTH_POSTGRES_PROBE,
   ORVEX_HEALTH_REDIS_PROBE,
+  ORVEX_HEALTH_RELAY_PROBE,
   ORVEX_HEALTH_STORAGE_PROBE,
+  defaultCollabWsProbe,
   defaultKafkaProbe,
   defaultPostgresProbe,
   defaultRedisProbe,
+  defaultRelayOutboxProbe,
   defaultStorageProbe,
 } from './orvex-health.probes';
 
@@ -42,6 +46,40 @@ export interface KafkaResult {
 }
 export type KafkaProbe = (config: OrvexConfigService) => Promise<KafkaResult>;
 
+export interface CollabWsResult {
+  ok: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+export type CollabWsProbe = (
+  config: OrvexConfigService,
+) => Promise<CollabWsResult>;
+
+/** ENG-2510 AC2 — the collab role's own liveness body (role-scoped). */
+export interface OrvexCollabHealthBody extends CollabWsResult {
+  role: 'collab';
+  ts: string;
+}
+
+/** ENG-2496 AC4 — the outbox relay liveness/lag heartbeat probe result. */
+export interface RelayOutboxResult {
+  ok: boolean;
+  unrelayedCount?: number;
+  oldestUnrelayedAgeSeconds?: number | null;
+  thresholdSeconds: number;
+  error?: string;
+}
+export type RelayOutboxProbe = (
+  config: OrvexConfigService,
+) => Promise<RelayOutboxResult>;
+
+/** ENG-2496 AC4 — the `GET /health/orvex/relay` body. */
+export interface RelayHeartbeatBody {
+  status: 'pass' | 'fail';
+  relay: RelayOutboxResult;
+  ts: string;
+}
+
 export interface OrvexHealthBody {
   status: 'ok' | 'degraded';
   checks: {
@@ -51,6 +89,11 @@ export interface OrvexHealthBody {
     kafka: { ok: boolean; wired: boolean; error?: string };
   };
   ts: string;
+  // ENG-2510 AC3 — cell contract rule #4: the health surface echoes BOTH
+  // cell params. Unset env surfaces as `null`, never a thrown error (the
+  // never-throw/HTTP-200 contract below is unchanged by these fields).
+  cellId: string | null;
+  clusterName: string | null;
 }
 
 /**
@@ -92,7 +135,39 @@ export class OrvexHealthService {
     @Optional()
     @Inject(ORVEX_HEALTH_KAFKA_PROBE)
     private readonly kafkaProbe: KafkaProbe = defaultKafkaProbe,
+    @Optional()
+    @Inject(ORVEX_HEALTH_COLLAB_WS_PROBE)
+    private readonly collabWsProbe: CollabWsProbe = defaultCollabWsProbe,
+    @Optional()
+    @Inject(ORVEX_HEALTH_RELAY_PROBE)
+    private readonly relayProbe: RelayOutboxProbe = defaultRelayOutboxProbe,
   ) {}
+
+  /**
+   * ENG-2496 AC4 — `GET /health/orvex/relay`: the outbox relay
+   * liveness/lag heartbeat. Same FAMILY HEALTH RULING as `check()`: NEVER
+   * throws, always HTTP 200 at the controller — degradation is carried in
+   * the body's `status`/`relay.ok`. A DEAD relay (rows unrelayed past the
+   * staleness bound) reads `fail` — never silently green — and a probe
+   * error is itself a typed `fail`, never an unhandled rejection.
+   */
+  async relayHeartbeat(): Promise<RelayHeartbeatBody> {
+    let relay: RelayOutboxResult;
+    try {
+      relay = await this.relayProbe(this.config);
+    } catch (e) {
+      relay = {
+        ok: false,
+        thresholdSeconds: this.config.outboxHeartbeatStalenessSeconds,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+    return {
+      status: relay.ok ? 'pass' : 'fail',
+      relay,
+      ts: new Date().toISOString(),
+    };
+  }
 
   async check(): Promise<OrvexHealthBody> {
     const [postgres, redis, storage] = await Promise.all([
@@ -112,6 +187,30 @@ export class OrvexHealthService {
       status: anyWiredDown ? 'degraded' : 'ok',
       checks: { postgres, redis, storage, kafka },
       ts: new Date().toISOString(),
+      cellId: this.config.cellId,
+      clusterName: this.config.clusterName,
     };
+  }
+
+  /**
+   * ENG-2510 AC2 — the collab ROLE's own liveness signal: a REAL WebSocket
+   * handshake against the Hocuspocus `/collab` upgrade path. Unlike
+   * {@link check} (the ADR-0020 dependency aggregate, HTTP-200-unconditional
+   * because a DEPENDENCY blip must never restart the pod), a dead in-process
+   * collab WS listener is the pod's OWN component being dead — the exact
+   * "dead component reads green" state per-role liveness exists to make
+   * visible — so the controller maps `ok:false` here to a non-2xx a
+   * kubelet probe can act on. This method itself never throws.
+   */
+  async checkCollab(): Promise<OrvexCollabHealthBody> {
+    let result: CollabWsResult;
+    try {
+      result = await this.collabWsProbe(this.config);
+    } catch (e) {
+      // Probe contract is never-throw, but a misbehaving injected probe must
+      // surface as an honest failure, not a crashed handler.
+      result = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+    return { role: 'collab', ...result, ts: new Date().toISOString() };
   }
 }

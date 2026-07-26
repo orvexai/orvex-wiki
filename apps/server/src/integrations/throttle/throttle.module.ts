@@ -11,7 +11,6 @@ import {
   MCP_TOOL_THROTTLER,
   USER_EXPORT_THROTTLER,
 } from '../../orvex/orvex-throttler-names';
-import Redis from 'ioredis';
 
 /**
  * Base ttl/limit registration per canonical throttler name (ENG-1436). A
@@ -35,13 +34,45 @@ const THROTTLE_REGISTRATIONS: Record<string, { ttl: number; limit: number }> =
     [USER_EXPORT_THROTTLER]: { ttl: 3_600_000, limit: 5 },
   };
 
+/**
+ * ENG-2501 (test-surfaced resource leak): the redis-backed throttle storage
+ * as a REAL, lifecycle-managed provider. The previous shape (`new
+ * ThrottlerStorageRedisService(new Redis(...))` inline in the throttler
+ * factory) created an ioredis client Nest never managed, so `app.close()`
+ * left it connected forever (and reconnect-looping if Redis went away).
+ * Constructed from OPTIONS (not a pre-built client) the service sets its own
+ * `disconnectRequired` flag and its `onModuleDestroy` disconnects the client
+ * — but only when Nest owns the instance, which this provider registration
+ * is for.
+ */
+@Module({
+  imports: [EnvironmentModule],
+  providers: [
+    {
+      provide: ThrottlerStorageRedisService,
+      useFactory: (environmentService: EnvironmentService) => {
+        const redisConfig = parseRedisUrl(environmentService.getRedisUrl());
+        return new ThrottlerStorageRedisService({
+          host: redisConfig.host,
+          port: redisConfig.port,
+          password: redisConfig.password,
+          db: redisConfig.db,
+          family: redisConfig.family,
+          keyPrefix: 'throttle:',
+        });
+      },
+      inject: [EnvironmentService],
+    },
+  ],
+  exports: [ThrottlerStorageRedisService],
+})
+class ThrottleStorageModule {}
+
 @Module({
   imports: [
     ThrottlerModule.forRootAsync({
-      imports: [EnvironmentModule],
-      useFactory: (environmentService: EnvironmentService) => {
-        const redisConfig = parseRedisUrl(environmentService.getRedisUrl());
-
+      imports: [ThrottleStorageModule],
+      useFactory: (storage: ThrottlerStorageRedisService) => {
         // ENG-1436 AC9: the registered throttler list is GENERATED from
         // ALL_THROTTLER_NAMES (single source, CS §5c) — it can never drift
         // out of sync with the canonical, Linear-scrubbed registry.
@@ -58,19 +89,10 @@ const THROTTLE_REGISTRATIONS: Record<string, { ttl: number; limit: number }> =
         return {
           throttlers,
           errorMessage: 'Too many requests',
-          storage: new ThrottlerStorageRedisService(
-            new Redis({
-              host: redisConfig.host,
-              port: redisConfig.port,
-              password: redisConfig.password,
-              db: redisConfig.db,
-              family: redisConfig.family,
-              keyPrefix: 'throttle:',
-            }),
-          ),
+          storage,
         };
       },
-      inject: [EnvironmentService],
+      inject: [ThrottlerStorageRedisService],
     }),
   ],
 })

@@ -1,0 +1,24 @@
+{
+  "description": "FR-30 divergence-gate ledger (ENG-2477) — the frozen 13-row allow-list of UPSTREAM files the fork may diverge from, verbatim per Architecture twQ3BBzpTE section 2 A-THIN. Distinct from patches/inline-edit-allowlist.json (the ENG-1649 patches-drift subsystem: per-declared-edit context drift), and from docs/runbooks/hardening-allowlist.json (the ENG-2478 A-HARDENING class the gate reads as class 'hardening' rows). pinnedUpstreamSha null = the gate is not yet activated against a live upstream pin (same staged-activation posture as the sibling subsystem, patches-drift design section 8); the ledger's own row-existence validation runs regardless. The architecture's 'page DTOs orvex field' item has no upstream DTO carrying an orvex field at HEAD (page metadata rides the orvex_page_meta side table, outside divergence scope) — it is therefore not a row here; the 13 rows are the 13 real files below.",
+  "pinnedUpstreamSha": null,
+  "rows": [
+    { "path": "apps/server/src/app.module.ts", "weight": 3, "class": "allowlist" },
+    { "path": "apps/server/src/main.ts", "weight": 1, "class": "allowlist" },
+    {
+      "path": "apps/server/src/database/database.module.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "reserved, not yet exercised — RLS GUC hook (FR-W8, ENG-2502); no set_config/RLS call exists at HEAD"
+    },
+    { "path": "apps/server/src/core/auth/strategies/jwt.strategy.ts", "weight": 3, "class": "allowlist" },
+    { "path": "apps/server/src/common/middlewares/domain.middleware.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/core/page/services/page.service.ts", "weight": 3, "class": "allowlist" },
+    { "path": "apps/server/src/core/page/page.controller.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/collaboration/collaboration.gateway.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/collaboration/collaboration.handler.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/collaboration/collaboration.module.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/core/auth/services/token.service.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/core/core.module.ts", "weight": 1, "class": "allowlist" },
+    { "path": "apps/server/src/database/listeners/page.listener.ts", "weight": 1, "class": "allowlist" }
+  ]
+}

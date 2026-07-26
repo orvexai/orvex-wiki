@@ -1,0 +1,8 @@
+{
+  "pinnedUpstreamSha": "fixture-pin-clean",
+  "rows": [
+    { "path": "apps/server/src/app.module.ts", "weight": 3, "class": "allowlist" },
+    { "path": "apps/server/src/core/page/services/page.service.ts", "weight": 3, "class": "allowlist" },
+    { "path": "apps/server/src/core/auth/strategies/jwt.strategy.ts", "weight": 3, "class": "allowlist" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "tldr",
+      "attrs": {
+        "id": "tldr-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

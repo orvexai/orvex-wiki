@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { KyselyDB } from '../../../database/types/kysely.types';
-import { EnvironmentService } from '../../../integrations/environment/environment.service';
-import { OrvexConfigService } from '../../config/orvex-config.service';
+import { CELL_SOLO, OrvexConfigService } from '../../config/orvex-config.service';
 import {
   KAFKA_PUBLISHER_PORT,
   KafkaPublisherPort,
@@ -19,31 +18,37 @@ import {
   injectOutboxTraceContext,
   restoreOutboxTraceContext,
 } from './orvex-outbox-trace-context.util';
+import { resolveWikiEventsTopic } from './outbox-topic.resolver';
 
 /**
- * Narrow seam the relay actually needs from `EnvironmentService` (dependency
+ * Narrow seam the relay needs from `OrvexConfigService` (dependency
  * inversion — the relay depends on this small interface, not the whole
- * environment surface; `EnvironmentService` satisfies it structurally, so no
+ * config surface; `OrvexConfigService` satisfies it structurally, so no
  * extra wiring is needed at the DI site). Tests substitute a plain object.
- */
-export interface OutboxTopicResolver {
-  getKafkaOutboxTopic(): string;
-}
-
-/**
- * Narrow seam the relay needs from `OrvexConfigService` (same dependency-
- * inversion shape as `OutboxTopicResolver` above) — ENG-1559 M5 AC8: the
- * CloudEvents `orvexcell` extension attribute (cell-contract rule #6),
- * REQUIRED on every event over the real Kafka spine (pinned
- * events/schemas/_envelope.json `required`). Tests substitute a plain
- * object; production is satisfied structurally by `OrvexConfigService`.
+ *
+ * - `cellId` — ENG-1559 M5 AC8: the CloudEvents `orvexcell` extension
+ *   attribute (cell-contract rule #6), REQUIRED on every event over the
+ *   real Kafka spine (pinned events/schemas/_envelope.json `required`).
+ *   ENG-2496 AC2 additionally names the per-cell topic from it
+ *   (`resolveWikiEventsTopic`).
+ * - `kafkaBrokersConfigured` — ENG-2496 AC5: gates the boot-time
+ *   topic-shape assertion so an unwired solo/dev/crew boot NO-OPs instead
+ *   of requiring a broker that does not exist in that mode.
  */
 export interface OutboxCellResolver {
   cellId: string | null;
+  kafkaBrokersConfigured: boolean;
 }
 
-/** The CloudEvents Solo-sentinel cell (cell-contract.md; dev/standalone/crew). */
-const CELL_SOLO = 'solo';
+/** Result of the ENG-2496 AC2 boot-time topic-shape assertion. */
+export interface TopicShapeResult {
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
+}
+
+// The Solo-sentinel cell constant (`CELL_SOLO`) now lives beside
+// `OrvexConfigService.cellId` (one declaration, CS §3.1) — imported above.
 
 /**
  * The CloudEvents Kafka Protocol Binding structured-mode marker
@@ -84,22 +89,75 @@ const CONTENT_TYPE_STRUCTURED_CLOUDEVENT = 'application/cloudevents+json';
  * rows and never double-marks a row.
  */
 @Injectable()
-export class OutboxRelayService {
+export class OutboxRelayService implements OnModuleInit {
   private readonly logger = new Logger(OutboxRelayService.name);
 
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
     @Inject(KAFKA_PUBLISHER_PORT)
     private readonly publisher: KafkaPublisherPort,
-    // Injected by the concrete EnvironmentService token (interfaces have no
-    // runtime token), typed narrowly to what this relay actually needs.
-    @Inject(EnvironmentService)
-    private readonly environmentService: OutboxTopicResolver,
-    // Injected by the concrete OrvexConfigService token, typed narrowly
-    // (OutboxCellResolver) — same DI shape as environmentService above.
+    // Injected by the concrete OrvexConfigService token (interfaces have no
+    // runtime token), typed narrowly (OutboxCellResolver) to what this
+    // relay actually needs.
     @Inject(OrvexConfigService)
     private readonly configService: OutboxCellResolver,
   ) {}
+
+  /**
+   * ENG-2496 AC2/AC5 — assert the per-cell single-partition topic shape
+   * once at boot. NEVER throws and NEVER blocks startup: an unwired boot
+   * (no `KAFKA_BROKERS` — solo/dev/crew, AC5) no-ops, and any metadata
+   * failure logs LOUDLY (an error, not a silent swallow) so a wrongly-
+   * partitioned or missing topic is visible from the first boot line.
+   */
+  async onModuleInit(): Promise<void> {
+    await this.assertPerCellTopicShape();
+  }
+
+  async assertPerCellTopicShape(): Promise<TopicShapeResult> {
+    const topic = resolveWikiEventsTopic(this.configService.cellId);
+    if (!this.configService.kafkaBrokersConfigured) {
+      // AC5 — the solo/unwired sentinel no-op: standalone/dev/crew boots
+      // must not require a cell registry or a live broker.
+      this.logger.debug(
+        `Kafka not configured — skipping boot-time topic-shape assertion for ${topic}`,
+      );
+      return { ok: true, skipped: true };
+    }
+    if (!this.publisher.fetchTopicPartitionCount) {
+      this.logger.error(
+        `Outbox topic-shape assertion: the Kafka publisher port cannot report topic metadata; cannot verify ${topic} is single-partition (cell-contract rule #5)`,
+      );
+      return { ok: false, reason: 'port-cannot-report-metadata' };
+    }
+    try {
+      const partitions = await this.publisher.fetchTopicPartitionCount(topic);
+      if (partitions === null) {
+        this.logger.error(
+          `Outbox topic-shape assertion FAILED: topic ${topic} does not exist on the configured brokers (cell-contract rule #5 requires the per-cell topic ahead of publish)`,
+        );
+        return { ok: false, reason: 'topic-missing' };
+      }
+      if (partitions !== 1) {
+        this.logger.error(
+          `Outbox topic-shape assertion FAILED: topic ${topic} has ${partitions} partitions — cell-contract rule #5 requires exactly 1 (single ordered writer)`,
+        );
+        return { ok: false, reason: `partitions=${partitions}` };
+      }
+      this.logger.log(
+        `Outbox topic-shape assertion OK: ${topic} exists with 1 partition`,
+      );
+      return { ok: true };
+    } catch (err) {
+      this.logger.error(
+        `Outbox topic-shape assertion could not fetch metadata for ${topic}: ${err}`,
+      );
+      return {
+        ok: false,
+        reason: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
 
   /**
    * Runs off the hot path (4i Operational — a Kafka outage never blocks a
@@ -121,7 +179,10 @@ export class OutboxRelayService {
    * unrelayed for the next run.
    */
   async run(batchSize = 100): Promise<{ published: number; failed: number }> {
-    const topic = this.environmentService.getKafkaOutboxTopic();
+    // ENG-2496 AC2 — the per-cell single-partition topic
+    // (`wiki-events.{cell}` / `wiki-events.solo`), replacing the flat
+    // KAFKA_OUTBOX_TOPIC every domain and cell previously shared.
+    const topic = resolveWikiEventsTopic(this.configService.cellId);
 
     const rows = await this.db
       .selectFrom('orvexEventOutbox')

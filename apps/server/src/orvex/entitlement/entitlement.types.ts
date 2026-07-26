@@ -91,6 +91,88 @@ export interface EntitlementCheckResponse {
   evaluatedAt: string;
 }
 
+/**
+ * ENG-2489 AC3 — the INTERIM hardcode-Free entitlement, served behind the
+ * entitlement-reader interface ONLY when the billing SoR is ABSENT (no
+ * `ORVEX_BILLING_API_URL` configured — the free-only launch window), never
+ * when billing is merely unreachable (that path stays: last-known cache,
+ * else fail closed 503).
+ *
+ * DISCLOSED interim measure, not a silent permanent SoR: these are the
+ * D-S7/ENG-2036 human-ratified Free-tier constants (200 pages / 1 GiB
+ * aggregate / 10 MiB per file / 2,000 files / 25 members /
+ * min(10 versions, 180 days) history), unchanged by this story and removed
+ * wholesale once billing's paid-plan SoR is live (the AC4 swap point —
+ * see {@link assertNoPaidPlanSellableWhileInterimFree}). These literals
+ * live ONLY here, inside the entitlement-reader (ENG-2489 AC5); the
+ * enforcement path reads them exclusively through `resolve()`.
+ *
+ * The ai/trial budget caps are NOT wiki-engine-enforced surfaces (no
+ * chokepoint in this repo reads them); they carry billing's documented `0`
+ * "uncapped/absent" sentinel rather than an invented number. `features` is
+ * empty — the interim constant unlocks nothing (fail-closed for gated
+ * features, honest for the Free tier). `evaluatedAt`/versions are fixed
+ * sentinel literals (never derived from a clock) so the constant is fully
+ * deterministic.
+ */
+export const INTERIM_FREE_ENTITLEMENT: EntitlementCheckResponse =
+  Object.freeze({
+    plan: 'free',
+    plan_version: 'interim-free',
+    features: [],
+    caps: Object.freeze({
+      ai_monthly_budget_gbp: 0,
+      embedding_monthly_budget_gbp: 0,
+      curator_distillation_monthly: 0,
+      trial_weekly_actions_advisory: 0,
+      trial_weekly_actions_throttle: 0,
+      demo_ai_actions: 0,
+      wiki_max_pages: 200,
+      wiki_storage_bytes_aggregate: 1_073_741_824, // 1 GiB
+      wiki_max_file_bytes: 10_485_760, // 10 MiB
+      wiki_max_files: 2_000,
+      wiki_max_members: 25,
+      wiki_history_retention_versions: 10,
+      wiki_history_retention_days: 180,
+    }),
+    trial: Object.freeze({ state: 'none' as TrialState }),
+    throttle: Object.freeze({ state: 'none' as ThrottleState }),
+    version: 'interim-free',
+    evaluatedAt: 'interim-hardcode-free', // sentinel, not a fabricated timestamp
+  }) as EntitlementCheckResponse;
+
+/**
+ * ENG-2489 AC4 — the plans this deployment is allowed to SELL while the
+ * interim hardcode-Free fallback is still the active billing-absent code
+ * path. Exactly `['free']` until the billing SoR read replaces
+ * {@link INTERIM_FREE_ENTITLEMENT}; widening this list without removing the
+ * interim constant trips the swap-point guard below at module init.
+ */
+export const SELLABLE_PLAN_IDS: readonly PlanId[] = Object.freeze(['free']);
+
+/**
+ * ENG-2489 AC4 — the paid-plan swap-point guard: fails LOUDLY (at
+ * `EntitlementModule` construction, i.e. boot) if any paid `PlanId` is
+ * marked sellable while the interim-Free constant is still the active
+ * billing-absent fallback. Removing `INTERIM_FREE_ENTITLEMENT` (wiring the
+ * real billing SoR read as the only source) is the sanctioned way to widen
+ * {@link SELLABLE_PLAN_IDS} — never deleting this guard.
+ */
+export function assertNoPaidPlanSellableWhileInterimFree(
+  sellablePlans: readonly PlanId[] = SELLABLE_PLAN_IDS,
+): void {
+  const paid = sellablePlans.filter((plan) => plan !== 'free');
+  if (paid.length > 0) {
+    throw new Error(
+      `ENG-2489 AC4 swap-point guard: paid plan(s) [${paid.join(', ')}] are ` +
+        'marked sellable while the interim hardcode-Free fallback ' +
+        '(INTERIM_FREE_ENTITLEMENT) is still the active billing-absent code ' +
+        'path. Wire the billing SoR read (and remove the interim constant) ' +
+        'before selling a paid plan.',
+    );
+  }
+}
+
 /** Maps a QuotaResource to its cap field on EntitlementCaps (AC6/AC8). */
 export function capValueForResource(
   caps: EntitlementCaps,
@@ -109,3 +191,57 @@ export function capValueForResource(
       return caps.wiki_max_file_bytes;
   }
 }
+
+/**
+ * ENG-2491 AC3 — one entry of the actionable largest-files list a
+ * storage-shaped `402 QUOTA_EXCEEDED` carries. Every field is a real
+ * `attachments` column value (id / fileName / fileSize) — never fabricated.
+ */
+export interface LargestFileEntry {
+  id: string;
+  name: string;
+  fileSize: number;
+}
+
+/**
+ * ENG-2491 AC3 — bound on the largest-files list attached to a
+ * storage-shaped rejection (a `LIMIT N` read, never a full-table scan). A
+ * response-shaping knob, not a cap ceiling (❌#10).
+ */
+export const LARGEST_FILES_LIMIT = 5;
+
+/**
+ * ENG-2491 AC4 — the SSO/SCIM JIT member-provisioning overage allowance:
+ * first login never breaks a tenant that is already slightly over via a
+ * stale SCIM sync. JIT provisioning is permitted up to
+ * `floor(cap * 1.1)` members (a bounded, documented overage — FR-W13);
+ * manual invites keep the unmodified 100% boundary. The multiplier lives
+ * HERE (the entitlement-reader's own module) so no call site carries the
+ * arithmetic (❌#1) and no second owner can diverge from it.
+ */
+export const JIT_MEMBER_OVERAGE_MULTIPLIER = 1.1;
+
+/**
+ * ENG-2491 AC1 — the resource classes whose rejection carries the
+ * largest-files list (storage-shaped: acting on files is the immediate
+ * remediation). `pages`/`members` rejections carry only the upgrade link.
+ *
+ * ENG-2492 AC2/AC3 — the SAME classification is the Redis-loss fail-mode
+ * split (ADR-0003 `Nr3WIs0Zpt`, Proposed): storage-shaped resources fail
+ * CLOSED when the usage counter is unreadable (an uncorrected byte-cap
+ * bypass during an outage window is the costly failure), while the cheap
+ * resources (`pages`/`members`) fail OPEN (a Redis outage must never become
+ * a page-create outage). One classification, one owner — a future new
+ * `QuotaResource` makes this decision exactly once, here.
+ */
+export const STORAGE_SHAPED_RESOURCES: readonly QuotaResource[] =
+  Object.freeze(['storage', 'files', 'file_bytes']);
+
+/**
+ * ENG-2492 AC4 — the absolute hard stop that bounds `warn`-mode
+ * calibration: even with `ORVEX_QUOTAS_ENFORCE=warn`, a write crossing
+ * 200% of cap is rejected ("a Redis reset cannot open free-tier abuse").
+ * A human-ratified ceiling (ADR-0003) — the SINGLE named constant, never
+ * duplicated as a magic number, never tuned without a fresh ADR (❌#10).
+ */
+export const QUOTA_WARN_MODE_HARD_STOP_MULTIPLIER = 2;

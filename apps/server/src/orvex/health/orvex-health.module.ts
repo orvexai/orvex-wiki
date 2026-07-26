@@ -7,13 +7,17 @@ import { OrvexConfigModule } from '../config/orvex-config.module';
 import { OrvexHealthController } from './orvex-health.controller';
 import { OrvexHealthService } from './orvex-health.service';
 import {
+  ORVEX_HEALTH_COLLAB_WS_PROBE,
   ORVEX_HEALTH_KAFKA_PROBE,
   ORVEX_HEALTH_POSTGRES_PROBE,
   ORVEX_HEALTH_REDIS_PROBE,
+  ORVEX_HEALTH_RELAY_PROBE,
   ORVEX_HEALTH_STORAGE_PROBE,
+  defaultCollabWsProbe,
   defaultKafkaProbe,
   defaultPostgresProbe,
   defaultRedisProbe,
+  defaultRelayOutboxProbe,
   defaultStorageProbe,
 } from './orvex-health.probes';
 
@@ -38,6 +42,9 @@ import {
     { provide: ORVEX_HEALTH_REDIS_PROBE, useValue: defaultRedisProbe },
     { provide: ORVEX_HEALTH_STORAGE_PROBE, useValue: defaultStorageProbe },
     { provide: ORVEX_HEALTH_KAFKA_PROBE, useValue: defaultKafkaProbe },
+    { provide: ORVEX_HEALTH_COLLAB_WS_PROBE, useValue: defaultCollabWsProbe },
+    // ENG-2496 AC4 — the outbox relay liveness/lag heartbeat probe.
+    { provide: ORVEX_HEALTH_RELAY_PROBE, useValue: defaultRelayOutboxProbe },
   ],
 })
 export class OrvexHealthModule {}

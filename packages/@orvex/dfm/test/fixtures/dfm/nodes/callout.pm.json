@@ -1,0 +1,22 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "callout",
+      "attrs": {
+        "calloutType": "warning"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "careful"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

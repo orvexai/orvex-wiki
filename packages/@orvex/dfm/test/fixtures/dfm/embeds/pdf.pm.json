@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "pdf",
+      "attrs": {
+        "id": "pdf-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

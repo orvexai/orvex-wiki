@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "task_list",
+      "attrs": {
+        "id": "task_list-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}
