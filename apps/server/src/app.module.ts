@@ -23,6 +23,7 @@ import { RedisModule } from '@nestjs-labs/nestjs-ioredis';
 import { RedisConfigService } from './integrations/redis/redis-config.service';
 import { IdempotencyStoreModule } from './integrations/redis/idempotency-store.module';
 import { EntitlementModule } from './orvex/entitlement/entitlement.module';
+import { OrvexTenancyModule } from './orvex/tenancy/orvex-tenancy.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
 import { LoggerModule } from './common/logger/logger.module';
@@ -75,6 +76,9 @@ try {
     }),
     IdempotencyStoreModule,
     EntitlementModule,
+    // ENG-2505 (FR-22) — live/push-invalidated tenant-suspension guard
+    // (global; read/export/auth allow-listed inside the guard).
+    OrvexTenancyModule,
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async (environmentService: EnvironmentService) => {
