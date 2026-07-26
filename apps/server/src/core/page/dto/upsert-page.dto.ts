@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -60,4 +61,11 @@ export class UpsertPageDto {
   @IsInt()
   @Min(1)
   ifVersion?: number;
+
+  // ENG-2484 (AC4) — same validated AI-provenance flag as `CreatePageDto`
+  // (see the field's doc comment there); forwarded by `PageService.upsert`'s
+  // update branch into `PageService.update` → `updatePageContent`.
+  @IsOptional()
+  @IsBoolean()
+  markAiAuthored?: boolean;
 }

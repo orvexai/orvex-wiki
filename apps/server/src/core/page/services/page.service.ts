@@ -415,6 +415,10 @@ export class PageService {
         content: preparedContent,
         operation: dto.operation,
         format: dto.format,
+        // ENG-2484 (AC4) — the upsert update-branch forwards the validated
+        // AI-provenance flag into the same `update` → `updatePageContent`
+        // funnel as a direct `/pages/update` write.
+        markAiAuthored: dto.markAiAuthored,
       } as UpdatePageDto,
       { id: userId } as User,
     );
@@ -608,6 +612,9 @@ export class PageService {
         updatePageDto.operation,
         updatePageDto.format,
         user,
+        // ENG-2484 (AC4) — forward the validated DTO flag into the collab
+        // funnel; absent/false means a plain human write, unchanged.
+        updatePageDto.markAiAuthored,
       );
     }
 
@@ -658,12 +665,20 @@ export class PageService {
     return result;
   }
 
+  // ENG-2484 (AC4) — `markAiAuthored` is the validated DTO flag threaded
+  // through to the collab handler: the handler marks the AI-changed blocks
+  // in the live ydoc and flags the document so the next debounced store
+  // stamps `orvex_page_meta` provenance atomically with the content write
+  // (ENG-1447/ENG-1603). Optional 6th param so the pre-existing 5-arg call
+  // sites (`orvex-page-provenance.controller.ts`, `page-history.service.ts`)
+  // keep compiling unchanged with the flag defaulted to falsy.
   async updatePageContent(
     pageId: string,
     content: string | object,
     operation: ContentOperation,
     format: ContentFormat,
     user: User,
+    markAiAuthored?: boolean,
   ): Promise<void> {
     const prosemirrorJson = await this.parseProsemirrorContent(content, format);
 
@@ -671,7 +686,7 @@ export class PageService {
     await this.collaborationGateway.handleYjsEvent(
       'updatePageContent',
       documentName,
-      { operation, prosemirrorJson, user },
+      { operation, prosemirrorJson, user, markAiAuthored },
     );
   }
 
