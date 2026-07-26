@@ -9,17 +9,6 @@ import { registerBlockSchema } from '../schemas.controller';
  * apps/server/src/orvex/page-blocks/handlers/orvex-dashboard.ts (ENG-1412).
  * See handlers/structure.ts for the scope note (schema catalog only; the
  * write handler is the orvex-wiki-api leg).
- *
- * ENG-2951 — Linear-scrubbed on this pass: the fork's `linearOrgId` schema
- * property (a Linear org ID, resolved from a user integration if absent) is
- * DROPPED. PO-Q13 (Linear vocabulary severed from all customer-facing
- * surfaces) / D-S24 (Orvex Dashboard cockpit dropped) rule this a dead,
- * advertised-but-unread field: no engine code ever read `linearOrgId`, so
- * removing it changes no runtime behaviour. This provenance comment
- * legitimately references "Linear" by name to document what was removed and
- * why — see `orvex-throttler-names.ts` for the same reconciliation: a
- * code-only grep (identifiers/schema literals, comments excluded) is the
- * correct gate here, not a raw text grep.
  */
 
 registerBlockSchema('orvex_dashboard', {
@@ -36,6 +25,10 @@ registerBlockSchema('orvex_dashboard', {
     },
     refBlockId: { type: 'string' },
     ifVersion: { type: 'string' },
+    linearOrgId: {
+      type: 'string',
+      description: 'Linear org ID (resolved from user integration if absent)',
+    },
     node: {
       type: 'object',
       required: ['type', 'attrs'],

@@ -4,7 +4,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { TransformHttpResponseInterceptor } from './common/interceptors/http-response.interceptor';
 import { WsRedisIoAdapter } from './ws/adapter/ws-redis.adapter';
@@ -16,7 +16,6 @@ import { EnvironmentService } from './integrations/environment/environment.servi
 import { resolveFrameHeader } from './common/helpers';
 import { initOrvexTracing } from './orvex/obs/orvex-tracing.bootstrap';
 import { resolveGlobalPrefixExclude } from './orvex/http/orvex-global-prefix-exclude';
-import { registerWorkspaceExemptPreHandler } from './orvex/http/orvex-workspace-exempt-paths';
 
 async function bootstrap() {
   // ENG-1599: the OTel SDK MUST patch (http/fastify/ioredis instrumentation)
@@ -121,15 +120,57 @@ async function bootstrap() {
     })
     .decorateReply('end', function () {
       this.send('');
-    });
+    })
+    .addHook('preHandler', function (req, reply, done) {
+      // don't require workspaceId for the following paths
+      const excludedPaths = [
+        '/api/auth/setup',
+        '/api/health',
+        '/api/billing/stripe/webhook',
+        '/api/workspace/check-hostname',
+        '/api/sso/google',
+        '/api/workspace/create',
+        '/api/workspace/joined',
+        '/api/workspace/find-by-email',
+        // ENG-1559 FR-W6 — the public engine session-mint ESTABLISHES the
+        // session from the identity exchange token carried in the request body;
+        // it resolves the tenant by introspecting that token, never from a
+        // host-resolved workspace, so (like /api/auth/setup + /api/workspace/*
+        // above) it must not require a pre-resolved workspaceId. Without this,
+        // CLOUD mode (no host->workspace match, no bearer yet) 404s the mint
+        // before it can run.
+        '/api/orvex/session/exchange',
+        // ENG-1578 — the WHOLE tenant-move surface (`/api/orvex/tenant-move`
+        // bare, the real registry cross-cell relocation, M14 closing gate
+        // AC6, AND its `/quiesce`/`/export`/`/import`/`/activate` A-MOVE
+        // sub-routes) resolves its caller by bearer (introspection or the
+        // manifest's own `Idempotency-Key`-gated contract), NEVER from a
+        // host-resolved workspace — the SAME shape as the FR-W6 session-
+        // exchange exemption above, for the SAME reason. It is called over
+        // a bare cluster-internal ClusterIP URL with no tenant-specific
+        // Host header (orvex-studio-lib's M14 rehearsal harness, and any
+        // real production caller e.g. orvex-workflows' TenantMoveWorkflow),
+        // so without this exemption CLOUD mode 404s "Workspace not found"
+        // before the tenant-move service's own auth even runs (confirmed
+        // live against the deployed orvex-wiki-dev cell — the bare 200 gate
+        // is a REAL cross-tenant relocation, so leaving it host-scoped by
+        // accident is not an option: the bearer/moveId contract IS the
+        // access control here, deliberately, not Host-based routing).
+        '/api/orvex/tenant-move',
+      ];
 
-  // ENG-2500 AC2b — the workspace-resolution preHandler + its excludedPaths
-  // allow-list moved to an importable helper (orvex-workspace-exempt-paths.ts,
-  // mirroring resolveGlobalPrefixExclude's precedent) so the DoD test can
-  // register the REAL hook against a test-booted app, instead of a bespoke
-  // hand-copied duplicate. Byte-preserved behaviour: same predicate, same
-  // '/api' bare-prefix special case, same !workspaceId 404.
-  registerWorkspaceExemptPreHandler(app);
+      if (
+        req.originalUrl.startsWith('/api') &&
+        !excludedPaths.some((path) => req.originalUrl.startsWith(path))
+      ) {
+        if (!req.raw?.['workspaceId'] && req.originalUrl !== '/api') {
+          throw new NotFoundException('Workspace not found');
+        }
+        done();
+      } else {
+        done();
+      }
+    });
 
   app.useGlobalPipes(
     new ValidationPipe({
