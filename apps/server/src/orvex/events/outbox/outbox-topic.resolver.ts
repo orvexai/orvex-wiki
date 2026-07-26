@@ -2,8 +2,12 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-/** The CloudEvents Solo-sentinel cell (cell-contract.md; dev/standalone/crew). */
-export const CELL_SOLO = 'solo';
+// The CloudEvents Solo-sentinel cell constant (`CELL_SOLO`) is declared
+// beside `OrvexConfigService.cellId` (one declaration, CS §3.1) and
+// re-exported here for the resolver's existing import sites.
+import { CELL_SOLO } from '../../config/orvex-config.service';
+
+export { CELL_SOLO };
 
 /**
  * ENG-2496 AC2 — the per-cell studio-spine topic for this engine's events

@@ -33,6 +33,13 @@ export class CollaborationGateway {
   // @ts-ignore
   private readonly redisSync: RedisSyncExtension<CollabEventHandlers> | null =
     null;
+  // ENG-2501 (test-surfaced resource leak): the template client handed to
+  // RedisSyncExtension. The extension only ever uses `duplicate()` of it and
+  // its own onDestroy disconnects only those duplicates, so THIS client must
+  // be disconnected here in destroy() — otherwise it idles connected forever
+  // and reconnect-loops if Redis goes away.
+  // @ts-ignore
+  private readonly redisSyncTemplateClient: RedisClient | null = null;
   private readonly withRedis: boolean;
 
   constructor(
@@ -58,15 +65,17 @@ export class CollaborationGateway {
 
     if (this.withRedis) {
       // @ts-ignore
+      this.redisSyncTemplateClient = new RedisClient({
+        host: this.redisConfig.host,
+        port: this.redisConfig.port,
+        password: this.redisConfig.password,
+        db: this.redisConfig.db,
+        family: this.redisConfig.family,
+        retryStrategy: createRetryStrategy(),
+      });
+      // @ts-ignore
       this.redisSync = new RedisSyncExtension({
-        redis: new RedisClient({
-          host: this.redisConfig.host,
-          port: this.redisConfig.port,
-          password: this.redisConfig.password,
-          db: this.redisConfig.db,
-          family: this.redisConfig.family,
-          retryStrategy: createRetryStrategy(),
-        }),
+        redis: this.redisSyncTemplateClient,
         serverId: `collab-${os?.hostname()}-${nanoid(10)}`,
         prefix: 'collab',
         pack,
@@ -184,5 +193,11 @@ export class CollaborationGateway {
     });
 
     await this.hocuspocus.hooks('onDestroy', { instance: this.hocuspocus });
+
+    // ENG-2501 — the RedisSync extension's onDestroy disconnects only the
+    // pub/sub clients it duplicated; the template client it duplicated FROM
+    // is owned here and must be disconnected too (no reconnect), or it keeps
+    // an idle connection open for the life of the pod.
+    this.redisSyncTemplateClient?.disconnect(false);
   }
 }

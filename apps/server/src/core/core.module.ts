@@ -26,9 +26,13 @@ import { SessionModule } from './session/session.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { UserExportModule } from './user-export/user-export.module';
 import { ClsMiddleware } from 'nestjs-cls';
+import { OrvexConfigModule } from '../orvex/config/orvex-config.module';
 
 @Module({
   imports: [
+    // ENG-2501 — provides `OrvexConfigService` (the `CELL_ID` reader) to
+    // `DomainMiddleware`'s soft label-2 cell assertion.
+    OrvexConfigModule,
     UserModule,
     AuthModule,
     WorkspaceModule,

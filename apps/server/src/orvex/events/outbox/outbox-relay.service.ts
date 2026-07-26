@@ -7,7 +7,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { KyselyDB } from '../../../database/types/kysely.types';
-import { OrvexConfigService } from '../../config/orvex-config.service';
+import { CELL_SOLO, OrvexConfigService } from '../../config/orvex-config.service';
 import {
   KAFKA_PUBLISHER_PORT,
   KafkaPublisherPort,
@@ -18,7 +18,7 @@ import {
   injectOutboxTraceContext,
   restoreOutboxTraceContext,
 } from './orvex-outbox-trace-context.util';
-import { CELL_SOLO, resolveWikiEventsTopic } from './outbox-topic.resolver';
+import { resolveWikiEventsTopic } from './outbox-topic.resolver';
 
 /**
  * Narrow seam the relay needs from `OrvexConfigService` (dependency
@@ -46,6 +46,9 @@ export interface TopicShapeResult {
   skipped?: boolean;
   reason?: string;
 }
+
+// The Solo-sentinel cell constant (`CELL_SOLO`) now lives beside
+// `OrvexConfigService.cellId` (one declaration, CS §3.1) — imported above.
 
 /**
  * The CloudEvents Kafka Protocol Binding structured-mode marker

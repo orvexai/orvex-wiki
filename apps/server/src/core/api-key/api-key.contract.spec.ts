@@ -25,6 +25,7 @@ import {
 import { ApiKeyModule } from './api-key.module';
 import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { JwtStrategy } from '../../core/auth/strategies/jwt.strategy';
+import { TOKEN_SCOPE_SYMBOL } from '../../core/casl/scope-intersection';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
@@ -474,5 +475,211 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       .where('workspaceId', '=', orphanWs.id)
       .execute();
     expect(remaining).toHaveLength(0);
+  });
+
+  /**
+   * ENG-2498 — `TestOrvexApiKeyBehaviouralParity`, the named binary DoD gate.
+   *
+   * VERIFY + harden: proves the clean-room `core/api-key` module behaves
+   * identically to the documented prior EE contract across
+   * create/verify/scope/tenant-binding, driven ONLY through the exported
+   * surfaces (`JwtStrategy.validate` — which dispatches to its api-key
+   * branch — and the HTTP create/verify routes), against the real
+   * testcontainers Postgres-backed `ApiKeyRepo` (CS §5, ❌#4 — no own-code
+   * mock). Determinism: the expiry negative case pins a FIXED, already-past
+   * timestamp on the key row (never a live now-minus-delta computation).
+   */
+  describe('TestOrvexApiKeyBehaviouralParity (ENG-2498 DoD gate)', () => {
+    const FIXED_PAST_EXPIRY = new Date('2000-01-01T00:00:00.000Z');
+
+    it('AC1/AC2 — a created key authenticates through the real `jwt` strategy and resolves the creator principal bound to its own workspace (create/verify parity)', async () => {
+      const created = await createKey(adminId, 'ENG-2498 parity key');
+
+      // Behavioural proof through the HTTP surface: the passport 'jwt'
+      // strategy (whose api-key branch delegates to core/api-key's
+      // ApiKeyService — no EE path exists in this tree to delegate to).
+      const authed = await app.inject({
+        method: 'POST',
+        url: '/api/api-keys/list',
+        headers: authHeader(created.token),
+      });
+      expect(authed.statusCode).toBe(200);
+
+      // Through the exported JwtStrategy.validate interface: the resolved
+      // principal is the key's creator, bound to the key's own workspace,
+      // marked as api_key auth. Asserts observable outcomes only — survives
+      // any internal rename of the service's private hashing/lookup helpers.
+      const strategy = app.get(JwtStrategy);
+      const payload = jwt.verify(created.token, TEST_APP_SECRET) as {
+        sub: string;
+        workspaceId: string;
+        apiKeyId: string;
+        type: string;
+        scope?: 'restricted';
+      };
+      expect(payload.type).toBe('api_key');
+
+      const principal = (await strategy.validate(
+        { raw: {}, headers: authHeader(created.token) },
+        payload as never,
+      )) as {
+        user: { id: string };
+        workspace: { id: string };
+        authMethod?: string;
+        apiKeyId?: string;
+        tokenScope?: string;
+      };
+      expect(principal.user.id).toBe(adminId);
+      expect(principal.workspace.id).toBe(workspaceId);
+      expect(principal.authMethod).toBe('api_key');
+      expect(principal.apiKeyId).toBe(created.apiKey.id);
+      expect(principal.tokenScope).toBe('full');
+    });
+
+    it('AC2 scope parity — the key row\'s scopes/readOnly grant is stamped onto the resolved principal at the auth seam', async () => {
+      const created = await createKey(adminId, 'ENG-2498 scope key');
+
+      // Native JS array straight through to the jsonb column — mirrors the
+      // repo's own driver-edge cast (ENG-1454 AC6: never double-encoded).
+      await seedDb
+        .updateTable('apiKeys')
+        .set({
+          scopes: ['11111111-2222-3333-4444-555555555555'] as never,
+          readOnly: true,
+        })
+        .where('id', '=', created.apiKey.id)
+        .execute();
+
+      const strategy = app.get(JwtStrategy);
+      const payload = jwt.verify(created.token, TEST_APP_SECRET) as object;
+      const principal = (await strategy.validate(
+        { raw: {}, headers: authHeader(created.token) },
+        payload as never,
+      )) as { user: Record<PropertyKey, unknown> };
+
+      const grant = principal.user[TOKEN_SCOPE_SYMBOL] as {
+        readOnly: boolean;
+        spaceIds: string[] | null;
+      };
+      expect(grant).toBeDefined();
+      expect(grant.readOnly).toBe(true);
+      expect(grant.spaceIds).toEqual(['11111111-2222-3333-4444-555555555555']);
+    });
+
+    it('AC2 tenant-binding — the same key id presented under ANOTHER workspace resolves nothing (401, cross-tenant fail-closed)', async () => {
+      const created = await createKey(adminId, 'ENG-2498 tenant key');
+      const otherWs = await seedDb
+        .insertInto('workspaces')
+        .values({ name: 'ENG-2498 other tenant' })
+        .returning('id')
+        .executeTakeFirstOrThrow();
+
+      // Valid signature, real apiKeyId — but claiming the OTHER tenant. The
+      // workspace-scoped auth-record lookup must resolve nothing (deny).
+      const crossTenant = jwt.sign(
+        {
+          sub: adminId,
+          workspaceId: otherWs.id,
+          apiKeyId: created.apiKey.id,
+          type: 'api_key',
+        },
+        TEST_APP_SECRET,
+      );
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/api-keys/list',
+        headers: authHeader(crossTenant),
+      });
+      expect(res.statusCode).toBe(401);
+      // No session is minted on the rejection path.
+      expect(res.headers['set-cookie']).toBeUndefined();
+    });
+
+    it('AC5 — an EXPIRED key fails closed: typed 401, no principal, no session minted (fixed past timestamp, no wall-clock delta)', async () => {
+      const created = await createKey(adminId, 'ENG-2498 expiry key');
+
+      // Deterministic: pin a FIXED, already-past expiry directly on the row
+      // (❌#9 guard — never `Date.now()` minus a delta at assertion time).
+      await seedDb
+        .updateTable('apiKeys')
+        .set({ expiresAt: FIXED_PAST_EXPIRY })
+        .where('id', '=', created.apiKey.id)
+        .execute();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/api-keys/list',
+        headers: authHeader(created.token),
+      });
+      expect(res.statusCode).toBe(401);
+      const body = JSON.parse(res.body) as { statusCode: number; message: string };
+      expect(body.statusCode).toBe(401);
+      expect(body.message).toContain('API key revoked');
+      expect(res.headers['set-cookie']).toBeUndefined();
+
+      // The verify path itself resolves no principal for the expired key.
+      const strategy = app.get(JwtStrategy);
+      const payload = jwt.verify(created.token, TEST_APP_SECRET) as object;
+      await expect(
+        strategy.validate(
+          { raw: {}, headers: authHeader(created.token) },
+          payload as never,
+        ),
+      ).rejects.toThrow('API key revoked');
+    });
+
+    it('AC5 — a MALFORMED bearer and a wrong-secret signature both fail closed with a clean 401 (never a 500)', async () => {
+      const malformed = await app.inject({
+        method: 'POST',
+        url: '/api/api-keys/list',
+        headers: authHeader('not-a-jwt-at-all'),
+      });
+      expect(malformed.statusCode).toBe(401);
+
+      const wrongSecret = jwt.sign(
+        {
+          sub: adminId,
+          workspaceId,
+          apiKeyId: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+          type: 'api_key',
+        },
+        'a-completely-different-secret-of-32-chars!!',
+      );
+      const forged = await app.inject({
+        method: 'POST',
+        url: '/api/api-keys/list',
+        headers: authHeader(wrongSecret),
+      });
+      expect(forged.statusCode).toBe(401);
+      expect(forged.headers['set-cookie']).toBeUndefined();
+    });
+
+    it('AC1/AC3 — the strategy resolves api-key auth via core/api-key: no ee/api-key import exists anywhere under apps/server/src', async () => {
+      // Import-level provenance gate (AC1/AC3): asserts on IMPORTS, not raw
+      // string occurrences — provenance comments legitimately mention the
+      // old EE path. Complements api-key-clean-room.static.spec.ts.
+      const serverSrc = path.join(__dirname, '..', '..');
+      const offenders: string[] = [];
+      const walk = async (dir: string): Promise<void> => {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await walk(full);
+          } else if (entry.name.endsWith('.ts')) {
+            const content = await fs.readFile(full, 'utf-8');
+            if (
+              /(^\s*import[^\n]*['"][^'"]*ee\/api-key|require\(\s*['"][^'"]*ee\/api-key)/m.test(
+                content,
+              )
+            ) {
+              offenders.push(full);
+            }
+          }
+        }
+      };
+      await walk(serverSrc);
+      expect(offenders).toEqual([]);
+    });
   });
 });

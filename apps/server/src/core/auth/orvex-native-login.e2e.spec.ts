@@ -87,6 +87,7 @@ class FakeMemberLookup implements OrvexMemberLookup {
 class FakeAuthService {
   login = jest.fn().mockResolvedValue('a-real-signed-jwt');
   forgotPassword = jest.fn().mockResolvedValue(undefined);
+  passwordReset = jest.fn().mockResolvedValue({ requiresLogin: true });
 }
 
 @Injectable()
@@ -228,9 +229,12 @@ describe('Native-login fail-closed under enforced SSO (ENG-1490) — e2e', () =>
     expect(res.cookies.some((c) => c.name === 'authToken')).toBe(true);
   });
 
-  it('AC6 — flag ON but enforceSso OFF: native login still works (removal gated on enforce-SSO, not the module flag alone)', async () => {
+  it('AC6 (ENG-2499 tightened) — flag ON but enforceSso OFF: native login is now ALSO rejected (removed fully, no default-open break-glass)', async () => {
     setFlag('true');
     currentWorkspace = { id: 'ws-flag-only', enforceSso: false };
+
+    const fakeAuthService = app.get<FakeAuthService>(AuthService);
+    fakeAuthService.login.mockClear();
 
     const res = await app.inject({
       method: 'POST',
@@ -238,8 +242,48 @@ describe('Native-login fail-closed under enforced SSO (ENG-1490) — e2e', () =>
       payload: { email: 'someone@example.com', password: 'whatever' },
     });
 
+    expect([403, 404]).toContain(res.statusCode);
+    expect(res.json().success).toBe(false);
+    expect(res.cookies.some((c) => c.name === 'authToken')).toBe(false);
+    // The credential-verifying call is never reached.
+    expect(fakeAuthService.login).not.toHaveBeenCalled();
+  });
+
+  it('ENG-2499 — password-reset (the reset sibling) is rejected under flag ON regardless of enforceSso; no session cookie minted', async () => {
+    setFlag('true');
+    currentWorkspace = { id: 'ws-flag-only', enforceSso: false };
+
+    const fakeAuthService = app.get<FakeAuthService>(AuthService);
+    fakeAuthService.passwordReset.mockClear();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password-reset',
+      payload: { token: 'some-reset-token', newPassword: 'whatever-else' },
+    });
+
+    expect([403, 404]).toContain(res.statusCode);
+    expect(res.json().success).toBe(false);
+    expect(res.cookies.some((c) => c.name === 'authToken')).toBe(false);
+    expect(fakeAuthService.passwordReset).not.toHaveBeenCalled();
+  });
+
+  it('ENG-2499 — password-reset still works byte-for-byte in vanilla mode (flag unset)', async () => {
+    setFlag(undefined);
+    currentWorkspace = { id: 'ws-vanilla', enforceSso: false };
+
+    const fakeAuthService = app.get<FakeAuthService>(AuthService);
+    fakeAuthService.passwordReset.mockClear();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/password-reset',
+      payload: { token: 'some-reset-token', newPassword: 'whatever-else' },
+    });
+
     expect(res.statusCode).toBe(200);
-    expect(res.cookies.some((c) => c.name === 'authToken')).toBe(true);
+    expect(res.json().requiresLogin).toBe(true);
+    expect(fakeAuthService.passwordReset).toHaveBeenCalledTimes(1);
   });
 
 });
@@ -347,9 +391,24 @@ describe('Native self-registration fail-closed under enforced SSO (ENG-1490 AC2)
     expect(fakeInvitationService.acceptInvitation).not.toHaveBeenCalled();
   });
 
-  it('AC2 regression — invites/accept still works when enforceSso is OFF (no half-state removal)', async () => {
+  it('AC2 (ENG-2499 tightened) — invites/accept is rejected under flag ON even when enforceSso is OFF (native self-registration removed fully)', async () => {
     setFlag('true');
     currentWorkspace = { id: 'ws-flag-only', enforceSso: false };
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/workspace/invites/accept',
+      payload: { invitationId: 'inv-1', name: 'Someone', password: 'whatever' },
+    });
+
+    expect([403, 404]).toContain(res.statusCode);
+    expect(res.json().success).toBe(false);
+    expect(fakeInvitationService.acceptInvitation).not.toHaveBeenCalled();
+  });
+
+  it('AC2 regression — invites/accept still works byte-for-byte in vanilla mode (flag unset)', async () => {
+    setFlag(undefined);
+    currentWorkspace = { id: 'ws-vanilla', enforceSso: false };
 
     const res = await app.inject({
       method: 'POST',

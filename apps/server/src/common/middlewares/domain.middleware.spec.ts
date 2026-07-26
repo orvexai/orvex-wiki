@@ -2,6 +2,7 @@ import { sign } from 'jsonwebtoken';
 import { DomainMiddleware } from './domain.middleware';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 
 // FR-W6 (ENG-1559) — DomainMiddleware federated workspace resolution. The
 // closing wall behind CLOUD mode was that a cluster-internal / cell host
@@ -13,6 +14,11 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 // unverifiable token establishes nothing (deny-by-default) and req.workspace is
 // NEVER set from the token (so @AuthWorkspace uses the JwtStrategy-verified
 // req.user.workspace, never a middleware-trusted object).
+//
+// ENG-2501 (FR-W20, A-TENANCY) adds the SOFT label-2 cell assertion cases:
+// a definite Host-label-2 vs pod-CELL_ID mismatch is soft-rejected with a
+// typed CELL_LABEL_MISMATCH marker (421, one request, never a crash), while
+// the `solo` sentinel / unset CELL_ID no-ops the check entirely.
 
 const APP_SECRET = 'test-app-secret-value-at-least-32-chars-long';
 const TENANT = 'f799e55a-478a-4ca7-9b0e-6e1324b6c6a7';
@@ -21,10 +27,29 @@ function makeReq(host?: string, authorization?: string): any {
   return { headers: { host, authorization } };
 }
 
+/** A minimal raw-ServerResponse double capturing the typed soft rejection. */
+function makeRes(): {
+  res: any;
+  written: () => { statusCode?: number; body?: string };
+} {
+  const state: { statusCode?: number; body?: string } = {};
+  const res = {
+    statusCode: undefined as number | undefined,
+    setHeader: jest.fn(),
+    end: jest.fn((body?: string) => {
+      state.statusCode = res.statusCode;
+      state.body = body;
+    }),
+  };
+  return { res, written: () => state };
+}
+
 function buildMiddleware(opts: {
   cloud: boolean;
   findFirst?: any;
   findByHostname?: any;
+  /** Explicit CELL_ID env value for this case (absent = unset). */
+  cellId?: string;
 }) {
   const environmentService = {
     isCloud: () => opts.cloud,
@@ -37,8 +62,19 @@ function buildMiddleware(opts: {
     findByHostname: jest.fn().mockResolvedValue(opts.findByHostname ?? undefined),
   } as unknown as WorkspaceRepo;
 
+  // Explicit env bag — never the ambient process.env (determinism gate).
+  const orvexConfigService = new OrvexConfigService(
+    (opts.cellId === undefined
+      ? {}
+      : { CELL_ID: opts.cellId }) as NodeJS.ProcessEnv,
+  );
+
   return {
-    middleware: new DomainMiddleware(workspaceRepo, environmentService),
+    middleware: new DomainMiddleware(
+      workspaceRepo,
+      environmentService,
+      orvexConfigService,
+    ),
     workspaceRepo,
   };
 }
@@ -78,6 +114,90 @@ describe('DomainMiddleware', () => {
       expect(workspaceRepo.findByHostname).toHaveBeenCalledWith('acme');
       expect(req.workspaceId).toBe('tenant-by-host');
       expect(req.workspace).toBe(ws);
+    });
+  });
+
+  describe('cloud — ENG-2501 soft label-2 cell assertion', () => {
+    const ws = { id: 'tenant-by-host' };
+
+    it('AC3 — a definite label-2 vs CELL_ID mismatch is soft-rejected with the typed CELL_LABEL_MISMATCH marker (421), request does not proceed', async () => {
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: ws,
+        cellId: 'eu1',
+      });
+      const req = makeReq('acme.wiki.us1.orvex.ai');
+      const { res, written } = makeRes();
+      const next = jest.fn();
+
+      await middleware.use(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(req.workspaceId).toBeUndefined();
+      expect(written().statusCode).toBe(421);
+      const body = JSON.parse(written().body ?? '{}');
+      expect(body.code).toBe('CELL_LABEL_MISMATCH');
+      expect(body.hostLabel2).toBe('us1');
+      expect(body.podCellId).toBe('eu1');
+    });
+
+    it('AC3 — a MATCHING label-2 passes through unaffected (workspace resolved, next called)', async () => {
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: ws,
+        cellId: 'eu1',
+      });
+      const req = makeReq('acme.wiki.eu1.orvex.ai');
+      const next = jest.fn();
+
+      await middleware.use(req, {} as any, next);
+
+      expect(req.workspaceId).toBe('tenant-by-host');
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('AC5 — under the `solo` sentinel a would-be mismatch NO-OPS (cell enforcement off entirely in solo mode)', async () => {
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: ws,
+        cellId: 'solo',
+      });
+      const req = makeReq('acme.wiki.us1.orvex.ai');
+      const next = jest.fn();
+
+      await middleware.use(req, {} as any, next);
+
+      expect(req.workspaceId).toBe('tenant-by-host');
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('AC5 — with CELL_ID unset the assertion no-ops identically (null-on-unset semantics, no fabricated cell)', async () => {
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: ws,
+      });
+      const req = makeReq('acme.wiki.us1.orvex.ai');
+      const next = jest.fn();
+
+      await middleware.use(req, {} as any, next);
+
+      expect(req.workspaceId).toBe('tenant-by-host');
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('a host with no cell-shaped label-2 (fewer than four labels) is never soft-rejected — the check does not guess', async () => {
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: ws,
+        cellId: 'eu1',
+      });
+      const req = makeReq('acme.localhost');
+      const next = jest.fn();
+
+      await middleware.use(req, {} as any, next);
+
+      expect(req.workspaceId).toBe('tenant-by-host');
+      expect(next).toHaveBeenCalledTimes(1);
     });
   });
 
