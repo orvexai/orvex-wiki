@@ -498,6 +498,8 @@ export interface Workspaces {
   logo: string | null;
   name: string | null;
   plan: string | null;
+  principalId: string | null;
+  principalKind: Generated<string>;
   settings: Json | null;
   status: string | null;
   stripeCustomerId: string | null;

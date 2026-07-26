@@ -69,14 +69,43 @@ export interface RegistryMoveResult {
 }
 
 /**
+ * ENG-2503 (A-TENANCY / D-S17) — global tenant/hostname reservation at mint
+ * time. Identity's GLOBAL registry is the sole adjudicator of cross-cell
+ * uniqueness; this engine's own `workspaces_hostname_unique` constraint
+ * stays a PER-CELL BACKSTOP only, never the cross-cell source of truth.
+ * `principalKind` records the polymorphic tenant shape: `'user'` (personal —
+ * no Clerk org anywhere) vs `'org'` (a Team keyed on the Clerk-org id
+ * identity mints — this engine never mints it).
+ */
+export interface RegistryReserveRequest {
+  readonly tenantId: string;
+  readonly hostname: string;
+  readonly principalKind: 'user' | 'org';
+}
+
+/**
+ * Reserve outcome. `orgId` is present when identity minted/vouched an org
+ * principal for an `'org'`-kind reservation (the personal→Teams
+ * upgrade-pass re-keys the tenant onto it).
+ */
+export interface RegistryReserveResult {
+  readonly tenantId: string;
+  readonly reserved: boolean;
+  readonly orgId?: string;
+}
+
+/**
  * Typed, distinguishable failure modes — the caller maps each to its own
  * honest HTTP status (never a single opaque 500 that hides WHY the registry
- * mutation didn't happen).
+ * mutation didn't happen). `TENANT_ALREADY_RESERVED` (ENG-2503) is the
+ * cross-cell mint-collision rejection: the global registry refused a
+ * second reservation of the same tenant/hostname.
  */
 export type RegistryClientErrorCode =
   | 'NOT_FOUND'
   | 'STALE_MOVE'
-  | 'DEPENDENCY_ERROR';
+  | 'DEPENDENCY_ERROR'
+  | 'TENANT_ALREADY_RESERVED';
 
 export class RegistryClientError extends Error {
   constructor(
@@ -116,6 +145,15 @@ export interface IdentityRegistryClient {
    * discipline as identity's own `/internal/rehearsal/*` probes).
    */
   resolveTenantCell(tenantId: string): Promise<RegistryTenantCell>;
+
+  /**
+   * ENG-2503 — calls identity's `POST /v1/registry/reserve`: global
+   * tenant/hostname uniqueness delegation at mint time (identity is the
+   * sole writer of the routing core). Throws `RegistryClientError` with
+   * `'TENANT_ALREADY_RESERVED'` on a cross-cell mint collision (409) —
+   * never fabricates a reservation.
+   */
+  reserveTenant(req: RegistryReserveRequest): Promise<RegistryReserveResult>;
 }
 
 /** Minimal fetch surface (Node 18+ global `fetch`), narrowed for injection. */
@@ -243,6 +281,50 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     );
   }
 
+  async reserveTenant(
+    req: RegistryReserveRequest,
+  ): Promise<RegistryReserveResult> {
+    const { status, payload } = await this.request(
+      'POST',
+      '/v1/registry/reserve',
+      {
+        tenantId: req.tenantId,
+        hostname: req.hostname,
+        principalKind: req.principalKind,
+      },
+    );
+
+    if (status === 200) {
+      const body = payload as Record<string, unknown>;
+      const tenantId = typeof body.tenantId === 'string' ? body.tenantId : '';
+      const reserved = body.reserved === true;
+      if (tenantId === '' || !reserved) {
+        throw new RegistryClientError(
+          'DEPENDENCY_ERROR',
+          'identity registry reserve returned a malformed 200 body',
+        );
+      }
+      return {
+        tenantId,
+        reserved,
+        orgId: typeof body.orgId === 'string' ? body.orgId : undefined,
+      };
+    }
+    if (status === 409) {
+      throw new RegistryClientError(
+        'TENANT_ALREADY_RESERVED',
+        'registry: tenant/hostname already reserved by another cell',
+      );
+    }
+    if (status === 404) {
+      throw new RegistryClientError('NOT_FOUND', 'registry: tenant not found');
+    }
+    throw new RegistryClientError(
+      'DEPENDENCY_ERROR',
+      `identity registry reserve returned HTTP ${status}`,
+    );
+  }
+
   private async request(
     method: 'GET' | 'POST',
     path: string,
@@ -276,6 +358,10 @@ export class NotConfiguredRegistryClient implements IdentityRegistryClient {
   }
 
   resolveTenantCell(_tenantId: string): Promise<RegistryTenantCell> {
+    return Promise.reject(new RegistryClientNotConfiguredError());
+  }
+
+  reserveTenant(_req: RegistryReserveRequest): Promise<RegistryReserveResult> {
     return Promise.reject(new RegistryClientNotConfiguredError());
   }
 }

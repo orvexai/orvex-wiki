@@ -41,6 +41,9 @@ export class WorkspaceRepo {
     'enforceMfa',
     'trashRetentionDays',
     'isScimEnabled',
+    // ENG-2503 — the polymorphic user-or-org tenant marker (D-S17).
+    'principalKind',
+    'principalId',
   ];
   constructor(@InjectKysely() private readonly db: KyselyDB) {}
 
