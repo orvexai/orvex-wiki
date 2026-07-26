@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Readable } from 'stream';
 import { StorageService } from '../../../integrations/storage/storage.service';
@@ -34,6 +35,7 @@ import {
 } from '../../../orvex/events/constants/orvex-event-types';
 import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
 import { QuotaExceededException } from '../../../orvex/entitlement/quota.exception';
+import { QuotaFastCounter } from '../../../orvex/entitlement/quota-fast-counter';
 
 @Injectable()
 export class AttachmentService {
@@ -48,6 +50,10 @@ export class AttachmentService {
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
     private readonly outboxWriter: OutboxWriter,
     private readonly entitlementService: EntitlementService,
+    // ENG-2490 AC4 — the O(1) usage source for the files/storage
+    // dimensions. @Optional so a graph without the counter degrades to the
+    // store-tier aggregates (the pre-ENG-2490 behaviour).
+    @Optional() private readonly quotaFastCounter?: QuotaFastCounter,
   ) {}
 
   /**
@@ -123,16 +129,25 @@ export class AttachmentService {
     // The authoritative, race-safe recheck happens after streaming,
     // immediately before the attachment row is written, below.
     if (!isUpdate) {
-      const currentFileCount =
-        await this.attachmentRepo.countByWorkspaceId(workspaceId);
+      // ENG-2490 AC4 — O(1) fast-counter usage reads (files / storage
+      // aggregate); the store-tier COUNT/SUM runs only on a counter miss
+      // (first read / TTL re-seed / Redis loss — the declared degrade).
+      const currentFileCount = this.quotaFastCounter
+        ? await this.quotaFastCounter.currentUsage(workspaceId, 'files', () =>
+            this.attachmentRepo.countByWorkspaceId(workspaceId),
+          )
+        : await this.attachmentRepo.countByWorkspaceId(workspaceId);
       await this.entitlementService.assertWithinQuota(
         workspaceId,
         'files',
         currentFileCount,
       );
 
-      const currentStorageBytes =
-        await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
+      const currentStorageBytes = this.quotaFastCounter
+        ? await this.quotaFastCounter.currentUsage(workspaceId, 'storage', () =>
+            this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId),
+          )
+        : await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
       await this.entitlementService.assertWithinQuota(
         workspaceId,
         'storage',
@@ -176,21 +191,35 @@ export class AttachmentService {
         attachment = await executeTx(this.db, async (trx) => {
           await acquireWorkspaceQuotaLock(trx, 'storage', workspaceId);
 
-          const currentFileCount = await this.attachmentRepo.countByWorkspaceId(
-            workspaceId,
-            trx,
-          );
+          // ENG-2490 AC4 — counter-sourced usage inside the advisory-locked
+          // critical section (the F1 discipline is preserved: the lock
+          // serializes read→assert→save→increment, so a concurrent upload
+          // always observes this one's counter delta).
+          const currentFileCount = this.quotaFastCounter
+            ? await this.quotaFastCounter.currentUsage(workspaceId, 'files', () =>
+                this.attachmentRepo.countByWorkspaceId(workspaceId, trx),
+              )
+            : await this.attachmentRepo.countByWorkspaceId(workspaceId, trx);
           await this.entitlementService.assertWithinQuota(
             workspaceId,
             'files',
             currentFileCount,
           );
 
-          const currentStorageBytes =
-            await this.attachmentRepo.sumFileSizeByWorkspaceId(
-              workspaceId,
-              trx,
-            );
+          const currentStorageBytes = this.quotaFastCounter
+            ? await this.quotaFastCounter.currentUsage(
+                workspaceId,
+                'storage',
+                () =>
+                  this.attachmentRepo.sumFileSizeByWorkspaceId(
+                    workspaceId,
+                    trx,
+                  ),
+              )
+            : await this.attachmentRepo.sumFileSizeByWorkspaceId(
+                workspaceId,
+                trx,
+              );
           await this.entitlementService.assertIncrementWithinQuota(
             workspaceId,
             'storage',
@@ -204,7 +233,7 @@ export class AttachmentService {
             preparedFile.fileSize,
           );
 
-          return this.saveAttachment({
+          const savedAttachment = await this.saveAttachment({
             attachmentId,
             preparedFile,
             filePath,
@@ -215,6 +244,17 @@ export class AttachmentService {
             pageId,
             trx,
           });
+
+          // ENG-2490 AC4 — INCR-on-write for both dimensions, inside the
+          // locked section (see the page-create chokepoint's twin comment).
+          await this.quotaFastCounter?.increment(workspaceId, 'files', 1);
+          await this.quotaFastCounter?.increment(
+            workspaceId,
+            'storage',
+            preparedFile.fileSize,
+          );
+
+          return savedAttachment;
         });
       }
 

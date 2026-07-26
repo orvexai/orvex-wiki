@@ -50,6 +50,35 @@ export class AttachmentRepo {
     return Number(result?.total ?? 0);
   }
 
+  /**
+   * ENG-2491 AC3 — the one-click largest-files list a storage-shaped
+   * `402 QUOTA_EXCEEDED` carries: top-N live attachments by `fileSize`
+   * (descending), workspace-scoped by construction (no cross-tenant leak),
+   * bounded `LIMIT N` (never a full-table scan). Soft-deleted attachments
+   * have already freed their storage — excluded, mirroring
+   * {@link sumFileSizeByWorkspaceId}.
+   */
+  async findLargestByWorkspaceId(
+    workspaceId: string,
+    limit: number,
+    trx?: KyselyTransaction,
+  ): Promise<Array<{ id: string; fileName: string; fileSize: number }>> {
+    const rows = await dbOrTx(this.db, trx)
+      .selectFrom('attachments')
+      .select(['id', 'fileName', 'fileSize'])
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .orderBy('fileSize', 'desc')
+      .limit(limit)
+      .execute();
+
+    return rows.map((row) => ({
+      id: row.id,
+      fileName: row.fileName,
+      fileSize: Number(row.fileSize),
+    }));
+  }
+
   /** ENG-1382 fix pass 1 (F3) — F-QUOTA `wiki_max_files` usage count. */
   async countByWorkspaceId(
     workspaceId: string,

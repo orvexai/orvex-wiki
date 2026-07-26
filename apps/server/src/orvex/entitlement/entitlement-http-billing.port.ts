@@ -4,7 +4,10 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { BillingEntitlementPort } from './entitlement-billing.port';
+import {
+  BillingEntitlementPort,
+  BillingUnconfiguredError,
+} from './entitlement-billing.port';
 import { Principal, EntitlementCheckResponse } from './entitlement.types';
 
 /**
@@ -92,7 +95,11 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
   ): Promise<EntitlementCheckResponse> {
     const baseUrl = this.environmentService.getBillingApiUrl();
     if (!baseUrl) {
-      throw new Error(
+      // ENG-2489 AC3 — billing SoR ABSENT (free-only launch, no configured
+      // billing endpoint). Typed distinctly from a transport failure so the
+      // caller can serve the disclosed interim hardcode-Free constant
+      // instead of failing closed.
+      throw new BillingUnconfiguredError(
         'ENG-1382: ORVEX_BILLING_API_URL is not configured — billing entitlement port unreachable',
       );
     }

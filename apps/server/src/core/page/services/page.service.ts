@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { CreatePageDto, ContentFormat } from '../dto/create-page.dto';
 import { ContentOperation, UpdatePageDto } from '../dto/update-page.dto';
@@ -75,6 +76,7 @@ import {
   toIntegerVersion,
 } from '../if-version.util';
 import { EntitlementService } from '../../../orvex/entitlement/entitlement.service';
+import { QuotaFastCounter } from '../../../orvex/entitlement/quota-fast-counter';
 
 @Injectable()
 export class PageService {
@@ -95,6 +97,10 @@ export class PageService {
     private readonly transclusionService: TransclusionService,
     private readonly idempotencyStore: IdempotencyStore,
     private readonly entitlementService: EntitlementService,
+    // ENG-2490 — the O(1) usage source at this chokepoint. @Optional so a
+    // graph without the counter (older test harnesses) degrades to the
+    // store-tier count, exactly the pre-ENG-2490 behaviour.
+    @Optional() private readonly quotaFastCounter?: QuotaFastCounter,
   ) {}
 
   async findById(
@@ -175,17 +181,25 @@ export class PageService {
         async (quotaTrx) => {
           await acquireWorkspaceQuotaLock(quotaTrx, 'pages', workspaceId);
 
-          const currentPageCount = await this.pageRepo.countByWorkspaceId(
-            workspaceId,
-            quotaTrx,
-          );
+          // ENG-2490 AC1/AC2 — the `currentUsage` SOURCE is the O(1)
+          // `quota:pages:{tenant}` fast-counter; the store-tier COUNT runs
+          // only on a counter miss (first read / TTL re-seed / Redis loss —
+          // the declared degrade mode, never a per-request aggregate). The
+          // advisory lock above still serializes the whole
+          // read→assert→insert→increment section, preserving the F1
+          // no-cap-bypass-race discipline with either usage source.
+          const currentPageCount = this.quotaFastCounter
+            ? await this.quotaFastCounter.currentUsage(workspaceId, 'pages', () =>
+                this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx),
+              )
+            : await this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx);
           await this.entitlementService.assertWithinQuota(
             workspaceId,
             'pages',
             currentPageCount,
           );
 
-          return this.pageRepo.insertPage(
+          const insertedPage = await this.pageRepo.insertPage(
             {
               slugId: generateSlugId(),
               title: createPageDto.title,
@@ -203,6 +217,15 @@ export class PageService {
             },
             quotaTrx,
           );
+
+          // ENG-2490 AC1 — INCR-on-write, INSIDE the advisory-locked
+          // section so a serialized concurrent create always observes this
+          // write's delta (no post-commit race window = no cap bypass). A
+          // rolled-back commit leaks at most +1 drift, healed by the
+          // counter TTL / the ENG-2492 reconciliation sweep.
+          await this.quotaFastCounter?.increment(workspaceId, 'pages', 1);
+
+          return insertedPage;
         },
         trx,
       );
