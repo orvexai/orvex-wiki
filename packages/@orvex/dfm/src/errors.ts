@@ -1,10 +1,14 @@
 /**
  * Typed DfM errors.
  *
- * HONESTY CONTRACT (no-op ≠ mock): every surface this twin does not yet
- * implement THROWS one of these — a typed, greppable sentinel — instead of
- * returning a plausible-looking value. There is no fabricated fence, no empty
- * `{ type: 'doc', content: [] }`, no lossy best-effort parse.
+ * HONESTY CONTRACT (no-op ≠ mock): every failure mode this package can
+ * produce is a typed, `code`-bearing, greppable error — never a silent drop,
+ * never a bare `Error`. Since the ENG-2487 fold-in the serializer is total
+ * over ProseMirror JSON (an unregistered block becomes a lossless
+ * `:::dfm-opaque` reference fence, an unregistered inline atom/mark becomes a
+ * `{dfm:BASE64}` inline fence), so the ONLY live throw is the genuinely
+ * unresolvable case: an opaque reference whose base document lacks the
+ * referenced node ({@link DfmOpaqueUnknownRefError}).
  */
 
 /** Greppable sentinel for the not-implemented error. */
@@ -13,11 +17,16 @@ export const DFM_NOT_IMPLEMENTED = 'DFM_NOT_IMPLEMENTED' as const;
 export const DFM_OPAQUE_UNKNOWN_REF = 'DFM_OPAQUE_UNKNOWN_REF' as const;
 
 /**
- * Thrown when serialization/parsing reaches a node type (or mark, or block
- * construct) outside the implemented — i.e. contract-fixture-covered — subset.
+ * Thrown when serialization/parsing reaches a surface outside the implemented
+ * subset.
+ *
+ * Retained (exported, typed, greppable) as the sentinel for any FUTURE
+ * genuinely-uncovered surface. No live path throws it today: the ENG-2487
+ * fold-in made both directions total — unregistered node types fence
+ * losslessly instead of throwing (see `pm-to-dfm.ts` / `inline-serializer.ts`).
  *
  * `nodeType` is the offending ProseMirror node type (or a scoped sentinel such
- * as `dfm-opaque` / `text-marks` for surfaces that are not a single node type).
+ * as `text-marks` for surfaces that are not a single node type).
  */
 export class DfmNotImplementedError extends Error {
   readonly code = DFM_NOT_IMPLEMENTED;
@@ -39,26 +48,27 @@ export class DfmNotImplementedError extends Error {
 }
 
 /**
- * Thrown by the (future) opaque round-trip path when an opaque handle
- * (`{ block_id, type, summary }` colon-directive) references a block id that is
- * not present in the reattach set.
- *
- * Defined and exported now as the typed error for that path; it is NOT thrown
- * by any currently-implemented surface (the opaque machinery is delivery work
- * with its own fixtures — see {@link serializeOpaque}). Wiring it before its
- * fixtures exist would be fabrication.
+ * Thrown by {@link reattachOpaqueRefs} (live since ENG-2487) when a
+ * `:::dfm-opaque` reference's id has no matching node in the supplied base
+ * document / opaque-body map. Never a lossy best-effort write: an unresolvable
+ * reference is a hard, typed error the caller can catch by class or by `code`.
  */
 export class DfmOpaqueUnknownRefError extends Error {
   readonly code = DFM_OPAQUE_UNKNOWN_REF;
+  /** The unresolved opaque block id. */
   readonly ref: string;
+  /** The fenced node's original type (from the fence header). */
+  readonly nodeType: string;
 
-  constructor(ref: string, message?: string) {
+  constructor(nodeType: string, ref: string, message?: string) {
     super(
       message ??
-        `DfM opaque handle references unknown block "${ref}" (${DFM_OPAQUE_UNKNOWN_REF}).`,
+        `DfM opaque ref unresolved: type="${nodeType}" id="${ref}" has no ` +
+          `matching node in the base document (${DFM_OPAQUE_UNKNOWN_REF}).`,
     );
     this.name = 'DfmOpaqueUnknownRefError';
     this.ref = ref;
+    this.nodeType = nodeType;
     Object.setPrototypeOf(this, DfmOpaqueUnknownRefError.prototype);
   }
 }

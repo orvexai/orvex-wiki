@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "mermaid",
+      "attrs": {
+        "id": "mermaid-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

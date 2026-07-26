@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "status",
+      "attrs": {
+        "id": "status-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

@@ -60,6 +60,11 @@ import {
   BLOCK_ID_TYPES,
   backfillPageContent,
 } from './backfill-block-ids.util';
+// ENG-2487 — the Yjs↔PM↔DfM conversion leg: the collab layer's PM-JSON
+// snapshots project to DfM through the standalone `@orvex/dfm` workspace
+// package (FR-W18 / A-DFM), never through an HTML/turndown intermediate.
+import { pmToDfm } from '@orvex/dfm';
+import type { PmNode } from '@orvex/dfm';
 
 export const tiptapExtensions = [
   StarterKit.configure({
@@ -247,4 +252,22 @@ export function prosemirrorNodeToYElement(node: any): Y.XmlElement | Y.XmlText {
 export function jsonToMarkdown(tiptapJson: any): string {
   const html = jsonToHtml(tiptapJson);
   return htmlToMarkdown(html);
+}
+
+/**
+ * ENG-2487 — the collab layer's DfM projection: serialize a (Yjs-derived)
+ * ProseMirror JSON document to DfM via `@orvex/dfm`. Total over PM JSON: a
+ * node type outside the serializer's registry becomes a lossless
+ * `:::dfm-opaque` reference fence (resolved back through the write path's
+ * `reattachOpaqueRefs` base-doc round trip), never a silent drop. A document
+ * with no `type` is a caller bug, rejected up front rather than fabricated
+ * into an empty doc.
+ */
+export function jsonToDfm(tiptapJson: JSONContent): string {
+  if (!tiptapJson || typeof tiptapJson.type !== 'string') {
+    throw new Error(
+      'jsonToDfm: expected a ProseMirror JSON node with a "type" field',
+    );
+  }
+  return pmToDfm(tiptapJson as PmNode);
 }

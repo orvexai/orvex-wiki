@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "details",
+      "attrs": {
+        "id": "details-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

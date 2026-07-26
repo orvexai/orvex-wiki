@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "columns",
+      "attrs": {
+        "id": "columns-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

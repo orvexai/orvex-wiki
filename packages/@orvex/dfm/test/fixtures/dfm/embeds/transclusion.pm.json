@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "transclusion",
+      "attrs": {
+        "id": "transclusion-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

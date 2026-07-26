@@ -4,7 +4,10 @@
     {
       "type": "paragraph",
       "content": [
-        { "type": "text", "text": "The quick brown fox." }
+        {
+          "type": "text",
+          "text": "hello world"
+        }
       ]
     }
   ]
