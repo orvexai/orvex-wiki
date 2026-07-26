@@ -128,6 +128,18 @@ export class OrvexConfigService {
   }
 
   /**
+   * CLUSTER_NAME — the hosting cluster (cell-contract rule #4: the health
+   * surface echoes BOTH cell params, distinct values). First consumer:
+   * `OrvexHealthService` (ENG-2510 AC3 — `GET /health/orvex` carries
+   * `cellId` + `clusterName` in its body). Mirrors `cellId`'s
+   * trim-and-nullify contract exactly: unset/blank -> `null`, surfaced as
+   * `null` in the health body, never a fabricated cluster name.
+   */
+  get clusterName(): string | null {
+    return this.read('CLUSTER_NAME');
+  }
+
+  /**
    * ENG-1604 AC8 — `health/orvex` dependency probes. `OrvexHealthService` is
    * mounted inside `OrvexRootModule.register()`, so (same constraint as the
    * rest of this service) these getters may ONLY read a plain env bag — no

@@ -1,0 +1,11 @@
+{
+  "pinnedUpstreamSha": "fixture-pin-hardening-broken",
+  "rows": [
+    {
+      "path": "apps/server/src/core/upstream-hardened.ts",
+      "weight": 1,
+      "class": "hardening",
+      "anchor": { "contains": "fixture ifVersion CAS guard" }
+    }
+  ]
+}

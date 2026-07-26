@@ -1,0 +1,6 @@
+{
+  "pinnedUpstreamSha": "fixture-pin-off-allowlist",
+  "rows": [
+    { "path": "apps/server/src/app.module.ts", "weight": 3, "class": "allowlist" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "entries": [
+    { "name": "app.module OrvexRootModule import", "class": "allowlist" },
+    { "name": "ifVersion CAS", "class": "hardening" },
+    { "name": "swagger-tags", "class": "cosmetics" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "class": "hardening",
+  "description": "deliberately-broken fixture ledger: 'move-cycle guard' anchors at a non-existent path; the validator must fail LOUDLY naming that item (ENG-2478 AC5 negative case).",
+  "items": [
+    { "name": "ifVersion CAS", "anchor": { "path": "apps/server/src/core/page/if-version.util.ts", "contains": "ifVersion" }, "description": "resolvable fixture item" },
+    { "name": "move-cycle guard", "anchor": { "path": "apps/server/src/core/page/services/no-such-file-after-tag-bump.ts", "contains": "cycle guard" }, "description": "its anchored file was refactored away by a tag bump" }
+  ]
+}

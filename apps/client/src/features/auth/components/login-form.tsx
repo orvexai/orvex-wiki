@@ -19,6 +19,7 @@ import APP_ROUTE from "@/lib/app-route.ts";
 import { useTranslation } from "react-i18next";
 import SsoLogin from "@/ee/components/sso-login.tsx";
 import { OrvexLoginExtensions } from "@/orvex/oidc/components/orvex-login-extensions.tsx";
+import SourceOfferLink from "@/orvex/source-offer/source-offer-link.tsx";
 import { useWorkspacePublicDataQuery } from "@/features/workspace/queries/workspace-query.ts";
 import { Error404 } from "@/components/ui/error-404.tsx";
 import React from "react";
@@ -132,6 +133,11 @@ export function LoginForm() {
             </>
           )}
         </Box>
+        {/* ENG-2500 AC3 — AGPL §13 visible source link, on the one page any
+            network user reaches without auth. */}
+        <Group justify="center" mt="md">
+          <SourceOfferLink />
+        </Group>
       </Container>
     </AuthLayout>
   );

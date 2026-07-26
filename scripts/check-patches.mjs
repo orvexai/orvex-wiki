@@ -132,8 +132,12 @@ function parseUnifiedDiffPatch(patchFile, sourceName) {
 
 /** ensureUpstreamRef — fetches the pinned upstream commit into a local ref
  * via the repo's existing `upstream` git remote (design §2). Returns true on
- * success, false on a genuine fetch failure (infra error, never drift). */
-function ensureUpstreamRef(repoRoot, sha) {
+ * success, false on a genuine fetch failure (infra error, never drift).
+ * Exported for reuse by the sibling FR-30 divergence gate (ENG-2477):
+ * the upstream fetch is the ONE true-external boundary and must have exactly
+ * one implementation — the FR-30 gate imports this function rather than
+ * re-implementing a second fetch path. */
+export function ensureUpstreamRef(repoRoot, sha) {
   try {
     execFileSync('git', ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`], {
       cwd: repoRoot,
@@ -152,7 +156,9 @@ function ensureUpstreamRef(repoRoot, sha) {
   }
 }
 
-function gitShowResolver(repoRoot, sha) {
+/** gitShowResolver — resolves a path's content at the pinned SHA via
+ * `git show`. Exported for the same ENG-2477 reuse as ensureUpstreamRef. */
+export function gitShowResolver(repoRoot, sha) {
   return (filePath) => {
     try {
       return execFileSync('git', ['show', `${sha}:${filePath}`], {

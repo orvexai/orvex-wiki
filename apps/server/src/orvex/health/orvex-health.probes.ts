@@ -6,10 +6,13 @@ import { promises as fs } from 'fs';
 import { Kafka } from 'kafkajs';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
+import { WebSocket } from 'ws';
 import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { OrvexConfigService } from '../config/orvex-config.service';
 import { LOCAL_STORAGE_PATH } from '../../common/helpers';
 import type {
+  CollabWsProbe,
+  CollabWsResult,
   KafkaProbe,
   KafkaResult,
   PostgresProbe,
@@ -28,6 +31,9 @@ export const ORVEX_HEALTH_STORAGE_PROBE = Symbol(
   'ORVEX_HEALTH_STORAGE_PROBE',
 );
 export const ORVEX_HEALTH_KAFKA_PROBE = Symbol('ORVEX_HEALTH_KAFKA_PROBE');
+export const ORVEX_HEALTH_COLLAB_WS_PROBE = Symbol(
+  'ORVEX_HEALTH_COLLAB_WS_PROBE',
+);
 
 const PROBE_TIMEOUT_MS = 2_000;
 
@@ -133,6 +139,43 @@ export const defaultStorageProbe: StorageProbe = async (
     };
   }
 };
+
+/**
+ * ENG-2510 AC2 — the collab role's Hocuspocus WS liveness probe: a REAL
+ * WebSocket upgrade handshake (never a bare TCP dial — a listener that
+ * accepts sockets but no longer speaks WS is exactly the dead-component
+ * state this probe exists to catch). `makeCollabWsProbe(url)` is exported
+ * so tests point the SAME production probe at a real (or deliberately-down)
+ * collab WS endpoint; the default targets the in-process `/collab` upgrade
+ * path `CollaborationModule` mounts on this pod's own HTTP port.
+ */
+export function makeCollabWsProbe(url?: string): CollabWsProbe {
+  return async (): Promise<CollabWsResult> => {
+    const target =
+      url ?? `ws://127.0.0.1:${process.env.PORT || 3000}/collab`;
+    const start = Date.now();
+    try {
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          const socket = new WebSocket(target);
+          socket.once('open', () => {
+            socket.close();
+            resolve();
+          });
+          socket.once('error', (e: Error) => {
+            reject(e);
+          });
+        }),
+        PROBE_TIMEOUT_MS,
+      );
+      return { ok: true, latencyMs: Date.now() - start };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  };
+}
+
+export const defaultCollabWsProbe: CollabWsProbe = makeCollabWsProbe();
 
 /**
  * Real kafka probe — ONLY invoked when `kafkaBrokersConfigured` (the service
