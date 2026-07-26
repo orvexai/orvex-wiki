@@ -28,19 +28,18 @@ export type IUpdatePagePermissionRole = {
   groupId?: string;
 };
 
+// Mirror of the engine's `RestrictionInfo` return shape
+// (apps/server/src/core/permissions/page-permission.service.ts,
+// `getRestrictionInfo` — shipped by ENG-1596). `inheritedFrom` is the
+// restricted ancestor's page id (resolved to a title/slug client-side via
+// `/pages/info` when a link is rendered), never a pre-joined page object.
 export type IPageRestrictionInfo = {
-  restrictionId?: string;
   hasDirectRestriction: boolean;
   hasInheritedRestriction: boolean;
-  inheritedFrom?: {
-    id: string;
-    slugId: string;
-    title: string;
-  };
+  inheritedFrom: string | null;
   userAccess: {
-    canView: boolean;
+    canAccess: boolean;
     canEdit: boolean;
-    canManage: boolean;
   };
 };
 

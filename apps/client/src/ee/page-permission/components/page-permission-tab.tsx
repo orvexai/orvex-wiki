@@ -28,6 +28,7 @@ import { GeneralAccessSelect } from "@/ee/page-permission";
 import { PagePermissionList } from "@/ee/page-permission";
 import classes from "./page-permission.module.css";
 import { buildPageUrl } from "@/features/page/page.utils";
+import { usePageQuery } from "@/features/page/queries/page-query";
 
 type PagePermissionTabProps = {
   pageId: string;
@@ -49,7 +50,21 @@ export function PagePermissionTab({
 
   const hasInheritedRestriction = restrictionInfo.hasInheritedRestriction;
   const hasDirectRestriction = restrictionInfo.hasDirectRestriction;
-  const canManage = restrictionInfo.userAccess.canManage;
+  // The `restriction-info` read that produced `restrictionInfo` is gated by
+  // the engine's `assertCanManage` choke point (space-admin only) — a
+  // non-manager can never reach this tab with data, so having data IS the
+  // manage capability.
+  const canManage = true;
+
+  // `inheritedFrom` is the restricted ancestor's page id; resolve it to a
+  // linkable slug/title only when an inherited restriction is shown. A
+  // failed resolve degrades to unlinked placeholder text below, never an
+  // error state.
+  const { data: inheritedFromPage } = usePageQuery(
+    hasInheritedRestriction && restrictionInfo.inheritedFrom
+      ? { pageId: restrictionInfo.inheritedFrom }
+      : { pageId: undefined },
+  );
 
   const handleDirectAccessChange = async (value: "open" | "restricted") => {
     if (value === "restricted" && !hasDirectRestriction) {
@@ -117,22 +132,26 @@ export function PagePermissionTab({
                 <Text size="xs" c="dimmed">
                   {t("Access limited by")}
                 </Text>
-                {restrictionInfo.inheritedFrom && (
+                {inheritedFromPage ? (
                   <Link
                     to={buildPageUrl(
                       spaceSlug,
-                      restrictionInfo.inheritedFrom.slugId,
-                      restrictionInfo.inheritedFrom.title,
+                      inheritedFromPage.slugId,
+                      inheritedFromPage.title,
                     )}
                     style={{ textDecoration: "none" }}
                   >
                     <Group gap={2}>
                       <Text size="xs" fw={500} c="blue">
-                        {restrictionInfo.inheritedFrom.title || t("Untitled")}
+                        {inheritedFromPage.title || t("Untitled")}
                       </Text>
                       <IconArrowRight size={12} color="var(--mantine-color-blue-6)" />
                     </Group>
                   </Link>
+                ) : (
+                  <Text size="xs" fw={500} c="dimmed">
+                    {t("a parent page")}
+                  </Text>
                 )}
               </Group>
             </Box>

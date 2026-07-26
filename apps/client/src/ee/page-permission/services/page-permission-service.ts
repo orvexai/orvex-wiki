@@ -10,10 +10,11 @@ import {
 
 // ENG-1375: repointed to the real `page-permissions` engine controller
 // (`apps/server/src/core/permissions/page-permission.controller.ts`,
-// `@Controller('page-permissions')`, shipped by ENG-1373). The 5 routes
-// below all exist server-side today. `/page-permissions/list` and
-// `/page-permissions/permission-info` (below) do NOT exist yet — that read
-// side is tracked separately in ENG-1596 (blocked-by this ticket).
+// `@Controller('page-permissions')`, shipped by ENG-1373; the `list` and
+// `restriction-info` reads shipped by ENG-1596). All 7 routes below exist
+// server-side today. Both reads are gated by the same `assertCanManage`
+// choke point as the mutations — a non-space-admin caller gets 403, which
+// the share modal renders as its locked state.
 export async function restrictPage(pageId: string): Promise<void> {
   await api.post("/page-permissions/restrict", { pageId });
 }
@@ -45,7 +46,7 @@ export async function getPagePermissions(
   cursor?: string,
 ): Promise<IPagination<IPagePermissionMember>> {
   const req = await api.post<IPagination<IPagePermissionMember>>(
-    "/pages/permissions",
+    "/page-permissions/list",
     { pageId, ...(cursor && { cursor }) },
   );
   return req.data;
@@ -54,8 +55,9 @@ export async function getPagePermissions(
 export async function getPageRestrictionInfo(
   pageId: string,
 ): Promise<IPageRestrictionInfo> {
-  const req = await api.post<IPageRestrictionInfo>("/pages/permission-info", {
-    pageId,
-  });
+  const req = await api.post<IPageRestrictionInfo>(
+    "/page-permissions/restriction-info",
+    { pageId },
+  );
   return req.data;
 }
