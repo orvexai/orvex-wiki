@@ -119,7 +119,19 @@ export function isDivergenceScoped(filePath) {
  * offenders: [paths not covered by any ledger row] }.
  */
 export function computeBudget(diffResult, ledger) {
-  const rowByPath = new Map(ledger.rows.map((r) => [r.path, r]));
+  // AC3 — a path may appear in BOTH ledgers (the 13-row allow-list at its
+  // hot-file weight, and ENG-2478's hardening ledger at weight 1). The
+  // hardening rows are appended last, so a naive last-write-wins Map would
+  // silently DOWNGRADE a hot file (page.service.ts, main.ts) to weight 1 and
+  // defeat the weighted budget this gate exists to enforce. Highest weight
+  // wins; the surviving row keeps its own class for reporting.
+  const rowByPath = new Map();
+  for (const r of ledger.rows) {
+    const prior = rowByPath.get(r.path);
+    if (!prior || r.weight > prior.weight) {
+      rowByPath.set(r.path, r);
+    }
+  }
   const perFile = [];
   const offenders = [];
   let totalScore = 0;

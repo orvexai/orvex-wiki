@@ -121,16 +121,33 @@ test('every committed allow-list row path resolves via git cat-file -e HEAD:<pat
   }
 });
 
-test('the three named hot files carry weight > 1 in the committed ledger', () => {
+test('the three named hot files carry weight > 1 through computeBudget on the committed ledger', () => {
   const ledger = loadFr30Ledger(REPO_ROOT);
-  for (const hot of [
+  const HOT = [
     'apps/server/src/core/page/services/page.service.ts',
     'apps/server/src/app.module.ts',
     'apps/server/src/core/auth/strategies/jwt.strategy.ts',
-  ]) {
-    const row = ledger.rows.find((r) => r.path === hot);
-    assert.ok(row, `hot file missing from ledger: ${hot}`);
-    assert.ok(row.weight > 1, `hot file ${hot} must weigh > 1, got ${row.weight}`);
+  ];
+
+  // Assert through computeBudget — the path the CI gate actually scores
+  // with — NOT through `ledger.rows.find()`. A path present in both the
+  // allow-list (weight 3) and ENG-2478's hardening ledger (weight 1) has
+  // two rows; `find()` returns the first and would report 3 while the
+  // budget silently used 1. One synthetic hunk per hot file makes each
+  // file's score equal to its effective weight.
+  const budget = computeBudget(
+    HOT.map((p) => ({ path: p, hunks: 1 })),
+    ledger,
+  );
+
+  for (const hot of HOT) {
+    const entry = budget.perFile.find((f) => f.path === hot);
+    assert.ok(entry, `hot file missing from budget: ${hot}`);
+    assert.ok(
+      entry.weight > 1,
+      `hot file ${hot} must weigh > 1 in the scored budget, got ${entry.weight} (class ${entry.class}) — a weight-1 hardening row for the same path must not downgrade it`,
+    );
+    assert.equal(entry.score, entry.weight, `score must be weight x hunks for ${hot}`);
   }
 });
 
