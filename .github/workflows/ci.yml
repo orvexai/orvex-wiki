@@ -82,6 +82,20 @@ jobs:
       - name: ESLint (server, check-only)
         run: pnpm --dir apps/server run lint:check
 
+  tenant-move-coverage:
+    # ENG-2509 — cell-lint rule #10: TENANT_MOVE.md's store inventory is
+    # machine-checked against the manifest DTO's declared shape. Static
+    # analysis only — no cluster/secret reach needed.
+    name: Tenant-Move Coverage (cell-lint rule #10)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Rule #10 store-inventory coverage check
+        run: node scripts/ci/tenant-move-coverage-check.mjs
+
   lint-boundary:
     name: Import Boundary (M1 fence)
     runs-on: public-runners
