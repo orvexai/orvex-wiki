@@ -1,0 +1,81 @@
+{
+  "class": "hardening",
+  "description": "A-HARDENING correctness-hardening allow-list (ENG-2478, Architecture twQ3BBzpTE section 2). The 15 items below are the fork's correctness fixes to upstream behaviour, each tagged with its REAL, currently-resolvable anchor (file + a marker string the file must contain) so ENG-2477's FR-30 divergence gate recognises them as permitted divergence rather than un-permitted drift, and so an upstream tag bump that breaks an anchor fails ledger validation LOUDLY naming the item. Distinct from patches/inline-edit-allowlist.json (ENG-1649 context-drift subsystem) and from fr30/allowlist.json's own 13-row allow-list class. Cosmetics (Swagger tags, log-level tuning, micro-fixes) are a NAMED, NOT-applied class recorded in docs/runbooks/overlay-rebase-import.md — never re-applied on import, never listed here.",
+  "items": [
+    {
+      "name": "ifVersion CAS",
+      "anchor": { "path": "apps/server/src/core/page/if-version.util.ts", "contains": "the pure domain guard for the `ifVersion` CAS precondition" },
+      "description": "Compare-and-set precondition on page writes: a stale ifVersion is a 409, never a silent lost update (ENG-1413)."
+    },
+    {
+      "name": "unique-slug retry",
+      "anchor": { "path": "apps/server/src/core/page/services/page.service.ts", "contains": "a keyless retry with byte-identical `replace` content is a true no-op" },
+      "description": "Retry determinism against the page's unique slug/title identity: the three-tier upsert lookup (slugId -> externalId -> (spaceId,parentPageId,title)) makes a retried create/upsert land on the same page instead of minting a duplicate. Anchor mapping note: no standalone slug-retry loop exists at HEAD; this three-tier idempotent lookup IS the mechanism that makes slug-keyed retries safe."
+    },
+    {
+      "name": "copy-title dedup",
+      "anchor": { "path": "apps/server/src/core/page/services/page.service.ts", "contains": "incrementCopyTitle" },
+      "description": "Duplicate-page copy titles bump a ' (N)' suffix (pre-flight pick + bounded 23505 retry loop) instead of colliding (ENG-1471)."
+    },
+    {
+      "name": "move-cycle guard",
+      "anchor": { "path": "apps/server/src/core/page/services/page.service.ts", "contains": "cycle guard: the recursive CTE walks down from the moved" },
+      "description": "movePage refuses to re-parent a page under its own descendants — the recursive CTE guard prevents corrupting the tree into a cycle."
+    },
+    {
+      "name": "attachment-copy resilience",
+      "anchor": { "path": "apps/server/src/core/page/services/page.service.ts", "contains": "failed to copy attachment" },
+      "description": "Duplicating a page survives an individual attachment-copy failure (logged, not fatal) instead of aborting the whole duplicate."
+    },
+    {
+      "name": "unique-title-per-parent index",
+      "anchor": { "path": "apps/server/src/database/migrations/20260707T090000-pages-upsert-dedup.ts", "contains": "pages_unique_title_per_parent" },
+      "description": "The CLI idempotency invariant: a partial unique index (NULLS NOT DISTINCT) makes page create/upsert by title under a parent deterministic, so the Orvex CLI/wiki-api can retry safely (ENG-1471)."
+    },
+    {
+      "name": "real-IP handling",
+      "anchor": { "path": "apps/server/src/main.ts", "contains": "fastifyIp" },
+      "description": "trustProxy + fastify-ip + the onRequest raw-ip hook: the client's real IP is resolved behind the proxy chain and threaded to consumers (throttling, audit)."
+    },
+    {
+      "name": "user-throttler key fix",
+      "anchor": { "path": "apps/server/src/integrations/throttle/user-throttler.guard.ts", "contains": "getTracker" },
+      "description": "Throttle tracker keys on the authenticated user (falling back to IP), so one tenant's traffic cannot exhaust another's rate budget."
+    },
+    {
+      "name": "authMethod classification",
+      "anchor": { "path": "apps/server/src/common/decorators/auth-method.decorator.ts", "contains": "the auth-method marker threaded by" },
+      "description": "'api_key' vs human-session caller classification, threaded by JwtStrategy and read via the AuthMethod param decorator (ENG-1447 AC5)."
+    },
+    {
+      "name": "attachment delete-authz",
+      "anchor": { "path": "apps/server/src/core/attachment/attachment.controller.ts", "contains": "attachments/remove-icon" },
+      "description": "Attachment/icon removal is CASL-ability-guarded (workspace + space ability checks) — deletion is authorized, never an unauthenticated side effect."
+    },
+    {
+      "name": "filename sanitising",
+      "anchor": { "path": "apps/server/src/common/helpers/utils.ts", "contains": "sanitizeFileName" },
+      "description": "Uploaded filenames are sanitised (and length-bounded at the attachment chokepoint) before touching storage paths."
+    },
+    {
+      "name": "postgres-URL normaliser",
+      "anchor": { "path": "apps/server/src/common/helpers/utils.ts", "contains": "normalizePostgresUrl" },
+      "description": "DATABASE_URL is normalised (scheme/param quirks) before the driver consumes it — boot-migrate and runtime share one URL interpretation."
+    },
+    {
+      "name": "streaming-response bypass",
+      "anchor": { "path": "apps/server/src/common/interceptors/http-response.interceptor.ts", "contains": "SKIP_TRANSFORM_KEY" },
+      "description": "The @SkipTransform bypass in the global response interceptor: streaming/raw endpoints (file downloads, exports, health) skip the JSON envelope instead of being buffered/corrupted."
+    },
+    {
+      "name": "FK/query-path index migrations",
+      "anchor": { "path": "apps/server/src/database/migrations/20260707T090001-orvex-api-key-hash.ts", "contains": "idx_api_keys_key_hash" },
+      "description": "Query-path index hardening: the api-key hash lookup index is the anchored representative of the fork's added FK/query-path indexes (each shipped in its own migration)."
+    },
+    {
+      "name": "slug-rewrite-on-title-change",
+      "anchor": { "path": "apps/server/src/integrations/queue/tasks/slug-rewrite.task.ts", "contains": "the slug-rewrite queue task" },
+      "description": "A title change enqueues an in-place rewrite of referring ProseMirror link nodes (ENG-1398), exercised by the testcontainers-backed slug-rewrite.task.spec.ts."
+    }
+  ]
+}

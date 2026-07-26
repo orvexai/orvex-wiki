@@ -482,6 +482,27 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
+  # Hardening allow-list class coverage (ENG-2478) — validates the 15-item
+  # A-HARDENING ledger (docs/runbooks/hardening-allowlist.json) on every push:
+  # exactly 15 items, every anchor resolves against the tree. Catches anchor
+  # drift early (an unrelated refactor of an anchored site) rather than only
+  # at the next upstream import. Also runs the overlay-import dry-run DoD
+  # suite over committed fixtures (hermetic, no network).
+  # ---------------------------------------------------------------------------
+  hardening-allowlist-check:
+    name: Hardening Allowlist Class Coverage
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: dry-run-overlay-import.mjs --validate-ledger
+        run: node scripts/dry-run-overlay-import.mjs --validate-ledger
+      - name: TestHardeningAllowlistClassCoverage (DoD suite)
+        run: node --test scripts/test/hardening-allowlist-coverage.test.mjs
+
+  # ---------------------------------------------------------------------------
   # Image-freshness / drift alarm — per-repo half (ENG-1973). Self-test runs
   # against committed fixtures (no network/cluster). The live check needs
   # in-cluster kubectl + Harbor read access this public runner does not carry,
