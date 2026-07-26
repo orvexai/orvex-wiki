@@ -4,10 +4,13 @@
 
 import { randomBytes } from 'crypto';
 import {
+  BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
@@ -15,6 +18,7 @@ import {
   acquireWorkspaceProvisionLock,
   executeTx,
 } from '@docmost/db/utils';
+import { withTenantScopedTransaction } from '@docmost/db/rls/rls-guc-hook';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
@@ -41,6 +45,15 @@ import {
   EVT_WORKSPACE_CREATED,
   EVT_WORKSPACE_MEMBER_ADDED,
 } from '../../orvex/events/constants/orvex-event-types';
+import {
+  IdentityRegistryClient,
+  RegistryClientError,
+  RegistryClientNotConfiguredError,
+} from '../../orvex/http/identity-registry-client';
+import { TENANT_MOVE_REGISTRY_CLIENT } from '../../orvex/http/orvex-tenant-cell-move.service';
+
+/** ENG-2503 (D-S17) — the polymorphic user-or-org tenant shape. */
+export type TenantPrincipalKind = 'user' | 'org';
 
 export interface ProvisionPrincipalInput {
   subject: string;
@@ -54,6 +67,20 @@ export interface ProvisionPrincipalInput {
    * workspace fails closed (404) — deny-by-default for an unregistered UUID.
    */
   provisionWorkspace?: boolean;
+  /**
+   * ENG-2503 — polymorphic tenant kind. `'user'` (default): a personal
+   * tenant, user-keyed, full workspace + entitlements, NO Clerk org minted
+   * anywhere (this engine never holds a Clerk client — it only consumes
+   * identity-minted context). `'org'`: a Team tenant keyed on the Clerk-org
+   * id identity vouches via `orgId` (minted upstream by identity — this
+   * engine never mints an org, R-WIKI-7).
+   */
+  principalKind?: TenantPrincipalKind;
+  /**
+   * ENG-2503 — the identity-vouched Clerk-org id for an `'org'`-kind
+   * tenant. Required when `principalKind === 'org'`.
+   */
+  orgId?: string;
 }
 
 export interface ProvisionPrincipalResult {
@@ -118,19 +145,47 @@ export class PrincipalProvisioningService {
     private readonly spaceMemberService: SpaceMemberService,
     private readonly outboxWriter: OutboxWriter,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    /**
+     * ENG-2503 AC4 — the global identity registry port (mint-time
+     * uniqueness delegation). OPTIONAL at composition: a single-cell /
+     * self-hosted deployment has no registry, and provisioning then relies
+     * on the local per-cell backstop constraints alone. When present, the
+     * reservation call runs BEFORE the local `workspaces` insert.
+     */
+    @Optional()
+    @Inject(TENANT_MOVE_REGISTRY_CLIENT)
+    private readonly registryClient?: IdentityRegistryClient,
   ) {}
 
   async provision(
     input: ProvisionPrincipalInput,
   ): Promise<ProvisionPrincipalResult> {
     const { subject, tenant, email, name, provisionWorkspace } = input;
+    const principalKind: TenantPrincipalKind = input.principalKind ?? 'user';
+
+    // ENG-2503 AC2 — an org-keyed tenant is keyed on the Clerk-org id
+    // identity vouches; the engine never mints one itself, so a missing
+    // vouch is a hard, typed 400 (never a fabricated org principal).
+    if (principalKind === 'org' && !input.orgId) {
+      throw new BadRequestException(
+        'orgId is required for an org-keyed tenant (identity mints the org; this engine never does)',
+      );
+    }
 
     let auditNewUser:
       | { id: string; email: string; name: string; role: string }
       | undefined;
     let auditNewWorkspace: { id: string; name: string | null } | undefined;
 
-    const result = await executeTx(this.db, async (trx) => {
+    // ENG-2502 (FR-W8) — the RLS GUC hook scopes this whole provisioning
+    // transaction to the tenant as its FIRST statement (transaction-local
+    // `set_config`, popped at commit/rollback), so the fail-closed
+    // `orvex_rls_tenant_isolation_*` policies admit the tenant-scoped rows
+    // (e.g. the default "General" space insert) this transaction writes.
+    // The RLS layer stays a BACKSTOP beneath the app ACL, never a
+    // replacement for it.
+    const result = await executeTx(this.db, (outerTrx) =>
+      withTenantScopedTransaction(outerTrx, tenant, async (trx) => {
       // Serialize concurrent materialization of the SAME workspace up front:
       // `findById ... FOR UPDATE` cannot lock a not-yet-existing row, so two
       // concurrent first-exchange provisions would both race the insert. The
@@ -152,7 +207,16 @@ export class PrincipalProvisioningService {
         if (!provisionWorkspace) {
           throw new NotFoundException('Workspace not found');
         }
-        workspace = await this.materializeWorkspace(tenant, trx);
+        // ENG-2503 AC4 — delegate tenant/hostname uniqueness to the GLOBAL
+        // identity registry BEFORE the local `workspaces` insert. The local
+        // `workspaces_hostname_unique` constraint stays a per-cell backstop
+        // only. A registry rejection aborts this transaction — nothing is
+        // ever silently accepted locally after a global refusal.
+        await this.reserveTenantGlobally(tenant, principalKind);
+        workspace = await this.materializeWorkspace(tenant, trx, {
+          principalKind,
+          principalId: principalKind === 'org' ? input.orgId! : subject,
+        });
         workspaceCreated = true;
         auditNewWorkspace = { id: workspace.id, name: workspace.name };
       }
@@ -262,7 +326,8 @@ export class PrincipalProvisioningService {
       }
 
       return { userId: user.id, created: true, workspaceCreated };
-    });
+      }),
+    );
 
     // Audit (post-commit). A genuinely NEW workspace is an operability record
     // that a registry-issued UUID was materialized; a genuinely NEW user gets
@@ -308,6 +373,57 @@ export class PrincipalProvisioningService {
   }
 
   /**
+   * ENG-2503 AC4/AC5 — mint-time delegation to the global identity
+   * registry. Behaviour by configuration state:
+   *  - no client injected / NOT_CONFIGURED: single-cell mode — skip, the
+   *    local per-cell backstop constraints are the only guard (logged, not
+   *    silent).
+   *  - `TENANT_ALREADY_RESERVED` (cross-cell mint collision): surfaces as a
+   *    typed 409 Conflict carrying the code — never a bare 500, never a
+   *    silent local accept.
+   *  - any other registry failure: propagated (fail loud) — the engine
+   *    never fabricates a reservation it could not obtain.
+   */
+  private async reserveTenantGlobally(
+    tenant: string,
+    principalKind: TenantPrincipalKind,
+  ): Promise<void> {
+    if (!this.registryClient) {
+      this.logger.debug(
+        `no identity registry client composed — skipping global reservation for ${tenant} (single-cell mode; local unique constraints remain the per-cell backstop)`,
+      );
+      return;
+    }
+    try {
+      await this.registryClient.reserveTenant({
+        tenantId: tenant,
+        // Federated engine workspaces are reached by tenant-claim UUID, not
+        // hostname (see materializeWorkspace) — an empty hostname reserves
+        // the tenant id alone.
+        hostname: '',
+        principalKind,
+      });
+    } catch (err) {
+      if (err instanceof RegistryClientNotConfiguredError) {
+        this.logger.debug(
+          `identity registry not configured — skipping global reservation for ${tenant} (single-cell mode)`,
+        );
+        return;
+      }
+      if (
+        err instanceof RegistryClientError &&
+        err.code === 'TENANT_ALREADY_RESERVED'
+      ) {
+        throw new ConflictException({
+          code: 'TENANT_ALREADY_RESERVED',
+          message: `tenant ${tenant} is already reserved in the global registry`,
+        });
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Materialize a fresh engine workspace at the identity-issued UUID (ENG-1559
    * R6). It is born fully formed — the `workspaces` row carrying the SUPPLIED id
    * plus the default "Everyone" group every real workspace has (so the JIT owner
@@ -316,14 +432,21 @@ export class PrincipalProvisioningService {
    * parity). Deliberately does NOT generate a hostname or a billing trial: an
    * identity-federated workspace is reached by its tenant-claim UUID, not by
    * hostname, and billing is owned by the satellite, not the AGPL engine.
+   * ENG-2503 — stamps the polymorphic principal marker at mint time.
    */
   private async materializeWorkspace(
     workspaceId: string,
     trx: KyselyTransaction,
+    principal: { principalKind: TenantPrincipalKind; principalId: string },
   ): Promise<Workspace> {
     const workspace = await this.workspaceRepo.insertWorkspace(
       {
         id: workspaceId,
+        // ENG-2503 (D-S17) — the polymorphic tenant marker: 'user' for a
+        // personal tenant (no Clerk org anywhere), 'org' for a Team keyed
+        // on the identity-vouched Clerk-org id.
+        principalKind: principal.principalKind,
+        principalId: principal.principalId,
         // Deterministic, non-secret placeholder label (❌#9 — no rand/time);
         // identity owns the human-facing org name, the engine only needs a row.
         name: `Workspace ${workspaceId.slice(0, 8)}`,

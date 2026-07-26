@@ -42,6 +42,14 @@ export const EVT_WORKSPACE_UPDATED = 'workspace.updated';
 // this constant (or invent a delete-workspace route) until OPEN-4 resolves.
 export const EVT_WORKSPACE_DELETED = 'workspace.deleted';
 export const EVT_WORKSPACE_MEMBER_ADDED = 'workspace.member_added';
+// ENG-2504 (FR-W21) — the Stripe seat-sync severance event: a seat change
+// (invitation acceptance) writes this outbox row in the SAME transaction as
+// the member insert; orvex-studio-billing consumes it downstream. NOTE the
+// relay hard-codes the `wiki.` CloudEvent prefix (outbox-relay.service.ts),
+// so on the wire this is `wiki.workspace.seats_changed` — NEVER a literal
+// `billing.*`-domain CloudEvent (that taxonomy tension is escalated in
+// ENG-2504's §4d, not silently resolved here).
+export const EVT_WORKSPACE_SEATS_CHANGED = 'workspace.seats_changed';
 export const EVT_WORKSPACE_MEMBER_ROLE_CHANGED = 'workspace.member_role_changed';
 export const EVT_WORKSPACE_MEMBER_DEACTIVATED = 'workspace.member_deactivated';
 export const EVT_WORKSPACE_MEMBER_DELETED = 'workspace.member_deleted';

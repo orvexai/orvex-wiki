@@ -28,10 +28,8 @@ import { nanoIdGen } from '../../../common/helpers';
 import { PaginationOptions } from '@docmost/db/pagination/pagination-options';
 import { executeWithCursorPagination } from '@docmost/db/pagination/cursor-pagination';
 import { DomainService } from 'src/integrations/environment/domain.service';
-import { InjectQueue } from '@nestjs/bullmq';
-import { QueueJob, QueueName } from '../../../integrations/queue/constants';
-import { Queue } from 'bullmq';
-import { EnvironmentService } from '../../../integrations/environment/environment.service';
+import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import { EVT_WORKSPACE_SEATS_CHANGED } from '../../../orvex/events/constants/orvex-event-types';
 import {
   validateAllowedEmail,
   validateSsoEnforcement,
@@ -59,8 +57,10 @@ export class WorkspaceInvitationService {
     private tokenService: TokenService,
     private sessionService: SessionService,
     @InjectKysely() private readonly db: KyselyDB,
-    @InjectQueue(QueueName.BILLING_QUEUE) private billingQueue: Queue,
-    private readonly environmentService: EnvironmentService,
+    // ENG-2504 (FR-W21) — the Stripe seat-sync severance: seat changes emit
+    // a same-transaction outbox event billing consumes; the engine never
+    // talks to Stripe (no BILLING_QUEUE enqueue on this path any more).
+    private readonly outboxWriter: OutboxWriter,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private readonly entitlementService: EntitlementService,
   ) {}
@@ -324,6 +324,27 @@ export class WorkspaceInvitationService {
           .deleteFrom('workspaceInvitations')
           .where('id', '=', invitation.id)
           .execute();
+
+        // ENG-2504 (FR-W21) — the seat change and its billing-consumable
+        // event commit ATOMICALLY: the outbox row rides this same
+        // transaction as the member insert (outbox pattern, ENG-1383), so a
+        // rollback takes both. Replaces the old post-commit Stripe
+        // seat-sync BullMQ enqueue onto the billing queue — the engine
+        // enforces entitlements but never talks to Stripe; the relay wraps
+        // this row as the `wiki.workspace.seats_changed` CloudEvent
+        // (hard-coded `wiki.` prefix — see orvex-event-types.ts for the
+        // escalated `billing.*` taxonomy note).
+        await this.outboxWriter.enqueue(trx, {
+          type: EVT_WORKSPACE_SEATS_CHANGED,
+          aggregateId: workspace.id,
+          workspaceId: workspace.id,
+          payload: {
+            workspaceId: workspace.id,
+            previousSeatCount: currentMemberCount,
+            seatCount: currentMemberCount + 1,
+            reason: 'invitation_accepted',
+          },
+        });
       });
     } catch (err: any) {
       // ENG-1382 (AC3) — the quota chokepoint now runs inside this same
@@ -381,12 +402,6 @@ export class WorkspaceInvitationService {
         invitationId: invitation.id,
       },
     });
-
-    if (this.environmentService.isCloud()) {
-      await this.billingQueue.add(QueueJob.STRIPE_SEATS_SYNC, {
-        workspaceId: workspace.id,
-      });
-    }
 
     if (workspace.enforceMfa) {
       return {

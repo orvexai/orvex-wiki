@@ -23,10 +23,8 @@ import { MailService } from '../../integrations/mail/mail.service';
 import { DomainService } from '../../integrations/environment/domain.service';
 import { TokenService } from '../../core/auth/services/token.service';
 import { SessionService } from '../../core/session/session.service';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { IAuditService } from '../../integrations/audit/audit.service';
-import { Queue } from 'bullmq';
-import { QueueJob } from '../../integrations/queue/constants';
+import { OutboxWriter } from '../events/outbox/outbox-writer.service';
 import { Workspace } from '../../database/types/entity.types';
 import { KyselyDB } from '../../database/types/kysely.types';
 import { EntitlementService } from './entitlement.service';
@@ -111,8 +109,6 @@ describe('EntitlementMemberChokepointSpec (integration)', () => {
     sendToQueue: async () => undefined,
   } as unknown as MailService;
   const noopAudit = { log: () => undefined } as unknown as IAuditService;
-  const noopQueue = { add: async () => undefined } as unknown as Queue<QueueJob>;
-  const noCloudEnv = { isCloud: () => false } as unknown as EnvironmentService;
   const stubSession = {
     createSessionAndToken: async () => 'stub-auth-token',
   } as unknown as SessionService;
@@ -164,8 +160,10 @@ describe('EntitlementMemberChokepointSpec (integration)', () => {
       undefined as unknown as TokenService, // unused by acceptInvitation
       stubSession, // sessionService — reached on a successful (non-402) acceptance
       kyselyDb,
-      noopQueue, // billingQueue
-      noCloudEnv, // environmentService
+      // ENG-2504 — the invitation service now emits the seat-change outbox
+      // event (same-tx) instead of a billing-queue enqueue; the REAL
+      // OutboxWriter runs here (own code is never mocked, ❌#4).
+      new OutboxWriter(kyselyDb),
       noopAudit, // auditService
       entitlementService,
     );
