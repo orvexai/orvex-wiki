@@ -6,7 +6,7 @@ import {
   onStoreDocumentPayload,
 } from '@hocuspocus/server';
 import * as Y from 'yjs';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { TiptapTransformer } from '@hocuspocus/transformer';
 import { getPageId, jsonToText, tiptapExtensions } from '../collaboration.util';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
@@ -36,6 +36,9 @@ import {
 } from '../constants';
 import { TransclusionService } from '../../core/page/transclusion/transclusion.service';
 import { OrvexPageProvenanceService } from '../../core/page-provenance/orvex-page-provenance.service';
+import { EntitlementService } from '../../orvex/entitlement/entitlement.service';
+import { QuotaExceededException } from '../../orvex/entitlement/quota.exception';
+import { QuotaFastCounter } from '../../orvex/entitlement/quota-fast-counter';
 
 @Injectable()
 export class PersistenceExtension implements Extension {
@@ -57,6 +60,12 @@ export class PersistenceExtension implements Extension {
     private readonly collabHistory: CollabHistoryService,
     private readonly transclusionService: TransclusionService,
     private readonly provenanceService: OrvexPageProvenanceService,
+    // ENG-2490 AC3 — the quota pre-flight this path previously bypassed.
+    // @Optional so the standalone collab server / older harnesses that
+    // construct this extension without the entitlement graph keep working
+    // (guard degrades to allow — the REST chokepoints still enforce).
+    @Optional() private readonly entitlementService?: EntitlementService,
+    @Optional() private readonly quotaFastCounter?: QuotaFastCounter,
   ) {}
 
   /**
@@ -123,6 +132,17 @@ export class PersistenceExtension implements Extension {
     const { documentName, document, context } = data;
 
     const pageId = getPageId(documentName);
+
+    // ENG-2490 AC3 — the collab-path quota chokepoint: the Yjs store write
+    // is subject to the SAME pre-flight the REST writes already pass
+    // through, closing the previously-open bypass (this file made zero
+    // quota calls before this story). A rejected write is dropped BEFORE
+    // any Postgres mutation; the live ydoc keeps its in-memory state but
+    // nothing persists.
+    const withinQuota = await this.assertCollabWriteWithinQuota(pageId);
+    if (!withinQuota) {
+      return;
+    }
 
     const tiptapJson = TiptapTransformer.fromYdoc(document, 'default');
     const ydocState = Buffer.from(Y.encodeStateAsUpdate(document));
@@ -283,6 +303,51 @@ export class PersistenceExtension implements Extension {
       });
 
       await this.enqueuePageHistory(page);
+    }
+  }
+
+  /**
+   * ENG-2490 AC3 — the collab-path pre-flight. Returns true when the write
+   * may proceed. Usage comes from the O(1) fast-counter (store-tier COUNT
+   * only on a counter miss — the declared degrade); the verdict stays in
+   * `EntitlementService` (no comparison logic here, CS §6/❌#1). Failure
+   * mode (NFR / ADR-0003, cheap page-counter class): ONLY a genuine
+   * `QuotaExceededException` blocks the write — any infrastructure error
+   * (entitlement 503, Redis loss, a failed lookup) is logged and FAILS
+   * OPEN, never an unhandled crash out of the Hocuspocus store hook.
+   */
+  private async assertCollabWriteWithinQuota(pageId: string): Promise<boolean> {
+    if (!this.entitlementService) {
+      return true;
+    }
+    try {
+      const page = await this.pageRepo.findById(pageId);
+      if (!page) {
+        return true; // the store path below handles/logs the missing page
+      }
+      const workspaceId = page.workspaceId;
+      const currentUsage = this.quotaFastCounter
+        ? await this.quotaFastCounter.currentUsage(workspaceId, 'pages', () =>
+            this.pageRepo.countByWorkspaceId(workspaceId),
+          )
+        : await this.pageRepo.countByWorkspaceId(workspaceId);
+      await this.entitlementService.assertWithinQuota(
+        workspaceId,
+        'pages',
+        currentUsage,
+      );
+      return true;
+    } catch (err) {
+      if (err instanceof QuotaExceededException) {
+        this.logger.warn(
+          `Collab store write rejected by quota chokepoint for page ${pageId}: ${JSON.stringify(err.getResponse())}`,
+        );
+        return false;
+      }
+      this.logger.warn(
+        `Collab quota pre-flight degraded (failing open) for page ${pageId}: ${(err as Error).message}`,
+      );
+      return true;
     }
   }
 
