@@ -51,8 +51,13 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
   const { data: share } = useShareForPageQuery(pageId);
   const isPubliclyShared = !!share;
 
-  const { data: restrictionInfo, isLoading: restrictionLoading } =
-    usePageRestrictionInfoQuery(opened && hasPagePermissions ? pageId : undefined);
+  const {
+    data: restrictionInfo,
+    isLoading: restrictionLoading,
+    isError: restrictionError,
+  } = usePageRestrictionInfoQuery(
+    opened && hasPagePermissions ? pageId : undefined,
+  );
 
   return (
     <>
@@ -112,6 +117,17 @@ export function PageShareModal({ readOnly }: PageShareModalProps) {
                   {t(
                     "Control who can view and edit individual pages. Available with an enterprise license.",
                   )}
+                </Text>
+              </Stack>
+            ) : restrictionError ? (
+              // The engine's restriction-info read is space-admin-gated
+              // (`assertCanManage`) — a 403 here means the viewer cannot
+              // manage page access, so show a locked state instead of an
+              // infinite loader.
+              <Stack align="center" py="md">
+                <IconLock size={20} stroke={1.5} />
+                <Text size="sm" c="dimmed" ta="center">
+                  {t("Only space admins can manage page access.")}
                 </Text>
               </Stack>
             ) : restrictionLoading || !pageId || !restrictionInfo ? (

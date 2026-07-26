@@ -67,14 +67,13 @@ const PAGE_ID = "page-1";
 //     controller's DTO validation would, so this test cannot pass against a
 //     client that regresses back to batched-array grants (ENG-1375 fix
 //     pass 1).
-// `/pages/permission-info` and `/pages/permissions` (list/info reads) have
-// NO engine controller yet — that gap is tracked separately in ENG-1596
-// (blocked-by this ticket, per the PD-4d orchestrator ruling). The shapes
-// returned below are the `IPageRestrictionInfo`/`IPagination<IPagePermissionMember>`
-// contracts already committed in this package's own
-// `types/page-permission.types.ts` — not fabricated data — so the fake
-// models the documented target contract, not an invented one, and mirrors
-// the controller's own real mutation-side invariants above.
+// The `/page-permissions/restriction-info` and `/page-permissions/list`
+// reads shipped server-side in ENG-1596 (same controller). The shapes
+// returned below are copied verbatim from that controller's
+// `getRestrictionInfo` (`RestrictionInfo`: id-only `inheritedFrom`,
+// `userAccess.{canAccess,canEdit}`) and `listPermissions`
+// (`CursorPaginationResult`) — the client was repointed onto them by the
+// ENG-1375 read-side completion, closing the last unwired AC set.
 function installFakeEngine() {
   const ADMIN_MEMBER = {
     id: "current-user",
@@ -136,15 +135,16 @@ function installFakeEngine() {
       });
       return Promise.resolve({ data: { success: true } });
     }
-    if (url === "/pages/permission-info") {
+    if (url === "/page-permissions/restriction-info") {
       const info: IPageRestrictionInfo = {
         hasDirectRestriction: restricted,
         hasInheritedRestriction: false,
-        userAccess: { canView: true, canEdit: true, canManage: true },
+        inheritedFrom: null,
+        userAccess: { canAccess: true, canEdit: true },
       };
       return Promise.resolve({ data: info });
     }
-    if (url === "/pages/permissions") {
+    if (url === "/page-permissions/list") {
       return Promise.resolve({
         data: {
           items: permissions,
