@@ -225,6 +225,23 @@ export const JIT_MEMBER_OVERAGE_MULTIPLIER = 1.1;
  * ENG-2491 AC1 — the resource classes whose rejection carries the
  * largest-files list (storage-shaped: acting on files is the immediate
  * remediation). `pages`/`members` rejections carry only the upgrade link.
+ *
+ * ENG-2492 AC2/AC3 — the SAME classification is the Redis-loss fail-mode
+ * split (ADR-0003 `Nr3WIs0Zpt`, Proposed): storage-shaped resources fail
+ * CLOSED when the usage counter is unreadable (an uncorrected byte-cap
+ * bypass during an outage window is the costly failure), while the cheap
+ * resources (`pages`/`members`) fail OPEN (a Redis outage must never become
+ * a page-create outage). One classification, one owner — a future new
+ * `QuotaResource` makes this decision exactly once, here.
  */
 export const STORAGE_SHAPED_RESOURCES: readonly QuotaResource[] =
   Object.freeze(['storage', 'files', 'file_bytes']);
+
+/**
+ * ENG-2492 AC4 — the absolute hard stop that bounds `warn`-mode
+ * calibration: even with `ORVEX_QUOTAS_ENFORCE=warn`, a write crossing
+ * 200% of cap is rejected ("a Redis reset cannot open free-tier abuse").
+ * A human-ratified ceiling (ADR-0003) — the SINGLE named constant, never
+ * duplicated as a magic number, never tuned without a fresh ADR (❌#10).
+ */
+export const QUOTA_WARN_MODE_HARD_STOP_MULTIPLIER = 2;

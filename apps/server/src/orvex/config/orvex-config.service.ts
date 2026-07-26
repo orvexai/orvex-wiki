@@ -207,6 +207,19 @@ export class OrvexConfigService {
   }
 
   /**
+   * ORVEX_QUOTAS_ENFORCE (ENG-2492 AC4) — the quota-calibration rollout
+   * knob. Default (unset or any other value) is full enforcement; the ONE
+   * recognised opt-in is `warn` — over-cap writes are permitted with a
+   * machine-greppable warning, EXCEPT the absolute 200%-of-cap hard stop
+   * (ADR-0003) which rejects even in warn mode. First consumer:
+   * `EntitlementService`'s verdict branch. Enforcing-by-default: a typo'd
+   * value can only ever fall back to ENFORCE, never silently to warn.
+   */
+  get quotasEnforceMode(): 'enforce' | 'warn' {
+    return this.read('ORVEX_QUOTAS_ENFORCE') === 'warn' ? 'warn' : 'enforce';
+  }
+
+  /**
    * ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4) — routes excluded from the `/api`
    * global prefix, read by `main.ts`. Defaults to `health/orvex` (the
    * dependency-probe endpoint). The former `mcp` default was dropped when the

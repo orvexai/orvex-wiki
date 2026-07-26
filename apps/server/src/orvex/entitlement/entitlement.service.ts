@@ -17,9 +17,11 @@ import {
   LARGEST_FILES_LIMIT,
   LargestFileEntry,
   Principal,
+  QUOTA_WARN_MODE_HARD_STOP_MULTIPLIER,
   QuotaResource,
   STORAGE_SHAPED_RESOURCES,
 } from './entitlement.types';
+import { QuotaFastCounter } from './quota-fast-counter';
 import {
   EntitlementUnavailableException,
   QuotaExceededException,
@@ -55,6 +57,11 @@ export class EntitlementService {
     // (upgradeUrl omitted, largestFiles empty) — never a crash (CS §10).
     @Optional() private readonly orvexConfig?: OrvexConfigService,
     @Optional() private readonly attachmentRepo?: AttachmentRepo,
+    // ENG-2492 — the Redis usage-counter the fail-mode-aware variant
+    // (`assertWithinQuotaFromCounter`) reads. @Optional: without it that
+    // variant treats the counter as unavailable (the same fail-mode split
+    // applies); the caller-supplied-usage methods are unaffected.
+    @Optional() private readonly quotaFastCounter?: QuotaFastCounter,
   ) {}
 
   private toPrincipal(workspaceId: string): Principal {
@@ -222,8 +229,63 @@ export class EntitlementService {
     }
 
     if (currentUsage >= limit) {
-      throw await this.buildRejection(workspaceId, resource, limit);
+      await this.rejectOrWarn(workspaceId, resource, limit, currentUsage + 1);
     }
+  }
+
+  /**
+   * ENG-2492 AC2/AC3 — the fail-mode-aware, counter-sourced variant: reads
+   * `currentUsage` from the Redis fast-counter itself (the caller supplies
+   * no number). DISTINCT from `resolve()`'s existing catalog fail-closed
+   * path — that seam answers "can we resolve the cap VALUE at all"; this
+   * one answers "can we resolve the current USAGE count":
+   *
+   *  - counter readable → the normal verdict (incl. `warn`-mode branch);
+   *  - counter unknown (Redis down/unconfigured/unseeded) → the ADR-0003
+   *    split: storage-shaped resources fail CLOSED (a `QUOTA_EXCEEDED`
+   *    rejection carrying `redisUnavailable: true` under the frozen
+   *    envelope — distinguishable from a genuine over-cap verdict) until
+   *    the reconciliation sweep restores the counter; cheap resources
+   *    (`pages`/`members`) fail OPEN with a logged degrade — the same
+   *    outage must never block a page create or a member join.
+   *
+   * The fail-closed branch deliberately ignores `warn` mode: it is an
+   * outage safety rail, not a cap-calibration verdict.
+   */
+  async assertWithinQuotaFromCounter(
+    workspaceId: string,
+    resource: QuotaResource,
+  ): Promise<void> {
+    const entitlement = await this.resolve(workspaceId);
+    const limit = capValueForResource(entitlement.caps, resource);
+
+    if (limit === 0) {
+      return; // uncapped
+    }
+
+    const read = this.quotaFastCounter
+      ? await this.quotaFastCounter.readCounter(workspaceId, resource)
+      : ({ kind: 'unavailable' } as const);
+
+    if (read.kind === 'value') {
+      if (read.value >= limit) {
+        await this.rejectOrWarn(workspaceId, resource, limit, read.value + 1);
+      }
+      return;
+    }
+
+    if (STORAGE_SHAPED_RESOURCES.includes(resource)) {
+      this.logger.warn(
+        `EntitlementService: usage counter unreadable (${read.kind}) for ${resource}/${workspaceId} — failing CLOSED for the storage-shaped resource class (the ratified fail-mode split)`,
+      );
+      throw await this.buildRejection(workspaceId, resource, limit, {
+        redisUnavailable: true,
+      });
+    }
+
+    this.logger.warn(
+      `EntitlementService: usage counter unreadable (${read.kind}) for ${resource}/${workspaceId} — failing OPEN for the cheap-resource class (the ratified fail-mode split)`,
+    );
   }
 
   /**
@@ -253,8 +315,45 @@ export class EntitlementService {
     if (currentUsage >= allowedThrough) {
       // The frozen body reports the REAL cap, never the internal overage
       // bound — the overage is an allowance policy, not a different limit.
-      throw await this.buildRejection(workspaceId, resource, limit);
+      await this.rejectOrWarn(workspaceId, resource, limit, currentUsage + 1);
     }
+  }
+
+  /**
+   * ENG-2492 AC4 — the single over-cap decision point shared by every
+   * assert variant: in the default enforcing mode an over-cap write is
+   * rejected; under `ORVEX_QUOTAS_ENFORCE=warn` (the calibration rollout)
+   * it is permitted with a machine-greppable `QUOTA_WARN_MODE_OVERCAP`
+   * warning — EXCEPT past the absolute
+   * {@link QUOTA_WARN_MODE_HARD_STOP_MULTIPLIER} hard stop (ADR-0003),
+   * which rejects even in warn mode ("a Redis reset cannot open free-tier
+   * abuse"). `projectedUsage` is the post-write usage the decision is made
+   * against.
+   */
+  private async rejectOrWarn(
+    workspaceId: string,
+    resource: QuotaResource,
+    limit: number,
+    projectedUsage: number,
+    extraFields?: QuotaExceededExtras,
+  ): Promise<void> {
+    const warnMode =
+      (this.orvexConfig?.quotasEnforceMode ?? 'enforce') === 'warn';
+    if (
+      warnMode &&
+      projectedUsage <= limit * QUOTA_WARN_MODE_HARD_STOP_MULTIPLIER
+    ) {
+      this.logger.warn(
+        `QUOTA_WARN_MODE_OVERCAP: permitted an over-cap ${resource} write for workspace ${workspaceId} (projected ${projectedUsage} vs cap ${limit}) — ORVEX_QUOTAS_ENFORCE=warn calibration; the ${QUOTA_WARN_MODE_HARD_STOP_MULTIPLIER}x hard stop still applies`,
+      );
+      return;
+    }
+    throw await this.buildRejection(
+      workspaceId,
+      resource,
+      limit,
+      extraFields,
+    );
   }
 
   /**
@@ -362,7 +461,12 @@ export class EntitlementService {
     }
 
     if (currentUsage + incrementAmount > limit) {
-      throw await this.buildRejection(workspaceId, resource, limit);
+      await this.rejectOrWarn(
+        workspaceId,
+        resource,
+        limit,
+        currentUsage + incrementAmount,
+      );
     }
   }
 }

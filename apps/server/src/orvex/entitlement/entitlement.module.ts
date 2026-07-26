@@ -9,6 +9,7 @@ import { HttpBillingEntitlementPort } from './entitlement-http-billing.port';
 import { ENTITLEMENT_CACHE, RedisEntitlementCache } from './entitlement-cache';
 import { EntitlementChangedConsumer } from './entitlement-changed.consumer';
 import { QuotaFastCounter } from './quota-fast-counter';
+import { QuotaReconciliationService } from './quota-reconciliation.service';
 import { assertNoPaidPlanSellableWhileInterimFree } from './entitlement.types';
 import { EnvironmentModule } from '../../integrations/environment/environment.module';
 import { OrvexConfigModule } from '../config/orvex-config.module';
@@ -31,6 +32,7 @@ import { OrvexConfigModule } from '../config/orvex-config.module';
     EntitlementService,
     EntitlementChangedConsumer,
     QuotaFastCounter,
+    QuotaReconciliationService,
     { provide: BILLING_ENTITLEMENT_PORT, useClass: HttpBillingEntitlementPort },
     { provide: ENTITLEMENT_CACHE, useClass: RedisEntitlementCache },
   ],
