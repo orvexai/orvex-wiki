@@ -342,7 +342,7 @@ jobs:
           set -a && . ./.env.dev && set +a
           export ORVEX_MODULES_ENABLED=true
           export KAFKA_BROKERS=127.0.0.1:19092
-          export KAFKA_OUTBOX_TOPIC=orvex.studio-spine.events
+          export KAFKA_OUTBOX_TOPIC=wiki-events.solo
           export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
           nohup node apps/server/dist/main.js > server.log 2>&1 &
           for _ in $(seq 1 30); do
@@ -357,7 +357,7 @@ jobs:
           set -a && . ./.env.dev && set +a
           export APP_URL=http://localhost:3000
           export KAFKA_BROKERS=127.0.0.1:19092
-          export KAFKA_OUTBOX_TOPIC=orvex.studio-spine.events
+          export KAFKA_OUTBOX_TOPIC=wiki-events.solo
           export ORVEX_MODULES_ENABLED=true
           cd tests/smoke && go test -run TestGateM6E2E -v ./...
       - name: Engine log (always, for post-mortem)

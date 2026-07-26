@@ -19,6 +19,8 @@ import type {
   PostgresResult,
   RedisProbe,
   RedisResult,
+  RelayOutboxProbe,
+  RelayOutboxResult,
   StorageProbe,
   StorageResult,
 } from './orvex-health.service';
@@ -34,6 +36,7 @@ export const ORVEX_HEALTH_KAFKA_PROBE = Symbol('ORVEX_HEALTH_KAFKA_PROBE');
 export const ORVEX_HEALTH_COLLAB_WS_PROBE = Symbol(
   'ORVEX_HEALTH_COLLAB_WS_PROBE',
 );
+export const ORVEX_HEALTH_RELAY_PROBE = Symbol('ORVEX_HEALTH_RELAY_PROBE');
 
 const PROBE_TIMEOUT_MS = 2_000;
 
@@ -176,6 +179,74 @@ export function makeCollabWsProbe(url?: string): CollabWsProbe {
 }
 
 export const defaultCollabWsProbe: CollabWsProbe = makeCollabWsProbe();
+
+/**
+ * ENG-2496 AC4 — the outbox relay liveness/lag heartbeat probe: reads the
+ * `orvex_event_outbox` backlog (count of unrelayed rows + age of the
+ * OLDEST one, computed by the DATABASE's own clock — no client wall-clock
+ * in the staleness decision) through the same lazy raw-`pg.Pool` pattern as
+ * `defaultPostgresProbe` (AC8.6 — no Kysely/`DatabaseModule` DI at module
+ * init). A dead relay leaves rows unrelayed past the configured staleness
+ * bound and this probe flips to `ok:false` — it can never read green off a
+ * relay that is not actually draining. Bounded (`withTimeout`) and typed:
+ * an unreachable/unconfigured DB is a LOUD `ok:false` with an error, never
+ * a hang, a throw, or a silently-green default (CS §10/§11).
+ */
+export const defaultRelayOutboxProbe: RelayOutboxProbe = async (
+  config: OrvexConfigService,
+): Promise<RelayOutboxResult> => {
+  const thresholdSeconds = config.outboxHeartbeatStalenessSeconds;
+  const connectionString = config.databaseUrl;
+  if (connectionString === null) {
+    return {
+      ok: false,
+      thresholdSeconds,
+      error: 'DATABASE_URL not configured',
+    };
+  }
+
+  const pool = new Pool({ connectionString, max: 1 });
+  try {
+    // `pg` ships no type declarations (untyped import), so the query result
+    // is typed structurally at this one site — the same narrowing the other
+    // probes in this file already do on their own driver responses.
+    const result = await withTimeout(
+      pool.query(
+        `SELECT count(*)::int AS unrelayed_count,
+                EXTRACT(EPOCH FROM (now() - min(created_at)))::float8 AS oldest_age_seconds
+           FROM orvex_event_outbox
+          WHERE relayed_at IS NULL`,
+      ) as Promise<{
+        rows: Array<{
+          unrelayed_count: number;
+          oldest_age_seconds: number | string | null;
+        }>;
+      }>,
+      PROBE_TIMEOUT_MS,
+    );
+    const row = result.rows[0];
+    const unrelayedCount = Number(row.unrelayed_count);
+    const oldestUnrelayedAgeSeconds =
+      row.oldest_age_seconds === null ? null : Number(row.oldest_age_seconds);
+    const stale =
+      oldestUnrelayedAgeSeconds !== null &&
+      oldestUnrelayedAgeSeconds > thresholdSeconds;
+    return {
+      ok: !stale,
+      unrelayedCount,
+      oldestUnrelayedAgeSeconds,
+      thresholdSeconds,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      thresholdSeconds,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  } finally {
+    await pool.end().catch(() => undefined);
+  }
+};
 
 /**
  * Real kafka probe — ONLY invoked when `kafkaBrokersConfigured` (the service

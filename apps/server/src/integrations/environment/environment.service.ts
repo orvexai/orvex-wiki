@@ -92,12 +92,11 @@ export class EnvironmentService {
       .filter(Boolean);
   }
 
-  getKafkaOutboxTopic(): string {
-    return this.configService.get<string>(
-      'KAFKA_OUTBOX_TOPIC',
-      'orvex.studio-spine.events',
-    );
-  }
+  // ENG-2496 AC2 — `getKafkaOutboxTopic()` (the single flat
+  // KAFKA_OUTBOX_TOPIC every domain and cell shared) is REPLACED by the
+  // per-cell resolver `resolveWikiEventsTopic(cellId)` in
+  // `orvex/events/outbox/outbox-topic.resolver.ts` (cell-contract rule #5:
+  // `{domain}-events.{cell}`, single partition).
 
   getStorageDriver(): string {
     return this.configService.get<string>('STORAGE_DRIVER', 'local');

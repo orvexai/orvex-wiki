@@ -3,7 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { CamelCasePlugin, FileMigrationProvider, Kysely, Migrator } from 'kysely';
+import { CamelCasePlugin, FileMigrationProvider, Kysely, Migrator, sql } from 'kysely';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
 import {
@@ -17,6 +17,9 @@ import {
   EVT_WORKSPACE_CREATED,
   EVT_WORKSPACE_UPDATED,
   EVT_WORKSPACE_MEMBER_ADDED,
+  EVT_WORKSPACE_MEMBER_DELETED,
+  EVT_USER_DELETED,
+  USER_DELETED_SCHEMA_VERSION,
   EVT_SPACE_CREATED,
   EVT_SPACE_MEMBER_ADDED,
   EVT_SPACE_MEMBER_ROLE_CHANGED,
@@ -26,6 +29,8 @@ import {
   EVT_ATTACHMENT_CREATED,
   EVT_ATTACHMENT_DELETED,
 } from '../../../constants/orvex-event-types';
+import { OutboxRelayService } from '../../outbox-relay.service';
+import { InMemoryKafkaPublisher } from '../in-memory-kafka-publisher';
 import type { DbInterface } from '../../../../../database/types/db.interface';
 import type { KyselyDB } from '../../../../../database/types/kysely.types';
 import { executeTx } from '../../../../../database/utils';
@@ -519,5 +524,179 @@ describe('LifecycleEmitterCoverageSpec', () => {
       const content = await fs.readFile(path.join(__dirname, '../..', file), 'utf-8');
       expect(content).not.toMatch(/from ['"]ioredis['"]|XADD/i);
     }
+  });
+
+  // ─── ENG-2497 (FR-37) — the distributed-cleanup contract: a durable
+  // `user.deleted` outbox event on the ONE real user-removal path
+  // (`WorkspaceService.deleteUser`), same tx as the removal, alongside (not
+  // replacing) `workspace.member_deleted`. AC1 (whole-workspace deletion)
+  // is ESCALATED per OPEN-4/R-WIKI-7, deliberately NOT built here. ────────
+  describe('ENG-2497 — user.deleted distributed-cleanup outbox event (FR-37)', () => {
+    /** Fixture: an owner + workspace + a deletable member; outbox cleared. */
+    async function createWorkspaceWithMember() {
+      const creator = await createRealUser();
+      const ws = await workspaceService.create(creator, {
+        name: 'ENG-2497 WS',
+      } as unknown as CreateWorkspaceDto);
+      // Re-fetch the creator so `authUser.role` is the post-create OWNER
+      // role, exactly as the controller passes the live authenticated user.
+      const owner = await userRepo.findById(creator.id, ws.id);
+      const member = await userRepo.insertUser({
+        email: `eng-2497-member-${Date.now()}-${Math.random()}@example.com`,
+        name: 'ENG-2497 Member',
+        password: 'x',
+      });
+      await workspaceService.addUserToWorkspace(member.id, ws.id);
+      await db
+        .deleteFrom('orvexEventOutbox')
+        .where('workspaceId', '=', ws.id)
+        .execute();
+      return { owner: owner as User, member, ws };
+    }
+
+    it('TestUserDeletedEmitsCleanupOutboxEvent — deleteUser commits a durable user.deleted outbox row in the SAME tx as the member removal (alongside workspace.member_deleted), carrying an explicit schemaVersion, and the relay drains it as the registered wiki.user.deleted CloudEvent', async () => {
+      const { owner, member, ws } = await createWorkspaceWithMember();
+
+      await workspaceService.deleteUser(owner, member.id, ws.id);
+
+      // AC2 — the durable cleanup event, committed with the removal.
+      const userDeletedRows = await outboxRowsFor(EVT_USER_DELETED, member.id);
+      expect(userDeletedRows).toHaveLength(1);
+      expect(userDeletedRows[0].workspaceId).toBe(ws.id);
+      expect(userDeletedRows[0].relayedAt).toBeNull();
+      const payload = userDeletedRows[0].payload as {
+        userId: string;
+        workspaceId: string;
+        schemaVersion: number;
+      };
+      expect(payload.userId).toBe(member.id);
+      expect(payload.workspaceId).toBe(ws.id);
+      // AC3 / FR-36 — an explicit, real schema version (never fabricated).
+      expect(payload.schemaVersion).toBe(USER_DELETED_SCHEMA_VERSION);
+
+      // Regression guard — the pre-existing membership event is NOT
+      // replaced: BOTH rows, not either/or.
+      const memberDeletedRows = await outboxRowsFor(
+        EVT_WORKSPACE_MEMBER_DELETED,
+        member.id,
+      );
+      expect(memberDeletedRows).toHaveLength(1);
+
+      // The removal itself really happened (soft-delete + anonymize).
+      const deletedUserRow = await db
+        .selectFrom('users')
+        .select(['deletedAt', 'email'])
+        .where('id', '=', member.id)
+        .executeTakeFirstOrThrow();
+      expect(deletedUserRow.deletedAt).not.toBeNull();
+      expect(deletedUserRow.email).toContain('@deleted.docmost.com');
+
+      // AC3 — the event rides the SAME relay every other wiki.* event
+      // uses, as a typed CloudEvent whose `type` is a REGISTERED
+      // purge_event in the vendored contracts registry (ENG-2495 fixtures).
+      const registry = JSON.parse(
+        await fs.readFile(
+          path.join(__dirname, '../fixtures/contracts/wiki-source-registry.json'),
+          'utf-8',
+        ),
+      ) as { purge_events: string[] };
+      const publisher = new InMemoryKafkaPublisher();
+      const relay = new OutboxRelayService(db, publisher, {
+        cellId: null,
+        kafkaBrokersConfigured: false,
+      });
+      const run = await relay.run();
+      expect(run.failed).toBe(0);
+      const message = publisher
+        .getAllDistinctMessages()
+        .find((m) => m.key === userDeletedRows[0].id);
+      expect(message).toBeDefined();
+      const envelope = JSON.parse(message!.value) as {
+        type: string;
+        orvextenant: string;
+        subject: string;
+        data: { schemaVersion: number; userId: string };
+      };
+      expect(envelope.type).toBe('wiki.user.deleted');
+      expect(registry.purge_events).toContain(envelope.type);
+      expect(envelope.orvextenant).toBe(ws.id);
+      expect(envelope.subject).toBe(member.id);
+      expect(envelope.data.schemaVersion).toBe(USER_DELETED_SCHEMA_VERSION);
+      expect(envelope.data.userId).toBe(member.id);
+    });
+
+    it('TestDeleteUserRollbackLeavesNoOrphanUserDeletedRow — a removal whose tx aborts broadcasts NO false deletion (and the member is NOT removed either)', async () => {
+      const { owner, member, ws } = await createWorkspaceWithMember();
+
+      // REAL DB-level fault injection (❌#4 — never a mock of own code): the
+      // user.deleted INSERT itself fails, aborting deleteUser's whole tx.
+      await sql`
+        CREATE OR REPLACE FUNCTION orvex_test_fail_user_deleted() RETURNS trigger AS $$
+        BEGIN
+          IF NEW.type = 'user.deleted' THEN
+            RAISE EXCEPTION 'ENG-2497 fault-injected user.deleted failure';
+          END IF;
+          RETURN NEW;
+        END $$ LANGUAGE plpgsql;
+      `.execute(db);
+      await sql`
+        CREATE TRIGGER orvex_test_fail_user_deleted_trg
+        BEFORE INSERT ON orvex_event_outbox
+        FOR EACH ROW EXECUTE FUNCTION orvex_test_fail_user_deleted();
+      `.execute(db);
+
+      try {
+        await expect(
+          workspaceService.deleteUser(owner, member.id, ws.id),
+        ).rejects.toThrow(/fault-injected user.deleted failure/);
+
+        // AC5 — zero orphan cleanup rows (no false deletion broadcast)…
+        expect(await outboxRowsFor(EVT_USER_DELETED, member.id)).toHaveLength(0);
+        // …and the WHOLE tx rolled back: no membership event either, and
+        // the member is untouched (not soft-deleted, not anonymized).
+        expect(
+          await outboxRowsFor(EVT_WORKSPACE_MEMBER_DELETED, member.id),
+        ).toHaveLength(0);
+        const memberRow = await db
+          .selectFrom('users')
+          .select(['deletedAt', 'email'])
+          .where('id', '=', member.id)
+          .executeTakeFirstOrThrow();
+        expect(memberRow.deletedAt).toBeNull();
+        expect(memberRow.email).toBe(member.email);
+      } finally {
+        await sql`DROP TRIGGER IF EXISTS orvex_test_fail_user_deleted_trg ON orvex_event_outbox;`.execute(
+          db,
+        );
+        await sql`DROP FUNCTION IF EXISTS orvex_test_fail_user_deleted();`.execute(
+          db,
+        );
+      }
+    });
+
+    it('TestNoNewWorkspaceDeletionRouteAdded — AC1 is escalated (OPEN-4), never silently faked: no whole-workspace deletion route or method exists', async () => {
+      const controllerSrc = await fs.readFile(
+        path.join(
+          __dirname,
+          '../../../../../core/workspace/controllers/workspace.controller.ts',
+        ),
+        'utf-8',
+      );
+      // The ONLY delete-shaped member route is the existing per-member one.
+      expect(controllerSrc).toContain("@Post('members/delete')");
+      // No whole-workspace deletion surface was invented by this story.
+      expect(controllerSrc).not.toMatch(/@(Post|Delete)\(\s*['"]delete['"]\s*\)/);
+      expect(controllerSrc).not.toMatch(/deleteWorkspace(?!Member)/);
+      expect(controllerSrc).not.toMatch(/removeWorkspace|purgeWorkspace/);
+
+      const serviceSrc = await fs.readFile(
+        path.join(
+          __dirname,
+          '../../../../../core/workspace/services/workspace.service.ts',
+        ),
+        'utf-8',
+      );
+      expect(serviceSrc).not.toMatch(/deleteWorkspace|removeWorkspace|purgeWorkspace/);
+    });
   });
 });

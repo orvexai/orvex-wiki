@@ -1,0 +1,23 @@
+{
+  "$comment": "VENDORED TRANSCRIPTION (ENG-2495) of orvexai/orvex-studio-contracts sources/wiki.yaml @ be4d2b1da583155a6dc2cce8a7fc7d974dbbd330 — the pinned wiki source-adapter registry entry. Transcribed YAML→JSON field-for-field (event_types `type` values and purge_events verbatim); authored contract-first in the Apache-2.0 contracts repo, never generated from this AGPL engine's code. See README.md in this directory for the provenance/refresh rule.",
+  "source_id": "wiki",
+  "event_types": [
+    "wiki.page.created",
+    "wiki.page.updated",
+    "wiki.page.content_updated",
+    "wiki.page.deleted",
+    "wiki.page.moved",
+    "wiki.page.restored",
+    "wiki.page.purged",
+    "wiki.page.status_changed",
+    "wiki.comment.created",
+    "wiki.attachment.created",
+    "wiki.attachment.deleted",
+    "wiki.permission.changed"
+  ],
+  "purge_events": [
+    "wiki.page.purged",
+    "wiki.workspace.deleted",
+    "wiki.user.deleted"
+  ]
+}

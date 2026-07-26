@@ -9,11 +9,13 @@ import {
   ORVEX_HEALTH_KAFKA_PROBE,
   ORVEX_HEALTH_POSTGRES_PROBE,
   ORVEX_HEALTH_REDIS_PROBE,
+  ORVEX_HEALTH_RELAY_PROBE,
   ORVEX_HEALTH_STORAGE_PROBE,
   defaultCollabWsProbe,
   defaultKafkaProbe,
   defaultPostgresProbe,
   defaultRedisProbe,
+  defaultRelayOutboxProbe,
   defaultStorageProbe,
 } from './orvex-health.probes';
 
@@ -56,6 +58,25 @@ export type CollabWsProbe = (
 /** ENG-2510 AC2 — the collab role's own liveness body (role-scoped). */
 export interface OrvexCollabHealthBody extends CollabWsResult {
   role: 'collab';
+  ts: string;
+}
+
+/** ENG-2496 AC4 — the outbox relay liveness/lag heartbeat probe result. */
+export interface RelayOutboxResult {
+  ok: boolean;
+  unrelayedCount?: number;
+  oldestUnrelayedAgeSeconds?: number | null;
+  thresholdSeconds: number;
+  error?: string;
+}
+export type RelayOutboxProbe = (
+  config: OrvexConfigService,
+) => Promise<RelayOutboxResult>;
+
+/** ENG-2496 AC4 — the `GET /health/orvex/relay` body. */
+export interface RelayHeartbeatBody {
+  status: 'pass' | 'fail';
+  relay: RelayOutboxResult;
   ts: string;
 }
 
@@ -117,7 +138,36 @@ export class OrvexHealthService {
     @Optional()
     @Inject(ORVEX_HEALTH_COLLAB_WS_PROBE)
     private readonly collabWsProbe: CollabWsProbe = defaultCollabWsProbe,
+    @Optional()
+    @Inject(ORVEX_HEALTH_RELAY_PROBE)
+    private readonly relayProbe: RelayOutboxProbe = defaultRelayOutboxProbe,
   ) {}
+
+  /**
+   * ENG-2496 AC4 — `GET /health/orvex/relay`: the outbox relay
+   * liveness/lag heartbeat. Same FAMILY HEALTH RULING as `check()`: NEVER
+   * throws, always HTTP 200 at the controller — degradation is carried in
+   * the body's `status`/`relay.ok`. A DEAD relay (rows unrelayed past the
+   * staleness bound) reads `fail` — never silently green — and a probe
+   * error is itself a typed `fail`, never an unhandled rejection.
+   */
+  async relayHeartbeat(): Promise<RelayHeartbeatBody> {
+    let relay: RelayOutboxResult;
+    try {
+      relay = await this.relayProbe(this.config);
+    } catch (e) {
+      relay = {
+        ok: false,
+        thresholdSeconds: this.config.outboxHeartbeatStalenessSeconds,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+    return {
+      status: relay.ok ? 'pass' : 'fail',
+      relay,
+      ts: new Date().toISOString(),
+    };
+  }
 
   async check(): Promise<OrvexHealthBody> {
     const [postgres, redis, storage] = await Promise.all([

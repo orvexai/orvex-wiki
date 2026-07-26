@@ -8,6 +8,7 @@ import {
   OrvexCollabHealthBody,
   OrvexHealthBody,
   OrvexHealthService,
+  RelayHeartbeatBody,
 } from './orvex-health.service';
 
 /**
@@ -50,5 +51,16 @@ export class OrvexHealthController {
       throw new ServiceUnavailableException(body);
     }
     return body;
+  }
+
+  /**
+   * ENG-2496 AC4 — the outbox relay liveness/lag heartbeat. HTTP 200
+   * unconditionally (family health ruling); a dead/lagging relay is
+   * carried in the body's `status: 'fail'`.
+   */
+  @SkipTransform()
+  @Get('relay')
+  async relayHeartbeat(): Promise<RelayHeartbeatBody> {
+    return this.healthService.relayHeartbeat();
   }
 }
