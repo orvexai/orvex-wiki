@@ -5,6 +5,15 @@
 import { Injectable, Optional } from '@nestjs/common';
 
 /**
+ * The Solo-sentinel cell id (cell-contract.md; dev/standalone/crew default).
+ * ONE declaration for every consumer (CS §3.1 — reused, never re-declared):
+ * `OutboxRelayService` stamps it as the CloudEvents `orvexcell` fallback, and
+ * `DomainMiddleware`'s soft label-2 cell assertion (ENG-2501) no-ops under it
+ * (cell enforcement is off entirely in solo mode).
+ */
+export const CELL_SOLO = 'solo';
+
+/**
  * OrvexConfigService — a REAL, pure environment reader for the additive orvex
  * surface.
  *
