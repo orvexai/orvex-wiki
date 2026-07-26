@@ -15,6 +15,7 @@ import {
   acquireWorkspaceProvisionLock,
   executeTx,
 } from '@docmost/db/utils';
+import { withTenantScopedTransaction } from '@docmost/db/rls/rls-guc-hook';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { GroupRepo } from '@docmost/db/repos/group/group.repo';
@@ -130,7 +131,15 @@ export class PrincipalProvisioningService {
       | undefined;
     let auditNewWorkspace: { id: string; name: string | null } | undefined;
 
-    const result = await executeTx(this.db, async (trx) => {
+    // ENG-2502 (FR-W8) — the RLS GUC hook scopes this whole provisioning
+    // transaction to the tenant as its FIRST statement (transaction-local
+    // `set_config`, popped at commit/rollback), so the fail-closed
+    // `orvex_rls_tenant_isolation_*` policies admit the tenant-scoped rows
+    // (e.g. the default "General" space insert) this transaction writes.
+    // The RLS layer stays a BACKSTOP beneath the app ACL, never a
+    // replacement for it.
+    const result = await executeTx(this.db, (outerTrx) =>
+      withTenantScopedTransaction(outerTrx, tenant, async (trx) => {
       // Serialize concurrent materialization of the SAME workspace up front:
       // `findById ... FOR UPDATE` cannot lock a not-yet-existing row, so two
       // concurrent first-exchange provisions would both race the insert. The
@@ -262,7 +271,8 @@ export class PrincipalProvisioningService {
       }
 
       return { userId: user.id, created: true, workspaceCreated };
-    });
+      }),
+    );
 
     // Audit (post-commit). A genuinely NEW workspace is an operability record
     // that a registry-issued UUID was materialized; a genuinely NEW user gets
