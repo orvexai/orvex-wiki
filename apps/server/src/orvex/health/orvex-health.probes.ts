@@ -164,19 +164,24 @@ export const defaultRelayOutboxProbe: RelayOutboxProbe = async (
 
   const pool = new Pool({ connectionString, max: 1 });
   try {
+    // `pg` ships no type declarations (untyped import), so the query result
+    // is typed structurally at this one site — the same narrowing the other
+    // probes in this file already do on their own driver responses.
     const result = await withTimeout(
       pool.query(
         `SELECT count(*)::int AS unrelayed_count,
                 EXTRACT(EPOCH FROM (now() - min(created_at)))::float8 AS oldest_age_seconds
            FROM orvex_event_outbox
           WHERE relayed_at IS NULL`,
-      ),
+      ) as Promise<{
+        rows: Array<{
+          unrelayed_count: number;
+          oldest_age_seconds: number | string | null;
+        }>;
+      }>,
       PROBE_TIMEOUT_MS,
     );
-    const row = result.rows[0] as {
-      unrelayed_count: number;
-      oldest_age_seconds: number | string | null;
-    };
+    const row = result.rows[0];
     const unrelayedCount = Number(row.unrelayed_count);
     const oldestUnrelayedAgeSeconds =
       row.oldest_age_seconds === null ? null : Number(row.oldest_age_seconds);

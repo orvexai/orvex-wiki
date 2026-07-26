@@ -154,7 +154,10 @@ describe('CellContractRelaySpec (ENG-2496)', () => {
           const page = await trx
             .insertInto('pages')
             .values({
-              title: 'ENG-2496 page',
+              // Unique per call — the fixture runs twice inside the gate
+              // test (cell + solo legs) against one space, and the schema
+              // enforces pages_unique_title_per_parent.
+              title: `ENG-2496 page ${correlationId}`,
               slugId: generateSlugId(),
               spaceId,
               workspaceId,
