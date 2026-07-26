@@ -29,7 +29,6 @@ import {
   WorkspaceInvitations,
   UserTokens,
   Backlinks,
-  Billing as BillingSubscription,
   AuthProviders,
   AuthAccounts,
   Shares,
@@ -141,10 +140,9 @@ export type Backlink = Selectable<Backlinks>;
 export type InsertableBacklink = Insertable<Backlink>;
 export type UpdatableBacklink = Updateable<Omit<Backlink, 'id'>>;
 
-// Billing
-export type Billing = Selectable<BillingSubscription>;
-export type InsertableBilling = Insertable<BillingSubscription>;
-export type UpdatableBilling = Updateable<Omit<BillingSubscription, 'id'>>;
+// ENG-2504 (FR-W21) — the Billing entity types were REMOVED with the
+// in-engine `billing` store (retired by 20260726T110000-retire-billing.ts);
+// orvex-studio-billing is the sole billing system-of-record.
 
 // Auth Provider
 export type AuthProvider = Selectable<AuthProviders>;

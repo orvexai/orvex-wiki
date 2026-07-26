@@ -27,7 +27,11 @@ export enum QueueJob {
   PAGE_BACKLINKS = 'page-backlinks',
   ADD_PAGE_WATCHERS = 'add-page-watchers',
 
-  STRIPE_SEATS_SYNC = 'sync-stripe-seats',
+  // ENG-2504 — the Stripe seat-sync job member ('sync-stripe-seats') was
+  // REMOVED here (FR-W21 severance): its single call site
+  // (workspace-invitation acceptInvitation) now writes a same-transaction
+  // `workspace.seats_changed` outbox event instead of a billing-queue
+  // enqueue; the engine never talks to Stripe.
   TRIAL_ENDED = 'trial-ended',
   WELCOME_EMAIL = 'welcome-email',
   FIRST_PAYMENT_EMAIL = 'first-payment-email',

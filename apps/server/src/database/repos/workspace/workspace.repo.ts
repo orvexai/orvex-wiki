@@ -32,7 +32,6 @@ export class WorkspaceRepo {
     'createdAt',
     'updatedAt',
     'deletedAt',
-    'stripeCustomerId',
     'status',
     'billingEmail',
     'trialEndAt',
