@@ -660,11 +660,40 @@ describe('OutboxAtomicityAndRelaySpec', () => {
       }
       return files;
     }
+    // The banned mechanism is the legacy lossy Redis-STREAMS dual-write
+    // (EventEmitter2 listener → XADD), not Redis itself: the collaboration
+    // tree legitimately uses Redis PUB/SUB for cross-replica Yjs sync
+    // (redis-sync extension) and history caching — an unrelated concern the
+    // AC explicitly tolerates. So: zero Streams API usage anywhere on the
+    // page-content write paths…
     for (const dir of dirsToScan) {
       for (const file of await collectTsFiles(dir)) {
         const content = await fs.readFile(file, 'utf-8');
-        expect(content).not.toMatch(/xadd/i);
-        expect(content).not.toMatch(/from ['"]ioredis['"]/);
+        expect(content).not.toMatch(/xadd|xread|xrange/i);
+      }
+    }
+    // …and the collab content-write path itself (persistence.extension.ts,
+    // the exact path this story covers) touches neither Redis nor
+    // EventEmitter2 — its ONLY emission is the same-tx outbox row.
+    const persistenceExt = await fs.readFile(
+      path.join(srcRoot, 'collaboration/extensions/persistence.extension.ts'),
+      'utf-8',
+    );
+    expect(persistenceExt).not.toMatch(/from ['"]ioredis['"]/);
+    expect(persistenceExt).not.toMatch(/EventEmitter2/);
+    // Any remaining EventEmitter2 use in core/page/services or
+    // collaboration/extensions is for an unrelated concern — never an
+    // emission of the page-content-changed event over that path.
+    const emitterDirs = [
+      path.join(srcRoot, 'core/page/services'),
+      path.join(srcRoot, 'collaboration/extensions'),
+    ];
+    for (const dir of emitterDirs) {
+      for (const file of await collectTsFiles(dir)) {
+        const content = await fs.readFile(file, 'utf-8');
+        expect(content).not.toMatch(
+          /\.emit\(\s*['"`][^'"`]*content[_.]?updated/i,
+        );
       }
     }
   });
