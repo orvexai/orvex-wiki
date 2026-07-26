@@ -60,9 +60,9 @@ import { NoopAuditService } from '../../integrations/audit/audit.service';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import {
   OutboxRelayService,
-  OutboxTopicResolver,
   OutboxCellResolver,
 } from '../../orvex/events/outbox/outbox-relay.service';
+import { resolveWikiEventsTopic } from '../../orvex/events/outbox/outbox-topic.resolver';
 import { InMemoryKafkaPublisher } from '../../orvex/events/outbox/__tests__/in-memory-kafka-publisher';
 import { EVT_WORKSPACE_SEATS_CHANGED } from '../../orvex/events/constants/orvex-event-types';
 import { EntitlementService } from '../../orvex/entitlement/entitlement.service';
@@ -72,10 +72,13 @@ import type {
 } from '../../orvex/entitlement/entitlement.types';
 
 const SERVER_ROOT = path.join(__dirname, '../../..');
-const STUB_TOPIC_RESOLVER: OutboxTopicResolver = {
-  getKafkaOutboxTopic: () => 'orvex.studio-spine.events',
+// ENG-2496 collapsed the separate topic resolver into the cell resolver:
+// the relay now derives its per-cell topic from `cellId` and gates the
+// boot-time shape assertion on `kafkaBrokersConfigured`.
+const STUB_CELL_RESOLVER: OutboxCellResolver = {
+  cellId: 'solo',
+  kafkaBrokersConfigured: false,
 };
-const STUB_CELL_RESOLVER: OutboxCellResolver = { cellId: 'solo' };
 
 /** Generous-caps billing port (the remote-but-owned entitlement seam). */
 class GenerousBillingPort {
@@ -377,13 +380,17 @@ describe('TestSeatSyncEmitsBillingEventNoStripe', () => {
     const relay = new OutboxRelayService(
       db as unknown as KyselyDB,
       publisher,
-      STUB_TOPIC_RESOLVER,
       STUB_CELL_RESOLVER,
     );
     const result = await relay.run();
     expect(result.published).toBeGreaterThanOrEqual(1);
 
-    const messages = publisher.getDistinctMessages('orvex.studio-spine.events');
+    // ENG-2496 AC2 replaced the single studio-spine topic with a per-cell
+    // one derived from the cell resolver (`wiki-events.{cellId}`); this stub
+    // resolves cellId 'solo'.
+    const messages = publisher.getDistinctMessages(
+      resolveWikiEventsTopic(STUB_CELL_RESOLVER.cellId),
+    );
     const envelopes = messages.map((m) => JSON.parse(m.value as string));
     const seatEvents = envelopes.filter(
       (e) => e.type === `wiki.${EVT_WORKSPACE_SEATS_CHANGED}`,
