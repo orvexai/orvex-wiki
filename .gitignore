@@ -42,3 +42,7 @@ lerna-debug.log*
 .nx/installation
 .nx/cache
 .cache/linear/
+
+# Local-only: symlink to the superproject cache. MUST NOT be committed —
+# ArgoCD refuses to render a repo containing an out-of-bounds symlink.
+.cache
