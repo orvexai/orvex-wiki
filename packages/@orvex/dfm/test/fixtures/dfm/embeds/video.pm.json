@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "video",
+      "attrs": {
+        "id": "video-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

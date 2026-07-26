@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "embed",
+      "attrs": {
+        "id": "embed-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

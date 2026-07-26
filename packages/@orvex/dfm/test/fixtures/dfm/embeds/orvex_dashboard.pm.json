@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "orvex_dashboard",
+      "attrs": {
+        "id": "orvex_dashboard-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

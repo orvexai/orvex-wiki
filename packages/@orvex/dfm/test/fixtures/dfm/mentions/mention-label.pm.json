@@ -1,0 +1,25 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "cc "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "entityType": "user",
+            "label": "daniel"
+          }
+        },
+        {
+          "type": "text",
+          "text": " please."
+        }
+      ]
+    }
+  ]
+}

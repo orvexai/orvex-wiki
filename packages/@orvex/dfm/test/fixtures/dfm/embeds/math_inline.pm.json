@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "math_inline",
+      "attrs": {
+        "id": "math_inline-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

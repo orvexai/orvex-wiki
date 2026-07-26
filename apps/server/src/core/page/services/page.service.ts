@@ -38,6 +38,17 @@ import {
   stampBlockIds,
 } from 'src/collaboration/collaboration.util';
 import { computeContentHash as sharedComputeContentHash } from '../../../common/helpers/content-hash';
+// ENG-2487 — the write path's serializer dependency: the standalone AGPL
+// `@orvex/dfm` workspace package (FR-W18 / A-DFM). DfM submitted to the write
+// chokepoint is resolved here (dfmToJson + reattachOpaqueRefs against the
+// base page's opaque bodies); an unresolvable opaque ref is a typed 4xx
+// (`DFM_OPAQUE_UNKNOWN_REF`), never a silent drop or an unhandled 500.
+import {
+  dfmToJson,
+  reattachOpaqueRefs,
+  DfmOpaqueUnknownRefError,
+} from '@orvex/dfm';
+import type { PmDoc } from '@orvex/dfm';
 import {
   CopyPageMapEntry,
   ICopyPageAttachment,
@@ -370,6 +381,11 @@ export class PageService {
       preparedContent = await this.parseProsemirrorContent(
         dto.content,
         dto.format ?? 'json',
+        // ENG-2487 — same base-doc rule as `update()`: the found page (when
+        // its content is loaded) is the DfM opaque-reattach base.
+        dto.format === 'dfm'
+          ? { dfmBase: ((existing as any).content as object | undefined) ?? null }
+          : undefined,
       );
       inboundHash = this.computeContentHash(preparedContent);
     }
@@ -540,6 +556,11 @@ export class PageService {
       const parsed = await this.parseProsemirrorContent(
         updatePageDto.content,
         updatePageDto.format,
+        // ENG-2487 — the update leg owns the store round-trip: the current
+        // page document is the base a DfM opaque fence reattaches from.
+        updatePageDto.format === 'dfm'
+          ? { dfmBase: ((page as any).content as object | undefined) ?? null }
+          : undefined,
       );
       nextContentHash = this.computeContentHash(parsed);
     }
@@ -1664,7 +1685,10 @@ export class PageService {
    * AC5/AC6: lossy write formats (markdown/html) and un-resolved dfm are
    * rejected up front with typed codes — this chokepoint only accepts
    * ProseMirror json, so no diagram/callout/column block-id is ever
-   * silently dropped by a lossy round-trip.
+   * silently dropped by a lossy round-trip. Since ENG-2487, `format: 'dfm'`
+   * WITH a caller-supplied resolution context (`opts.dfmBase`) is resolved
+   * for real via `@orvex/dfm` (lossless — an opaque fence either reattaches
+   * from the base doc or throws the typed `DFM_OPAQUE_UNKNOWN_REF`).
    * AC7: malformed ProseMirror json is rejected (`INVALID_CONTENT_FORMAT`).
    * AC2: every configured block-level node is guaranteed an `id` — missing
    * ids are minted, existing ids are NEVER regenerated (`stampBlockIds` /
@@ -1674,17 +1698,47 @@ export class PageService {
   private async parseProsemirrorContent(
     content: string | object,
     format: ContentFormat,
+    opts?: {
+      /**
+       * ENG-2487 — the DfM resolution context. When the caller supplies the
+       * base page document (or `null` for "no base — resolve against an
+       * empty doc"), a `format: 'dfm'` write is genuinely resolved here via
+       * `@orvex/dfm` (`dfmToJson` + `reattachOpaqueRefs`): the caller owns
+       * the store round-trip that fetches the base page (one-adapter rule);
+       * this chokepoint owns the conversion. Without it, `format: 'dfm'`
+       * keeps the ENG-1397 AC6 server-bug guard (`DFM_NOT_PRE_RESOLVED`).
+       */
+      dfmBase?: object | null;
+    },
   ): Promise<any> {
     switch (format) {
-      case 'dfm':
-        // AC6 — a server-bug guard: DfM content must be resolved to
-        // ProseMirror json upstream (the `dfm-contracts-ts-serializer` leg,
-        // blocked-by) before it ever reaches this chokepoint.
-        throw new BadRequestException({
-          code: 'DFM_NOT_PRE_RESOLVED',
-          message:
-            'DfM content must be resolved to ProseMirror json before reaching the write chokepoint',
-        });
+      case 'dfm': {
+        if (typeof content !== 'string' || opts?.dfmBase === undefined) {
+          // ENG-1397 AC6 — a server-bug guard: DfM reaching this chokepoint
+          // without its resolution context is rejected, never half-parsed.
+          throw new BadRequestException({
+            code: 'DFM_NOT_PRE_RESOLVED',
+            message:
+              'DfM content must be resolved to ProseMirror json before reaching the write chokepoint',
+          });
+        }
+        const base: PmDoc =
+          (opts.dfmBase as PmDoc | null) ?? ({ type: 'doc', content: [] } as PmDoc);
+        try {
+          content = reattachOpaqueRefs(dfmToJson(content), base) as object;
+        } catch (err) {
+          if (err instanceof DfmOpaqueUnknownRefError) {
+            // Typed 4xx, catchable by code — never a partial/best-effort
+            // document and never an unhandled 500 (CS §10 / §11).
+            throw new BadRequestException({
+              code: err.code,
+              message: err.message,
+            });
+          }
+          throw err;
+        }
+        break;
+      }
       case 'markdown':
       case 'html':
         // AC5 — lossy write formats are rejected: writes must be

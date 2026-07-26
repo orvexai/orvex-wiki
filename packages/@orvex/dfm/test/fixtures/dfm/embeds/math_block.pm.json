@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "math_block",
+      "attrs": {
+        "id": "math_block-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}

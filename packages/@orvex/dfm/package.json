@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "license": "AGPL-3.0-only",
   "private": true,
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/common-nodes.ts",
+    "./dist/common-nodes.js"
+  ],
   "main": "dist/index.js",
   "module": "./src/index.ts",
   "types": "dist/index.d.ts",
@@ -14,6 +17,7 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "typescript": "5.9.3",
     "vitest": "4.1.6"
   }

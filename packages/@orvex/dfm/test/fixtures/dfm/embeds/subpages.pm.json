@@ -1,0 +1,12 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "subpages",
+      "attrs": {
+        "id": "subpages-fixture-1"
+      },
+      "content": []
+    }
+  ]
+}
