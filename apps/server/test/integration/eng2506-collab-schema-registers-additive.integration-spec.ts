@@ -70,7 +70,7 @@ import { PmOpInput } from 'src/orvex/page-blocks/apply-ops-batch.util';
 import { IdempotencyStore } from 'src/integrations/redis/idempotency-store.service';
 import type { RedisService } from '@nestjs-labs/nestjs-ioredis';
 import { EVT_PAGE_CONTENT_UPDATED } from 'src/orvex/events/constants/orvex-event-types';
-import { serializeOpaque, DfmNotImplementedError } from '@orvex/dfm';
+import { pmToDfm, dfmToJson, OPAQUE_REF_TYPE } from '@orvex/dfm';
 import {
   seedPage,
   seedSpace,
@@ -525,7 +525,14 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
       expect(applyOpsSrc).not.toMatch(/updateTable\(\s*['"]pages['"]/);
     });
 
-    it('quota disclosure (honest current state, not the AC4 target): NO assertWithinQuota exists at the content-write chokepoint on EITHER path — the gate itself is ENG-2490 delivery, so today the two paths are consistent (collab bypasses nothing REST enforces)', () => {
+    // ENG-2490 landed the quota pre-flight on the collab path
+    // (persistence.extension.ts:63 'AC3 — the quota pre-flight this path
+    // previously bypassed'), which INVERTED this block's original premise:
+    // the two content-write paths are no longer symmetric. Recorded as the
+    // honest current state rather than asserted-as-target, because closing
+    // the asymmetry belongs to ENG-2490's own chokepoint scope, not to this
+    // collab-schema gate. See this ticket's gaps note.
+    it('quota disclosure (honest current state): the collab persistence path enforces the ENG-2490 pre-flight; the apply-ops REST path does not yet', () => {
       const srcRoot = path.join(__dirname, '..', '..', 'src');
       const persistenceSrc = readFileSync(
         path.join(srcRoot, 'collaboration', 'extensions', 'persistence.extension.ts'),
@@ -535,33 +542,46 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
         path.join(srcRoot, 'orvex', 'page-blocks', 'apply-ops.service.ts'),
         'utf8',
       );
-      expect(persistenceSrc.includes('assertWithinQuota')).toBe(
-        applyOpsSrc.includes('assertWithinQuota'),
-      );
+      expect(persistenceSrc).toContain('EntitlementService');
+      expect(applyOpsSrc.includes('assertWithinQuota')).toBe(false);
     });
   });
 
   // -------------------------------------------------------------------
-  // AC5 — BLOCKED on ENG-2487 (recorded target, never silently deleted)
+  // AC5 — unregistered-node opaque-fence round-trip (unblocked by ENG-2487)
   // -------------------------------------------------------------------
   describe('AC5 — unregistered-node opaque-fence round-trip', () => {
-    // BLOCKED on ENG-2487: `@orvex/dfm`'s `serializeOpaque` is a disclosed
-    // typed stub that throws DfmNotImplementedError at HEAD, and the collab
-    // write path's unknown-node behaviour today is `stripUnknownNodes`'s
-    // unwrap-and-drop — the opposite of the fence round-trip. Implementing
-    // the fence here would be scope creep into ENG-2487's own Issue (its
-    // AC2/AC3). This target test is skipped, not deleted, per the ticket's
-    // own 5b instruction; it gets un-skipped by the post-ENG-2487 follow-up
-    // commit on this Issue.
-    it.skip('an unregistered node round-trips via the :::dfm-opaque fence rather than being dropped — BLOCKED on ENG-2487', () => {
-      // Target behaviour (FR-W18): pmToDfm(unknownNode) emits an opaque
-      // fence and dfmToJson restores it byte-identically.
-    });
+    // ENG-2487 shipped the real serializer and retired the throwing
+    // `serializeOpaque` stub this block previously recorded, so the AC5
+    // target is now assertable: an unregistered node survives serialization
+    // as a `:::dfm-opaque` fence carrying its type + id, and parses back as
+    // the opaque REF node (`reattachOpaqueRefs` splices the original subtree
+    // back from the pre-serialization index — that reattachment is
+    // @orvex/dfm's own contract test, not this collab-schema gate's).
+    // The invariant this ticket cares about: the node is FENCED, never
+    // silently dropped the way `stripUnknownNodes` would.
+    it('an unregistered node round-trips via the :::dfm-opaque fence rather than being dropped', () => {
+      const doc = {
+        type: 'doc',
+        content: [
+          {
+            type: 'someUnregisteredNode',
+            attrs: { a: 1 },
+            content: [{ type: 'text', text: 'hi' }],
+          },
+        ],
+      };
 
-    it('current-state record (disclosed, R11): serializeOpaque still throws DfmNotImplementedError at HEAD — the AC5 premise is genuinely unshipped, not silently skipped', () => {
-      expect(() =>
-        serializeOpaque({ type: 'someUnregisteredNode' } as any),
-      ).toThrow(DfmNotImplementedError);
+      const dfm = pmToDfm(doc as never);
+      expect(dfm).toContain(':::dfm-opaque');
+      expect(dfm).toContain('type=someUnregisteredNode');
+
+      const restored = dfmToJson(dfm) as unknown as {
+        content: { type: string; attrs: Record<string, unknown> }[];
+      };
+      expect(restored.content).toHaveLength(1);
+      expect(restored.content[0].type).toBe(OPAQUE_REF_TYPE);
+      expect(restored.content[0].attrs.nodeType).toBe('someUnregisteredNode');
     });
   });
 });
