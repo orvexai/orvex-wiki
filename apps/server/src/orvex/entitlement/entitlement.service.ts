@@ -6,12 +6,14 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   BILLING_ENTITLEMENT_PORT,
   BillingEntitlementPort,
+  BillingUnconfiguredError,
 } from './entitlement-billing.port';
 import { ENTITLEMENT_CACHE, EntitlementCache } from './entitlement-cache';
 import {
   capValueForResource,
   EntitlementCheckResponse,
   GatedFeature,
+  INTERIM_FREE_ENTITLEMENT,
   Principal,
   QuotaResource,
 } from './entitlement.types';
@@ -85,6 +87,17 @@ export class EntitlementService {
       await this.cache.set(principal, fresh);
       return fresh;
     } catch (err) {
+      // ENG-2489 AC3 — billing SoR ABSENT (unconfigured, the free-only
+      // launch window) is NOT a failure: serve the disclosed interim
+      // hardcode-Free constant behind this same interface. Deliberately
+      // not cached, so configuring billing later takes effect on the next
+      // read without waiting out a TTL.
+      if (err instanceof BillingUnconfiguredError) {
+        this.logger.debug(
+          `EntitlementService.resolve: billing SoR absent — serving the interim hardcode-Free entitlement for principal ${principal.principal_type}/${principal.principal_id}`,
+        );
+        return INTERIM_FREE_ENTITLEMENT;
+      }
       this.logger.warn(
         `EntitlementService.resolve: billing port unreachable for principal ${principal.principal_type}/${principal.principal_id}: ${(err as Error).message}`,
       );

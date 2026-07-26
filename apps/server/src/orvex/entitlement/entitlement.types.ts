@@ -91,6 +91,88 @@ export interface EntitlementCheckResponse {
   evaluatedAt: string;
 }
 
+/**
+ * ENG-2489 AC3 — the INTERIM hardcode-Free entitlement, served behind the
+ * entitlement-reader interface ONLY when the billing SoR is ABSENT (no
+ * `ORVEX_BILLING_API_URL` configured — the free-only launch window), never
+ * when billing is merely unreachable (that path stays: last-known cache,
+ * else fail closed 503).
+ *
+ * DISCLOSED interim measure, not a silent permanent SoR: these are the
+ * D-S7/ENG-2036 human-ratified Free-tier constants (200 pages / 1 GiB
+ * aggregate / 10 MiB per file / 2,000 files / 25 members /
+ * min(10 versions, 180 days) history), unchanged by this story and removed
+ * wholesale once billing's paid-plan SoR is live (the AC4 swap point —
+ * see {@link assertNoPaidPlanSellableWhileInterimFree}). These literals
+ * live ONLY here, inside the entitlement-reader (ENG-2489 AC5); the
+ * enforcement path reads them exclusively through `resolve()`.
+ *
+ * The ai/trial budget caps are NOT wiki-engine-enforced surfaces (no
+ * chokepoint in this repo reads them); they carry billing's documented `0`
+ * "uncapped/absent" sentinel rather than an invented number. `features` is
+ * empty — the interim constant unlocks nothing (fail-closed for gated
+ * features, honest for the Free tier). `evaluatedAt`/versions are fixed
+ * sentinel literals (never derived from a clock) so the constant is fully
+ * deterministic.
+ */
+export const INTERIM_FREE_ENTITLEMENT: EntitlementCheckResponse =
+  Object.freeze({
+    plan: 'free',
+    plan_version: 'interim-free',
+    features: [],
+    caps: Object.freeze({
+      ai_monthly_budget_gbp: 0,
+      embedding_monthly_budget_gbp: 0,
+      curator_distillation_monthly: 0,
+      trial_weekly_actions_advisory: 0,
+      trial_weekly_actions_throttle: 0,
+      demo_ai_actions: 0,
+      wiki_max_pages: 200,
+      wiki_storage_bytes_aggregate: 1_073_741_824, // 1 GiB
+      wiki_max_file_bytes: 10_485_760, // 10 MiB
+      wiki_max_files: 2_000,
+      wiki_max_members: 25,
+      wiki_history_retention_versions: 10,
+      wiki_history_retention_days: 180,
+    }),
+    trial: Object.freeze({ state: 'none' as TrialState }),
+    throttle: Object.freeze({ state: 'none' as ThrottleState }),
+    version: 'interim-free',
+    evaluatedAt: 'interim-hardcode-free', // sentinel, not a fabricated timestamp
+  }) as EntitlementCheckResponse;
+
+/**
+ * ENG-2489 AC4 — the plans this deployment is allowed to SELL while the
+ * interim hardcode-Free fallback is still the active billing-absent code
+ * path. Exactly `['free']` until the billing SoR read replaces
+ * {@link INTERIM_FREE_ENTITLEMENT}; widening this list without removing the
+ * interim constant trips the swap-point guard below at module init.
+ */
+export const SELLABLE_PLAN_IDS: readonly PlanId[] = Object.freeze(['free']);
+
+/**
+ * ENG-2489 AC4 — the paid-plan swap-point guard: fails LOUDLY (at
+ * `EntitlementModule` construction, i.e. boot) if any paid `PlanId` is
+ * marked sellable while the interim-Free constant is still the active
+ * billing-absent fallback. Removing `INTERIM_FREE_ENTITLEMENT` (wiring the
+ * real billing SoR read as the only source) is the sanctioned way to widen
+ * {@link SELLABLE_PLAN_IDS} — never deleting this guard.
+ */
+export function assertNoPaidPlanSellableWhileInterimFree(
+  sellablePlans: readonly PlanId[] = SELLABLE_PLAN_IDS,
+): void {
+  const paid = sellablePlans.filter((plan) => plan !== 'free');
+  if (paid.length > 0) {
+    throw new Error(
+      `ENG-2489 AC4 swap-point guard: paid plan(s) [${paid.join(', ')}] are ` +
+        'marked sellable while the interim hardcode-Free fallback ' +
+        '(INTERIM_FREE_ENTITLEMENT) is still the active billing-absent code ' +
+        'path. Wire the billing SoR read (and remove the interim constant) ' +
+        'before selling a paid plan.',
+    );
+  }
+}
+
 /** Maps a QuotaResource to its cap field on EntitlementCaps (AC6/AC8). */
 export function capValueForResource(
   caps: EntitlementCaps,
