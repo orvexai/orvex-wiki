@@ -450,6 +450,38 @@ jobs:
         run: node scripts/check-patches.mjs
 
   # ---------------------------------------------------------------------------
+  # FR-30 divergence gate (ENG-2477) — the frozen 13-row allow-list + weighted
+  # hot-file conflict-hunk budget. A SIBLING of patches-drift-check (different
+  # question: bounded file SET + weighted budget, vs. per-declared-edit context
+  # drift). Unlike its sibling, this job IS in the ci-success fan-in (§4g):
+  # G1's rebase-cost bound depends on it, so leaving it optional would defeat
+  # its purpose. Self-test + DoD suite run against committed fixtures (no
+  # network); the real gate validates the ledger rows against HEAD and is a
+  # not-yet-activated no-op until fr30/allowlist.json pins an upstream SHA
+  # (same staged activation as the sibling, patches-drift design §8).
+  # ---------------------------------------------------------------------------
+  fr30-divergence-check:
+    name: FR-30 Divergence Gate (weighted hot-file budget)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: check-fr30-divergence.mjs --self-test
+        run: node scripts/check-fr30-divergence.mjs --self-test
+      - name: TestFr30DivergenceGate (DoD suite)
+        run: node --test scripts/test/fr30-divergence.test.mjs
+      - name: check-fr30-divergence.mjs (CI gate)
+        run: node scripts/check-fr30-divergence.mjs --json-out fr30-budget-report.json
+      - name: Upload budget report artifact (counter-metric substrate, T6)
+        uses: actions/upload-artifact@v4
+        with:
+          name: fr30-budget-report
+          path: fr30-budget-report.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
   # Image-freshness / drift alarm — per-repo half (ENG-1973). Self-test runs
   # against committed fixtures (no network/cluster). The live check needs
   # in-cluster kubectl + Harbor read access this public runner does not carry,
@@ -672,6 +704,7 @@ jobs:
       - engine-only-import-guard
       - client-ai-thinness
       - ci-substrate-conformance
+      - fr30-divergence-check
       - security
       - sbom-generation
       - workflow-lint
