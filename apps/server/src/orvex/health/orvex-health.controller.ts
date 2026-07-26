@@ -4,7 +4,11 @@
 
 import { Controller, Get } from '@nestjs/common';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
-import { OrvexHealthBody, OrvexHealthService } from './orvex-health.service';
+import {
+  OrvexHealthBody,
+  OrvexHealthService,
+  RelayHeartbeatBody,
+} from './orvex-health.service';
 
 /**
  * OrvexHealthController (ENG-1604 AC8) — `GET /health/orvex`, the
@@ -26,5 +30,16 @@ export class OrvexHealthController {
   @Get()
   async check(): Promise<OrvexHealthBody> {
     return this.healthService.check();
+  }
+
+  /**
+   * ENG-2496 AC4 — the outbox relay liveness/lag heartbeat. HTTP 200
+   * unconditionally (family health ruling); a dead/lagging relay is
+   * carried in the body's `status: 'fail'`.
+   */
+  @SkipTransform()
+  @Get('relay')
+  async relayHeartbeat(): Promise<RelayHeartbeatBody> {
+    return this.healthService.relayHeartbeat();
   }
 }

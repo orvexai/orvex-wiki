@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/orvexai/orvex-studio-contracts/events/schemas/_envelope.json",
+  "title": "Studio-spine CloudEvent envelope (CloudEvents 1.0, structured-mode JSON)",
+  "description": "DRAFT (x-status: draft) — the shared CloudEvent ENVELOPE every studio-spine event conforms to (delivery-prompt gkkUDzn277 §2.1). Structured-mode JSON: CloudEvents 1.0 core context attributes at the top level plus the REQUIRED orvex extension attributes, with the per-type `data` payload constrained by its own dataschema (events/schemas/<type>.json). Grounded in cell-contract.md (rules #5/#6) and events/catalog.yaml obligations. The transactional-outbox relay is the SOLE producer (D-S13); the envelope helper STAMPS the extensions (never hand-set). Authored contract-first (Apache-2.0); never generated from AGPL engine code.",
+  "type": "object",
+  "required": ["specversion", "id", "source", "type", "orvexcell", "orvextenant"],
+  "properties": {
+    "specversion": {
+      "const": "1.0",
+      "description": "CloudEvents spec version. Pinned 1.0 for every catalog type."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CloudEvents id — unique per (source, id). Carries the outbox row identity so consumers can dedupe on replay/failover (the log is rebuilt from the Postgres outbox, D-S13)."
+    },
+    "source": {
+      "type": "string",
+      "format": "uri-reference",
+      "minLength": 1,
+      "description": "CloudEvents source — the producing publisher identity from the sources/ registry (wiki / billing / identity / ai / clerk). The spine's per-source topic authorization keys on this (obligations.publish_authorization)."
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CloudEvents type — a value enumerated in events/catalog.yaml (e.g. wiki.page.content_updated). Knative Triggers filter on this."
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "CloudEvents time — RFC3339 event-occurrence timestamp. OPTIONAL in CloudEvents; the relay sets it from the outbox commit time when available."
+    },
+    "datacontenttype": {
+      "type": "string",
+      "default": "application/json",
+      "description": "CloudEvents datacontenttype. The catalog pins application/json for every type."
+    },
+    "dataschema": {
+      "type": "string",
+      "format": "uri-reference",
+      "description": "CloudEvents dataschema — points at the per-type data payload schema (events/schemas/<type>.json), the same pointer carried in the catalog's dataschema field."
+    },
+    "subject": {
+      "type": "string",
+      "description": "CloudEvents subject — the catalog subject template for the type (e.g. space/{spaceId}/page/{pageId})."
+    },
+    "orvexcell": {
+      "type": "string",
+      "minLength": 1,
+      "description": "REQUIRED extension attribute (cell-contract.md rule #6, obligations.cell_extension) — the emitting cell id, = CELL_ID (e.g. eq \"eu-central-1a\", or the \"solo\" sentinel for dev/standalone/crew). Lowercase-alphanumeric ATTRIBUTE NAME per the CloudEvents constraint (values may contain hyphens). STAMPED by the shared envelope helper, never hand-set; consumers FAIL CLOSED on a cell mismatch (no-op in the solo sentinel cell). Distinct from CLUSTER_NAME (rule #4)."
+    },
+    "orvextenant": {
+      "type": "string",
+      "minLength": 1,
+      "description": "REQUIRED extension attribute (obligations.tenant_extension) — the polymorphic principal/tenant id {user|org} (D-S17: the tenant IS the principal). For wiki.* events this equals the event's workspaceId (a workspace IS the tenant boundary, catalog line ~294); for billing.*/identity.* events it equals the tenantId. Same value carried in `partitionkey`."
+    },
+    "partitionkey": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CloudEvents Partitioning extension — set to the tenant id (== orvextenant) for per-tenant ordering. Topics are single-partition (partitions:1, rule #5), so a topic is already TOTALLY ordered; partitionkey is the ordering-semantic key, not a partition-routing key. The finer per-type ordering DOMAIN (page/space/tenant) is the catalog `orderingkey`, preserved because per-page/per-space order is a suborder of the single-partition total order."
+    },
+    "data": {
+      "type": "object",
+      "description": "The per-type payload. Its shape is constrained by the type's own dataschema (events/schemas/<type>.json), not re-stated here. Thin profiles carry identity + version; rich profiles carry the full entity (events/PROFILES.md)."
+    }
+  },
+  "additionalProperties": true,
+  "$comment": "additionalProperties:true — CloudEvents permits further extension attributes. TBD / cell-contract SILENT (noted, NOT fabricated): (1) cell_epoch. Rule #2 freezes the wire-names `cell` + `cell_epoch` as PRINCIPAL-LIB TOKEN CLAIMS (see identity/token-claims.schema.json), NOT as event-envelope attributes — and `cell_epoch` cannot be a CloudEvents attribute NAME at all (underscore is disallowed; the same lower-alnum rule is exactly why the event cell attribute is `orvexcell`, not `cell`). The event's cell coordinate is therefore `orvexcell` (rule #6) alone; if a failover epoch must later ride an event it needs a NEW lower-alnum extension (e.g. orvexcellepoch) — flagged TBD, not invented here. (2) An explicit sequence/version attribute at the envelope level: content events carry `version` INSIDE `data` (obligations.version_field), not as a context attribute. See DESIGN-NOTES.md §7 and ADR-0007."
+}

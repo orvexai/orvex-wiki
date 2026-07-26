@@ -56,6 +56,8 @@ import {
   EVT_WORKSPACE_MEMBER_ROLE_CHANGED,
   EVT_WORKSPACE_MEMBER_DEACTIVATED,
   EVT_WORKSPACE_MEMBER_DELETED,
+  EVT_USER_DELETED,
+  USER_DELETED_SCHEMA_VERSION,
 } from '../../../orvex/events/constants/orvex-event-types';
 
 @Injectable()
@@ -928,6 +930,27 @@ export class WorkspaceService {
         aggregateId: userId,
         workspaceId,
         payload: { userId, workspaceId },
+      });
+
+      // ENG-2497 AC2 (FR-37) — the durable, cross-service `user.deleted`
+      // GDPR-deletion signal, SAME transaction as the removal (FR-17):
+      // every external consumer (knowledge vectors, billing ledger, event-
+      // service stream state) deletes its own copy off this event — the
+      // cleanup channel that replaces the monolith's cross-service FK
+      // cascades. Additive ALONGSIDE `workspace.member_deleted` above
+      // ("membership changed" ≠ "purge this user's data") and distinct from
+      // the audit-log-only AuditEvent.USER_DELETED below (which the relay
+      // never drains). Identifier-only payload (no PII export) + an
+      // explicit schema version (FR-36).
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_USER_DELETED,
+        aggregateId: userId,
+        workspaceId,
+        payload: {
+          userId,
+          workspaceId,
+          schemaVersion: USER_DELETED_SCHEMA_VERSION,
+        },
       });
     });
 

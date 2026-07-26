@@ -183,6 +183,24 @@ export class OrvexConfigService {
   }
 
   /**
+   * ORVEX_OUTBOX_HEARTBEAT_STALENESS_SECONDS (ENG-2496 AC4) — how old the
+   * oldest unrelayed `orvex_event_outbox` row may get before the relay
+   * heartbeat probe (`/health/orvex/relay`) flips red. Defaults to 30s (the
+   * relay polls every 2s — see `outbox-relay-heartbeat.service.ts`
+   * `DEFAULT_RELAY_STALENESS_SECONDS`; the value is duplicated here rather
+   * than imported so this PURE env reader keeps zero non-config imports).
+   * First consumer: `defaultRelayOutboxProbe` (`orvex-health.probes.ts`).
+   */
+  get outboxHeartbeatStalenessSeconds(): number {
+    const raw = this.read('ORVEX_OUTBOX_HEARTBEAT_STALENESS_SECONDS');
+    if (raw === null) {
+      return 30;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  }
+
+  /**
    * ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4) — routes excluded from the `/api`
    * global prefix, read by `main.ts`. Defaults to `health/orvex` (the
    * dependency-probe endpoint). The former `mcp` default was dropped when the

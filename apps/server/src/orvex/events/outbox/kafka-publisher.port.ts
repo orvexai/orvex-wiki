@@ -34,4 +34,15 @@ export const KAFKA_PUBLISHER_PORT = Symbol('KAFKA_PUBLISHER_PORT');
 
 export interface KafkaPublisherPort {
   publish(message: KafkaPublishMessage): Promise<void>;
+
+  /**
+   * ENG-2496 AC2 — boot-time topic-shape metadata (cell-contract rule #5:
+   * per-cell topics are SINGLE-partition). Returns the topic's partition
+   * count, or `null` when the topic does not exist. OPTIONAL so the port
+   * stays minimal for publish-only substitutes; the relay treats an absent
+   * implementation as "cannot verify" and logs loudly rather than guessing.
+   * Kept on this SAME port (❌#8) so no second credentialed Kafka client is
+   * ever constructed outside the one adapter.
+   */
+  fetchTopicPartitionCount?(topic: string): Promise<number | null>;
 }

@@ -21,6 +21,23 @@ export class InMemoryKafkaPublisher implements KafkaPublisherPort {
   publishCallCount = 0;
   private failNextCount = 0;
 
+  /**
+   * ENG-2496 AC2 — the in-memory broker's topic-metadata leg. Defaults to
+   * a single-partition topic (cell-contract rule #5's correct shape); a
+   * test overrides `partitionCountByTopic` to simulate a mis-partitioned
+   * or missing (`null`) topic. `metadataFetchCount` lets the AC5 solo test
+   * assert the metadata call was NOT made.
+   */
+  partitionCountByTopic = new Map<string, number | null>();
+  metadataFetchCount = 0;
+
+  async fetchTopicPartitionCount(topic: string): Promise<number | null> {
+    this.metadataFetchCount++;
+    return this.partitionCountByTopic.has(topic)
+      ? this.partitionCountByTopic.get(topic)!
+      : 1;
+  }
+
   async publish(message: KafkaPublishMessage): Promise<void> {
     this.publishCallCount++;
     if (this.failNextCount > 0) {
@@ -37,5 +54,14 @@ export class InMemoryKafkaPublisher implements KafkaPublisherPort {
 
   getDistinctMessages(topic: string): KafkaPublishMessage[] {
     return [...this.messages.values()].filter((m) => m.topic === topic);
+  }
+
+  /**
+   * ENG-2495 — topic-agnostic view for envelope-conformance assertions
+   * (the topic NAME itself is ENG-2496's own concern; the golden-fixture
+   * tests must not spuriously break on a topic-naming change).
+   */
+  getAllDistinctMessages(): KafkaPublishMessage[] {
+    return [...this.messages.values()];
   }
 }

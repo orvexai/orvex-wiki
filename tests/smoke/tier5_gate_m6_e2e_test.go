@@ -189,14 +189,16 @@ func testGateM6AC2(t *testing.T, conn *pgx.Conn, pageID, workspaceID string) {
 		"gate-m6 AC2: outbox row for aggregate_id=%s was never marked relayed_at (OutboxRelayService not running / not publishing)", pageID)
 
 	// (2) Kafka: a real consumer read of the studio-spine topic. Topic
-	// literal per the ENG-1572 drift reconciliation (verified against
-	// environment.service.ts getKafkaOutboxTopic()): `orvex.studio-spine.events`,
-	// overridable via KAFKA_OUTBOX_TOPIC for a non-default deployment.
+	// literal per ENG-2496 AC2 (cell-contract rule #5, verified against
+	// orvex/events/outbox/outbox-topic.resolver.ts resolveWikiEventsTopic):
+	// `wiki-events.{cell}` with the `solo` sentinel when CELL_ID is unset —
+	// this harness's KAFKA_OUTBOX_TOPIC env var is now the CONSUMER-side
+	// override only (the engine no longer reads it).
 	brokers := strings.Split(requireEnv(t, "KAFKA_BROKERS"), ",")
 	for i := range brokers {
 		brokers[i] = strings.TrimSpace(brokers[i])
 	}
-	topic := envOrDefault("KAFKA_OUTBOX_TOPIC", "orvex.studio-spine.events")
+	topic := envOrDefault("KAFKA_OUTBOX_TOPIC", "wiki-events.solo")
 
 	msg := gateM6ConsumeStudioSpine(t, brokers, topic, pageID)
 
