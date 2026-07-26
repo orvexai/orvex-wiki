@@ -13,6 +13,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import {
   acquireWorkspaceProvisionLock,
+  acquireWorkspaceQuotaLock,
   executeTx,
 } from '@docmost/db/utils';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
@@ -41,6 +42,8 @@ import {
   EVT_WORKSPACE_CREATED,
   EVT_WORKSPACE_MEMBER_ADDED,
 } from '../../orvex/events/constants/orvex-event-types';
+import { EntitlementService } from '../../orvex/entitlement/entitlement.service';
+import { JIT_MEMBER_OVERAGE_MULTIPLIER } from '../../orvex/entitlement/entitlement.types';
 
 export interface ProvisionPrincipalInput {
   subject: string;
@@ -118,6 +121,10 @@ export class PrincipalProvisioningService {
     private readonly spaceMemberService: SpaceMemberService,
     private readonly outboxWriter: OutboxWriter,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
+    // ENG-2491 AC4 — the member-cap chokepoint on the JIT path (the first
+    // quota check this file has ever had). The VERDICT stays in the domain
+    // (`assertWithinQuotaAllowingOverage`); this service only marshals.
+    private readonly entitlementService: EntitlementService,
   ) {}
 
   async provision(
@@ -176,6 +183,27 @@ export class PrincipalProvisioningService {
       let user = await this.userRepo.findByEmail(email, tenant, { trx });
 
       if (!user) {
+        // ENG-2491 AC4 — the SSO/SCIM JIT member-cap chokepoint: JIT
+        // provisioning is allowed to a bounded overage of the member cap
+        // (JIT_MEMBER_OVERAGE_MULTIPLIER — first login never breaks a
+        // tenant slightly over via a stale SCIM sync), while manual invites
+        // (`WorkspaceInvitationService.acceptInvitation`) keep blocking at
+        // 100%. Same F1 discipline as that path: the advisory xact lock
+        // makes count → assert → insert one atomic critical section, so two
+        // concurrent JIT logins cannot both slip past the overage bound.
+        // The comparison itself lives in the domain fn, never here (❌#1).
+        await acquireWorkspaceQuotaLock(trx, 'members', tenant);
+        const currentMemberCount = await this.userRepo.countByWorkspaceId(
+          tenant,
+          trx,
+        );
+        await this.entitlementService.assertWithinQuotaAllowingOverage(
+          tenant,
+          'members',
+          currentMemberCount,
+          JIT_MEMBER_OVERAGE_MULTIPLIER,
+        );
+
         user = await this.userRepo.insertUser(
           {
             email,

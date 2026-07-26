@@ -2,7 +2,7 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   BILLING_ENTITLEMENT_PORT,
   BillingEntitlementPort,
@@ -14,13 +14,19 @@ import {
   EntitlementCheckResponse,
   GatedFeature,
   INTERIM_FREE_ENTITLEMENT,
+  LARGEST_FILES_LIMIT,
+  LargestFileEntry,
   Principal,
   QuotaResource,
+  STORAGE_SHAPED_RESOURCES,
 } from './entitlement.types';
 import {
   EntitlementUnavailableException,
   QuotaExceededException,
+  QuotaExceededExtras,
 } from './quota.exception';
+import { OrvexConfigService } from '../config/orvex-config.service';
+import { AttachmentRepo } from '../../database/repos/attachment/attachment.repo';
 
 /**
  * `orvex/entitlement` — the deep module (CS §3) this leg adds. Small
@@ -43,6 +49,12 @@ export class EntitlementService {
     private readonly billingPort: BillingEntitlementPort,
     @Inject(ENTITLEMENT_CACHE)
     private readonly cache: EntitlementCache,
+    // ENG-2491 — rejection-enrichment collaborators. @Optional so existing
+    // direct constructions (specs, older harnesses) keep working: without
+    // them the frozen 402 core is unchanged and the additive fields degrade
+    // (upgradeUrl omitted, largestFiles empty) — never a crash (CS §10).
+    @Optional() private readonly orvexConfig?: OrvexConfigService,
+    @Optional() private readonly attachmentRepo?: AttachmentRepo,
   ) {}
 
   private toPrincipal(workspaceId: string): Principal {
@@ -210,7 +222,118 @@ export class EntitlementService {
     }
 
     if (currentUsage >= limit) {
-      throw new QuotaExceededException(resource, limit);
+      throw await this.buildRejection(workspaceId, resource, limit);
+    }
+  }
+
+  /**
+   * ENG-2491 AC4 — the SSO/SCIM JIT overage variant: permits usage up to
+   * `floor(limit * overageMultiplier)` before rejecting, so a first login
+   * never breaks a tenant already slightly over via a stale SCIM sync. The
+   * ONE caller is `PrincipalProvisioningService.provision`'s JIT path (with
+   * `JIT_MEMBER_OVERAGE_MULTIPLIER`); manual invites keep calling
+   * {@link assertWithinQuota} — the unmodified 100% boundary. The comparison
+   * lives HERE (the domain), never at a call site (❌#1); the overage is
+   * bounded and documented, never a ceiling change (❌#10).
+   */
+  async assertWithinQuotaAllowingOverage(
+    workspaceId: string,
+    resource: QuotaResource,
+    currentUsage: number,
+    overageMultiplier: number,
+  ): Promise<void> {
+    const entitlement = await this.resolve(workspaceId);
+    const limit = capValueForResource(entitlement.caps, resource);
+
+    if (limit === 0) {
+      return; // uncapped
+    }
+
+    const allowedThrough = Math.floor(limit * overageMultiplier);
+    if (currentUsage >= allowedThrough) {
+      // The frozen body reports the REAL cap, never the internal overage
+      // bound — the overage is an allowance policy, not a different limit.
+      throw await this.buildRejection(workspaceId, resource, limit);
+    }
+  }
+
+  /**
+   * ENG-2491 AC1/AC3 — assembles the enriched `402 QUOTA_EXCEEDED` (frozen
+   * core + `upgradeUrl` + storage-shaped `largestFiles`). Enrichment is
+   * best-effort by contract: a missing config omits `upgradeUrl`, a failing
+   * largest-files read degrades to `[]` — the rejection itself is
+   * unconditional and never becomes a 500 (CS §10 never-white-screen).
+   */
+  private async buildRejection(
+    workspaceId: string,
+    resource: QuotaResource,
+    limit: number,
+    extraFields?: QuotaExceededExtras,
+  ): Promise<QuotaExceededException> {
+    const extras: QuotaExceededExtras = { ...(extraFields ?? {}) };
+
+    const upgradeUrl = this.buildUpgradeUrl(workspaceId);
+    if (upgradeUrl !== undefined) {
+      extras.upgradeUrl = upgradeUrl;
+    }
+
+    if (STORAGE_SHAPED_RESOURCES.includes(resource)) {
+      extras.largestFiles = await this.largestFilesFor(workspaceId);
+    }
+
+    return new QuotaExceededException(resource, limit, extras);
+  }
+
+  /**
+   * ENG-2491 AC1 — the workspace-scoped upgrade deep-link: the
+   * env-configured base (`ORVEX_BILLING_UPGRADE_URL`, ❌#8 — never a URL
+   * literal in this module) carrying the workspace id. Unset/invalid base →
+   * `undefined` (field omitted), never a fabricated URL (CS §11).
+   */
+  private buildUpgradeUrl(workspaceId: string): string | undefined {
+    const base = this.orvexConfig?.billingUpgradeUrl;
+    if (!base) {
+      return undefined;
+    }
+    try {
+      const url = new URL(base);
+      url.searchParams.set('workspaceId', workspaceId);
+      return url.toString();
+    } catch {
+      this.logger.warn(
+        'EntitlementService: ORVEX_BILLING_UPGRADE_URL is not a valid URL — omitting upgradeUrl from the QUOTA_EXCEEDED body',
+      );
+      return undefined;
+    }
+  }
+
+  /**
+   * ENG-2491 AC3 — the one-click largest-files list (top-N by `fileSize`,
+   * real `attachments` rows via the owning repo — CS §6 store confinement).
+   * Degrades to `[]` on a transient query failure or an un-injected repo:
+   * the 402 always returns (CS §10), never fabricated data (CS §11).
+   */
+  private async largestFilesFor(
+    workspaceId: string,
+  ): Promise<LargestFileEntry[]> {
+    if (!this.attachmentRepo) {
+      return [];
+    }
+    try {
+      const rows = await this.attachmentRepo.findLargestByWorkspaceId(
+        workspaceId,
+        LARGEST_FILES_LIMIT,
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.fileName,
+        fileSize: row.fileSize,
+      }));
+    } catch (err) {
+      this.logger.warn(
+        `EntitlementService: largest-files read failed for workspace ${workspaceId} — serving an empty list on the QUOTA_EXCEEDED rejection: ${(err as Error).message}`,
+      );
+      return [];
     }
   }
 
@@ -239,7 +362,7 @@ export class EntitlementService {
     }
 
     if (currentUsage + incrementAmount > limit) {
-      throw new QuotaExceededException(resource, limit);
+      throw await this.buildRejection(workspaceId, resource, limit);
     }
   }
 }

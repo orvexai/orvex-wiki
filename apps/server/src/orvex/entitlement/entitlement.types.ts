@@ -191,3 +191,40 @@ export function capValueForResource(
       return caps.wiki_max_file_bytes;
   }
 }
+
+/**
+ * ENG-2491 AC3 — one entry of the actionable largest-files list a
+ * storage-shaped `402 QUOTA_EXCEEDED` carries. Every field is a real
+ * `attachments` column value (id / fileName / fileSize) — never fabricated.
+ */
+export interface LargestFileEntry {
+  id: string;
+  name: string;
+  fileSize: number;
+}
+
+/**
+ * ENG-2491 AC3 — bound on the largest-files list attached to a
+ * storage-shaped rejection (a `LIMIT N` read, never a full-table scan). A
+ * response-shaping knob, not a cap ceiling (❌#10).
+ */
+export const LARGEST_FILES_LIMIT = 5;
+
+/**
+ * ENG-2491 AC4 — the SSO/SCIM JIT member-provisioning overage allowance:
+ * first login never breaks a tenant that is already slightly over via a
+ * stale SCIM sync. JIT provisioning is permitted up to
+ * `floor(cap * 1.1)` members (a bounded, documented overage — FR-W13);
+ * manual invites keep the unmodified 100% boundary. The multiplier lives
+ * HERE (the entitlement-reader's own module) so no call site carries the
+ * arithmetic (❌#1) and no second owner can diverge from it.
+ */
+export const JIT_MEMBER_OVERAGE_MULTIPLIER = 1.1;
+
+/**
+ * ENG-2491 AC1 — the resource classes whose rejection carries the
+ * largest-files list (storage-shaped: acting on files is the immediate
+ * remediation). `pages`/`members` rejections carry only the upgrade link.
+ */
+export const STORAGE_SHAPED_RESOURCES: readonly QuotaResource[] =
+  Object.freeze(['storage', 'files', 'file_bytes']);

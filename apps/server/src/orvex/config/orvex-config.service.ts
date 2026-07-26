@@ -195,6 +195,18 @@ export class OrvexConfigService {
   }
 
   /**
+   * ORVEX_BILLING_UPGRADE_URL (ENG-2491 AC1) — the billing upgrade-portal
+   * base URL the `402 QUOTA_EXCEEDED` deep-link is built from (same env-only,
+   * no-inline-URL pattern as `ORVEX_BILLING_API_URL`, ❌#8). First consumer:
+   * `EntitlementService`'s rejection enrichment. Null when unset → the
+   * `upgradeUrl` field is omitted from the 402 body — never a fabricated
+   * marketing-homepage fallback.
+   */
+  get billingUpgradeUrl(): string | null {
+    return this.read('ORVEX_BILLING_UPGRADE_URL');
+  }
+
+  /**
    * ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4) — routes excluded from the `/api`
    * global prefix, read by `main.ts`. Defaults to `health/orvex` (the
    * dependency-probe endpoint). The former `mcp` default was dropped when the
