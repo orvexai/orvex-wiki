@@ -9,6 +9,7 @@ import {
   HttpStatus,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   UseGuards,
@@ -63,6 +64,7 @@ import { getPageTitle } from '../../common/helpers';
 import { OrvexPageProvenanceService } from '../page-provenance/orvex-page-provenance.service';
 import { OrvexMarkdownInterceptor } from '../../orvex/page-metadata/markdown/orvex-markdown.interceptor';
 import { ConfirmTokenService } from '../../orvex/page-metadata/confirm-token.service';
+import { OrvexPageMetadataService } from '../../orvex/page-metadata/orvex-page-metadata.service';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
 
@@ -82,6 +84,15 @@ export class PageController {
     @InjectKysely() private readonly db: KyselyDB,
     // ENG-1445 AC4 (review1 F2) — the real bulk-delete confirm-token gate.
     private readonly confirmTokenService: ConfirmTokenService,
+    // ENG-2486 AC3 — the page-get lifecycle projection (status +
+    // live-successor-resolved supersededBy + archiveReason), read through
+    // the `orvex_page_meta` seam. `@Optional()` per the established
+    // `OrvexMarkdownInterceptor` precedent: pre-existing ad-hoc harnesses
+    // that build this controller without `OrvexPageMetadataModule` degrade
+    // to a response without lifecycle fields; real app wiring (`PageModule`
+    // imports `OrvexPageMetadataModule`) always provides it.
+    @Optional()
+    private readonly orvexPageMetadataService?: OrvexPageMetadataService,
   ) {}
 
   @HttpCode(HttpStatus.OK)
@@ -111,6 +122,15 @@ export class PageController {
     // (wiki-api's edit path ParseInts it). Defaults to 1 for a meta-less page.
     const version = await this.pageRepo.getMetaVersion(page.id);
 
+    // ENG-2486 AC3 — attach the persisted lifecycle projection (status +
+    // supersededBy resolved to the LIVE end of a chained supersession +
+    // archiveReason) from the `orvex_page_meta` seam, so the superseded/
+    // archived banner renders from the page-get itself. Empty ({}) for a
+    // page that has never been status-stamped — no field is fabricated.
+    const lifecycle =
+      (await this.orvexPageMetadataService?.getLifecycleProjection(page.id)) ??
+      {};
+
     if (dto.format && dto.format !== 'json' && page.content) {
       const contentOutput =
         dto.format === 'markdown'
@@ -118,13 +138,14 @@ export class PageController {
           : jsonToHtml(page.content);
       return {
         ...page,
+        ...lifecycle,
         content: contentOutput,
         version,
         permissions,
       };
     }
 
-    return { ...page, version, permissions };
+    return { ...page, ...lifecycle, version, permissions };
   }
 
   /**
