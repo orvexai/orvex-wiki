@@ -53,11 +53,15 @@ export const WORKSPACE_EXEMPT_PATHS: readonly string[] = [
   // accident is not an option: the bearer/moveId contract IS the
   // access control here, deliberately, not Host-based routing).
   '/api/orvex/tenant-move',
-  // ENG-2500 AC2b RED MARKER: '/api/orvex/source' is deliberately NOT yet in
-  // this list — this is the pure-extraction commit (byte-identical to
-  // main.ts's prior inline array). The next commit adds the source-offer
-  // exemption and turns TestSourceOfferReachableUnderCloudModeNoWorkspace
-  // GREEN.
+  // ENG-2500 AC2b — the AGPL §13 source offer (FR-W19) must be reachable by
+  // ANY network user in EVERY deployment topology, including CLOUD
+  // multi-tenancy where the request's Host resolves to no workspace. The
+  // endpoint is intentionally public (no auth, no tenant) and reads only
+  // build-time env — the SAME structural shape as the FR-W6
+  // session-exchange exemption above (no pre-resolved workspaceId can ever
+  // be required of it). Without this entry a CLOUD-mode compliance request
+  // 404s at this hook before the controller runs — a real §13 gap.
+  '/api/orvex/source',
 ];
 
 /**
