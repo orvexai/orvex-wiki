@@ -497,6 +497,53 @@ jobs:
         run: bash scripts/ci/engine-only-import-guard.sh .
 
   # ---------------------------------------------------------------------------
+  # DfM AGPL import-boundary guard (ENG-2488 — AC2/AC3/AC4, A-SEAMS F8, P10
+  # licensing direction). Static gate: `@orvex/dfm` (AGPL-3.0-only) may be
+  # imported ONLY by the engine (apps/server/**) and by the package itself
+  # (packages/@orvex/dfm/**). Distinct from engine-only-import-guard.sh
+  # (Q22 — closed satellites entering the AGPL tree): this gate stops the
+  # AGPL package LEAKING OUT to a non-engine importer, which would relicense
+  # it. Closed satellites reach DfM only via the Go twin
+  # (orvex-studio-lib/pkg/dfm) or a wiki-api network call.
+  # ---------------------------------------------------------------------------
+  dfm-import-guard:
+    name: DfM AGPL Import-Boundary Guard (ENG-2488)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: dfm-import-guard.sh
+        run: bash scripts/ci/dfm-import-guard.sh .
+
+  # ---------------------------------------------------------------------------
+  # DfM TS↔Go parity — blocking, was report-only (ENG-2488 — AC1/AC5, T3).
+  # Leg 1: the contracts-repo parity reference script (vendored unmodified at
+  # scripts/ci/vendor/dfm-parity-check.sh, pinned — see the vendor README)
+  # runs against this repo's vendored corpus snapshot via
+  # scripts/ci/dfm-parity-gate.sh, which converts the script's report-only
+  # `exit 0` into a hard failure on any FAIL line — the named report-only →
+  # blocking flip for the TS leg. Leg 2: the @orvex/dfm vitest suite drives
+  # the REAL TS serializer against every fixture pair byte-for-byte
+  # (`TestDfmTwinsConformToGoldenFixtures`, the ENG-2488 DoD gate) plus the
+  # package's own round-trip + opaque suites (ENG-2487).
+  # ---------------------------------------------------------------------------
+  dfm-parity:
+    name: DfM TS↔Go parity (blocking, was report-only)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Contracts parity script (blocking invocation)
+        run: bash scripts/ci/dfm-parity-gate.sh .
+      - name: '@orvex/dfm test suite (vitest) — twin conformance + round-trip'
+        run: pnpm --dir packages/@orvex/dfm test
+
+  # ---------------------------------------------------------------------------
   # Client AI thinness guard (ENG-1359 — AC7, ruling 10 / CS §6 tier
   # confinement). Static gate: apps/client/src/ee/ai-chat may only contain
   # rendering + SSE-reading + forwarding — no model-capability tables,
@@ -670,6 +717,8 @@ jobs:
       - engine-license-guard
       - license-header-check
       - engine-only-import-guard
+      - dfm-import-guard
+      - dfm-parity
       - client-ai-thinness
       - ci-substrate-conformance
       - security
