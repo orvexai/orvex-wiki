@@ -270,6 +270,51 @@ export class OrvexPageMetadataService {
     return this.getMetadata(pageId, trx);
   }
 
+  /**
+   * ENG-2486 AC3 — the page-get lifecycle projection: the PERSISTED
+   * `orvex_page_meta` status (never a fabricated default — a page with no
+   * meta row, or a meta row that has never been status-stamped, contributes
+   * nothing, so the response omits the field entirely, CS §11), plus, for a
+   * superseded page, the `supersededBy` pointer resolved to the LIVE end of
+   * a possibly-chained supersession via `resolveCanonicalSlug` — never an
+   * intermediate hop that is itself superseded. `archiveReason` rides along
+   * so the archived banner can surface its reason. Read-only; no default is
+   * invented and nothing is written.
+   */
+  async getLifecycleProjection(
+    pageId: string,
+    trx?: KyselyTransaction,
+  ): Promise<{
+    status?: PageStatus;
+    supersededBy?: string | null;
+    archiveReason?: string | null;
+  }> {
+    const db = dbOrTx(this.db, trx);
+    const meta = await db
+      .selectFrom('orvexPageMeta')
+      .select(['status', 'supersededBy', 'archiveReason'])
+      .where('pageId', '=', pageId)
+      .executeTakeFirst();
+
+    if (!meta || meta.status == null) {
+      return {};
+    }
+
+    let supersededBy: string | null = null;
+    if (meta.status === PageStatus.SUPERSEDED && meta.supersededBy) {
+      // Chain-walk to the live end; a cyclical chain (walk exhausted, null)
+      // falls back to the persisted raw pointer rather than fabricating.
+      supersededBy =
+        (await this.resolveCanonicalSlug(pageId, trx)) ?? meta.supersededBy;
+    }
+
+    return {
+      status: meta.status as PageStatus,
+      supersededBy,
+      archiveReason: meta.archiveReason ?? null,
+    };
+  }
+
   /** AC4 — thin lifecycle-status write path over `applyMetadata`. */
   async setStatus(
     pageId: string,
