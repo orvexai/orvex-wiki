@@ -50,6 +50,16 @@ export class OrvexTransclusionSafeguardService {
    * only rows whose reference page is still live (`refPage.deletedAt IS
    * NULL`). `canForce` is true iff the guarded operation is itself
    * `permanent-delete`.
+   *
+   * ENG-2485 AC4 (G2 tenant isolation) — the impact set is additionally
+   * scoped to the SOURCE page's own workspace (`refPage.workspaceId =
+   * srcPage.workspaceId`). Empirically verified (this ticket's DoD test):
+   * the reference-creation path (`TransclusionService.syncPageReferences`)
+   * trusts `sourcePageId` straight out of page content and does NOT refuse
+   * a cross-workspace row, so without this filter a tenant-B page that
+   * embeds a tenant-A pageId would surface B's page title/slug in A's
+   * impact report AND block A's deletes. A cross-tenant reference row is
+   * therefore never returned nor counted here — fail-closed at the read.
    */
   async computeImpact(
     pageId: string,
@@ -58,6 +68,7 @@ export class OrvexTransclusionSafeguardService {
     const rows = await this.db
       .selectFrom('pageTransclusionReferences as ptr')
       .innerJoin('pages as refPage', 'refPage.id', 'ptr.referencePageId')
+      .innerJoin('pages as srcPage', 'srcPage.id', 'ptr.sourcePageId')
       .select([
         'ptr.referencePageId as referencePageId',
         'ptr.transclusionId as transclusionId',
@@ -66,6 +77,7 @@ export class OrvexTransclusionSafeguardService {
       ])
       .where('ptr.sourcePageId', '=', pageId)
       .where('refPage.deletedAt', 'is', null)
+      .whereRef('refPage.workspaceId', '=', 'srcPage.workspaceId')
       .execute();
 
     const references: TransclusionReferenceDto[] = rows.map((row) => ({
