@@ -73,6 +73,14 @@ import { ApplyOpsService } from 'src/orvex/page-blocks/apply-ops.service';
 import { PmOpInput } from 'src/orvex/page-blocks/apply-ops-batch.util';
 import { IdempotencyStore } from 'src/integrations/redis/idempotency-store.service';
 import type { RedisService } from '@nestjs-labs/nestjs-ioredis';
+// ENG-2490's REAL quota graph — AC4's `assertWithinQuota` clause is driven
+// behaviourally below, not asserted by grep. Only the billing PORT (a CS §5
+// Row-3 true-external) is substituted; the verdict logic, the cap read and
+// the QuotaExceededException are all production code.
+import { EntitlementService } from 'src/orvex/entitlement/entitlement.service';
+import type { BillingEntitlementPort } from 'src/orvex/entitlement/entitlement-billing.port';
+import type { EntitlementCache } from 'src/orvex/entitlement/entitlement-cache';
+import { INTERIM_FREE_ENTITLEMENT } from 'src/orvex/entitlement/entitlement.types';
 import { EVT_PAGE_CONTENT_UPDATED } from 'src/orvex/events/constants/orvex-event-types';
 import {
   pmToDfm,
