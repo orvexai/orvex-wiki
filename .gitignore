@@ -49,3 +49,8 @@ lerna-debug.log*
 
 # Claude Code agent worktrees (ephemeral build scratch, never committed)
 .claude/worktrees/
+
+# Playwright captured sessions (real auth cookies — never commit)
+apps/client/e2e/.auth-state.json
+apps/client/e2e/.sweep-auth-state.json
+apps/client/e2e/.*-auth-state.json

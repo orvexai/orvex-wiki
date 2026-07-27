@@ -68,7 +68,8 @@ function NotificationToggle({
   const descriptionId = useId();
   const [user, setUser] = useAtom(userAtom);
   const [checked, setChecked] = useState(
-    user.settings?.notifications?.[settingKey] !== false,
+    // `user` is null until the user query resolves; see page-width-pref.tsx.
+    user?.settings?.notifications?.[settingKey] !== false,
   );
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {

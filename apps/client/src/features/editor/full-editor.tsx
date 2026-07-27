@@ -68,14 +68,19 @@ export function FullEditor({
   canComment,
 }: FullEditorProps) {
   const [user] = useAtom(userAtom);
-  const fullPageWidth = user.settings?.preferences?.fullPageWidth;
+  // `user` is null until the user query resolves. Reading `user.settings`
+  // throws "Cannot read properties of null (reading 'settings')" as an
+  // UNCAUGHT error, which blanks the whole app rather than degrading — the
+  // same defect found live on /settings/account/preferences. The optional
+  // chain must start at `user`.
+  const fullPageWidth = user?.settings?.preferences?.fullPageWidth;
   const editorToolbarEnabled =
-    user.settings?.preferences?.editorToolbar ?? false;
+    user?.settings?.preferences?.editorToolbar ?? false;
   const [currentPageEditMode, setCurrentPageEditMode] = useAtom(
     currentPageEditModeAtom,
   );
   const userPageEditMode =
-    user.settings?.preferences?.pageEditMode ?? PageEditMode.Edit;
+    user?.settings?.preferences?.pageEditMode ?? PageEditMode.Edit;
   const isEditMode = currentPageEditMode === PageEditMode.Edit;
 
   // Apply the user's saved preference only once on initial load, not on every

@@ -33,8 +33,13 @@ interface PageWidthToggleProps {
 export function PageWidthToggle({ size, label }: PageWidthToggleProps) {
   const { t } = useTranslation();
   const [user, setUser] = useAtom(userAtom);
+  // `user` itself is null until the user query resolves — on a COLD load of
+  // /settings/account/preferences it is null on first render, and
+  // `user.settings` throws "Cannot read properties of null (reading
+  // 'settings')" as an uncaught error that blanks the whole app (observed
+  // live: #root left empty). The optional chain has to start at `user`.
   const [checked, setChecked] = useState(
-    user.settings?.preferences?.fullPageWidth,
+    user?.settings?.preferences?.fullPageWidth,
   );
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {

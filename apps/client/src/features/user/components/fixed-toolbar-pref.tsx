@@ -14,7 +14,8 @@ export default function FixedToolbarPref() {
   const { t } = useTranslation();
   const [user, setUser] = useAtom(userAtom);
   const [checked, setChecked] = useState(
-    user.settings?.preferences?.editorToolbar ?? false,
+    // `user` is null until the user query resolves; see page-width-pref.tsx.
+    user?.settings?.preferences?.editorToolbar ?? false,
   );
 
   const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {

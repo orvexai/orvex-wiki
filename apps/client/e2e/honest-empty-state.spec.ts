@@ -34,7 +34,19 @@ function isAllowedConsoleError(msg: ConsoleMessage): boolean {
 
 test("honest empty state: '/' redirects to setup/register and the form renders without crashing", async ({
   page,
+  request,
 }) => {
+  // PRECONDITION: this asserts the NO-WORKSPACE boot state. Once any suite has
+  // run setup (or a human has), the app legitimately routes to /login instead
+  // and this would fail on a fixture conflict rather than a defect — so skip
+  // explicitly rather than report a false failure.
+  const probe = await request.post("/api/workspace/public", { data: {} });
+  const hasWorkspace = probe.ok() && Boolean((await probe.json())?.data?.id);
+  test.skip(
+    hasWorkspace,
+    "a workspace already exists — this spec asserts the empty-database boot state",
+  );
+
   const disallowedConsoleErrors: string[] = [];
   const pageErrors: string[] = [];
 
