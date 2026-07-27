@@ -4,6 +4,7 @@
 
 import { Module } from '@nestjs/common';
 import { OrvexPageMetadataService } from './orvex-page-metadata.service';
+import { PageHistoryPruneService } from './page-history-prune.service';
 import { OrvexMarkdownInterceptor } from './markdown/orvex-markdown.interceptor';
 import { RatifyTokenService } from './ratify-token.service';
 import { ConfirmTokenService } from './confirm-token.service';
@@ -69,6 +70,7 @@ import { OrvexPageMetaDriftController } from './orvex-page-meta-drift.controller
   ],
   providers: [
     OrvexPageMetadataService,
+    PageHistoryPruneService,
     OrvexMarkdownInterceptor,
     RatifyTokenService,
     ConfirmTokenService,
