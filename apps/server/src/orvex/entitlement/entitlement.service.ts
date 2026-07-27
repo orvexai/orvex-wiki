@@ -241,11 +241,19 @@ export class EntitlementService {
    * one answers "can we resolve the current USAGE count":
    *
    *  - counter readable → the normal verdict (incl. `warn`-mode branch);
-   *  - counter unknown (Redis down/unconfigured/unseeded) → the ADR-0003
-   *    split: storage-shaped resources fail CLOSED (a `QUOTA_EXCEEDED`
-   *    rejection carrying `redisUnavailable: true` under the frozen
-   *    envelope — distinguishable from a genuine over-cap verdict) until
-   *    the reconciliation sweep restores the counter; cheap resources
+   *  - counter MISS but Redis reachable (never seeded / TTL-expired /
+   *    flushed) → NOT an outage: when the caller supplies `computeTruth`
+   *    (the owning repo's count/aggregate — CS §6 store confinement, the
+   *    SQL never lives in this module) the counter is re-seeded from that
+   *    store-tier truth and the verdict is taken on a real number. This is
+   *    the cold-start/first-write path: a workspace that has simply never
+   *    had a counter must not be rejected.
+   *  - counter UNAVAILABLE (Redis down/unconfigured/erroring), or a miss
+   *    with no truth source to fall back on → the ADR-0003 split:
+   *    storage-shaped resources fail CLOSED (a `QUOTA_EXCEEDED` rejection
+   *    carrying `redisUnavailable: true` under the frozen envelope —
+   *    distinguishable from a genuine over-cap verdict) until the
+   *    reconciliation sweep restores the counter; cheap resources
    *    (`pages`/`members`) fail OPEN with a logged degrade — the same
    *    outage must never block a page create or a member join.
    *
@@ -255,6 +263,7 @@ export class EntitlementService {
   async assertWithinQuotaFromCounter(
     workspaceId: string,
     resource: QuotaResource,
+    computeTruth?: () => Promise<number>,
   ): Promise<void> {
     const entitlement = await this.resolve(workspaceId);
     const limit = capValueForResource(entitlement.caps, resource);
@@ -263,9 +272,11 @@ export class EntitlementService {
       return; // uncapped
     }
 
-    const read = this.quotaFastCounter
-      ? await this.quotaFastCounter.readCounter(workspaceId, resource)
-      : ({ kind: 'unavailable' } as const);
+    const read = await this.resolveCounterUsage(
+      workspaceId,
+      resource,
+      computeTruth,
+    );
 
     if (read.kind === 'value') {
       if (read.value >= limit) {
@@ -274,9 +285,69 @@ export class EntitlementService {
       return;
     }
 
+    await this.applyFailModeSplit(workspaceId, resource, limit, read.kind);
+  }
+
+  /**
+   * ENG-2492 — the ONE place a counter-sourced usage read is resolved into
+   * either a real number or a genuine "usage unknown" outage signal. Shared
+   * by both counter-sourced assert variants so the classification cannot
+   * diverge between them.
+   *
+   * Three distinct situations, deliberately NOT collapsed:
+   *  - NO counter collaborator injected at all → this deployment simply has
+   *    no fast-counter configured (a Redis-less self-host, or a graph built
+   *    before ENG-2490). That is NOT an outage: fall back to the caller's
+   *    store-tier truth, the pre-ENG-2490 behaviour. Treating it as an
+   *    outage would fail every storage write closed on a perfectly healthy
+   *    Redis-less deployment.
+   *  - counter MISS with Redis reachable (never seeded / TTL-expired /
+   *    flushed) → cold start: re-seed from the store-tier truth and decide
+   *    on that real number.
+   *  - counter UNAVAILABLE (Redis down/erroring), or a miss/absence with NO
+   *    truth source to fall back on → genuinely unknown usage; the caller
+   *    applies the ADR-0003 fail-mode split.
+   */
+  private async resolveCounterUsage(
+    workspaceId: string,
+    resource: QuotaResource,
+    computeTruth?: () => Promise<number>,
+  ): Promise<{ kind: 'value'; value: number } | { kind: 'unavailable' }> {
+    if (!this.quotaFastCounter) {
+      if (computeTruth) {
+        return { kind: 'value', value: await computeTruth() };
+      }
+      return { kind: 'unavailable' };
+    }
+
+    const read = await this.quotaFastCounter.readCounter(workspaceId, resource);
+    if (read.kind === 'value') {
+      return read;
+    }
+    if (read.kind === 'miss' && computeTruth) {
+      const truth = await computeTruth();
+      await this.quotaFastCounter.seed(workspaceId, resource, truth);
+      return { kind: 'value', value: truth };
+    }
+    return { kind: 'unavailable' };
+  }
+
+  /**
+   * ENG-2492 AC2/AC3 — the ratified ADR-0003 split applied to an
+   * unresolvable usage count: storage-shaped resources fail CLOSED (the
+   * frozen 402 carrying the distinguishing `redisUnavailable: true`), cheap
+   * resources fail OPEN with a logged degrade. One owner, one decision
+   * (❌#1) — no call site ever branches on resource class or Redis health.
+   */
+  private async applyFailModeSplit(
+    workspaceId: string,
+    resource: QuotaResource,
+    limit: number,
+    kind: string,
+  ): Promise<void> {
     if (STORAGE_SHAPED_RESOURCES.includes(resource)) {
       this.logger.warn(
-        `EntitlementService: usage counter unreadable (${read.kind}) for ${resource}/${workspaceId} — failing CLOSED for the storage-shaped resource class (the ratified fail-mode split)`,
+        `EntitlementService: usage counter unreadable (${kind}) for ${resource}/${workspaceId} — failing CLOSED for the storage-shaped resource class (the ratified fail-mode split)`,
       );
       throw await this.buildRejection(workspaceId, resource, limit, {
         redisUnavailable: true,
@@ -284,8 +355,52 @@ export class EntitlementService {
     }
 
     this.logger.warn(
-      `EntitlementService: usage counter unreadable (${read.kind}) for ${resource}/${workspaceId} — failing OPEN for the cheap-resource class (the ratified fail-mode split)`,
+      `EntitlementService: usage counter unreadable (${kind}) for ${resource}/${workspaceId} — failing OPEN for the cheap-resource class (the ratified fail-mode split)`,
     );
+  }
+
+  /**
+   * ENG-2492 AC2 — the counter-sourced twin of
+   * {@link assertIncrementWithinQuota}: the "would this write exceed the
+   * cap" shape (a byte aggregate whose increment size varies per call),
+   * with the SAME ADR-0003 Redis-loss fail-mode split as
+   * {@link assertWithinQuotaFromCounter}.
+   *
+   * This is the variant the authoritative attachment chokepoint calls
+   * inside its advisory-locked transaction, so a Redis usage-counter
+   * outage rejects a storage write (fail CLOSED) instead of silently
+   * enforcing from a possibly-stale aggregate. The classification and the
+   * verdict both stay HERE (❌#1) — a call site never branches on resource
+   * class or on Redis health itself.
+   */
+  async assertIncrementWithinQuotaFromCounter(
+    workspaceId: string,
+    resource: QuotaResource,
+    incrementAmount: number,
+    computeTruth?: () => Promise<number>,
+  ): Promise<void> {
+    const entitlement = await this.resolve(workspaceId);
+    const limit = capValueForResource(entitlement.caps, resource);
+
+    if (limit === 0) {
+      return; // uncapped
+    }
+
+    const read = await this.resolveCounterUsage(
+      workspaceId,
+      resource,
+      computeTruth,
+    );
+
+    if (read.kind === 'value') {
+      const projected = read.value + incrementAmount;
+      if (projected > limit) {
+        await this.rejectOrWarn(workspaceId, resource, limit, projected);
+      }
+      return;
+    }
+
+    await this.applyFailModeSplit(workspaceId, resource, limit, read.kind);
   }
 
   /**
