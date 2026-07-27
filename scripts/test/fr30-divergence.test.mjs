@@ -347,8 +347,11 @@ test('every frozen baseline path is a real upstream-tracked file (no invented ra
 test('the ratchet baseline is exhaustive: real mode finds no un-ratified off-allow-list file', () => {
   // If the baseline under-counted, the real gate would already be red; if it
   // over-counted, it would carry entries that no longer diverge. Both are
-  // ceiling-integrity failures (❌#10), so assert the reported baseline size
-  // matches the ledger's frozen list exactly.
+  // ceiling-integrity failures (❌#10). Assert on SET IDENTITY, not on the
+  // count: a count check alone is satisfied by a swap (drop one still-diverging
+  // path, add one stale path), which is exactly the silent ceiling-raise ❌#10
+  // forbids. So compare the ledger's frozen list against the paths that really
+  // diverge against the pin today, both directions.
   const outFile = path.join(mkdtempSync(path.join(tmpdir(), 'fr30-ratchet-')), 'report.json');
   const { code } = runRealGate(['--json-out', outFile]);
   assert.equal(code, 0);
@@ -358,6 +361,37 @@ test('the ratchet baseline is exhaustive: real mode finds no un-ratified off-all
     artifact.baselineFileCount,
     ledger.preexistingDivergence.length,
     'every frozen baseline path must still diverge — a stale entry is a ceiling that can never shrink',
+  );
+
+  // The real divergence set against the pin, scoped exactly as the gate scopes
+  // it: upstream-tracked files only, minus the orvex additive surface.
+  const upstreamPaths = new Set(
+    execFileSync('git', ['ls-tree', '-r', '--name-only', ledger.pinnedUpstreamSha], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024 * 256,
+    })
+      .split('\n')
+      .filter(Boolean),
+  );
+  const rowPaths = new Set(ledger.rows.map((r) => r.path));
+  const reallyDiverging = execFileSync(
+    'git',
+    ['diff', '--name-only', ledger.pinnedUpstreamSha, '--', '.'],
+    { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 },
+  )
+    .split('\n')
+    .filter(Boolean)
+    .filter((p) => upstreamPaths.has(p) && isDivergenceScoped(p) && !rowPaths.has(p));
+
+  const frozen = new Set(ledger.preexistingDivergence);
+  const stale = [...frozen].filter((p) => !reallyDiverging.includes(p));
+  const unratified = reallyDiverging.filter((p) => !frozen.has(p));
+  assert.deepEqual(stale, [], `ratchet baseline carries path(s) that no longer diverge: ${stale}`);
+  assert.deepEqual(
+    unratified,
+    [],
+    `upstream file(s) diverge outside both the allow-list and the frozen baseline: ${unratified}`,
   );
   rmSync(path.dirname(outFile), { recursive: true, force: true });
 });
