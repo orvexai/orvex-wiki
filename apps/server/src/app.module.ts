@@ -24,6 +24,7 @@ import { RedisConfigService } from './integrations/redis/redis-config.service';
 import { IdempotencyStoreModule } from './integrations/redis/idempotency-store.module';
 import { EntitlementModule } from './orvex/entitlement/entitlement.module';
 import { OrvexTenancyModule } from './orvex/tenancy/orvex-tenancy.module';
+import { OrvexIdentityRegistryModule } from './orvex/http/orvex-identity-registry.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
 import { LoggerModule } from './common/logger/logger.module';
@@ -79,6 +80,15 @@ try {
     // ENG-2505 (FR-22) — live/push-invalidated tenant-suspension guard
     // (global; read/export/auth allow-listed inside the guard).
     OrvexTenancyModule,
+    // ENG-2503 (A-TENANCY / D-S17) — the ONE composition of the identity
+    // global-registry port, `@Global()` and unconditional so the core
+    // tenancy consumers (`PrincipalProvisioningService` mint-time
+    // reservation, `WorkspaceUpgradeService` upgrade-pass, `WorkspaceService`
+    // hostname minting) actually resolve it. It used to be module-private to
+    // the flag-gated `OrvexHttpModule`, so the delegation never ran in the
+    // composed app. Fail-closed when `ORVEX_IDENTITY_URL` is unset, and
+    // DB-free, so mounting it always is safe.
+    OrvexIdentityRegistryModule,
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async (environmentService: EnvironmentService) => {

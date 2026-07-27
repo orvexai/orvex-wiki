@@ -8,6 +8,7 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -109,6 +110,41 @@ export class ProvisionPrincipalDto {
   @IsOptional()
   @IsBoolean()
   provision_workspace?: boolean;
+
+  /**
+   * ENG-2503 (D-S17) — the polymorphic tenant kind. Absent/`'user'` ⇒ a
+   * PERSONAL tenant (user-keyed, no Clerk org minted anywhere). `'org'` ⇒ a
+   * Team tenant, which REQUIRES `org_id` (identity mints the org; this engine
+   * never does — a missing vouch is a typed 400, never a fabricated org).
+   */
+  @IsOptional()
+  @IsIn(['user', 'org'])
+  principal_kind?: 'user' | 'org';
+
+  /** ENG-2503 — the identity-vouched Clerk-org id; required when `principal_kind === 'org'`. */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  org_id?: string;
+}
+
+/**
+ * UpgradeTenantToTeamDto (ENG-2503 AC3) — the body of
+ * `POST /internal/tenants/upgrade-to-team`, the WIRE entry point of the
+ * personal→Teams upgrade-pass. The real caller is orvex-studio-identity's
+ * provisioning/billing worker at the moment a personal user buys Teams:
+ * identity mints the org (this engine never does) and the engine re-keys its
+ * EXISTING tenant IN PLACE — `workspace_id` unchanged, so all data and
+ * entitlements carry with no migration and no cutover window.
+ *
+ *  - `tenant` — the orvex-wiki workspace UUID to re-key (`Principal.Tenant ==
+ *               workspaceId`). Unknown ⇒ 404; already org-keyed ⇒ an
+ *               idempotent no-op (`upgraded: false`), never a re-mint.
+ */
+export class UpgradeTenantToTeamDto {
+  @IsUUID()
+  tenant: string;
 }
 
 /**

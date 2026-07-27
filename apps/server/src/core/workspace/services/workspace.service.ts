@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -59,6 +60,13 @@ import {
   EVT_USER_DELETED,
   USER_DELETED_SCHEMA_VERSION,
 } from '../../../orvex/events/constants/orvex-event-types';
+import {
+  IdentityRegistryClient,
+  RegistryClientError,
+  RegistryClientNotConfiguredError,
+} from '../../../orvex/http/identity-registry-client';
+import { IDENTITY_REGISTRY_CLIENT } from '../../../orvex/http/orvex-identity-registry.module';
+import { TenantPrincipalKind } from '../tenant-principal.types';
 
 @Injectable()
 export class WorkspaceService {
@@ -84,6 +92,16 @@ export class WorkspaceService {
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
     private userSessionRepo: UserSessionRepo,
     private readonly outboxWriter: OutboxWriter,
+    /**
+     * ENG-2503 AC4 — the global identity registry port, composed once by the
+     * `@Global()` `OrvexIdentityRegistryModule`. REQUIRED (not `@Optional()`):
+     * hostname minting is the path that actually needs cross-cell
+     * adjudication, so an absent provider must be a loud boot failure rather
+     * than a silently local-only mint. The single-cell posture is expressed by
+     * the fail-closed `NotConfiguredRegistryClient` at CALL time.
+     */
+    @Inject(IDENTITY_REGISTRY_CLIENT)
+    private readonly registryClient: IdentityRegistryClient,
   ) {}
 
   async findById(workspaceId: string) {
@@ -159,9 +177,26 @@ export class WorkspaceService {
           settings = { ai: { generative: true, chat: true } };
         }
 
+        // ENG-2503 AC4 — mint the tenant id HERE (rather than letting the
+        // `workspaces` default generate it) so the GLOBAL identity registry
+        // can adjudicate tenant+hostname uniqueness BEFORE the local insert.
+        // The local `workspaces_hostname_unique` constraint is left exactly
+        // as it is and stays a PER-CELL BACKSTOP: `generateHostname`'s
+        // local-uniqueness loop above still runs, it is just no longer the
+        // cross-cell source of truth. A registry rejection aborts this
+        // transaction — nothing is ever accepted locally after a global
+        // refusal (AC5).
+        const workspaceId = v4();
+        await this.reserveTenantGlobally(
+          workspaceId,
+          hostname ?? '',
+          'user',
+        );
+
         // create workspace
         const workspace = await this.workspaceRepo.insertWorkspace(
           {
+            id: workspaceId,
             name: createWorkspaceDto.name,
             description: createWorkspaceDto.description,
             hostname,
@@ -170,6 +205,16 @@ export class WorkspaceService {
             plan,
             billingEmail,
             settings,
+            // ENG-2503 AC1 (D-S17) — a signup-path workspace is a PERSONAL,
+            // USER-KEYED tenant: no Clerk org is minted anywhere (this
+            // engine holds no Clerk client at all), and the polymorphic
+            // principal is the creating subject. Without this stamp the row
+            // fell back to the migration default with a NULL principal_id,
+            // so `WorkspaceUpgradeService.upgradeToTeam` had no `'user'`
+            // principal to re-key FROM on the path that actually mints
+            // hostnames.
+            principalKind: 'user',
+            principalId: user.id,
           },
           trx,
         );
@@ -348,9 +393,20 @@ export class WorkspaceService {
       if (DISALLOWED_HOSTNAMES.includes(hostname)) {
         throw new BadRequestException('Hostname already exists.');
       }
+      // Per-cell BACKSTOP (unchanged) — the local unique index still fires.
       if (await this.workspaceRepo.hostnameExists(hostname)) {
         throw new BadRequestException('Hostname already exists.');
       }
+      // ENG-2503 AC4 — the CROSS-CELL guarantee: a hostname CHANGE re-mints
+      // the routing entry, so it delegates to the global registry too. A
+      // hostname free in this cell may already be taken in another one; the
+      // local index cannot see that.
+      const current = await this.workspaceRepo.findById(workspaceId);
+      await this.reserveTenantGlobally(
+        workspaceId,
+        hostname,
+        (current?.principalKind as TenantPrincipalKind) ?? 'user',
+      );
     }
 
     const before: Record<string, any> = {};
@@ -701,6 +757,52 @@ export class WorkspaceService {
         after: { role: newRole },
       },
     });
+  }
+
+  /**
+   * ENG-2503 AC4/AC5 — delegate tenant/hostname uniqueness to the GLOBAL
+   * identity registry (identity is the sole writer of the routing core). This
+   * runs BEFORE the local `workspaces` insert / hostname update, so a
+   * cross-cell collision is refused globally and never silently accepted
+   * locally. This engine's `workspaces_hostname_unique` index is untouched and
+   * stays a per-cell BACKSTOP.
+   *
+   * Failure mapping (never a bare 500, CS §10):
+   *  - `NOT_CONFIGURED` (`ORVEX_IDENTITY_URL` unset — single-cell/self-hosted
+   *    deployment): skipped, logged. The local backstop is then the only
+   *    guard, which is exactly the documented single-cell posture.
+   *  - `TENANT_ALREADY_RESERVED`: a typed 409 carrying the code.
+   *  - anything else: propagated (fail loud) — never a fabricated reservation.
+   */
+  private async reserveTenantGlobally(
+    tenantId: string,
+    hostname: string,
+    principalKind: TenantPrincipalKind,
+  ): Promise<void> {
+    try {
+      await this.registryClient.reserveTenant({
+        tenantId,
+        hostname,
+        principalKind,
+      });
+    } catch (err) {
+      if (err instanceof RegistryClientNotConfiguredError) {
+        this.logger.debug(
+          `identity registry not configured — skipping global reservation for ${tenantId} (single-cell mode; the local unique constraint remains the per-cell backstop)`,
+        );
+        return;
+      }
+      if (
+        err instanceof RegistryClientError &&
+        err.code === 'TENANT_ALREADY_RESERVED'
+      ) {
+        throw new ConflictException({
+          code: 'TENANT_ALREADY_RESERVED',
+          message: `hostname "${hostname}" is already reserved in the global registry`,
+        });
+      }
+      throw err;
+    }
   }
 
   async generateHostname(
