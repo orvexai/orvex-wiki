@@ -470,15 +470,20 @@ jobs:
   # drift). Unlike its sibling, this job IS in the ci-success fan-in (§4g):
   # G1's rebase-cost bound depends on it, so leaving it optional would defeat
   # its purpose. Self-test + DoD suite run against committed fixtures (no
-  # network); the real gate validates the ledger rows against HEAD and is a
-  # not-yet-activated no-op until fr30/allowlist.json pins an upstream SHA
-  # (same staged activation as the sibling, patches-drift design §8).
+  # network); the real gate is ACTIVE — fr30/allowlist.json pins the upstream
+  # fork point (the last docmost commit in this repo's own history), so an
+  # edit to any upstream file on neither the 13-row allow-list nor the frozen
+  # ratchet baseline reds this job. fetch-depth: 0 is REQUIRED: the pin is an
+  # ancestor of HEAD and a shallow clone would make it unresolvable (exit 2
+  # INFRA-ERROR), not silently green.
   # ---------------------------------------------------------------------------
   fr30-divergence-check:
     name: FR-30 Divergence Gate (weighted hot-file budget)
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -489,11 +494,16 @@ jobs:
       - name: check-fr30-divergence.mjs (CI gate)
         run: node scripts/check-fr30-divergence.mjs --json-out fr30-budget-report.json
       - name: Upload budget report artifact (counter-metric substrate, T6)
+        # `error`, not `ignore`: this step only runs once the gate step above
+        # succeeded, and an activated gate always writes the report on that
+        # path. A missing file therefore means the gate did not really run —
+        # surfaced, never silently swallowed (which is what `ignore` did while
+        # the null pin made the gate short-circuit).
         uses: actions/upload-artifact@v4
         with:
           name: fr30-budget-report
           path: fr30-budget-report.json
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # Hardening allow-list class coverage (ENG-2478) — validates the 15-item
