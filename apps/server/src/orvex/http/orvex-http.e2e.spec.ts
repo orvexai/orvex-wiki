@@ -97,11 +97,13 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
   // and `OrvexHttpModule`'s. Its own DoD e2e (testcontainers Postgres) lives
   // at `page-blocks/orvex-apply-ops.controller.e2e.spec.ts`.
 
-  it('orvexGetQuota -> 501 typed sentinel', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/orvex/quota' });
-    expect(res.statusCode).toBe(501);
-    expect(res.json()).toEqual(sentinel('orvexGetQuota'));
-  });
+  // ENG-2493 — `orvexGetQuota` is no longer part of this DB-less flag-e2e
+  // harness: it stopped being a 501 stub. The REAL usage-vs-caps read needs
+  // `EntitlementService` + `@InjectKysely()` (fast counters, and store-tier
+  // truth queries on a cold miss), so — the same carve-out as `orvexApplyOps`
+  // above — its own DoD coverage lives with the DB-backed suites:
+  // `test/integration/eng2493-history-prune-cron.integration-spec.ts` for the
+  // retention cron, and the entitlement suite for `getQuotaStatus`.
 
   // FR-W6 — `orvexSessionExchange` (`POST /api/orvex/session/exchange`) is no
   // longer part of this DB-less flag-e2e harness: it stopped being a 501 stub.

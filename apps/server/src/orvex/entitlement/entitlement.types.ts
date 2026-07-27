@@ -174,6 +174,27 @@ export function assertNoPaidPlanSellableWhileInterimFree(
 }
 
 /** Maps a QuotaResource to its cap field on EntitlementCaps (AC6/AC8). */
+/**
+ * ENG-2493 AC3 — the `GET /orvex/quota` usage-vs-caps projection.
+ *
+ * `current: null` means the usage counter was genuinely unreadable for that
+ * resource — an explicit UNKNOWN, never conflated with `0` (which would
+ * read as "no usage" and is exactly the fabricated-zero this contract
+ * forbids). `limit: 0` is the uncapped sentinel, mirroring
+ * `capValueForResource`.
+ */
+export interface QuotaResourceStatus {
+  current: number | null;
+  limit: number;
+}
+
+export interface QuotaStatus {
+  pages: QuotaResourceStatus;
+  storage: QuotaResourceStatus;
+  files: QuotaResourceStatus;
+  members: QuotaResourceStatus;
+}
+
 export function capValueForResource(
   caps: EntitlementCaps,
   resource: QuotaResource,

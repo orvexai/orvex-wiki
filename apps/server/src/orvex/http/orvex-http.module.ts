@@ -15,7 +15,6 @@ import {
   IDENTITY_REGISTRY_CLIENT,
   OrvexIdentityRegistryModule,
 } from './orvex-identity-registry.module';
-import { OrvexQuotaController } from './orvex-quota.controller';
 import { OrvexSourceController } from './orvex-source.controller';
 import { OrvexTenantMoveController } from './orvex-tenant-move.controller';
 import {
@@ -82,7 +81,6 @@ function composeTenantMoveIntrospector(
 @Module({
   imports: [OrvexConfigModule, OrvexIdentityRegistryModule],
   controllers: [
-    OrvexQuotaController,
     OrvexSourceController,
     OrvexTenantMoveController,
   ],

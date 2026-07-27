@@ -13,6 +13,7 @@ import { OrvexPageProvenanceModule } from '../page-provenance/orvex-page-provena
 import { OrvexPageMetadataModule } from '../../orvex/page-metadata/orvex-page-metadata.module';
 import { OrvexLlmsModule } from '../../orvex/llms/orvex-llms.module';
 import { OrvexApplyOpsModule } from '../../orvex/page-blocks/apply-ops.module';
+import { OrvexQuotaModule } from '../../orvex/http/orvex-quota.module';
 import { CaslModule } from '../casl/casl.module';
 import { PageVerificationController } from './page-verification.controller';
 import { PageVerificationService } from './page-verification.service';
@@ -62,6 +63,7 @@ import { PageVerificationEntitlementGuard } from './page-verification-entitlemen
     // precedent as OrvexLlmsModule above); OrvexModulesEnabledGuard
     // reproduces ORVEX_MODULES_ENABLED at the request edge (AC6).
     OrvexApplyOpsModule,
+    OrvexQuotaModule,
   ],
 })
 export class PageModule {}

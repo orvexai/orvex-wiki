@@ -11,6 +11,7 @@ import {
 import { ENTITLEMENT_CACHE, EntitlementCache } from './entitlement-cache';
 import {
   capValueForResource,
+  QuotaStatus,
   EntitlementCheckResponse,
   GatedFeature,
   INTERIM_FREE_ENTITLEMENT,
@@ -583,5 +584,65 @@ export class EntitlementService {
         currentUsage + incrementAmount,
       );
     }
+  }
+
+  /**
+   * ENG-2493 AC3 (FR-W15) — the usage-vs-caps readout backing
+   * `GET /orvex/quota` (contract op `orvexGetQuota`), replacing that route's
+   * honest `501` sentinel.
+   *
+   * Usage comes from the SAME fast counters the write chokepoints enforce
+   * against (never a fabricated zero, never a full-table scan): each
+   * resource resolves through `resolveCounterUsage`, which serves the
+   * counter when present and seeds it from the caller-supplied truth query
+   * on a cold miss. A resource whose counter is genuinely unreadable
+   * surfaces as `current: null` — an explicitly UNKNOWN reading, never a
+   * zero that would read as "no usage".
+   *
+   * Read-only by construction: this never throws the 402 verdict (that
+   * belongs to the assert* chokepoints, ❌#1) — a tenant already over cap
+   * simply reads `current > limit`.
+   */
+  async getQuotaStatus(
+    workspaceId: string,
+    truth: Partial<Record<QuotaResource, () => Promise<number>>> = {},
+  ): Promise<QuotaStatus> {
+    const entitlement = await this.resolve(workspaceId);
+    const resources: QuotaResource[] = ['pages', 'storage', 'files', 'members'];
+
+    const entries = await Promise.all(
+      resources.map(async (resource) => {
+        const usage = await this.resolveCounterUsage(
+          workspaceId,
+          resource,
+          truth[resource],
+        );
+        return [
+          resource,
+          {
+            current: usage.kind === 'value' ? usage.value : null,
+            limit: capValueForResource(entitlement.caps, resource),
+          },
+        ] as const;
+      }),
+    );
+
+    return Object.fromEntries(entries) as unknown as QuotaStatus;
+  }
+
+  /**
+   * ENG-2493 AC4 — the PER-TENANT history-retention bound the prune cron
+   * enforces, read from the tenant's own entitlement rather than a
+   * constant. `min(N versions, D days)` is applied by the caller; this
+   * owner only resolves the two numbers.
+   */
+  async getHistoryRetention(
+    workspaceId: string,
+  ): Promise<{ versions: number; days: number }> {
+    const entitlement = await this.resolve(workspaceId);
+    return {
+      versions: entitlement.caps.wiki_history_retention_versions,
+      days: entitlement.caps.wiki_history_retention_days,
+    };
   }
 }
