@@ -268,7 +268,14 @@ export class OrvexConfigService {
   get globalPrefixExclude(): string[] {
     const raw = this.read('ORVEX_GLOBAL_PREFIX_EXCLUDE');
     if (raw === null) {
-      return ['health/orvex'];
+      // `health/orvex` alone matches ONLY the exact aggregate route — the
+      // per-role sub-probes (`health/orvex/collab`, ENG-2510; and
+      // `health/orvex/relay`, ENG-2496) then fall through to the SPA
+      // catch-all and answer with index.html instead of the probe body.
+      // Verified live: a kubelet httpGet on /health/orvex/collab got the
+      // HTML shell, so the deploy manifest's collab probe could never fire.
+      // The wildcard form is the same shape `internal/(.*)` already uses.
+      return ['health/orvex', 'health/orvex/(.*)'];
     }
     return raw
       .split(',')
