@@ -83,7 +83,11 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { QueueName } from '../../src/integrations/queue/constants';
 import { NoopAuditModule } from '../../src/integrations/audit/audit.module';
 import { ExportService } from '../../src/integrations/export/export.service';
+import { DatabaseModule } from '../../src/database/database.module';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { startTestDatabase, TestDb } from './db-test-harness';
+import { resolveGlobalPrefixExclude } from '../../src/orvex/http/orvex-global-prefix-exclude';
+import { GenericContainer, StartedTestContainer } from 'testcontainers';
 
 /** Fixed, deterministic fixtures (no rand/time keying). */
 const BEARER = 'eng-2503-wiring-bearer';
@@ -179,6 +183,8 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
   let built: TestingModule;
   let app: NestFastifyApplication;
 
+  let redisContainer: StartedTestContainer;
+
   beforeAll(async () => {
     testDb = await startTestDatabase();
     sqlClient = postgres(
@@ -187,6 +193,10 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
       )}/orvex_test`,
       { onnotice: () => undefined },
     );
+
+    redisContainer = await new GenericContainer('redis:7-alpine')
+      .withExposedPorts(6379)
+      .start();
 
     registryServer = new FakeRegistryServer();
     await registryServer.start();
@@ -274,8 +284,22 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
           provide: getQueueToken(QueueName.EMAIL_QUEUE),
           useValue: { add: async () => undefined },
         },
+        // SpaceMemberRepo (via DatabaseModule) injects CACHE_MANAGER; the
+        // composed app gets it from AppModule's CacheModule. This seam does
+        // not exercise caching, so an in-memory no-op stub keeps the graph
+        // resolvable without standing up Redis.
+        {
+          provide: CACHE_MANAGER,
+          useValue: {
+            get: async () => undefined,
+            set: async () => undefined,
+            del: async () => undefined,
+            wrap: async (_k: string, fn: () => unknown) => fn(),
+          },
+        },
       ],
       exports: [
+        CACHE_MANAGER,
         EnvironmentService,
         LicenseCheckService,
         DomainService,
@@ -290,29 +314,58 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     })
     class TestInfraModule {}
 
+    // Boot the REAL AppModule — the whole point of this spec is that the
+    // registry port resolves in the COMPOSED application, so a hand-built
+    // partial module graph would defeat it (and cannot resolve the app's
+    // transitive DI anyway: ExportModule -> PageRepo -> WsService -> ...).
+    // Env is fully explicit; `require` after env is set so module-scope
+    // reads see it.
+    process.env.DATABASE_URL = `postgres://orvex:orvex@${testDb.container.getHost()}:${testDb.container.getMappedPort(5432)}/orvex_test`;
+    process.env.REDIS_URL = `redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`;
+    process.env.APP_SECRET = 'eng2503-test-secret-eng2503-test-secret';
+    process.env.APP_URL = 'http://localhost:3000';
+    process.env.ORVEX_MODULES_ENABLED = 'true';
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { AppModule } = require('../../src/app.module');
+
+    // The ONLY substitutions on the real graph: the internal-api bearer
+    // token, and a recording EntitlementService so W6 can observe WHICH
+    // workspace id the seat chokepoint is keyed on across the re-key. Cap
+    // arithmetic is ENG-2491's concern; this spec is about wiring, so the
+    // recorder always allows.
+    const seatRecorder = {
+      seatPrincipalsAsked: [] as string[],
+      async assertWithinQuotaAllowingOverage(workspaceId: string) {
+        seatRecorder.seatPrincipalsAsked.push(workspaceId);
+      },
+      async assertWithinQuota(workspaceId: string) {
+        seatRecorder.seatPrincipalsAsked.push(workspaceId);
+      },
+      async hasFeature() {
+        return true;
+      },
+      async getEntitlement() {
+        return { plan: 'free' };
+      },
+    };
+
     built = await Test.createTestingModule({
-      imports: [
-        KyselyModule.forRoot({
-          dialect: new PostgresJSDialect({ postgres: sqlClient }),
-          plugins: [new CamelCasePlugin()],
-        }),
-        ClsModule.forRoot({ global: true, middleware: { mount: true } }),
-        EventEmitterModule.forRoot(),
-        NoopAuditModule,
-        TestInfraModule,
-        // THE THING UNDER TEST: the real global registry module + the real
-        // internal-api module (which pulls in the real WorkspaceModule).
-        OrvexIdentityRegistryModule,
-        InternalApiModule,
-      ],
+      imports: [AppModule],
     })
       .overrideProvider(INTERNAL_API_AUTH_CONFIG)
       .useValue({ bearerToken: BEARER })
+      .overrideProvider(EntitlementService)
+      .useValue(seatRecorder)
       .compile();
 
     app = built.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
+    // Mirror main.ts exactly: `internal/(.*)` is EXCLUDED from the /api
+    // prefix (ENG-1957 AC5), so the internal routes this spec drives live at
+    // /internal/... not /api/internal/...
+    app.setGlobalPrefix('api', { exclude: resolveGlobalPrefixExclude() });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });
