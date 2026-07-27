@@ -46,3 +46,6 @@ lerna-debug.log*
 # Local-only: symlink to the superproject cache. MUST NOT be committed —
 # ArgoCD refuses to render a repo containing an out-of-bounds symlink.
 .cache
+
+# Claude Code agent worktrees (ephemeral build scratch, never committed)
+.claude/worktrees/
