@@ -52,7 +52,7 @@
 import { Hocuspocus, Document as HocuspocusDocument } from '@hocuspocus/server';
 import { TiptapTransformer } from '@hocuspocus/transformer';
 import * as Y from 'yjs';
-import { getSchema } from '@tiptap/core';
+import { getSchema, JSONContent } from '@tiptap/core';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -63,14 +63,31 @@ import { OrvexPageProvenanceService } from 'src/core/page-provenance/orvex-page-
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
 import { CollaborationHandler } from 'src/collaboration/collaboration.handler';
 import { PersistenceExtension } from 'src/collaboration/extensions/persistence.extension';
-import { tiptapExtensions } from 'src/collaboration/collaboration.util';
+import {
+  tiptapExtensions,
+  jsonToNode,
+  fenceUnknownNodes,
+} from 'src/collaboration/collaboration.util';
 import { setYjsMark } from 'src/collaboration/yjs.util';
 import { ApplyOpsService } from 'src/orvex/page-blocks/apply-ops.service';
 import { PmOpInput } from 'src/orvex/page-blocks/apply-ops-batch.util';
 import { IdempotencyStore } from 'src/integrations/redis/idempotency-store.service';
 import type { RedisService } from '@nestjs-labs/nestjs-ioredis';
+// ENG-2490's REAL quota graph — AC4's `assertWithinQuota` clause is driven
+// behaviourally below, not asserted by grep. Only the billing PORT (a CS §5
+// Row-3 true-external) is substituted; the verdict logic, the cap read and
+// the QuotaExceededException are all production code.
+import { EntitlementService } from 'src/orvex/entitlement/entitlement.service';
+import type { BillingEntitlementPort } from 'src/orvex/entitlement/entitlement-billing.port';
+import type { EntitlementCache } from 'src/orvex/entitlement/entitlement-cache';
+import { INTERIM_FREE_ENTITLEMENT } from 'src/orvex/entitlement/entitlement.types';
 import { EVT_PAGE_CONTENT_UPDATED } from 'src/orvex/events/constants/orvex-event-types';
-import { pmToDfm, dfmToJson, OPAQUE_REF_TYPE } from '@orvex/dfm';
+import {
+  pmToDfm,
+  dfmToJson,
+  reattachOpaqueRefs,
+  OPAQUE_REF_TYPE,
+} from '@orvex/dfm';
 import {
   seedPage,
   seedSpace,
@@ -299,6 +316,7 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
     let hocuspocus: Hocuspocus;
     let pageService: PageService;
     let applyOpsService: ApplyOpsService;
+    let provenanceService: OrvexPageProvenanceService;
     let workspaceId: string;
     let spaceId: string;
     let user: { id: string };
@@ -317,7 +335,7 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
         { emitInvalidate: () => {} } as any,
       );
 
-      const provenanceService = new OrvexPageProvenanceService(
+      provenanceService = new OrvexPageProvenanceService(
         db,
         pageRepo,
         new OrvexAuditService(db),
@@ -545,6 +563,163 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
       expect(persistenceSrc).toContain('EntitlementService');
       expect(applyOpsSrc.includes('assertWithinQuota')).toBe(false);
     });
+
+    // ------------------------------------------------------------------
+    // AC4's `assertWithinQuota` clause, BEHAVIOURALLY (not by grep).
+    //
+    // The gate previously substituted a permissive `{ assertWithinQuota:
+    // async () => undefined }` into PageService and never drove a rejection
+    // through the collab path, so ENG-2490's real pre-flight
+    // (`persistence.extension.ts#assertCollabWriteWithinQuota`) was
+    // exercised by nothing. These tests drive it for real: a REAL
+    // `EntitlementService` (its own billing port — a Row-3 true-external —
+    // is the only faked collaborator, per CS §5; the verdict logic, the
+    // cap read and the exception are all the production ones) wired into a
+    // REAL `PersistenceExtension` against the REAL testcontainers Postgres,
+    // asserting on OBSERVABLE state: whether the row actually changed.
+    // ------------------------------------------------------------------
+    describe("AC4 quota — the collab path's ENG-2490 pre-flight really blocks an over-cap write", () => {
+      /** A real EntitlementService whose billing port reports the given page cap. */
+      function entitlementWithPageCap(maxPages: number): EntitlementService {
+        const billingPort: BillingEntitlementPort = {
+          checkEntitlement: async () => ({
+            ...INTERIM_FREE_ENTITLEMENT,
+            caps: {
+              ...INTERIM_FREE_ENTITLEMENT.caps,
+              wiki_max_pages: maxPages,
+            },
+          }),
+        };
+        // Cacheless: every resolve goes to the port, so a per-test cap is
+        // never masked by a neighbouring test's cached projection.
+        const cache: EntitlementCache = {
+          get: async () => undefined,
+          set: async () => undefined,
+          evict: async () => undefined,
+        };
+        return new EntitlementService(billingPort, cache);
+      }
+
+      /** A real PersistenceExtension carrying the given entitlement service. */
+      function persistenceWith(entitlement?: EntitlementService) {
+        const inertQueue = { add: async () => {} } as any;
+        return new PersistenceExtension(
+          pageRepo,
+          db,
+          inertQueue,
+          inertQueue,
+          inertQueue,
+          { addContributors: async () => {} } as any,
+          {
+            syncPageTransclusions: async () => ({ inserted: 0, updated: 0, deleted: 0 }),
+            syncPageReferences: async () => ({ inserted: 0, deleted: 0 }),
+          } as any,
+          provenanceService,
+          entitlement,
+          // no fast counter: usage falls back to the store-tier COUNT (the
+          // declared degrade) — a REAL count against the real Postgres.
+          undefined,
+        );
+      }
+
+      /** Drive the real Hocuspocus store hook for a page with the given content. */
+      async function storeViaCollab(
+        extension: PersistenceExtension,
+        pageId: string,
+        content: JSONContent,
+      ) {
+        const ydoc = TiptapTransformer.toYdoc(content, 'default', tiptapExtensions);
+        await extension.onStoreDocument({
+          documentName: `page.${pageId}`,
+          document: ydoc as any,
+          context: { user: { id: user.id, name: 'quota probe' } },
+        } as any);
+      }
+
+      it('an over-cap collab store is REJECTED before any Postgres mutation (row unchanged)', async () => {
+        const seeded = { type: 'doc', content: [paragraphWithId('blk-q-1', 'seed text.')] };
+        const page = await seedPage(testDb.db, {
+          spaceId,
+          workspaceId,
+          creatorId: user.id,
+          position: null,
+          title: 'ENG-2506 AC4 quota reject',
+          content: seeded as any,
+        });
+
+        const before = await readContent(page.id);
+        // A cap of 1 with the workspace already holding several seeded pages
+        // puts currentUsage >= limit, so the REAL EntitlementService throws
+        // the REAL QuotaExceededException inside the pre-flight.
+        await storeViaCollab(
+          persistenceWith(entitlementWithPageCap(1)),
+          page.id,
+          { type: 'doc', content: [paragraphWithId('blk-q-1', 'OVER CAP must not persist.')] },
+        );
+
+        const after = await readContent(page.id);
+        expect(JSON.stringify(after)).not.toContain('OVER CAP must not persist.');
+        expect(after).toEqual(before);
+        // and no chokepoint outbox row was written either — the reject lands
+        // BEFORE the write, not after a partial one.
+        expect(await outboxRowsFor(page.id)).toHaveLength(0);
+      });
+
+      it('the SAME write succeeds under an uncapped entitlement — proving the block above was the quota verdict, not an unrelated failure', async () => {
+        const seeded = { type: 'doc', content: [paragraphWithId('blk-q-2', 'seed text.')] };
+        const page = await seedPage(testDb.db, {
+          spaceId,
+          workspaceId,
+          creatorId: user.id,
+          position: null,
+          title: 'ENG-2506 AC4 quota allow',
+          content: seeded as any,
+        });
+
+        // 0 is billing's documented "uncapped" sentinel.
+        await storeViaCollab(
+          persistenceWith(entitlementWithPageCap(0)),
+          page.id,
+          { type: 'doc', content: [paragraphWithId('blk-q-2', 'within cap persists.')] },
+        );
+
+        const after = await readContent(page.id);
+        expect(JSON.stringify(after)).toContain('within cap persists.');
+        expect(await outboxRowsFor(page.id)).toHaveLength(1);
+      });
+
+      it('the pre-flight FAILS OPEN on an infrastructure error — a billing outage never blocks a collab edit (CS §10, cheap-resource class)', async () => {
+        const seeded = { type: 'doc', content: [paragraphWithId('blk-q-3', 'seed text.')] };
+        const page = await seedPage(testDb.db, {
+          spaceId,
+          workspaceId,
+          creatorId: user.id,
+          position: null,
+          title: 'ENG-2506 AC4 quota degrade',
+          content: seeded as any,
+        });
+
+        const explodingPort: BillingEntitlementPort = {
+          checkEntitlement: async () => {
+            throw new Error('billing 503');
+          },
+        };
+        const cache: EntitlementCache = {
+          get: async () => undefined,
+          set: async () => undefined,
+          evict: async () => undefined,
+        };
+
+        await storeViaCollab(
+          persistenceWith(new EntitlementService(explodingPort, cache)),
+          page.id,
+          { type: 'doc', content: [paragraphWithId('blk-q-3', 'degraded but persists.')] },
+        );
+
+        const after = await readContent(page.id);
+        expect(JSON.stringify(after)).toContain('degraded but persists.');
+      });
+    });
   });
 
   // -------------------------------------------------------------------
@@ -559,7 +734,7 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
     // back from the pre-serialization index — that reattachment is
     // @orvex/dfm's own contract test, not this collab-schema gate's).
     // The invariant this ticket cares about: the node is FENCED, never
-    // silently dropped the way `stripUnknownNodes` would.
+    // silently dropped the way the retired `stripUnknownNodes` did.
     it('an unregistered node round-trips via the :::dfm-opaque fence rather than being dropped', () => {
       const doc = {
         type: 'doc',
@@ -582,6 +757,106 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
       expect(restored.content).toHaveLength(1);
       expect(restored.content[0].type).toBe(OPAQUE_REF_TYPE);
       expect(restored.content[0].attrs.nodeType).toBe('someUnregisteredNode');
+    });
+
+    // ENG-2506 T6 — the follow-up the ticket names (§3 T6, §4a row 3):
+    // now that ENG-2487 has merged, the collab/REST parse path's OWN
+    // unknown-node branch (`jsonToNode`, collaboration.util.ts) must reach
+    // the opaque fence instead of `stripUnknownNodes`'s unwrap-and-drop.
+    // These assertions run against the REAL exported `jsonToNode` /
+    // `fenceUnknownNodes` (no mock of own code, CS §5 ❌#4) and on
+    // OBSERVABLE output (the parsed document / the returned body map),
+    // never on internal symbol wiring.
+    it('the engine parse path FENCES an unregistered node instead of unwrapping and dropping it (T6 rewire)', () => {
+      const doc: JSONContent = {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'before' }] },
+          {
+            type: 'someUnregisteredNode',
+            attrs: { id: 'unk-1', payloadAttr: 'must-not-vanish' },
+            content: [{ type: 'text', text: 'inner payload' }],
+          },
+          { type: 'paragraph', content: [{ type: 'text', text: 'after' }] },
+        ],
+      };
+
+      const parsed = jsonToNode(structuredClone(doc)).toJSON();
+
+      // The node's IDENTITY survives as a `:::dfm-opaque` reference — the
+      // retired `stripUnknownNodes` discarded the type AND the attrs with
+      // no record anywhere, spilling the children into the parent.
+      const flatText = JSON.stringify(parsed);
+      expect(flatText).toContain(':::dfm-opaque type=someUnregisteredNode');
+      expect(flatText).toContain('id=unk-1');
+
+      // Neighbours are untouched and stay in order.
+      const texts: string[] = [];
+      const walk = (j: any) => {
+        if (j.type === 'text' && typeof j.text === 'string') texts.push(j.text);
+        (j.content ?? []).forEach(walk);
+      };
+      walk(parsed);
+      expect(texts[0]).toBe('before');
+      expect(texts[texts.length - 1]).toBe('after');
+    });
+
+    it('the fenced body is recoverable byte-for-byte through @orvex/dfm reattachOpaqueRefs (not merely labelled)', () => {
+      const original: JSONContent = {
+        type: 'doc',
+        content: [
+          {
+            type: 'someUnregisteredNode',
+            attrs: { id: 'unk-42', payloadAttr: 'must-not-vanish' },
+            content: [{ type: 'text', text: 'inner payload' }],
+          },
+        ],
+      };
+
+      const { json: fenced, opaqueBodies } = fenceUnknownNodes(
+        structuredClone(original),
+        getSchema(tiptapExtensions),
+      );
+
+      // The fence carries a reference; the ORIGINAL subtree is held in the
+      // opaque-body map keyed by the same id — the exact shape
+      // `reattachOpaqueRefs` resolves against.
+      expect(opaqueBodies.has('unk-42')).toBe(true);
+      expect(JSON.stringify(fenced)).toContain(
+        ':::dfm-opaque type=someUnregisteredNode id=unk-42',
+      );
+
+      const restored = reattachOpaqueRefs(
+        {
+          type: 'doc',
+          content: [
+            {
+              type: OPAQUE_REF_TYPE,
+              attrs: { nodeType: 'someUnregisteredNode', id: 'unk-42' },
+            },
+          ],
+        } as never,
+        opaqueBodies as never,
+      ) as unknown as JSONContent;
+
+      // Byte-for-byte: type, attrs AND content all come back.
+      expect(restored.content?.[0]).toEqual(original.content?.[0]);
+    });
+
+    it('the retired unwrap-and-drop is gone from the module (static gate — no silent-drop path left)', () => {
+      const src = readFileSync(
+        path.join(__dirname, '..', '..', 'src', 'collaboration', 'collaboration.util.ts'),
+        'utf8',
+      );
+      // No DEFINITION and no CALL of the unwrap-and-drop helper survives
+      // (the name may still appear in the doc comment that records why it
+      // was retired — that is documentation, not a live code path).
+      const code = src
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+      expect(code).not.toMatch(/stripUnknownNodes/);
+      expect(code).toMatch(/function fenceUnknownNodes/);
+      expect(code).toMatch(/fenceUnknownNodes\(tiptapJson, schema\)/);
     });
   });
 });
