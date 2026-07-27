@@ -154,12 +154,74 @@ export function jsonToNode(tiptapJson: JSONContent) {
       error instanceof RangeError &&
       error.message.includes('Unknown node type')
     ) {
-      Logger.warn('Stripping unknown node types from document:', error.message);
-      const cleanedJson = stripUnknownNodes(tiptapJson, schema);
-      return Node.fromJSON(schema, cleanedJson);
+      Logger.warn(
+        'Fencing unknown node types in document (DfM opaque fence):',
+        error.message,
+      );
+      const { json: fencedJson } = fenceUnknownNodes(tiptapJson, schema);
+      return Node.fromJSON(schema, fencedJson);
     }
     throw error;
   }
+}
+
+/**
+ * ENG-2506 T6 (AC5) — the unknown-node leg of the collab/REST parse path,
+ * rewired off the old `stripUnknownNodes` unwrap-and-drop onto the now-real
+ * `@orvex/dfm` opaque fence (ENG-2487 shipped `opaqueToken`/`pmToDfm`;
+ * `serializeOpaque`'s throwing stub is retired).
+ *
+ * `Node.fromJSON` cannot hold a node type the schema does not register, so
+ * the fence is the carrier: the unregistered subtree is replaced by its
+ * `:::dfm-opaque type=<t> id=<id>` REFERENCE — schema-legal text — and the
+ * ORIGINAL subtree is returned alongside in `opaqueBodies`, keyed by that
+ * same id. That is exactly the base-doc/opaque-body map
+ * `@orvex/dfm#reattachOpaqueRefs` resolves against, so the node is
+ * recoverable byte-for-byte instead of vanishing.
+ *
+ * Contrast with the retired behaviour: `stripUnknownNodes` unwrapped the
+ * node, discarding its `type` AND its `attrs` with no record anywhere, and
+ * spilled its children into the parent — silent, unrecoverable data loss on
+ * exactly the path AC5 names.
+ */
+export function fenceUnknownNodes(
+  json: JSONContent,
+  schema: Schema,
+): { json: JSONContent; opaqueBodies: Map<string, PmNode> } {
+  const opaqueBodies = new Map<string, PmNode>();
+  let counter = 0;
+  // Deterministic per call (CS ❌#9 — never wall-clock/random): a node
+  // without its own block id gets a positional fallback id, so the same
+  // document always fences to the same reference text.
+  const nextOpaqueId = () => `opaque-${(counter += 1).toString(36)}`;
+
+  const visit = (node: JSONContent): JSONContent => {
+    if (!node || typeof node !== 'object') return node;
+
+    const walked: JSONContent = Array.isArray(node.content)
+      ? { ...node, content: node.content.map(visit) }
+      : node;
+
+    if (typeof walked.type === 'string' && !schema.nodes[walked.type]) {
+      const id =
+        typeof node.attrs?.id === 'string' && node.attrs.id.length > 0
+          ? node.attrs.id
+          : nextOpaqueId();
+      // The ORIGINAL (pre-walk) subtree is what reattachment must restore —
+      // never the partially-fenced copy.
+      opaqueBodies.set(id, JSON.parse(JSON.stringify(node)) as PmNode);
+      return {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: `:::dfm-opaque type=${walked.type} id=${id}` },
+        ],
+      };
+    }
+
+    return walked;
+  };
+
+  return { json: visit(json), opaqueBodies };
 }
 
 /**
@@ -189,36 +251,6 @@ export function isEmptyParagraphDoc(tiptapJson: JSONContent): boolean {
   );
 }
 
-function stripUnknownNodes(
-  json: JSONContent,
-  schema: Schema,
-): JSONContent | null {
-  if (!json || typeof json !== 'object') return json;
-
-  // Recursively clean children first, flattening any unwrapped content
-  if (json.content && Array.isArray(json.content)) {
-    const newContent: JSONContent[] = [];
-    for (const child of json.content) {
-      const cleaned = stripUnknownNodes(child, schema);
-      if (Array.isArray(cleaned)) {
-        newContent.push(...cleaned);
-      } else if (cleaned) {
-        newContent.push(cleaned);
-      }
-    }
-    json.content = newContent;
-  }
-
-  // Check if this node is unknown AFTER processing children
-  if (json.type && !schema.nodes[json.type]) {
-    // Unwrap: return cleaned children directly instead of wrapping
-    return (
-      json.content && json.content.length > 0 ? json.content : null
-    ) as any;
-  }
-
-  return json;
-}
 
 export function prosemirrorNodeToYElement(node: any): Y.XmlElement | Y.XmlText {
   if (node.type === 'text') {
