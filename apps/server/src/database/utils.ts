@@ -42,7 +42,13 @@ export async function executeTx<T>(
     return await callback(existingTrx); // Execute callback with existing transaction
   }
 
-  return await db.transaction().execute((trx) => callback(trx)); // Start new transaction and execute callback
+  const workspaceId = currentTenantScope();
+
+  return await db.transaction().execute((trx) =>
+    workspaceId === null
+      ? callback(trx) // No ambient tenant: GUC stays unset, RLS denies by default.
+      : withTenantScopedTransaction(trx, workspaceId, callback),
+  );
 }
 
 /*
