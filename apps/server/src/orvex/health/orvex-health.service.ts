@@ -55,8 +55,32 @@ export type CollabWsProbe = (
   config: OrvexConfigService,
 ) => Promise<CollabWsResult>;
 
+/**
+ * ENG-2510 AC1/AC3 — the PER-ROLE / HEALTH-ECHO framing this story adds on
+ * top of the individual role signals (ENG-2496's relay heartbeat, this
+ * story's own collab WS probe). Every health surface the engine exposes —
+ * the `api` aggregate and each role-scoped endpoint — names WHICH ROLE it
+ * speaks for and echoes BOTH cell params (cell-contract rule #4).
+ *
+ * Why this is the framing and not the signal: without `role`, three probe
+ * bodies scraped off one pod are indistinguishable, so a kubelet/operator
+ * cannot tell "the worker relay is dead" from "the api can't reach
+ * Postgres" — the exact false-positive-healthy state this story's own "so
+ * that" clause names. Without the cell echo on the ROLE-scoped bodies (not
+ * only the api aggregate), a red role signal cannot be attributed to a cell
+ * when several cells scrape into one console.
+ *
+ * `cellId`/`clusterName` follow `OrvexConfigService`'s trim-and-nullify
+ * contract: unset surfaces as `null`, never a fabricated value (CS §11).
+ */
+export interface OrvexRoleEcho {
+  role: 'api' | 'worker' | 'collab';
+  cellId: string | null;
+  clusterName: string | null;
+}
+
 /** ENG-2510 AC2 — the collab role's own liveness body (role-scoped). */
-export interface OrvexCollabHealthBody extends CollabWsResult {
+export interface OrvexCollabHealthBody extends CollabWsResult, OrvexRoleEcho {
   role: 'collab';
   ts: string;
 }
@@ -73,14 +97,23 @@ export type RelayOutboxProbe = (
   config: OrvexConfigService,
 ) => Promise<RelayOutboxResult>;
 
-/** ENG-2496 AC4 — the `GET /health/orvex/relay` body. */
-export interface RelayHeartbeatBody {
+/**
+ * ENG-2496 AC4 — the `GET /health/orvex/relay` body, wearing ENG-2510 AC1's
+ * per-role/health-echo framing ({@link OrvexRoleEcho}): the WORKER role's
+ * own signal, self-identified and cell-attributed. ENG-2496 owns the
+ * heartbeat SIGNAL underneath (`relay`); this story owns only the
+ * `role`/`cellId`/`clusterName` framing around it (§5d — the base heartbeat
+ * is deliberately not rebuilt here).
+ */
+export interface RelayHeartbeatBody extends OrvexRoleEcho {
+  role: 'worker';
   status: 'pass' | 'fail';
   relay: RelayOutboxResult;
   ts: string;
 }
 
-export interface OrvexHealthBody {
+export interface OrvexHealthBody extends OrvexRoleEcho {
+  role: 'api';
   status: 'ok' | 'degraded';
   checks: {
     postgres: PostgresResult;
@@ -89,11 +122,10 @@ export interface OrvexHealthBody {
     kafka: { ok: boolean; wired: boolean; error?: string };
   };
   ts: string;
-  // ENG-2510 AC3 — cell contract rule #4: the health surface echoes BOTH
-  // cell params. Unset env surfaces as `null`, never a thrown error (the
-  // never-throw/HTTP-200 contract below is unchanged by these fields).
-  cellId: string | null;
-  clusterName: string | null;
+  // ENG-2510 AC3 — cell contract rule #4: `cellId`/`clusterName` arrive via
+  // {@link OrvexRoleEcho}, shared with every role-scoped body. Unset env
+  // surfaces as `null`, never a thrown error (the never-throw/HTTP-200
+  // contract below is unchanged by these fields).
 }
 
 /**
@@ -163,9 +195,25 @@ export class OrvexHealthService {
       };
     }
     return {
+      ...this.roleEcho('worker'),
       status: relay.ok ? 'pass' : 'fail',
       relay,
       ts: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * ENG-2510 AC1/AC3 — the ONE place the per-role/health-echo framing is
+   * built, so all three role surfaces carry an identical, config-sourced
+   * `role`/`cellId`/`clusterName` triple and cannot drift apart.
+   */
+  private roleEcho<R extends OrvexRoleEcho['role']>(
+    role: R,
+  ): OrvexRoleEcho & { role: R } {
+    return {
+      role,
+      cellId: this.config.cellId,
+      clusterName: this.config.clusterName,
     };
   }
 
@@ -184,11 +232,10 @@ export class OrvexHealthService {
     const anyWiredDown = !postgres.ok || !redis.ok || !storage.ok || !kafka.ok;
 
     return {
+      ...this.roleEcho('api'),
       status: anyWiredDown ? 'degraded' : 'ok',
       checks: { postgres, redis, storage, kafka },
       ts: new Date().toISOString(),
-      cellId: this.config.cellId,
-      clusterName: this.config.clusterName,
     };
   }
 
@@ -211,6 +258,10 @@ export class OrvexHealthService {
       // surface as an honest failure, not a crashed handler.
       result = { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
-    return { role: 'collab', ...result, ts: new Date().toISOString() };
+    return {
+      ...result,
+      ...this.roleEcho('collab'),
+      ts: new Date().toISOString(),
+    };
   }
 }
