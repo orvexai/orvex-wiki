@@ -10,7 +10,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
@@ -51,12 +50,16 @@ import {
   RegistryClientError,
   RegistryClientNotConfiguredError,
 } from '../../orvex/http/identity-registry-client';
-import { TENANT_MOVE_REGISTRY_CLIENT } from '../../orvex/http/orvex-tenant-cell-move.service';
+import { IDENTITY_REGISTRY_CLIENT } from '../../orvex/http/orvex-identity-registry.module';
+import { TenantPrincipalKind } from '../workspace/tenant-principal.types';
 import { EntitlementService } from '../../orvex/entitlement/entitlement.service';
 import { JIT_MEMBER_OVERAGE_MULTIPLIER } from '../../orvex/entitlement/entitlement.types';
 
-/** ENG-2503 (D-S17) — the polymorphic user-or-org tenant shape. */
-export type TenantPrincipalKind = 'user' | 'org';
+// ENG-2503 (D-S17) — the polymorphic tenant shape lives in its own leaf
+// module (`core/workspace/tenant-principal.types`) so every tenancy consumer
+// can name it without importing another service module. Re-exported here for
+// the callers that already import it from this service's surface.
+export { TenantPrincipalKind };
 
 export interface ProvisionPrincipalInput {
   subject: string;
@@ -153,15 +156,23 @@ export class PrincipalProvisioningService {
     // (`assertWithinQuotaAllowingOverage`); this service only marshals.
     private readonly entitlementService: EntitlementService,
     /**
-     * ENG-2503 AC4 — the global identity registry port (mint-time
-     * uniqueness delegation). OPTIONAL at composition: a single-cell /
-     * self-hosted deployment has no registry, and provisioning then relies
-     * on the local per-cell backstop constraints alone. When present, the
-     * reservation call runs BEFORE the local `workspaces` insert.
+     * ENG-2503 AC4 — the global identity registry port (mint-time uniqueness
+     * delegation), composed once by the `@Global()`
+     * `OrvexIdentityRegistryModule` and REQUIRED at composition.
+     *
+     * It is deliberately NOT `@Optional()`: an optional injection is exactly
+     * what let this delegation silently never run — the port used to be a
+     * module-private provider in the flag-gated `OrvexHttpModule`, Nest
+     * resolved `undefined`, and `reserveTenantGlobally` took its early return
+     * in every real deployment with no boot error. A missing provider must be
+     * a LOUD boot failure. The single-cell / self-hosted case is expressed by
+     * the fail-closed `NotConfiguredRegistryClient` the composition binds when
+     * `ORVEX_IDENTITY_URL` is unset — handled at CALL time (typed
+     * `NOT_CONFIGURED`, logged, local backstop constraints stand), never by an
+     * absent dependency.
      */
-    @Optional()
-    @Inject(TENANT_MOVE_REGISTRY_CLIENT)
-    private readonly registryClient?: IdentityRegistryClient,
+    @Inject(IDENTITY_REGISTRY_CLIENT)
+    private readonly registryClient: IdentityRegistryClient,
   ) {}
 
   async provision(
@@ -402,10 +413,11 @@ export class PrincipalProvisioningService {
 
   /**
    * ENG-2503 AC4/AC5 — mint-time delegation to the global identity
-   * registry. Behaviour by configuration state:
-   *  - no client injected / NOT_CONFIGURED: single-cell mode — skip, the
-   *    local per-cell backstop constraints are the only guard (logged, not
-   *    silent).
+   * registry. The port is always injected (see the constructor note); the
+   * only configuration axis left is what the composed client IS:
+   *  - `NOT_CONFIGURED` (`ORVEX_IDENTITY_URL` unset — single-cell /
+   *    self-hosted): skip, the local per-cell backstop constraints are the
+   *    only guard. Logged, never silent.
    *  - `TENANT_ALREADY_RESERVED` (cross-cell mint collision): surfaces as a
    *    typed 409 Conflict carrying the code — never a bare 500, never a
    *    silent local accept.
@@ -416,12 +428,6 @@ export class PrincipalProvisioningService {
     tenant: string,
     principalKind: TenantPrincipalKind,
   ): Promise<void> {
-    if (!this.registryClient) {
-      this.logger.debug(
-        `no identity registry client composed — skipping global reservation for ${tenant} (single-cell mode; local unique constraints remain the per-cell backstop)`,
-      );
-      return;
-    }
     try {
       await this.registryClient.reserveTenant({
         tenantId: tenant,

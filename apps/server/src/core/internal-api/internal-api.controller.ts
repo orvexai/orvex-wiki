@@ -20,7 +20,9 @@ import {
   AclFilterDto,
   ProvisionPrincipalDto,
   TenantQueryDto,
+  UpgradeTenantToTeamDto,
 } from './dto/internal-api.dto';
+import { WorkspaceUpgradeService } from '../workspace/services/workspace-upgrade.service';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 
 /**
@@ -61,6 +63,11 @@ export class InternalApiController {
   constructor(
     private readonly internalApiService: InternalApiService,
     private readonly principalProvisioningService: PrincipalProvisioningService,
+    // ENG-2503 AC3 — the personal→Teams upgrade-pass. Exposed on THIS
+    // machine-facing, bearer-guarded surface (not the tenant-facing `/api`
+    // one) because the actor is identity's provisioning/billing worker, the
+    // same actor that already drives `principals/provision`.
+    private readonly workspaceUpgradeService: WorkspaceUpgradeService,
   ) {}
 
   /**
@@ -85,8 +92,41 @@ export class InternalApiController {
         email: dto.email,
         name: dto.name,
         provisionWorkspace: dto.provision_workspace,
+        // ENG-2503 AC1/AC2 — the polymorphic tenant marker travels on the
+        // wire. Absent ⇒ 'user' (personal, no Clerk org anywhere).
+        principalKind: dto.principal_kind,
+        orgId: dto.org_id,
       });
     return { user_id: userId, created, workspace_created: workspaceCreated };
+  }
+
+  /**
+   * ENG-2503 AC3 — POST /internal/tenants/upgrade-to-team — `{tenant}` ->
+   * `{workspace_id, principal_kind, org_id, upgraded}`. The personal→Teams
+   * UPGRADE-PASS entry point: identity mints the org (via the registry seam),
+   * then the engine re-keys the EXISTING `workspaces` row IN PLACE. The
+   * `workspace_id` is byte-for-byte unchanged, so every row keyed on it
+   * (pages/spaces/comments) and the entitlement/seat principal carry with no
+   * data migration and no cutover window. Idempotent: an already org-keyed
+   * tenant returns `upgraded: false` and is never re-minted. A registry
+   * failure aborts BEFORE any local write (no half-upgraded tenant), and a
+   * cross-cell collision surfaces as a typed 409 carrying
+   * `TENANT_ALREADY_RESERVED` — never an opaque 500.
+   */
+  @SkipTransform()
+  @HttpCode(HttpStatus.OK)
+  @Post('tenants/upgrade-to-team')
+  async upgradeTenantToTeam(@Body() dto: UpgradeTenantToTeamDto) {
+    const { workspaceId, principalKind, orgId, upgraded } =
+      await this.workspaceUpgradeService.upgradeToTeam({
+        workspaceId: dto.tenant,
+      });
+    return {
+      workspace_id: workspaceId,
+      principal_kind: principalKind,
+      org_id: orgId,
+      upgraded,
+    };
   }
 
   /** AC1 — POST /internal/acl/filter — `{subject, tenant, page_ids}` -> `{allowed}` */

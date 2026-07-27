@@ -271,6 +271,12 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
       outboxWriter,
     );
 
+    billingPort = new RecordingBillingPort();
+    entitlements = new EntitlementService(
+      billingPort as any,
+      new InMemoryEntitlementCache() as any,
+    );
+
     registry = new FakeRegistryClient();
     provisioning = new PrincipalProvisioningService(
       kdb,
@@ -282,15 +288,13 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
       spaceMemberService,
       outboxWriter,
       audit,
+      // ENG-2491 AC4 — the REAL member-cap chokepoint (a recording billing
+      // port behind it), never a stub: the seat check this spec asserts on
+      // (AC3 "seats start counting") must be the one production runs.
+      entitlements,
       registry,
     );
     upgrade = new WorkspaceUpgradeService(kdb, workspaceRepo, registry);
-
-    billingPort = new RecordingBillingPort();
-    entitlements = new EntitlementService(
-      billingPort as any,
-      new InMemoryEntitlementCache() as any,
-    );
   });
 
   afterAll(async () => {
