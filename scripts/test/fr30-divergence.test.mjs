@@ -13,11 +13,21 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import {
+  readFileSync,
+  existsSync,
+  writeFileSync,
+  mkdtempSync,
+  mkdirSync,
+  copyFileSync,
+  rmSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import {
   loadFr30Ledger,
   validateRow,
+  validateBaseline,
   isDivergenceScoped,
   computeBudget,
   checkFr30Divergence,
@@ -151,6 +161,248 @@ test('the three named hot files carry weight > 1 through computeBudget on the co
   }
 });
 
+// ---------------------------------------------------------------------------
+// REAL-MODE ENFORCEMENT — the gate must not be an inert no-op in CI.
+// These assertions drive `node scripts/check-fr30-divergence.mjs` with no
+// --fixture flag: the same invocation the ci.yml step runs.
+// ---------------------------------------------------------------------------
+
+function runRealGate(extraArgs = [], cwd = REPO_ROOT) {
+  const res = spawnSync('node', [GATE, ...extraArgs], { cwd, encoding: 'utf8' });
+  return { code: res.status, out: `${res.stdout}\n${res.stderr}` };
+}
+
+test('the committed ledger pins a REAL upstream sha — the gate is activated, not inert', () => {
+  const raw = JSON.parse(readFileSync(path.join(REPO_ROOT, 'fr30', 'allowlist.json'), 'utf8'));
+  assert.ok(
+    typeof raw.pinnedUpstreamSha === 'string' && /^[0-9a-f]{40}$/.test(raw.pinnedUpstreamSha),
+    'pinnedUpstreamSha must be a real 40-char commit sha — null makes the CI gate a permanent no-op',
+  );
+  // and it must actually resolve to a commit in this repo, so CI can diff
+  // against it without a network fetch (fetch-depth: 0).
+  assert.doesNotThrow(() =>
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${raw.pinnedUpstreamSha}^{commit}`], {
+      cwd: REPO_ROOT,
+      stdio: 'ignore',
+    }),
+  );
+});
+
+test('real mode (the exact ci.yml invocation) exits 0 on the committed tree and prints the budget', () => {
+  const { code, out } = runRealGate();
+  assert.equal(code, 0, `real-mode gate must be green on the committed tree:\n${out}`);
+  assert.match(out, /OK: FR-30 divergence gate/);
+  assert.match(out, /Weighted hot-file budget/);
+  // Activation proof: the gate really diffed against the pin, so the hot
+  // allow-listed files it scored appear in the breakdown.
+  assert.match(out, /page\.service\.ts\s+hunks=\d+ weight=3 score=\d+/);
+});
+
+test('real mode WRITES the T6 budget artifact (the G1 counter-metric substrate)', () => {
+  const outFile = path.join(
+    mkdtempSync(path.join(tmpdir(), 'fr30-artifact-')),
+    'fr30-budget-report.json',
+  );
+  const { code } = runRealGate(['--json-out', outFile]);
+  assert.equal(code, 0);
+  assert.ok(existsSync(outFile), 'real mode must write the budget artifact, not skip it');
+  const artifact = JSON.parse(readFileSync(outFile, 'utf8'));
+  assert.ok(Array.isArray(artifact.perFile) && artifact.perFile.length > 0);
+  assert.equal(typeof artifact.totalScore, 'number');
+  assert.ok(artifact.totalScore > 0, 'a real diff against the pin must score above zero');
+  assert.equal(typeof artifact.baselineFileCount, 'number');
+  assert.equal(typeof artifact.baselineHunkCount, 'number');
+  rmSync(path.dirname(outFile), { recursive: true, force: true });
+});
+
+test('a NEW off-allow-list upstream edit reds the real gate (AC2, live — not fixture-only)', () => {
+  // Pick a real upstream-tracked file that is on neither the allow-list nor
+  // the frozen baseline, edit it in a throwaway clone of the working tree,
+  // and prove the gate reds. This is the enforcement the null pin defeated.
+  const ledger = loadFr30Ledger(REPO_ROOT);
+  const pin = ledger.pinnedUpstreamSha;
+  const upstreamFiles = execFileSync('git', ['ls-tree', '-r', '--name-only', pin], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 256,
+  })
+    .split('\n')
+    .filter(Boolean);
+  const excluded = new Set([
+    ...ledger.rows.map((r) => r.path),
+    ...ledger.preexistingDivergence,
+  ]);
+  const victim = upstreamFiles.find(
+    (p) =>
+      p.endsWith('.ts') &&
+      !excluded.has(p) &&
+      !p.startsWith('apps/server/src/orvex/') &&
+      !p.startsWith('packages/@orvex/') &&
+      existsSync(path.join(REPO_ROOT, p)),
+  );
+  assert.ok(victim, 'expected at least one un-diverged upstream .ts file to plant an edit in');
+
+  const original = readFileSync(path.join(REPO_ROOT, victim), 'utf8');
+  try {
+    writeFileSync(
+      path.join(REPO_ROOT, victim),
+      `${original}\n// FR-30 gate enforcement probe (test-local, reverted in finally)\n`,
+    );
+    const { code, out } = runRealGate();
+    assert.equal(code, 1, `a new off-allow-list edit to ${victim} must red the gate:\n${out}`);
+    assert.match(out, /FAIL: FR-30 divergence gate/);
+    assert.match(out, new RegExp(victim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(out, /OFF-ALLOWLIST/);
+  } finally {
+    writeFileSync(path.join(REPO_ROOT, victim), original);
+  }
+  // and the tree is clean again -> gate green
+  assert.equal(runRealGate().code, 0);
+});
+
+test('an inert ledger (pinnedUpstreamSha null) FAILS LOUDLY — never a silent green', () => {
+  // The gate reads fr30/allowlist.json relative to its own location, so drive
+  // it from a scratch repo root carrying a null-pinned ledger.
+  const scratch = mkdtempSync(path.join(tmpdir(), 'fr30-inert-'));
+  mkdirSync(path.join(scratch, 'scripts', 'lib'), { recursive: true });
+  mkdirSync(path.join(scratch, 'fr30'), { recursive: true });
+  for (const f of ['check-fr30-divergence.mjs', 'check-patches.mjs', 'lib/patches-drift.mjs']) {
+    copyFileSync(path.join(REPO_ROOT, 'scripts', f), path.join(scratch, 'scripts', f));
+  }
+  writeFileSync(
+    path.join(scratch, 'fr30', 'allowlist.json'),
+    JSON.stringify({ pinnedUpstreamSha: null, rows: [] }),
+  );
+  execFileSync('git', ['init', '-q'], { cwd: scratch });
+
+  const res = spawnSync('node', [path.join(scratch, 'scripts', 'check-fr30-divergence.mjs')], {
+    cwd: scratch,
+    encoding: 'utf8',
+  });
+  const out = `${res.stdout}\n${res.stderr}`;
+  assert.notEqual(res.status, 0, `an unactivated gate must not exit 0:\n${out}`);
+  assert.match(out, /INERT/);
+  assert.doesNotMatch(out, /^OK: FR-30/m);
+  rmSync(scratch, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// The ratchet baseline — pre-existing divergence is counted, never a finding,
+// and may only shrink.
+// ---------------------------------------------------------------------------
+
+test('computeBudget: a baseline path is reported as baseline, not an offender; a new path offends', () => {
+  const ledger = {
+    rows: [{ path: 'allowed.ts', weight: 2, class: 'allowlist' }],
+    preexistingDivergence: ['legacy.ts'],
+  };
+  const budget = computeBudget(
+    [
+      { path: 'allowed.ts', hunks: 1 },
+      { path: 'legacy.ts', hunks: 4 },
+      { path: 'brand-new.ts', hunks: 1 },
+    ],
+    ledger,
+  );
+  assert.deepEqual(budget.offenders, ['brand-new.ts']);
+  assert.deepEqual(budget.baseline, [{ path: 'legacy.ts', hunks: 4 }]);
+  // the baseline must not silently inflate the weighted allow-list budget
+  assert.equal(budget.totalScore, 2);
+});
+
+test('every frozen baseline path is a real upstream-tracked file (no invented ratchet entry)', () => {
+  const ledger = loadFr30Ledger(REPO_ROOT);
+  const upstreamFiles = new Set(
+    execFileSync('git', ['ls-tree', '-r', '--name-only', ledger.pinnedUpstreamSha], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024 * 256,
+    })
+      .split('\n')
+      .filter(Boolean),
+  );
+  assert.ok(ledger.preexistingDivergence.length > 0);
+  for (const p of ledger.preexistingDivergence) {
+    assert.ok(upstreamFiles.has(p), `baseline path is not in the pinned upstream tree: ${p}`);
+  }
+  // One disposition per path: a baseline entry is legacy debt and must carry
+  // no ledger row at all (allow-list OR hardening). A path governed by a row
+  // is already dispositioned; leaving it on the baseline too would be dead
+  // ratchet weight that can never shrink.
+  const rowPaths = new Set(ledger.rows.map((r) => r.path));
+  for (const p of ledger.preexistingDivergence) {
+    assert.ok(
+      !rowPaths.has(p),
+      `path carries a ledger row AND sits on the ratchet baseline (one disposition each): ${p}`,
+    );
+  }
+  // No duplicates — a repeated entry would double-count the counter-metric.
+  assert.equal(
+    new Set(ledger.preexistingDivergence).size,
+    ledger.preexistingDivergence.length,
+    'the ratchet baseline carries duplicate paths',
+  );
+});
+
+test('the ratchet baseline is exhaustive: real mode finds no un-ratified off-allow-list file', () => {
+  // If the baseline under-counted, the real gate would already be red; if it
+  // over-counted, it would carry entries that no longer diverge. Both are
+  // ceiling-integrity failures (❌#10). Assert on SET IDENTITY, not on the
+  // count: a count check alone is satisfied by a swap (drop one still-diverging
+  // path, add one stale path), which is exactly the silent ceiling-raise ❌#10
+  // forbids. So compare the ledger's frozen list against the paths that really
+  // diverge against the pin today, both directions.
+  const outFile = path.join(mkdtempSync(path.join(tmpdir(), 'fr30-ratchet-')), 'report.json');
+  const { code } = runRealGate(['--json-out', outFile]);
+  assert.equal(code, 0);
+  const artifact = JSON.parse(readFileSync(outFile, 'utf8'));
+  const ledger = loadFr30Ledger(REPO_ROOT);
+  assert.equal(
+    artifact.baselineFileCount,
+    ledger.preexistingDivergence.length,
+    'every frozen baseline path must still diverge — a stale entry is a ceiling that can never shrink',
+  );
+
+  // The real divergence set against the pin, scoped exactly as the gate scopes
+  // it: upstream-tracked files only, minus the orvex additive surface.
+  const upstreamPaths = new Set(
+    execFileSync('git', ['ls-tree', '-r', '--name-only', ledger.pinnedUpstreamSha], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024 * 256,
+    })
+      .split('\n')
+      .filter(Boolean),
+  );
+  const rowPaths = new Set(ledger.rows.map((r) => r.path));
+  const reallyDiverging = execFileSync(
+    'git',
+    ['diff', '--name-only', ledger.pinnedUpstreamSha, '--', '.'],
+    { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 },
+  )
+    .split('\n')
+    .filter(Boolean)
+    .filter((p) => upstreamPaths.has(p) && isDivergenceScoped(p) && !rowPaths.has(p));
+
+  const frozen = new Set(ledger.preexistingDivergence);
+  const stale = [...frozen].filter((p) => !reallyDiverging.includes(p));
+  const unratified = reallyDiverging.filter((p) => !frozen.has(p));
+  assert.deepEqual(stale, [], `ratchet baseline carries path(s) that no longer diverge: ${stale}`);
+  assert.deepEqual(
+    unratified,
+    [],
+    `upstream file(s) diverge outside both the allow-list and the frozen baseline: ${unratified}`,
+  );
+  rmSync(path.dirname(outFile), { recursive: true, force: true });
+});
+
+test('validateBaseline rejects a malformed ratchet baseline (❌#12 shape gate)', () => {
+  assert.throws(() => validateBaseline('not-an-array', 't'));
+  assert.throws(() => validateBaseline([''], 't'));
+  assert.throws(() => validateBaseline([42], 't'));
+  assert.deepEqual(validateBaseline(undefined, 't'), []);
+});
+
 test('TestLedgerNoPlaceholderOrTodoEntries: honesty grep over the gate + ledger', () => {
   for (const file of ['scripts/check-fr30-divergence.mjs', 'fr30/allowlist.json']) {
     const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');
@@ -221,15 +473,41 @@ test('budgetArtifact (T6): machine-readable report carries structural fields onl
     () => '',
   );
   const artifact = budgetArtifact(result);
-  assert.deepEqual(Object.keys(artifact).sort(), ['findings', 'perFile', 'totalScore']);
+  assert.deepEqual(Object.keys(artifact).sort(), [
+    'baselineFileCount',
+    'baselineHunkCount',
+    'findings',
+    'perFile',
+    'totalScore',
+  ]);
   assert.equal(artifact.totalScore, 6);
 });
 
-test('the reused pinned-ref resolver is imported from the sibling, not re-implemented', () => {
+test('the reused pinned-ref resolver is imported from the sibling AND actually called', () => {
   const gateSource = readFileSync(GATE, 'utf8');
-  assert.match(gateSource, /import \{ ensureUpstreamRef, gitShowResolver \} from '\.\/check-patches\.mjs'/);
-  // no second fetch path: the gate itself never calls `git fetch`
+  // Imported from the sibling — one implementation of the true-external
+  // boundary, never a second fetch path (§5c "no duplication of the sibling").
+  assert.match(gateSource, /import \{[^}]*\bensureUpstreamRef\b[^}]*\} from '\.\/check-patches\.mjs'/);
   assert.doesNotMatch(gateSource, /git['"]?,\s*\[\s*['"]fetch/);
+
+  // ...and genuinely USED, not a cosmetic import. Grepping the import line
+  // alone let a dead `gitShowResolver` import satisfy this contract while
+  // nothing called it, so assert on a real call site.
+  const importLineCount = (gateSource.match(/\bensureUpstreamRef\b/g) || []).length;
+  assert.ok(
+    importLineCount >= 2,
+    'ensureUpstreamRef is imported but never called — a dead import cannot satisfy the reuse contract',
+  );
+  assert.match(gateSource, /ensureUpstreamRef\(\s*REPO_ROOT/);
+
+  // No import in this gate may be dead: every named binding taken from the
+  // sibling must appear at a call site, not just in the import statement.
+  const named = gateSource.match(/import \{([^}]*)\} from '\.\/check-patches\.mjs'/);
+  assert.ok(named, 'expected a named import from the sibling');
+  for (const sym of named[1].split(',').map((s) => s.trim()).filter(Boolean)) {
+    const uses = (gateSource.match(new RegExp(`\\b${sym}\\b`, 'g')) || []).length;
+    assert.ok(uses >= 2, `dead import: '${sym}' is imported from the sibling but never used`);
+  }
 });
 
 test('the sibling patches-drift subsystem still passes its own self-test (untouched behaviour)', () => {

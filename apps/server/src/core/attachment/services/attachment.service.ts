@@ -129,29 +129,24 @@ export class AttachmentService {
     // The authoritative, race-safe recheck happens after streaming,
     // immediately before the attachment row is written, below.
     if (!isUpdate) {
-      // ENG-2490 AC4 — O(1) fast-counter usage reads (files / storage
-      // aggregate); the store-tier COUNT/SUM runs only on a counter miss
-      // (first read / TTL re-seed / Redis loss — the declared degrade).
-      const currentFileCount = this.quotaFastCounter
-        ? await this.quotaFastCounter.currentUsage(workspaceId, 'files', () =>
-            this.attachmentRepo.countByWorkspaceId(workspaceId),
-          )
-        : await this.attachmentRepo.countByWorkspaceId(workspaceId);
-      await this.entitlementService.assertWithinQuota(
+      // ENG-2490 AC4 + ENG-2492 AC2 — the counter-sourced, fail-mode-aware
+      // chokepoint. `assertWithinQuotaFromCounter` reads the O(1) Redis
+      // counter itself; the store-tier COUNT/SUM closure below runs ONLY on
+      // a counter miss with Redis reachable (cold start / TTL re-seed). If
+      // Redis is genuinely UNAVAILABLE this storage-shaped write fails
+      // CLOSED with the frozen 402 (`redisUnavailable: true`) — the
+      // ADR-0003 split, decided inside `EntitlementService` (❌#1), never
+      // branched on here.
+      await this.entitlementService.assertWithinQuotaFromCounter(
         workspaceId,
         'files',
-        currentFileCount,
+        () => this.attachmentRepo.countByWorkspaceId(workspaceId),
       );
 
-      const currentStorageBytes = this.quotaFastCounter
-        ? await this.quotaFastCounter.currentUsage(workspaceId, 'storage', () =>
-            this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId),
-          )
-        : await this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId);
-      await this.entitlementService.assertWithinQuota(
+      await this.entitlementService.assertWithinQuotaFromCounter(
         workspaceId,
         'storage',
-        currentStorageBytes,
+        () => this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId),
       );
     }
 
@@ -191,41 +186,33 @@ export class AttachmentService {
         attachment = await executeTx(this.db, async (trx) => {
           await acquireWorkspaceQuotaLock(trx, 'storage', workspaceId);
 
-          // ENG-2490 AC4 — counter-sourced usage inside the advisory-locked
-          // critical section (the F1 discipline is preserved: the lock
-          // serializes read→assert→save→increment, so a concurrent upload
-          // always observes this one's counter delta).
-          const currentFileCount = this.quotaFastCounter
-            ? await this.quotaFastCounter.currentUsage(workspaceId, 'files', () =>
-                this.attachmentRepo.countByWorkspaceId(workspaceId, trx),
-              )
-            : await this.attachmentRepo.countByWorkspaceId(workspaceId, trx);
-          await this.entitlementService.assertWithinQuota(
+          // ENG-2490 AC4 + ENG-2492 AC2 — counter-sourced, fail-mode-aware
+          // asserts inside the advisory-locked critical section (the F1
+          // discipline is preserved: the lock serializes
+          // read→assert→save→increment, so a concurrent upload always
+          // observes this one's counter delta). A Redis usage-counter
+          // OUTAGE fails these storage-shaped asserts CLOSED (402 +
+          // `redisUnavailable: true`) rather than silently enforcing from a
+          // stale aggregate — the ADR-0003 split, owned by
+          // `EntitlementService`.
+          await this.entitlementService.assertWithinQuotaFromCounter(
             workspaceId,
             'files',
-            currentFileCount,
+            () => this.attachmentRepo.countByWorkspaceId(workspaceId, trx),
           );
 
-          const currentStorageBytes = this.quotaFastCounter
-            ? await this.quotaFastCounter.currentUsage(
-                workspaceId,
-                'storage',
-                () =>
-                  this.attachmentRepo.sumFileSizeByWorkspaceId(
-                    workspaceId,
-                    trx,
-                  ),
-              )
-            : await this.attachmentRepo.sumFileSizeByWorkspaceId(
-                workspaceId,
-                trx,
-              );
-          await this.entitlementService.assertIncrementWithinQuota(
+          await this.entitlementService.assertIncrementWithinQuotaFromCounter(
             workspaceId,
             'storage',
-            currentStorageBytes,
             preparedFile.fileSize,
+            () =>
+              this.attachmentRepo.sumFileSizeByWorkspaceId(workspaceId, trx),
           );
+          // `file_bytes` is a PER-FILE bound with no running aggregate (the
+          // sweep's `truthFor` returns null for it) — there is no counter to
+          // read, so it stays on the caller-supplied baseline-0 shape rather
+          // than the counter-sourced variant, which would see a permanent
+          // miss and wrongly fail closed on every upload.
           await this.entitlementService.assertIncrementWithinQuota(
             workspaceId,
             'file_bytes',

@@ -1,10 +1,37 @@
 import { sql } from 'kysely';
 import { KyselyDB, KyselyTransaction } from './types/kysely.types';
+import { currentTenantScope } from './rls/tenant-scope.context';
+import { withTenantScopedTransaction } from './rls/rls-guc-hook';
 
 /*
  * Executes a transaction or a callback using the provided database instance.
  * If an existing transaction is provided, it directly executes the callback with it.
  * Otherwise, it starts a new transaction using the provided database instance and executes the callback within that transaction.
+ *
+ * ENG-2502 (FR-W8, AC1) — this is the SHARED TRANSACTION CHOKEPOINT every
+ * tenant-scoped service transaction in the engine funnels through (~30 call
+ * sites across core/, integrations/, collaboration/ and orvex/). When the
+ * ambient request tenant scope is set (established by `DomainMiddleware`
+ * from `req.workspaceId`, see `rls/tenant-scope.context.ts`), the newly
+ * opened transaction runs
+ * `set_config('app.workspace_id', $1, true)` as its FIRST statement, so the
+ * fail-closed `orvex_rls_tenant_isolation_*` policies admit exactly that
+ * tenant's rows. Wiring it HERE rather than at each call site means a new
+ * transaction site is tenant-scoped by construction and cannot forget.
+ *
+ * With NO ambient scope (a boot task, a queue worker, a background job) the
+ * GUC is deliberately left unset: RLS then denies by default (AC5) rather
+ * than this helper guessing a tenant. Those paths connect as roles/contexts
+ * that are handled by the rollout sequencing described in the RLS
+ * migration's header — never by silently widening the boundary here.
+ *
+ * An `existingTrx` is NOT re-scoped: it was already scoped by whichever
+ * `executeTx` opened it, and re-issuing `set_config` inside a caller's
+ * transaction it does not own is exactly the ordering hazard the hook
+ * exists to prevent.
+ *
+ * RLS remains a BACKSTOP beneath the FR-13 app-layer ACL, never a
+ * replacement for it.
  */
 export async function executeTx<T>(
   db: KyselyDB,
@@ -13,9 +40,15 @@ export async function executeTx<T>(
 ): Promise<T> {
   if (existingTrx) {
     return await callback(existingTrx); // Execute callback with existing transaction
-  } else {
-    return await db.transaction().execute((trx) => callback(trx)); // Start new transaction and execute callback
   }
+
+  const workspaceId = currentTenantScope();
+
+  return await db.transaction().execute((trx) =>
+    workspaceId === null
+      ? callback(trx) // No ambient tenant: GUC stays unset, RLS denies by default.
+      : withTenantScopedTransaction(trx, workspaceId, callback),
+  );
 }
 
 /*

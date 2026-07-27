@@ -45,6 +45,25 @@ spec:
           annotations:
             summary: "orvex-wiki has ZERO available replicas in {{ $labels.namespace }}"
             description: "No orvex-wiki pod has been available for 5 minutes in namespace {{ $labels.namespace }} — the wiki is down in that environment."
+        # worker role (ENG-2510 AC5) — the outbox relay's own liveness
+        # signal. The relay runs IN-PROCESS (@Interval, 2s) inside the same
+        # pod as the api role, and `/health/orvex/relay` returns HTTP 200
+        # UNCONDITIONALLY by the family health ruling (a dead relay is
+        # carried as `status: 'fail'` in the body, never as a 5xx). A kubelet
+        # httpGet probe therefore CANNOT observe it — restarting the pod on a
+        # relay stall would also kill a healthy api role. So the worker
+        # role's probe is an alert on its own emitted metric: a relay that
+        # stops draining lets the oldest unrelayed row age past the
+        # heartbeat threshold, which no api-role probe can see.
+        - alert: OrvexWikiOutboxRelayStalled
+          expr: >
+            orvex_outbox_oldest_unrelayed_age_seconds{namespace=~"orvex-wiki(-.+)?"} > 120
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "orvex-wiki outbox relay stalled in {{ $labels.namespace }}"
+            description: "The oldest unrelayed outbox row has been older than 120s for 5 minutes — the worker relay has stopped draining to Kafka while the api role still reads green. No event has left this cell for at least that long."
         - alert: OrvexWikiDeploymentDegraded
           expr: >
             kube_deployment_status_replicas_available{namespace=~"orvex-wiki(-.+)?", deployment="orvex-wiki"}

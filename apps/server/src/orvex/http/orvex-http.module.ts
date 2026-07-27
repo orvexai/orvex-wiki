@@ -12,10 +12,9 @@ import {
   NotConfiguredIntrospector,
 } from '../../core/session-mint/identity-introspector';
 import {
-  HttpIdentityRegistryClient,
-  IdentityRegistryClient,
-  NotConfiguredRegistryClient,
-} from './identity-registry-client';
+  IDENTITY_REGISTRY_CLIENT,
+  OrvexIdentityRegistryModule,
+} from './orvex-identity-registry.module';
 import { OrvexQuotaController } from './orvex-quota.controller';
 import { OrvexSourceController } from './orvex-source.controller';
 import { OrvexTenantMoveController } from './orvex-tenant-move.controller';
@@ -51,21 +50,6 @@ function composeTenantMoveIntrospector(
   });
 }
 
-/** Compose the ENG-1578 identity registry HTTP client (same seam/fallback). */
-function composeTenantMoveRegistryClient(
-  config: OrvexConfigService,
-): IdentityRegistryClient {
-  const identityUrl = config.identityUrl;
-  if (identityUrl === null) {
-    return new NotConfiguredRegistryClient();
-  }
-  return new HttpIdentityRegistryClient({
-    baseUrl: identityUrl,
-    timeoutMs: IDENTITY_CALL_TIMEOUT_MS,
-    fetch: (input, init) => fetch(input, init),
-  });
-}
-
 /**
  * Mounts the additive `/api/orvex/*` primitive surface (the paths traced by
  * `contracts/openapi.yaml`). Imports {@link OrvexConfigModule} because the REAL
@@ -96,7 +80,7 @@ function composeTenantMoveRegistryClient(
  * same way `OrvexSourceController` is.
  */
 @Module({
-  imports: [OrvexConfigModule],
+  imports: [OrvexConfigModule, OrvexIdentityRegistryModule],
   controllers: [
     OrvexQuotaController,
     OrvexSourceController,
@@ -110,11 +94,12 @@ function composeTenantMoveRegistryClient(
         composeTenantMoveIntrospector(config),
       inject: [OrvexConfigService],
     } satisfies Provider,
+    // ENG-2503 — ONE adapter (CS §3.2): the registry port is composed once,
+    // globally, by `OrvexIdentityRegistryModule`. ENG-1578's historical
+    // token is an alias onto that same instance, never a second client.
     {
       provide: TENANT_MOVE_REGISTRY_CLIENT,
-      useFactory: (config: OrvexConfigService): IdentityRegistryClient =>
-        composeTenantMoveRegistryClient(config),
-      inject: [OrvexConfigService],
+      useExisting: IDENTITY_REGISTRY_CLIENT,
     } satisfies Provider,
   ],
 })

@@ -181,22 +181,20 @@ export class PageService {
         async (quotaTrx) => {
           await acquireWorkspaceQuotaLock(quotaTrx, 'pages', workspaceId);
 
-          // ENG-2490 AC1/AC2 — the `currentUsage` SOURCE is the O(1)
-          // `quota:pages:{tenant}` fast-counter; the store-tier COUNT runs
-          // only on a counter miss (first read / TTL re-seed / Redis loss —
-          // the declared degrade mode, never a per-request aggregate). The
-          // advisory lock above still serializes the whole
+          // ENG-2490 AC1/AC2 + ENG-2492 AC3 — the `currentUsage` SOURCE is
+          // the O(1) `quota:pages:{tenant}` fast-counter, read INSIDE the
+          // domain by `assertWithinQuotaFromCounter`; the store-tier COUNT
+          // closure runs only on a counter miss with Redis reachable (first
+          // read / TTL re-seed). `pages` is a CHEAP resource, so a genuine
+          // Redis OUTAGE fails OPEN here (the ADR-0003 split) — a Redis
+          // outage must never become a page-create outage. The advisory
+          // lock above still serializes the whole
           // read→assert→insert→increment section, preserving the F1
           // no-cap-bypass-race discipline with either usage source.
-          const currentPageCount = this.quotaFastCounter
-            ? await this.quotaFastCounter.currentUsage(workspaceId, 'pages', () =>
-                this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx),
-              )
-            : await this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx);
-          await this.entitlementService.assertWithinQuota(
+          await this.entitlementService.assertWithinQuotaFromCounter(
             workspaceId,
             'pages',
-            currentPageCount,
+            () => this.pageRepo.countByWorkspaceId(workspaceId, quotaTrx),
           );
 
           const insertedPage = await this.pageRepo.insertPage(

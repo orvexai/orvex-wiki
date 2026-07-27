@@ -160,7 +160,13 @@ describe('TestEngineHasNoSwaggerAndDegradesGracefully (ENG-2508)', () => {
     expect(prodFilesContaining(SERVER_SRC, '@nestjs/swagger')).toEqual([]);
   });
 
-  it('AC1 (behavioral) — a REAL booted app route table carries no /docs|/api-docs|swagger path', async () => {
+  // SCOPE NOTE (ENG-2508 AC1): this boots ONLY `OrvexRootModule.register()`
+  // — the additive orvex subtree, ~17 of the engine's ~50 controllers — so a
+  // `/docs` route mounted in the upstream Docmost core would NOT be caught
+  // here. The full-app route table is asserted by the integration-tier
+  // sibling `test/integration/eng2508-portability-full-app.integration-spec.ts`
+  // (which needs Postgres + Redis to boot AppModule). Both must stay green.
+  it('AC1 (behavioral, orvex subtree) — a REAL booted app route table carries no /docs|/api-docs|swagger path', async () => {
     const { app, routes } = await bootRealApp();
     try {
       // non-vacuous: the boot registered real routes

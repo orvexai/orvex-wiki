@@ -5,6 +5,7 @@
 import { Module } from '@nestjs/common';
 import { ExportModule } from '../../integrations/export/export.module';
 import { SpaceModule } from '../space/space.module';
+import { WorkspaceModule } from '../workspace/workspace.module';
 import { InternalApiController } from './internal-api.controller';
 import { InternalApiService } from './internal-api.service';
 import { PrincipalProvisioningService } from './principal-provisioning.service';
@@ -29,8 +30,17 @@ import { InternalApiAuthGuard } from './internal-api-auth.guard';
  * extra module import. `GroupRepo` (ENG-1559 R6) creates the default group of a
  * workspace materialized at a registry-issued UUID.
  */
+/**
+ * ENG-2503 — imports `WorkspaceModule` for `WorkspaceUpgradeService`, whose
+ * `upgradeToTeam` this controller exposes at
+ * `POST /internal/tenants/upgrade-to-team` (the personal→Teams upgrade-pass;
+ * the actor is identity's provisioning/billing worker, the same one that
+ * already drives `principals/provision`). The identity registry port itself is
+ * resolved from the `@Global()` `OrvexIdentityRegistryModule`, so it needs no
+ * extra import here.
+ */
 @Module({
-  imports: [ExportModule, SpaceModule],
+  imports: [ExportModule, SpaceModule, WorkspaceModule],
   controllers: [InternalApiController],
   providers: [
     InternalApiService,

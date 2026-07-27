@@ -30,7 +30,7 @@ import { readFileSync, existsSync, readdirSync, writeFileSync, statSync } from '
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { ensureUpstreamRef, gitShowResolver } from './check-patches.mjs';
+import { ensureUpstreamRef } from './check-patches.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -43,19 +43,27 @@ const EXCLUDED_SCOPES = ['apps/server/src/orvex/', 'packages/@orvex/'];
 const VALID_CLASSES = new Set(['allowlist', 'hardening']);
 
 /**
- * loadFr30Ledger(repoRoot) -> { pinnedUpstreamSha, rows }
+ * loadFr30Ledger(repoRoot) -> { pinnedUpstreamSha, rows, preexistingDivergence }
  *
  * Reads the frozen 13-row allow-list (fr30/allowlist.json) and, when the
  * ENG-2478 hardening ledger exists, folds its 15 items in as
  * `class: "hardening"` rows (path + anchor from each item's own upstream
  * anchor). Every row is shape-validated immediately after JSON.parse
  * (CS ❌#12 — never passed downstream as raw untyped JSON).
+ *
+ * `preexistingDivergence` is the frozen RATCHET BASELINE: the upstream files
+ * that already diverged outside the allow-list at activation time. They are
+ * reported as `baseline` (visible, countable, shrinkable) but do not red the
+ * gate — only a path outside BOTH the allow-list and the baseline is a new
+ * offender. Without it, activating the pin over a fork with years of
+ * pre-allow-list divergence would be a permanent, un-actionable red.
  */
 export function loadFr30Ledger(repoRoot) {
   const ledgerFile = path.join(repoRoot, LEDGER_PATH);
   const parsed = JSON.parse(readFileSync(ledgerFile, 'utf8'));
   const pinnedUpstreamSha = parsed.pinnedUpstreamSha ?? null;
   const rows = (parsed.rows || []).map((r) => validateRow(r, LEDGER_PATH));
+  const preexistingDivergence = validateBaseline(parsed.preexistingDivergence, LEDGER_PATH);
 
   const hardeningFile = path.join(repoRoot, HARDENING_LEDGER_PATH);
   if (existsSync(hardeningFile)) {
@@ -75,7 +83,22 @@ export function loadFr30Ledger(repoRoot) {
     }
   }
 
-  return { pinnedUpstreamSha, rows };
+  return { pinnedUpstreamSha, rows, preexistingDivergence };
+}
+
+/** validateBaseline — runtime shape check for the ratchet baseline (❌#12):
+ * an array of non-empty path strings, or absent (treated as empty). */
+export function validateBaseline(value, sourceName) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(`${sourceName}: preexistingDivergence must be an array of paths`);
+  }
+  for (const p of value) {
+    if (typeof p !== 'string' || p.length === 0) {
+      throw new Error(`${sourceName}: preexistingDivergence carries a non-string/empty path`);
+    }
+  }
+  return value;
 }
 
 /** validateRow — runtime shape check (❌#12): path string, weight number,
@@ -116,7 +139,10 @@ export function isDivergenceScoped(filePath) {
  * arithmetic + ledger disposition).
  *
  * Returns { perFile: [{path, hunks, weight, score, class}], totalScore,
- * offenders: [paths not covered by any ledger row] }.
+ * offenders: [paths on neither the allow-list nor the frozen baseline],
+ * baseline: [{path, hunks}] — the pre-existing divergence, reported so the
+ * G1 counter-metric is countable and its shrinkage visible, but not a
+ * finding }.
  */
 export function computeBudget(diffResult, ledger) {
   // AC3 — a path may appear in BOTH ledgers (the 13-row allow-list at its
@@ -132,15 +158,21 @@ export function computeBudget(diffResult, ledger) {
       rowByPath.set(r.path, r);
     }
   }
+  const baselineSet = new Set(ledger.preexistingDivergence || []);
   const perFile = [];
   const offenders = [];
+  const baseline = [];
   let totalScore = 0;
 
   for (const { path: filePath, hunks } of diffResult) {
     if (!isDivergenceScoped(filePath)) continue; // budget delta 0 for orvex scopes
     const row = rowByPath.get(filePath);
     if (!row) {
-      offenders.push(filePath);
+      // Ratchet: a path on the frozen baseline is pre-existing divergence —
+      // counted and reported, but not a finding. Anything else is NEW
+      // off-allow-list divergence and reds the gate (AC2).
+      if (baselineSet.has(filePath)) baseline.push({ path: filePath, hunks });
+      else offenders.push(filePath);
       continue;
     }
     const score = row.weight * hunks;
@@ -148,7 +180,7 @@ export function computeBudget(diffResult, ledger) {
     perFile.push({ path: filePath, hunks, weight: row.weight, score, class: row.class });
   }
 
-  return { perFile, totalScore, offenders };
+  return { perFile, totalScore, offenders, baseline };
 }
 
 /**
@@ -164,7 +196,8 @@ export function checkFr30Divergence(ledger, diffResult, workingResolver) {
   const budget = computeBudget(diffResult, ledger);
   const findings = budget.offenders.map((p) => ({
     path: p,
-    reason: 'OFF-ALLOWLIST: upstream file differs but is not on the frozen 13-row allow-list',
+    reason:
+      'OFF-ALLOWLIST: upstream file differs but is on neither the frozen 13-row allow-list nor the ratified pre-existing-divergence baseline',
   }));
 
   for (const entry of budget.perFile) {
@@ -199,6 +232,11 @@ export function formatFr30Report(result) {
     );
   }
   lines.push(`  total score: ${result.budget.totalScore}`);
+  const baselineCount = (result.budget.baseline || []).length;
+  const baselineHunks = (result.budget.baseline || []).reduce((n, b) => n + b.hunks, 0);
+  lines.push(
+    `  pre-existing off-allow-list divergence (frozen baseline, must only shrink): ${baselineCount} file(s), ${baselineHunks} hunk(s)`,
+  );
   lines.push('');
   if (result.findings.length > 0) {
     lines.push('Findings:');
@@ -222,9 +260,13 @@ export function formatFr30Report(result) {
  * weight/hunks/score + cumulative score. Structural fields only — no
  * wall-clock stamp, so runs are byte-comparable. */
 export function budgetArtifact(result) {
+  const baseline = result.budget.baseline || [];
   return {
     perFile: result.budget.perFile,
     totalScore: result.budget.totalScore,
+    // The G1 counter-metric substrate: this pair must fall run-over-run.
+    baselineFileCount: baseline.length,
+    baselineHunkCount: baseline.reduce((n, b) => n + b.hunks, 0),
     findings: result.findings,
   };
 }
@@ -256,10 +298,12 @@ function validateLedgerRowsExist(repoRoot, ledger) {
 }
 
 function realDiffResult(repoRoot, sha) {
+  const BIG = 1024 * 1024 * 256; // a whole-fork diff overflows the 1MB default
   const upstreamPaths = new Set(
     execFileSync('git', ['ls-tree', '-r', '--name-only', sha], {
       cwd: repoRoot,
       encoding: 'utf8',
+      maxBuffer: BIG,
     })
       .split('\n')
       .filter(Boolean),
@@ -267,6 +311,7 @@ function realDiffResult(repoRoot, sha) {
   const changed = execFileSync('git', ['diff', '--name-only', sha, '--', '.'], {
     cwd: repoRoot,
     encoding: 'utf8',
+    maxBuffer: BIG,
   })
     .split('\n')
     .filter(Boolean)
@@ -278,6 +323,7 @@ function realDiffResult(repoRoot, sha) {
     const diff = execFileSync('git', ['diff', '-U0', sha, '--', p], {
       cwd: repoRoot,
       encoding: 'utf8',
+      maxBuffer: BIG,
     });
     return { path: p, hunks: countHunks(diff) };
   });
@@ -293,18 +339,39 @@ function runGate({ jsonOut } = {}) {
     return 1;
   }
 
+  // A null pin makes this gate a permanent no-op: no off-allow-list edit could
+  // ever red the build and no budget artifact would be written. That is an
+  // inert gate wearing a green tick — the exact fake-done shape CS §10/§11
+  // forbid — so it is LOUD (exit 1), never a silent success.
   if (!ledger.pinnedUpstreamSha) {
-    console.log(
-      'OK: FR-30 divergence gate — not yet activated (pinnedUpstreamSha null); ledger rows validated against HEAD.',
+    console.error(
+      'FAIL: FR-30 divergence gate is INERT — fr30/allowlist.json has pinnedUpstreamSha: null.',
     );
-    return 0;
+    console.error(
+      '  With no pin the gate cannot diff against upstream: no off-allow-list edit can red the',
+    );
+    console.error(
+      '  build and no budget artifact is produced. A gate that cannot enforce must not report',
+    );
+    console.error('  success (CS §10 operability, §11 honesty).');
+    console.error(
+      '  remediation: set pinnedUpstreamSha to the upstream fork-point commit and record the',
+    );
+    console.error(
+      '    pre-existing off-allow-list divergence in preexistingDivergence (the ratchet baseline).',
+    );
+    return 1;
   }
 
   const upstreamOk = ensureUpstreamRef(REPO_ROOT, ledger.pinnedUpstreamSha);
   if (!upstreamOk) {
     console.error(
-      `INFRA-ERROR: could not fetch the pinned upstream ref (${ledger.pinnedUpstreamSha}) via the 'upstream' remote.`,
+      `INFRA-ERROR: could not resolve the pinned upstream ref (${ledger.pinnedUpstreamSha}) locally or via the 'upstream' remote.`,
     );
+    console.error(
+      "  The pin is an ancestor of this repo's own history — a shallow clone is the usual cause;",
+    );
+    console.error('  the CI job checks out with fetch-depth: 0 so the commit is present.');
     return 2;
   }
 
@@ -365,9 +432,11 @@ function fixtureHunks(upstreamFile, workingFile) {
 export function runFixture(fixtureDir, { jsonOut } = {}) {
   const ledgerFile = path.join(fixtureDir, 'ledger.json');
   const parsed = JSON.parse(readFileSync(ledgerFile, 'utf8'));
+  const fixtureName = `fixture:${path.basename(fixtureDir)}`;
   const ledger = {
     pinnedUpstreamSha: parsed.pinnedUpstreamSha ?? 'fixture-pin',
-    rows: (parsed.rows || []).map((r) => validateRow(r, `fixture:${path.basename(fixtureDir)}`)),
+    rows: (parsed.rows || []).map((r) => validateRow(r, fixtureName)),
+    preexistingDivergence: validateBaseline(parsed.preexistingDivergence, fixtureName),
   };
 
   const upstreamDir = path.join(fixtureDir, 'upstream');

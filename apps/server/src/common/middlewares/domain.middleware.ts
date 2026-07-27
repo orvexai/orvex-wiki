@@ -12,6 +12,7 @@ import {
   CELL_SOLO,
   OrvexConfigService,
 } from '../../orvex/config/orvex-config.service';
+import { runInTenantScope } from '@docmost/db/rls/tenant-scope.context';
 
 /**
  * ENG-2501 AC3/AC5 — the typed SOFT rejection marker the label-2 cell
@@ -33,7 +34,34 @@ export class DomainMiddleware implements NestMiddleware {
     private environmentService: EnvironmentService,
     private orvexConfigService: OrvexConfigService,
   ) {}
+  /**
+   * ENG-2502 (FR-W8, AC1) — the request-lifecycle half of the RLS wiring.
+   *
+   * Every `next()` below is entered INSIDE `runInTenantScope(req.workspaceId,
+   * …)`, so the tenant this middleware just resolved is the ambient scope for
+   * the whole downstream request. `executeTx` (`database/utils.ts`), the
+   * shared transaction chokepoint every tenant-scoped service transaction
+   * funnels through, reads that scope and runs
+   * `set_config('app.workspace_id', $1, true)` as the first statement of the
+   * transaction it opens. A request that resolves NO workspace enters the
+   * scope with `null` — the GUC stays unset and RLS denies by default (AC5),
+   * never defaults-open.
+   *
+   * `AsyncLocalStorage.run` must WRAP `next()` (not merely be called before
+   * it): the store is bound to the async execution context the callback
+   * runs in.
+   */
   async use(
+    req: FastifyRequest['raw'],
+    res: FastifyReply['raw'],
+    next: () => void,
+  ) {
+    return this.resolve(req, res, () =>
+      runInTenantScope((req as any).workspaceId ?? null, next),
+    );
+  }
+
+  private async resolve(
     req: FastifyRequest['raw'],
     res: FastifyReply['raw'],
     next: () => void,

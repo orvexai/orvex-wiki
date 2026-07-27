@@ -7,7 +7,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
   Inject,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
@@ -17,10 +16,9 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import {
   IdentityRegistryClient,
   RegistryClientError,
-  RegistryClientNotConfiguredError,
 } from '../../../orvex/http/identity-registry-client';
-import { TENANT_MOVE_REGISTRY_CLIENT } from '../../../orvex/http/orvex-tenant-cell-move.service';
-import { TenantPrincipalKind } from '../../internal-api/principal-provisioning.service';
+import { IDENTITY_REGISTRY_CLIENT } from '../../../orvex/http/orvex-identity-registry.module';
+import { TenantPrincipalKind } from '../tenant-principal.types';
 
 export interface UpgradeToTeamInput {
   workspaceId: string;
@@ -72,13 +70,16 @@ export class WorkspaceUpgradeService {
     private readonly workspaceRepo: WorkspaceRepo,
     /**
      * The identity registry port (existing seam, extended with
-     * `reserveTenant` — one adapter, CS §3.2). OPTIONAL at composition so a
-     * registry-less deployment still boots; calling the upgrade-pass
-     * without one is a typed, loud failure — never a fabricated org.
+     * `reserveTenant` — one adapter, CS §3.2), composed once by the
+     * `@Global()` `OrvexIdentityRegistryModule` and REQUIRED at composition.
+     * Not `@Optional()`: an absent provider must be a loud boot failure, not
+     * a silently registry-less upgrade-pass. A registry-less DEPLOYMENT is
+     * expressed by the fail-closed `NotConfiguredRegistryClient`, which
+     * rejects `reserveTenant` with the typed `NOT_CONFIGURED` error — the
+     * upgrade-pass then fails loud, never fabricating an org.
      */
-    @Optional()
-    @Inject(TENANT_MOVE_REGISTRY_CLIENT)
-    private readonly registryClient?: IdentityRegistryClient,
+    @Inject(IDENTITY_REGISTRY_CLIENT)
+    private readonly registryClient: IdentityRegistryClient,
   ) {}
 
   async upgradeToTeam(input: UpgradeToTeamInput): Promise<UpgradeToTeamResult> {
@@ -99,13 +100,10 @@ export class WorkspaceUpgradeService {
       };
     }
 
-    if (!this.registryClient) {
-      // Typed, loud failure — the upgrade-pass NEEDS identity to mint the
-      // org; it never fabricates one (CS §11).
-      throw new RegistryClientNotConfiguredError();
-    }
-
     // (a) identity mints the org — BEFORE any local write (atomicity).
+    // A registry-less deployment surfaces here as the composed
+    // `NotConfiguredRegistryClient`'s typed `NOT_CONFIGURED` rejection,
+    // propagated by the `throw err` below — never a fabricated org (CS §11).
     let orgId: string;
     try {
       const reservation = await this.registryClient.reserveTenant({
