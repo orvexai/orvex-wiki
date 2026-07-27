@@ -629,6 +629,12 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
         content: JSONContent,
       ) {
         const ydoc = TiptapTransformer.toYdoc(content, 'default', tiptapExtensions);
+        // Hocuspocus's Document wraps Y.Doc with broadcastStateless, which the
+        // extension calls after a SUCCESSFUL store. TiptapTransformer returns a
+        // bare Y.Doc, so attach a no-op: this spec asserts the quota verdict and
+        // the persisted row, not the websocket fan-out.
+        (ydoc as unknown as { broadcastStateless: (p: string) => void })
+          .broadcastStateless = () => undefined;
         await extension.onStoreDocument({
           documentName: `page.${pageId}`,
           document: ydoc as any,
