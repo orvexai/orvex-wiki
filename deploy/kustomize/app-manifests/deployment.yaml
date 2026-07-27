@@ -120,6 +120,7 @@ spec:
             capabilities:
               drop:
                 - ALL
+          # api role (ENG-2510 AC5).
           # /api/health pings Postgres + Redis (best for readiness);
           # /api/health/live is a trivial liveness check (no dependency pings).
           livenessProbe:
@@ -135,6 +136,24 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3
+          # collab role (ENG-2510 AC5) — the in-process Hocuspocus WS
+          # listener. This pod runs all three roles in one process today
+          # (no separate worker/collab Deployment exists), so the role
+          # probes live on this container and target their OWN role-specific
+          # signal rather than reusing the api aggregate above.
+          #
+          # `/health/orvex/collab` (outside the /api prefix — see
+          # ORVEX_GLOBAL_PREFIX_EXCLUDE) returns 503 when the WS handshake
+          # fails, so a dead collab listener no longer reads green behind a
+          # healthy api probe. Startup-tolerant: a generous failureThreshold
+          # keeps a slow WS bind from restart-looping the pod.
+          startupProbe:
+            httpGet:
+              path: /health/orvex/collab
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 12
           volumeMounts:
             - name: tmp
               mountPath: /tmp

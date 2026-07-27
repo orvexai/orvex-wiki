@@ -496,4 +496,53 @@ describe('TestPerRoleLivenessAndHealthEchoesCell (ENG-2510)', () => {
       expect(recoveredBody.relay.unrelayedCount).toBe(0);
     });
   });
+
+  /**
+   * AC5 — the deploy manifest defines all three role probes, not just api's.
+   * Read the COMMITTED manifests (the artifact that actually ships) rather
+   * than a fixture, so deleting a probe reds this gate.
+   */
+  describe('AC5 — deploy manifest carries per-role probes, not just api', () => {
+    const MANIFEST_DIR = path.join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      '..',
+      'deploy',
+      'kustomize',
+      'app-manifests',
+    );
+
+    it('the api role keeps its own liveness + readiness probes', async () => {
+      const yaml = await fs.readFile(
+        path.join(MANIFEST_DIR, 'deployment.yaml'),
+        'utf8',
+      );
+      expect(yaml).toMatch(/livenessProbe:/);
+      expect(yaml).toMatch(/path:\s*\/api\/health\/live/);
+      expect(yaml).toMatch(/readinessProbe:/);
+      expect(yaml).toMatch(/path:\s*\/api\/health(?!\/)/);
+    });
+
+    it('the collab role carries a probe on its OWN endpoint, not the api aggregate', async () => {
+      const yaml = await fs.readFile(
+        path.join(MANIFEST_DIR, 'deployment.yaml'),
+        'utf8',
+      );
+      // /health/orvex/collab 503s on a failed WS handshake, so a kubelet
+      // probe can genuinely observe a dead collab listener.
+      expect(yaml).toMatch(/path:\s*\/health\/orvex\/collab/);
+    });
+
+    it('the worker role is observed by an alert on its own relay metric (its endpoint is 200-unconditional, so a kubelet probe cannot see it)', async () => {
+      const yaml = await fs.readFile(
+        path.join(MANIFEST_DIR, 'observability.yaml'),
+        'utf8',
+      );
+      expect(yaml).toMatch(/alert:\s*OrvexWikiOutboxRelayStalled/);
+      expect(yaml).toMatch(/orvex_outbox_oldest_unrelayed_age_seconds/);
+    });
+  });
 });
