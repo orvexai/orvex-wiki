@@ -62,3 +62,50 @@ list's *contents*, never that a real HTTP request reaches the controller.
   `/swagger` before that was corrected.
 - Prefer probing observable side effects (a row in `orvex_event_outbox`, a
   `quota:*` key in Redis, `pg_policies` rows) over trusting a 200.
+
+## Browser suite (Playwright)
+
+`apps/client/e2e/real-user-journey.spec.ts` drives a real Chromium browser
+through the actual UI — the login form, the page tree, the ProseMirror editor,
+the share modal. Everything else in this repo tests the SERVER; this is the
+only thing that proves a screen renders.
+
+```bash
+scripts/e2e/run-browser.sh e2e/real-user-journey.spec.ts
+```
+
+The runner clears the Redis auth-throttle keys first. `AUTH_THROTTLER` is 10
+attempts / 60s, and a suite that logs in and provisions fixtures trips it; a
+429 surfaces as "still on /login", which is indistinguishable from a broken
+login form. The suite is also SERIAL and shares one captured session for the
+same reason.
+
+### What it caught
+
+`fix(editor): recover from a collab auth failure instead of throwing`
+
+`onAuthenticationFailedHandler` in `page-editor.tsx` called
+`jwtDecode(collabQuery?.token)`. That value is optional everywhere else in the
+hook — the token query can be in flight or failed — and handing `undefined` to
+`jwtDecode` throws `Invalid token specified: must be a string`. Because the
+throw happened inside a Hocuspocus event handler it surfaced as an UNCAUGHT
+`pageerror`, killing the handler before it could do the one thing it exists
+for: refetch the token and reconnect. Now a token that cannot be decoded is
+treated as expired, which triggers exactly that recovery.
+
+No server-side test could have seen this: it is a client-only failure in an
+event handler that only fires when collab auth fails.
+
+### Notes for new browser checks
+
+- Page permissions are **license-gated** (`Feature.PAGE_PERMISSIONS`).
+  Unlicensed, the Access tab's honest state is the enterprise upsell and NO
+  permission request is issued — asserting the granted UI would be asserting a
+  state the deployment cannot reach. The share test branches on this.
+- Type at the document END (`Control+End`) in editor tests. Clicking
+  mid-paragraph drops the caret where the click landed, so repeated runs
+  interleave their markers and the assertion fails on its own accumulated
+  state rather than on a defect.
+- 401/403/404/429 console errors are network noise and allowed; a `pageerror`
+  or any other console error still fails the run — that is the signal that
+  caught the collab defect above.
