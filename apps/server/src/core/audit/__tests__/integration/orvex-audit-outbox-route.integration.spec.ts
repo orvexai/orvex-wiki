@@ -27,6 +27,7 @@ import { OrvexAuditModule } from '../../orvex-audit.module';
 import {
   AuditEvent,
   AuditResource,
+  WIKI_AUDIT_PAYLOAD_CONTRACT,
 } from '../../../../common/events/audit-events';
 import type { DbInterface } from '../../../../database/types/db.interface';
 import type { KyselyDB } from '../../../../database/types/kysely.types';
@@ -218,17 +219,26 @@ describe('auditInjectSiteStagesOneOutboxRowInMutationTx (ENG-3167 DoD gate)', ()
     const idHex = rows[0].id.replace(/-/g, '');
     expect(idHex[12]).toBe('7');
 
-    // AC4 — references not content: the payload carries only the closed field
-    // set (subjectId/resourceId/action/outcome) — no page body, no free-text
-    // `changes`/`metadata` blob, no title.
+    // AC4 — references not content, SCHEMA-DRIVEN: the payload must satisfy
+    // the type's REGISTERED contracts dataschema field set (carried into the
+    // engine as the generated WIKI_AUDIT_PAYLOAD_CONTRACT — not an
+    // engine-local list): required ⊆ keys ⊆ declared properties, and no page
+    // body / free-text `changes` blob / retired projection-only field.
     const payload = rows[0].payload as Record<string, unknown>;
-    expect(
-      Object.keys(payload).every((k) =>
-        ['subjectId', 'resourceId', 'action', 'outcome'].includes(k),
-      ),
-    ).toBe(true);
+    const contract = WIKI_AUDIT_PAYLOAD_CONTRACT[AUDIT_PAGE_CREATED_TYPE];
+    expect(contract).toBeDefined();
+    const keys = Object.keys(payload);
+    for (const requiredField of contract.required) {
+      expect(keys).toContain(requiredField);
+    }
+    for (const k of keys) {
+      expect(contract.properties).toContain(k);
+    }
     expect(payload.resourceId).toBe(pageId);
-    expect(payload.subjectId).toBe(userId);
+    const actor = payload.actor as { id: string; type: string };
+    expect(actor.id).toBe(userId);
+    expect(['user', 'service', 'agent']).toContain(actor.type);
+    expect(typeof payload.occurredAt).toBe('string');
     expect(JSON.stringify(payload)).not.toContain('ENG-3167 DoD page');
   });
 

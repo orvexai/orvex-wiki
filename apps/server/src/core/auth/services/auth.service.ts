@@ -87,7 +87,7 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await this.userRepo.updateLastLogin(user.id, workspaceId);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_LOGIN,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -155,7 +155,7 @@ export class AuthService {
       await this.userSessionRepo.deleteByUserId(userId, workspaceId);
     }
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_PASSWORD_CHANGED,
       resourceType: AuditResource.USER,
       resourceId: userId,
@@ -265,7 +265,7 @@ export class AuthService {
 
     await this.userSessionRepo.deleteByUserId(user.id, workspace.id);
 
-    this.auditService.log(
+    await this.auditService.log(
       {
         event: AuditEvent.USER_PASSWORD_RESET,
         resourceType: AuditResource.USER,

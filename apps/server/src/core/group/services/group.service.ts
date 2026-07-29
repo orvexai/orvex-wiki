@@ -83,7 +83,7 @@ export class GroupService {
       );
     }
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.GROUP_CREATED,
       resourceType: AuditResource.GROUP,
       resourceId: createdGroup.id,
@@ -155,7 +155,7 @@ export class GroupService {
     );
 
     if (changes) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.GROUP_UPDATED,
         resourceType: AuditResource.GROUP,
         resourceId: group.id,
@@ -205,7 +205,7 @@ export class GroupService {
       }
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.GROUP_DELETED,
       resourceType: AuditResource.GROUP,
       resourceId: groupId,

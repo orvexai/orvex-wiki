@@ -7,8 +7,10 @@ import { v7 as uuidv7 } from 'uuid';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import {
   ALL_WIKI_AUDIT_TYPES,
+  AUDIT_EVENT_SOURCE,
   AuditLogData,
   AuditLogPayload,
+  WIKI_AUDIT_PAYLOAD_CONTRACT,
 } from '../../common/events/audit-events';
 import type {
   AuditLogContext,
@@ -92,19 +94,63 @@ export class OrvexAuditService implements IAuditService {
   }
 
   /**
-   * AC4 (AD-39) — the closed reference field set. Data-driven from the
-   * record: no free text can enter (the field names are fixed; every value
-   * is an opaque id or a closed code). `changes`/`metadata` blobs are
-   * deliberately unrepresentable here.
+   * AC4 (AD-39) — the payload is EXACTLY the type's registered contracts
+   * dataschema shape (events/schemas/<type>.json, additionalProperties:false;
+   * carried into the engine as the generated WIKI_AUDIT_PAYLOAD_CONTRACT):
+   * producer-set `occurredAt` (AD-8 Row 2), the opaque `actor` {id, type},
+   * the closed verb `action`, the `outcome` code, and the optional
+   * `resourceId` ref. References not content: `changes`/`metadata` blobs
+   * are unrepresentable here. The built payload is VALIDATED against the
+   * generated contract before staging — schema drift throws loudly (AD-3),
+   * it never emits silently.
+   *
+   * Actor mapping (total, documented): the engine's ActorType maps onto the
+   * schema's closed actor.type enum ['user','service','agent'] as
+   *   user -> user; system -> service (the engine acting as itself — its
+   *   actor.id is the AD-31 service token, since a system actor carries no
+   *   principal id); api_key / external_agent -> agent (an API-key-
+   *   authenticated non-human caller).
    */
-  private closedPayload(data: AuditLogData): Record<string, unknown> {
+  private static readonly ACTOR_TYPE_MAP: Record<
+    AuditLogData['actorType'],
+    'user' | 'service' | 'agent'
+  > = {
+    user: 'user',
+    system: 'service',
+    api_key: 'agent',
+    external_agent: 'agent',
+  };
+
+  private conformingPayload(data: AuditLogData): Record<string, unknown> {
     const action = data.event.split('.').slice(2).join('.');
     const payload: Record<string, unknown> = {
+      occurredAt: new Date().toISOString(),
+      actor: {
+        id: data.actorId ?? AUDIT_EVENT_SOURCE,
+        type: OrvexAuditService.ACTOR_TYPE_MAP[data.actorType],
+      },
       action,
       outcome: data.outcome ?? 'success',
     };
-    if (data.actorId != null) payload.subjectId = data.actorId;
     if (data.resourceId != null) payload.resourceId = data.resourceId;
+
+    // Fail-loud contract check against the GENERATED closed field set
+    // (AD-5/AD-39): required ⊆ keys ⊆ properties, or refuse to emit.
+    const contract = WIKI_AUDIT_PAYLOAD_CONTRACT[data.event];
+    if (!contract) {
+      throw new Error(
+        `Audit type '${data.event}' carries no generated payload contract — refusing to emit.`,
+      );
+    }
+    const keys = Object.keys(payload);
+    const missing = contract.required.filter((k) => !keys.includes(k));
+    const extra = keys.filter((k) => !contract.properties.includes(k));
+    if (missing.length > 0 || extra.length > 0) {
+      throw new Error(
+        `Audit payload for '${data.event}' violates its registered contract ` +
+          `(missing: [${missing.join(', ')}]; outside the closed set: [${extra.join(', ')}]) — refusing to emit.`,
+      );
+    }
     return payload;
   }
 
@@ -129,7 +175,7 @@ export class OrvexAuditService implements IAuditService {
       type: data.event,
       aggregateId: data.resourceId ?? data.actorId ?? data.workspaceId,
       workspaceId: data.workspaceId,
-      payload: this.closedPayload(data),
+      payload: this.conformingPayload(data),
     };
     if (trx) {
       await this.outboxWriter.enqueue(trx, event);

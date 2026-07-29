@@ -674,7 +674,7 @@ export class WorkspaceService {
     }
 
     if (Object.keys(after).length > 0) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.WORKSPACE_UPDATED,
         resourceType: AuditResource.WORKSPACE,
         resourceId: workspaceId,
@@ -750,7 +750,7 @@ export class WorkspaceService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_ROLE_CHANGED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -911,7 +911,7 @@ export class WorkspaceService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_DEACTIVATED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -954,7 +954,7 @@ export class WorkspaceService {
       workspaceId,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_ACTIVATED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -1064,7 +1064,7 @@ export class WorkspaceService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_DELETED,
       resourceType: AuditResource.USER,
       resourceId: user.id,

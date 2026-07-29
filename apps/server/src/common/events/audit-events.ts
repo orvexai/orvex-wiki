@@ -8,6 +8,7 @@ export {
   AuditEvent,
   ALL_WIKI_AUDIT_TYPES,
   AUDIT_EVENT_SOURCE,
+  WIKI_AUDIT_PAYLOAD_CONTRACT,
 } from './audit-events.gen';
 export type { AuditEventType } from './audit-events.gen';
 import { AuditEvent } from './audit-events.gen';
@@ -64,14 +65,12 @@ export interface AuditLogPayload {
     after?: Record<string, any>;
   };
   metadata?: Record<string, any>;
-  // ENG-1396 (AC1/AC2): selects the durability mode of `logAndCommit` — a
-  // critical event joins the caller's transaction (fails/rolls back
-  // together); a non-critical event (the default, falsy) is deferred via
-  // `setImmediate` to run after the caller's transaction settles, so a
-  // caller-tx rollback never takes the audit row with it (H-30). This is
-  // not a sibling DB transaction — it's a same-connection deferral chosen
-  // to avoid a documented kysely deadlock when opening a second
-  // transaction concurrently on the same connection.
+  // ENG-3167: INERT. The ENG-1396 critical/deferred durability split was
+  // deleted with the hard-cut (AD-24: every write rides the caller's runner
+  // synchronously — no deferred/best-effort mode exists). The field is
+  // retained ONLY so pre-existing logAndCommit callers still compile; the
+  // writer ignores it. Scheduled for removal with the AC9 local-audit-table
+  // leg.
   critical?: boolean;
 }
 

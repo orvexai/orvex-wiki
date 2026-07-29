@@ -10,7 +10,7 @@ import {
   AuditLogContext,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { ActorType, AuditLogPayload } from '../../common/events/audit-events';
+import { ActorType, AuditLogPayload, AuditEvent } from '../../common/events/audit-events';
 
 type FakeWorkspaceRepo = Pick<
   WorkspaceRepo,
@@ -132,7 +132,7 @@ describe('RatifyGateSettingsService', () => {
 
       expect(audit.logs).toHaveLength(1);
       const { payload, context } = audit.logs[0];
-      expect(payload.event).toBe('ratify_gate.setting_updated');
+      expect(payload.event).toBe(AuditEvent.RATIFY_GATE_SETTING_UPDATED);
       expect(context.workspaceId).toBe('ws-1');
       expect(context.actorId).toBe('admin-user');
     });
@@ -179,7 +179,7 @@ describe('RatifyGateSettingsService', () => {
 
       expect(audit.logs).toHaveLength(1);
       const { payload, context } = audit.logs[0];
-      expect(payload.event).toBe('ratify_gate.force_self_ratify');
+      expect(payload.event).toBe(AuditEvent.RATIFY_GATE_FORCE_SELF_RATIFY);
       expect(payload.metadata).toEqual({ reason });
       expect(context.actorId).toBe('agent-1');
     });

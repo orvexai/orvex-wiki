@@ -69,7 +69,7 @@ export class CommentController {
       createCommentDto,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.COMMENT_CREATED,
       resourceType: AuditResource.COMMENT,
       resourceId: comment.id,
@@ -182,7 +182,7 @@ export class CommentController {
       commentId: comment.id,
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.COMMENT_DELETED,
       resourceType: AuditResource.COMMENT,
       resourceId: comment.id,

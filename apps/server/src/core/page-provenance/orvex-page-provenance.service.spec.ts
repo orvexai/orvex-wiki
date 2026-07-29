@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { AuditEvent } from '../../common/events/audit-events';
 import { promises as fs } from 'fs';
 import {
   CamelCasePlugin,
@@ -167,7 +168,7 @@ describe('AiProvenanceStampSpec', () => {
       .selectFrom('audit')
       .select(db.fn.countAll().as('n'))
       .where('resourceId', '=', pageId)
-      .where('event', '=', 'page.provenance_changed')
+      .where('event', '=', AuditEvent.PAGE_PROVENANCE_CHANGED)
       .executeTakeFirstOrThrow();
     return Number(row.n);
   }

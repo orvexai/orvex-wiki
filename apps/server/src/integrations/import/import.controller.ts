@@ -106,7 +106,7 @@ export class ImportController {
     };
 
     if (createdPage) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_CREATED,
         resourceType: AuditResource.PAGE,
         resourceId: createdPage.id,
@@ -179,7 +179,7 @@ export class ImportController {
       throw new ForbiddenException();
     }
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_IMPORTED,
       resourceType: AuditResource.PAGE,
       resourceId: spaceId,

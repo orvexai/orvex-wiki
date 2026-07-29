@@ -147,7 +147,7 @@ export class AttachmentController {
         attachmentId: attachmentId,
       });
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.ATTACHMENT_UPLOADED,
         resourceType: AuditResource.ATTACHMENT,
         resourceId: fileResponse?.id ?? attachmentId,

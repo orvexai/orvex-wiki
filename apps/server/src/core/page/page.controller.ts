@@ -467,7 +467,7 @@ export class PageController {
     );
 
     if (upserted === 'created') {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_CREATED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -595,7 +595,7 @@ export class PageController {
       }
       await this.pageService.forceDelete(deletePageDto.pageId, workspace.id);
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DELETED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -621,7 +621,7 @@ export class PageController {
         workspace.id,
       );
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_TRASHED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -690,7 +690,7 @@ export class PageController {
 
       await this.pageService.forceDelete(pageId, workspace.id);
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DELETED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -737,7 +737,7 @@ export class PageController {
 
     await this.pageRepo.restorePage(pageIdDto.pageId, workspace.id);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_RESTORED,
       resourceType: AuditResource.PAGE,
       resourceId: page.id,
@@ -980,7 +980,7 @@ export class PageController {
       user.id,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_MOVED_TO_SPACE,
       resourceType: AuditResource.PAGE,
       resourceId: movedPage.id,
@@ -1033,7 +1033,7 @@ export class PageController {
         user,
       );
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DUPLICATED,
         resourceType: AuditResource.PAGE,
         resourceId: result.id,
@@ -1066,7 +1066,7 @@ export class PageController {
         user,
       );
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DUPLICATED,
         resourceType: AuditResource.PAGE,
         resourceId: result.id,

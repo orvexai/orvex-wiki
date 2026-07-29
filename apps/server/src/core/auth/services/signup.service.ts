@@ -80,7 +80,7 @@ export class SignupService {
       trx,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_CREATED,
       resourceType: AuditResource.USER,
       resourceId: user.id,

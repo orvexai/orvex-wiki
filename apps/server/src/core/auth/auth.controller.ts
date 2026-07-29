@@ -244,7 +244,7 @@ export class AuthController {
 
     res.clearCookie('authToken');
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_LOGOUT,
       resourceType: AuditResource.USER,
       resourceId: user.id,

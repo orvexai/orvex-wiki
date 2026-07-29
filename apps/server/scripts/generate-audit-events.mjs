@@ -200,6 +200,27 @@ for (const t of pin.types) {
   b += `  ${JSON.stringify(t)},\n`;
 }
 b += '] as const;\n';
+b += '\n';
+b += "/** The CLOSED payload field contract per type, from each type's registered\n";
+b += ' *  events/schemas/<type>.json (additionalProperties:false — AD-39\n';
+b += ' *  references-not-content). The writer builds and VALIDATES every staged\n';
+b += ' *  payload against this generated data: required ⊆ keys ⊆ properties, or a\n';
+b += ' *  loud typed error (AD-3) — schema drift can never emit silently. */\n';
+b += 'export const WIKI_AUDIT_PAYLOAD_CONTRACT: Readonly<\n';
+b += '  Record<string, { required: readonly string[]; properties: readonly string[] }>\n';
+b += '> = {\n';
+if (!pin.payloads || typeof pin.payloads !== 'object') {
+  fail('pin carries no payloads contract block — re-run the extraction');
+}
+for (const t of pin.types) {
+  const c = pin.payloads[t];
+  if (!c) fail(`pinned type ${t} has no payload contract — re-run the extraction`);
+  b += `  ${JSON.stringify(t)}: {\n`;
+  b += `    required: ${JSON.stringify(c.required)},\n`;
+  b += `    properties: ${JSON.stringify(c.properties)},\n`;
+  b += '  },\n';
+}
+b += '};\n';
 if (unmapped.length > 0) {
   b += '\n';
   b += '// Registered ahead of an engine constant (no live emit site yet):\n';

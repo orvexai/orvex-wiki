@@ -191,5 +191,351 @@ export const ALL_WIKI_AUDIT_TYPES = [
   "audit.retention.page-trashed",
 ] as const;
 
+/** The CLOSED payload field contract per type, from each type's registered
+ *  events/schemas/<type>.json (additionalProperties:false — AD-39
+ *  references-not-content). The writer builds and VALIDATES every staged
+ *  payload against this generated data: required ⊆ keys ⊆ properties, or a
+ *  loud typed error (AD-3) — schema drift can never emit silently. */
+export const WIKI_AUDIT_PAYLOAD_CONTRACT: Readonly<
+  Record<string, { required: readonly string[]; properties: readonly string[] }>
+> = {
+  "audit.admin.group-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.group-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.group-member-added": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.group-member-removed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.group-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.license-activated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.license-removed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.page-permission-added": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.page-permission-removed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.page-permission-role-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.page-restricted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.page-restriction-removed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.page-supersede-forced-bypass": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.space-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.space-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.space-member-added": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.space-member-removed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.space-member-role-changed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.space-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.user-activated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.user-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.user-deactivated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.user-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.user-role-changed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.user-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.workspace-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.workspace-invite-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.workspace-invite-resent": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.admin.workspace-invite-revoked": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.api-key-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.api-key-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.api-key-revoked": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.api-key-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.auth-failed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.oidc-login-blocked-by-enforce-sso": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.scim-token-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.scim-token-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.scim-token-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-login": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-logout": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-mfa-backup-code-generated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-mfa-disabled": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-mfa-enabled": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-password-changed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.auth.user-password-reset": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.force-supersede-setting-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.oidc-enforce-sso-toggled": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.ratify-gate-setting-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.sso-provider-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.sso-provider-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.sso-provider-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.config.workspace-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.consent.page-approval-rejected": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.consent.page-approval-requested": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.consent.ratify-gate-force-self-ratify": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.attachment-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.attachment-uploaded": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.comment-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.comment-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.comment-reopened": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.comment-resolved": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.comment-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-duplicated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-history-restored": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-imported": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-marked-obsolete": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-moved-to-space": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-provenance-changed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-superseded": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-unsuperseded": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-verification-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-verification-removed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-verification-updated": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.page-verified": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.share-created": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.share-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.transclusion-force-delete": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.data-access.transclusion-reference-unsynced": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.export.page-exported": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.export.space-exported": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.retention.page-deleted": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.retention.page-restored": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+  "audit.retention.page-trashed": {
+    required: ["action","actor","occurredAt","outcome"],
+    properties: ["action","actor","occurredAt","outcome","resourceId"],
+  },
+};
+
 // Registered ahead of an engine constant (no live emit site yet):
 //   audit.data-access.attachment-deleted

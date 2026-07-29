@@ -183,7 +183,7 @@ export class ShareController {
       createShareDto,
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SHARE_CREATED,
       resourceType: AuditResource.SHARE,
       resourceId: share.id,
@@ -238,7 +238,7 @@ export class ShareController {
 
     await this.shareRepo.deleteShare(share.id);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SHARE_DELETED,
       resourceType: AuditResource.SHARE,
       resourceId: share.id,
