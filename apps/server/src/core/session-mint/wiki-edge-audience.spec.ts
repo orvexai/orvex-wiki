@@ -90,6 +90,32 @@ describe('WIKI_EDGE_AUDIENCE binding (engine aud=orvex-wiki)', () => {
     );
   });
 
+  it('REJECTS a MULTI-audience assertion even when aud[0] IS orvex-wiki (cardinality half of ADR-0049 check 1 — a value-only aud[0] verifier would wrongly accept this)', async () => {
+    const { verifier, privateKey } = await setup();
+    const token = await sign(privateKey, {
+      aud: [WIKI_EDGE_AUDIENCE, 'orvex-studio-api'],
+    });
+    const err = await verifier
+      .verify(token, { now: NOW })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EdgeAssertionVerificationError);
+    expect((err as EdgeAssertionVerificationError).code).toBe(
+      'AUDIENCE_REJECTED',
+    );
+  });
+
+  it('REJECTS a ZERO-audience (aud: []) assertion — len(aud)==1 is enforced, not just the value', async () => {
+    const { verifier, privateKey } = await setup();
+    const token = await sign(privateKey, { aud: [] });
+    const err = await verifier
+      .verify(token, { now: NOW })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EdgeAssertionVerificationError);
+    expect((err as EdgeAssertionVerificationError).code).toBe(
+      'AUDIENCE_REJECTED',
+    );
+  });
+
   it('REJECTS an expired aud=orvex-wiki assertion (exp zero-leeway)', async () => {
     const { verifier, privateKey } = await setup();
     const token = await sign(privateKey, { iat: NOW - 300, exp: NOW - 1 });
