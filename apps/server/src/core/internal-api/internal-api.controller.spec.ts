@@ -50,6 +50,22 @@ import { StorageService } from '../../integrations/storage/storage.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { DomainService } from '../../integrations/environment/domain.service';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
+import { UserSessionRepo } from '../../database/repos/session/user-session.repo';
+import { IDENTITY_REGISTRY_CLIENT } from '../../orvex/http/orvex-identity-registry.module';
+import { NotConfiguredRegistryClient } from '../../orvex/http/identity-registry-client';
+import { MailService } from '../../integrations/mail/mail.service';
+import {
+  BILLING_ENTITLEMENT_PORT,
+  BillingUnconfiguredError,
+} from '../../orvex/entitlement/entitlement-billing.port';
+import {
+  ENTITLEMENT_CACHE,
+  InMemoryEntitlementCache,
+} from '../../orvex/entitlement/entitlement-cache';
+import { EntitlementService } from '../../orvex/entitlement/entitlement.service';
+import { SessionService } from '../session/session.service';
+import { ClsService } from 'nestjs-cls';
+import { TokenModule } from '../auth/token.module';
 import { WsService } from '../../ws/ws.service';
 import {
   AUDIT_SERVICE,
@@ -131,6 +147,12 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
 
     @Global()
     @Module({
+      // TokenModule (which composes JwtModule from EnvironmentService) is the
+      // real provider of TokenService — SessionService below needs it, and
+      // this @Global() stand-in is not in WorkspaceModule's import graph, so
+      // it imports and re-exports TokenService itself rather than duplicating
+      // the JWT composition.
+      imports: [TokenModule],
       providers: [
         PageRepo,
         SpaceRepo,
@@ -155,6 +177,62 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         {
           provide: getQueueToken(QueueName.ATTACHMENT_QUEUE),
           useValue: { add: async () => undefined },
+        },
+        // ENG-2503 made InternalApiModule import WorkspaceModule (for
+        // WorkspaceUpgradeService), which pulls the real WorkspaceService into
+        // this graph. Its @InjectQueue set is BILLING + AI on top of
+        // ATTACHMENT, and it also needs UserSessionRepo and the REQUIRED
+        // IDENTITY_REGISTRY_CLIENT port. All are satisfied here the same way
+        // the attachment queue already was — no-op doubles only for the true
+        // externals (queues), a REAL production class for the registry port.
+        {
+          provide: getQueueToken(QueueName.BILLING_QUEUE),
+          useValue: { add: async () => undefined },
+        },
+        {
+          provide: getQueueToken(QueueName.AI_QUEUE),
+          useValue: { add: async () => undefined },
+        },
+        UserSessionRepo,
+        // The fail-closed binding prod composes when ORVEX_IDENTITY_URL is
+        // unset: every registry call rejects with a typed NOT_CONFIGURED. This
+        // spec's ACs never mint a hostname, so an attempted registry call here
+        // must be a loud failure, never a fabricated reservation.
+        { provide: IDENTITY_REGISTRY_CLIENT, useClass: NotConfiguredRegistryClient },
+        // WorkspaceModule also declares WorkspaceInvitationService, whose
+        // remaining unsatisfied deps are MailService (a true external — SMTP,
+        // CS §5, so a no-op double) and EntitlementService (composed from the
+        // REAL service over the REAL InMemoryEntitlementCache and an ABSENT
+        // billing SoR, which is a disclosed production configuration —
+        // `BillingUnconfiguredError` is exactly what an unconfigured adapter
+        // raises, never a fabricated entitlement).
+        {
+          provide: MailService,
+          useValue: {
+            sendEmail: async () => undefined,
+            sendToQueue: async () => undefined,
+          },
+        },
+        {
+          provide: BILLING_ENTITLEMENT_PORT,
+          useValue: {
+            checkEntitlement: async () => {
+              throw new BillingUnconfiguredError(
+                'billing SoR is not configured in this spec harness',
+              );
+            },
+          },
+        },
+        { provide: ENTITLEMENT_CACHE, useClass: InMemoryEntitlementCache },
+        EntitlementService,
+        // …and SessionService, the last link of that chain. REAL service over
+        // the real UserSessionRepo/TokenService above; only `ClsService` (the
+        // request-scoped async-local store, wired by ClsModule in the real
+        // app bootstrap) is a double here — this harness issues no sessions.
+        SessionService,
+        {
+          provide: ClsService,
+          useValue: { get: () => undefined, set: () => undefined },
         },
         SpaceAbilityFactory,
         // SpaceModule (imported by InternalApiModule per fc5a8caf) also
@@ -202,6 +280,19 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         FavoriteRepo,
         LicenseCheckService,
         getQueueToken(QueueName.ATTACHMENT_QUEUE),
+        getQueueToken(QueueName.BILLING_QUEUE),
+        getQueueToken(QueueName.AI_QUEUE),
+        UserSessionRepo,
+        IDENTITY_REGISTRY_CLIENT,
+        MailService,
+        BILLING_ENTITLEMENT_PORT,
+        ENTITLEMENT_CACHE,
+        EntitlementService,
+        SessionService,
+        ClsService,
+        // Re-export the MODULE (Nest cannot re-export a provider this module does
+        // not itself declare), which carries TokenService to every consumer.
+        TokenModule,
         SpaceAbilityFactory,
         WorkspaceAbilityFactory,
         PageAccessService,

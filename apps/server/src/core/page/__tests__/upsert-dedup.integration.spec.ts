@@ -28,6 +28,7 @@ import type { DbInterface } from '@docmost/db/types/db.interface';
 import type { KyselyDB } from '@docmost/db/types/kysely.types';
 import type { Page, User } from '@docmost/db/types/entity.types';
 import { OutboxWriter } from '../../../orvex/events/outbox/outbox-writer.service';
+import { nonBlockingEntitlementServiceDouble } from '../../../orvex/entitlement/testing/entitlement-service.double';
 
 /**
  * ENG-1413 — the named DoD gate:
@@ -117,12 +118,11 @@ describe('IdempotencyStore + if-version CAS — integration', () => {
     const redisServiceStub = { getOrNil: () => redisClient } as any;
     const idempotencyStore = new IdempotencyStore(redisServiceStub);
 
-    // ENG-1382 — this spec exercises upsert dedup, not F-QUOTA; a stub that
-    // never blocks keeps prior scenarios unaffected.
-    const entitlementServiceStub = {
-      assertWithinQuota: async () => undefined,
-      hasFeature: async () => true,
-    } as any;
+    // ENG-1382 — this spec exercises upsert dedup, not F-QUOTA; a double that
+    // never blocks keeps prior scenarios unaffected. ENG-2493: shared, typed
+    // double (see entitlement-service.double.ts) so quota-surface drift reds
+    // at compile time in one place.
+    const entitlementServiceStub = nonBlockingEntitlementServiceDouble();
 
     return new PageService(
       pageRepo,
