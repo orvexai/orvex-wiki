@@ -167,9 +167,26 @@ export default function PageEditor({
         }
       };
       const onAuthenticationFailedHandler = () => {
-        const payload = jwtDecode(collabQuery?.token);
-        const now = Date.now().valueOf() / 1000;
-        const isTokenExpired = now >= payload.exp;
+        // `collabQuery?.token` is optional everywhere else in this hook: the
+        // token query can legitimately have no data yet (in flight), or have
+        // failed (a 429 from the auth throttler, an offline blip). Passing
+        // undefined to jwtDecode throws "Invalid token specified: must be a
+        // string" as an UNCAUGHT pageerror — observed live in the browser
+        // E2E run — which kills this handler before it can do the one thing
+        // it exists for: refetch the token and reconnect.
+        //
+        // A decode failure is not a reason to give up; it means we have no
+        // usable token, which is precisely when a refetch is warranted. So
+        // treat "cannot read an expiry" as "assume expired" and recover.
+        let isTokenExpired = true;
+        try {
+          const payload = jwtDecode(collabQuery?.token ?? "");
+          const now = Date.now().valueOf() / 1000;
+          isTokenExpired = !payload.exp || now >= payload.exp;
+        } catch {
+          // No decodable token — fall through to the refetch below.
+        }
+
         if (isTokenExpired) {
           refetchCollabToken().then((result) => {
             if (result.data?.token) {
