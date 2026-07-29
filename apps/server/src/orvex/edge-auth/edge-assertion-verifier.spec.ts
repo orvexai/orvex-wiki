@@ -371,6 +371,131 @@ describe('EdgeAssertionVerifier — iat/nbf skew boundaries (ADR-0049 check 3)',
   });
 });
 
+/**
+ * VERIFY+HARDEN supplements (ENG-3063). The pinned v0.1.4 corpus stops at
+ * alg none/HS256/RS256, always carries `exp`, and only proves the
+ * refresh-never-fires invariant for a single verify — these close the
+ * remaining AC-named negatives locally, deterministically (fixed keypair
+ * per run via jose, fixed epoch clock, fixed HMAC bytes — no Date.now()).
+ */
+describe('EdgeAssertionVerifier — hardening supplements (AC3 HS512, AC4 absent exp, NFR-AC3)', () => {
+  const ISSUER = 'https://identity.edge.orvex.internal/edge-authn';
+  const AUDIENCE = 'orvex-studio-api';
+  const KID = 'hardening-test-kid-1';
+  const NOW = 1_800_000_000;
+
+  /** Counts ONLY refresh() (❌ guard: never count getKey/resolve). */
+  class CountingKeySource implements EdgeAssertionKeySource {
+    public refreshCalls = 0;
+    constructor(private readonly inner: EdgeAssertionKeySource) {}
+    resolve(kid: string): ReturnType<EdgeAssertionKeySource['resolve']> {
+      return this.inner.resolve(kid);
+    }
+    refresh(): Promise<void> {
+      this.refreshCalls += 1;
+      return this.inner.refresh();
+    }
+  }
+
+  let keyPair: Awaited<ReturnType<typeof generateKeyPair>>;
+  let staticKeys: StaticEdgeAssertionKeySource;
+
+  beforeAll(async () => {
+    keyPair = await generateKeyPair('ES256', { extractable: true });
+    const pub = await exportJWK(keyPair.publicKey);
+    staticKeys = new StaticEdgeAssertionKeySource({
+      keys: [{ ...pub, kid: KID, alg: 'ES256', use: 'sig' }],
+    });
+  });
+
+  function buildVerifier(keys: EdgeAssertionKeySource): EdgeAssertionVerifier {
+    return new EdgeAssertionVerifier({
+      keys,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      skewToleranceSeconds: 30,
+    });
+  }
+
+  const BASE_CLAIMS = {
+    tenant: 'tnt_edge_a',
+    cell: 'eu1',
+    cell_epoch: 3,
+    scope: 'wiki:read',
+  };
+
+  it('AC3: an HS512 token is ALG_REJECTED before any key material is consulted (refresh never fires)', async () => {
+    // Deterministic HMAC secret (❌#9: no randomness for the negative-path
+    // key — its bytes never matter, only the header alg does).
+    const secret = new Uint8Array(64).fill(7);
+    const token = await new SignJWT({ ...BASE_CLAIMS })
+      .setProtectedHeader({ alg: 'HS512', kid: KID })
+      .setSubject('edge-subject-1')
+      .setAudience([AUDIENCE])
+      .setIssuer(ISSUER)
+      .setIssuedAt(NOW)
+      .setExpirationTime(NOW + 120)
+      .sign(secret);
+    const counting = new CountingKeySource(staticKeys);
+    const verifier = buildVerifier(counting);
+
+    await expect(verifier.verify(token, { now: NOW })).rejects.toMatchObject({
+      code: 'ALG_REJECTED',
+    });
+    // The ['ES256'] allowlist fires BEFORE key resolution — an HS512 header
+    // never triggers the unknown-kid refresh path.
+    expect(counting.refreshCalls).toBe(0);
+  });
+
+  it('AC4: a validly-signed assertion with NO exp claim is rejected, never accepted (MALFORMED — exp is a mandatory pinned claim)', async () => {
+    // The landed error union folds "absent exp" into MALFORMED (the pinned
+    // nine-claim schema makes `exp` structurally mandatory) rather than a
+    // distinct MISSING_EXP code — what matters for AC4 is that absence is a
+    // hard rejection, never an accept-without-expiry.
+    const token = await new SignJWT({ ...BASE_CLAIMS })
+      .setProtectedHeader({ alg: 'ES256', kid: KID })
+      .setSubject('edge-subject-1')
+      .setAudience([AUDIENCE])
+      .setIssuer(ISSUER)
+      .setIssuedAt(NOW)
+      // no .setExpirationTime — the whole point
+      .sign(keyPair.privateKey);
+    const verifier = buildVerifier(staticKeys);
+
+    await expect(verifier.verify(token, { now: NOW })).rejects.toMatchObject({
+      code: 'MALFORMED',
+    });
+  });
+
+  it('NFR-AC3: 50 consecutive valid verifies record ZERO keys.refresh (networkless steady state)', async () => {
+    const token = await new SignJWT({ ...BASE_CLAIMS })
+      .setProtectedHeader({ alg: 'ES256', kid: KID })
+      .setSubject('edge-subject-1')
+      .setAudience([AUDIENCE])
+      .setIssuer(ISSUER)
+      .setIssuedAt(NOW)
+      .setExpirationTime(NOW + 120)
+      .sign(keyPair.privateKey);
+    const counting = new CountingKeySource(staticKeys);
+    const verifier = buildVerifier(counting);
+
+    for (let i = 0; i < 50; i += 1) {
+      const claims = await verifier.verify(token, { now: NOW });
+      expect(claims.sub).toBe('edge-subject-1');
+    }
+    expect(counting.refreshCalls).toBe(0);
+  });
+
+  it('NFR-AC3 (static gate): the verifier module performs no I/O of its own — no fetch/axios/HttpService in its source', () => {
+    // Same grep-gate style as the ENG-2499 integration suite's AC2 gate: the
+    // verifier's freshness property ("zero per-request identity calls") is
+    // structural — the class cannot fetch because no HTTP surface exists in
+    // its module at all; the network lives only behind the injected port.
+    const source = readFileSync(join(__dirname, 'edge-assertion-verifier.ts'), 'utf8');
+    expect(source).not.toMatch(/\bfetch\b|\baxios\b|\bHttpService\b|\bhttp[s]?:\/\//);
+  });
+});
+
 describe('EdgeAssertionVerifier — construction and surface guards', () => {
   const validDeps = {
     keys: new StaticEdgeAssertionKeySource({ keys: [] }),

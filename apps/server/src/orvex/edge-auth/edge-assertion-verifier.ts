@@ -170,9 +170,11 @@ export class EdgeAssertionVerifier {
     const payload = parsePayload(payloadBytes);
     const claims = narrowClaims(payload);
 
-    // Check: audience-value. Cardinality (len(aud)==1) is folded into the
-    // same rejection here — a multi/zero-audience assertion and a
-    // single-wrong-audience assertion are both "no single, matching
+    // Check: audience-value. The cardinality half (len(aud)==1) was already
+    // enforced inside narrowClaims — with the SAME code, AUDIENCE_REJECTED —
+    // so by this line `claims.aud` is provably a single-element tuple and
+    // only the VALUE comparison remains. A multi/zero-audience assertion and
+    // a single-wrong-audience assertion are both "no single, matching
     // audience", so both are AUDIENCE_REJECTED (see edge-assertion.types.ts).
     if (claims.aud[0] !== this.audience) {
       throw new EdgeAssertionVerificationError('AUDIENCE_REJECTED');
@@ -240,13 +242,22 @@ function narrowClaims(payload: unknown): EdgeAssertionClaims {
     cellEpoch < 0 ||
     typeof scope !== 'string' ||
     !Array.isArray(aud) ||
-    aud.length !== 1 ||
-    typeof aud[0] !== 'string' ||
     typeof iss !== 'string' ||
     typeof iat !== 'number' ||
     typeof exp !== 'number'
   ) {
     throw new EdgeAssertionVerificationError('MALFORMED');
+  }
+
+  // Audience CARDINALITY — the len(aud)==1 half of ADR-0049 check 1
+  // ("audience value", of which cardinality alone is never sufficient). A
+  // zero- or multi-audience assertion is an AUDIENCE failure, not a merely
+  // malformed token: it gets the SAME AUDIENCE_REJECTED code as a
+  // wrong-value single audience (see the code mapping in
+  // edge-assertion.types.ts), so the two halves of check 1 fail as ONE
+  // separately-named check. The verify() body then only compares the VALUE.
+  if (aud.length !== 1 || typeof aud[0] !== 'string') {
+    throw new EdgeAssertionVerificationError('AUDIENCE_REJECTED');
   }
 
   return {
