@@ -60,7 +60,7 @@ describe('engine-only-import-guard', () => {
     expect(output).toContain('PASS');
   });
 
-  it('PASSES for the ratified @orvexai/metrics exception (ENG-1360) while still banning other @orvexai/* imports', () => {
+  it('EngineOnlyImportGuardBansMetrics — FAILS for an @orvexai/metrics import: the ENG-1360 exception is retired (ENG-3149, AC7 — the source is inlined, the package is gone)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'engine-only-import-guard-fixture-'));
     fixtures.push(dir);
     mkdirSync(join(dir, 'apps/server/src/orvex/metrics'), { recursive: true });
@@ -70,8 +70,9 @@ describe('engine-only-import-guard', () => {
     );
 
     const { code, output } = runGuard(dir);
-    expect(code).toBe(0);
-    expect(output).toContain('PASS');
+    expect(code).toBe(1);
+    expect(output).toContain('FAIL');
+    expect(output).toContain('thing.ts');
   });
 
   it('FAILS when an orvex file imports a closed-satellite package (@orvexai/*)', () => {

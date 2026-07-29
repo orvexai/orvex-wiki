@@ -31,8 +31,8 @@ import { KAFKA_PUBLISHER_PORT } from './outbox/kafka-publisher.port';
   providers: [
     OutboxRelayService,
     // ENG-2496 AC4 — the relay liveness/lag heartbeat: gauges on the ONE
-    // shared @orvexai/metrics registry + the backing sample the
-    // /health/orvex/relay probe mirrors.
+    // shared engine-resident metrics registry (orvex/metrics, ENG-3149
+    // inline) + the backing sample the /health/orvex/relay probe mirrors.
     OutboxRelayHeartbeat,
     { provide: KAFKA_PUBLISHER_PORT, useClass: KafkaPublisherAdapter },
   ],
