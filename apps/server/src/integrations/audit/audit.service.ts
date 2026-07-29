@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuditLogPayload, ActorType } from '../../common/events/audit-events';
+import type { KyselyTransaction } from '@docmost/db/types/kysely.types';
 
 export type AuditLogContext = {
   workspaceId: string;
@@ -17,14 +18,26 @@ export type AuditLogContext = {
 };
 
 export type IAuditService = {
-  log(payload: AuditLogPayload): void | Promise<void>;
+  /**
+   * ENG-3167 — the tx-bearing emit signature (AD-24). A caller that runs a
+   * mutating `KyselyTransaction` passes it so the audit record is staged as
+   * an outbox row INSIDE that transaction (commit-together-or-not-at-all).
+   * `context` carries the attribution (workspace/actor) the writer needs.
+   */
+  log(
+    payload: AuditLogPayload,
+    context?: AuditLogContext,
+    trx?: KyselyTransaction,
+  ): void | Promise<void>;
   logWithContext(
     payload: AuditLogPayload,
     context: AuditLogContext,
+    trx?: KyselyTransaction,
   ): void | Promise<void>;
   logBatchWithContext(
     payloads: AuditLogPayload[],
     context: AuditLogContext,
+    trx?: KyselyTransaction,
   ): void | Promise<void>;
   setActorId(actorId: string): void;
   setActorType(actorType: ActorType): void;
