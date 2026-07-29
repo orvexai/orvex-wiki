@@ -16,6 +16,8 @@ import {
   RegistryClientError,
   RegistryMoveRequest,
   RegistryMoveResult,
+  RegistryReserveRequest,
+  RegistryReserveResult,
   RegistryTenantCell,
 } from './identity-registry-client';
 import { IdentityIntrospector } from '../../core/session-mint/identity-introspector';
@@ -59,6 +61,22 @@ class FakeRegistryClient implements IdentityRegistryClient {
     this.resolveCalls.push(tenantId);
     if (typeof this.resolveResult === 'function') return this.resolveResult();
     return Promise.resolve(this.resolveResult);
+  }
+
+  /**
+   * ENG-2503 added `reserveTenant` to {@link IdentityRegistryClient}. It is
+   * the MINT-time seam and is unreachable from `OrvexTenantCellMoveService`
+   * (this spec's subject), which only moves an ALREADY-reserved tenant. The
+   * double therefore fails LOUDLY rather than fabricating a reservation: if a
+   * future change makes the move path call reserve, this spec must red rather
+   * than silently pass against a stub success.
+   */
+  reserveTenant(req: RegistryReserveRequest): Promise<RegistryReserveResult> {
+    return Promise.reject(
+      new Error(
+        `FakeRegistryClient.reserveTenant must not be reached by the cell-move path (tenantId=${req.tenantId})`,
+      ),
+    );
   }
 }
 

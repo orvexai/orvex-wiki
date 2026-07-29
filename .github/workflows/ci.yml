@@ -802,7 +802,15 @@ jobs:
   # CI Success Gate — the single required check for branch protection.
   # ---------------------------------------------------------------------------
   ci-success:
-    name: CI Success
+    # NO `name:` — deliberate. GitHub reports a job's status-check CONTEXT as
+    # its `name:` when one is set, so `name: CI Success` published the context
+    # "CI Success". The family-wide required-status ruleset (mirrored from
+    # orvex-studio-lib's `ci-success-required`) requires the context
+    # `ci-success`, which is the JOB ID — the only spelling that is identical
+    # across all 19 repos. Dropping the display name makes the context match
+    # the id, so this repo can be armed with the same ruleset JSON as every
+    # other. Re-adding a `name:` here silently renames the required context and
+    # would make the ruleset wait forever on a check that is never reported.
     needs:
       - lint-client
       - lint-server
