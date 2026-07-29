@@ -41,8 +41,18 @@ on:
       - dev
       - crew/**
   pull_request:
+    # dev is this repo's actual mainline/PR-base (origin/HEAD; every recent
+    # merge — #138-#146 — targets dev, not main). Before this fix the
+    # `pull_request` trigger only matched a `main`-targeted PR, so a PR
+    # opened from a non-crew/** topic branch onto dev got ZERO CI signal —
+    # neither `pull_request` (base != main) nor `push` (branch name matches
+    # none of main/dev/crew/**) ever fired (confirmed empirically: PR #138/
+    # #139 both merged with `statusCheckRollup: []`, 2026-07-24). Gate-arming
+    # box 7 requires a MEANINGFUL, reliably-triggered ci-success fan-in —
+    # this closes that gap. `main` stays listed for the rare main-targeted PR.
     branches:
       - main
+      - dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -97,10 +107,25 @@ jobs:
         run: node scripts/ci/tenant-move-coverage-check.mjs
 
   lint-boundary:
-    name: Import Boundary (M1 fence)
+    # PO-2026-07-29-5 ratchet — this fence's `no-restricted-imports` BAN
+    # rules (mock quarantine + AGPL import guard) run scoped to CHANGED
+    # FILES ONLY (scripts/ci/lint-boundary-ratchet.sh), this repo's TS
+    # equivalent of a depguard/forbidigo `--new-from-rev=<mainline>` ratchet,
+    # so unmigrated legacy code cannot freeze the repo. Every other lint/CI
+    # job in this file stays full-scope — only this one BAN-rule fence is
+    # ratcheted. Removing the ratchet (reverting to unconditional full-scope
+    # `pnpm lint:boundary`) is a REQUIRED item of this service's Phase-2
+    # adoption DoD (PO-2026-07-29-5) — do not remove the ratchet script
+    # without also completing that flip.
+    name: Import Boundary (M1 fence, ratcheted — PO-2026-07-29-5)
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
+        with:
+          # REQUIRED: the ratchet diffs HEAD against a pinned baseline SHA
+          # (scripts/ci/lint-boundary-ratchet-baseline.sha) that is not a
+          # recent ancestor of a shallow (default depth-1) clone.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -108,8 +133,8 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Mock-quarantine + AGPL import fence
-        run: pnpm lint:boundary
+      - name: Mock-quarantine + AGPL import fence (ratcheted to changed files)
+        run: bash scripts/ci/lint-boundary-ratchet.sh
 
   # ---------------------------------------------------------------------------
   # Typecheck + build
