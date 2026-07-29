@@ -318,8 +318,12 @@ describe('auditInjectSiteStagesOneOutboxRowInMutationTx (ENG-3167 DoD gate)', ()
       path.join(srcRoot, 'core/audit/orvex-audit.service.ts'),
       'utf-8',
     );
-    // AC3/AD-24 — no deferred/best-effort/post-commit path in the writer.
-    expect(auditWriterSrc).not.toMatch(/setImmediate/);
+    // AC3/AD-24 — no deferred/best-effort/post-commit path in the writer:
+    // no setImmediate INVOCATION (the doc comments naming the deleted
+    // mechanism are not a code path) and no catch-and-swallow around the
+    // audit writes.
+    expect(auditWriterSrc).not.toMatch(/setImmediate\s*\(/);
+    expect(auditWriterSrc).not.toMatch(/\.catch\(/);
     // Hard-cut — the silent-swallow NoopAuditService class no longer exists.
     const integrationsAudit = await fs.readFile(
       path.join(srcRoot, 'integrations/audit/audit.service.ts'),
