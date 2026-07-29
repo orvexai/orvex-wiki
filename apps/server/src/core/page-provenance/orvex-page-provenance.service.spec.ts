@@ -111,7 +111,7 @@ describe('AiProvenanceStampSpec', () => {
       outboxWriter,
       wsServiceStub,
     );
-    auditService = new OrvexAuditService(db);
+    auditService = new OrvexAuditService(db, outboxWriter);
     service = new OrvexPageProvenanceService(
       db,
       pageRepo,

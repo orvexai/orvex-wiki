@@ -157,7 +157,9 @@ export class AttachmentController {
           pageId,
           spaceId,
         },
-      });
+      },
+        { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+      );
 
       return res.send(fileResponse);
     } catch (err: any) {

@@ -81,7 +81,7 @@ import { LicenseCheckService } from '../../src/integrations/environment/license-
 import { DomainService } from '../../src/integrations/environment/domain.service';
 import { getQueueToken } from '@nestjs/bullmq';
 import { QueueName } from '../../src/integrations/queue/constants';
-import { NoopAuditModule } from '../../src/integrations/audit/audit.module';
+import { OrvexAuditModule } from '../../src/core/audit/orvex-audit.module';
 import { ExportService } from '../../src/integrations/export/export.service';
 import { DatabaseModule } from '../../src/database/database.module';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';

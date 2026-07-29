@@ -23,7 +23,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../../../integrations/audit/audit.service';
-import { NoopAuditModule } from '../../../../integrations/audit/audit.module';
+import { OrvexAuditModule } from '../../orvex-audit.module';
 import {
   AuditEvent,
   AuditResource,
@@ -103,7 +103,7 @@ describe('auditInjectSiteStagesOneOutboxRowInMutationTx (ENG-3167 DoD gate)', ()
           dialect: new PostgresJSDialect({ postgres: sqlClient }),
           plugins: [new CamelCasePlugin()],
         }),
-        NoopAuditModule,
+        OrvexAuditModule,
       ],
     }).compile();
     auditService = moduleRef.get<IAuditService>(AUDIT_SERVICE);

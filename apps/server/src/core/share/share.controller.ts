@@ -192,7 +192,9 @@ export class ShareController {
         pageId: page.id,
         spaceId: page.spaceId,
       },
-    });
+    },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
 
     return share;
   }
@@ -247,7 +249,9 @@ export class ShareController {
           spaceId: share.spaceId,
         },
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
   }
 
   @Public()

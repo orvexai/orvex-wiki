@@ -115,7 +115,9 @@ export class ImportController {
           source: sourceMap[ext],
           fileName: file.filename,
         },
-      });
+      },
+        { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+      );
     }
 
     return createdPage;
@@ -187,7 +189,9 @@ export class ImportController {
         source,
         spaceId,
       },
-    });
+    },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
 
     return this.importService.importZip(
       file,

@@ -66,7 +66,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { SpaceService } from '../space/services/space.service';
 import { SpaceMemberService } from '../space/services/space-member.service';
-import { NoopAuditService } from '../../integrations/audit/audit.service';
+import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import {
   PrincipalProvisioningService,
@@ -220,7 +220,7 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
     // the SAME production classes, never a mock of own code (❌#4). Only
     // genuine boundary ports are substituted: the identity registry (fake
     // above), billing (recording port), audit (the repo's own
-    // NoopAuditService), the BullMQ attachment queue and cache-manager
+    // the real OrvexAuditService), the BullMQ attachment queue and cache-manager
     // (unused by the provisioning path; inert stand-ins at their
     // remote-but-owned rows).
     const kdb = db as unknown as KyselyDB;
@@ -246,7 +246,7 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
     const favoriteRepo = new FavoriteRepo(kdb);
     const shareRepo = new ShareRepo(kdb, spaceMemberRepo);
     const outboxWriter = new OutboxWriter(kdb);
-    const audit = new NoopAuditService();
+    const audit = new OrvexAuditService(kdb, outboxWriter);
     const spaceMemberService = new SpaceMemberService(
       spaceMemberRepo,
       groupUserRepo,

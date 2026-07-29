@@ -31,7 +31,11 @@ import {
   AuditLogContext,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { ActorType, AuditLogPayload } from '../../common/events/audit-events';
+import {
+  ActorType,
+  AuditEvent,
+  AuditLogPayload,
+} from '../../common/events/audit-events';
 import { IPageLifecycleBroadcaster } from './supersede.types';
 import { PageStatus } from '@orvex/extensions';
 import type { DbInterface } from '../../database/types/db.interface';
@@ -272,7 +276,7 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
     expect(targetPageRow.isLocked).toBe(true);
 
     const supersededAudit = audit.logs.find(
-      (l) => l.payload.event === 'page.superseded',
+      (l) => l.payload.event === AuditEvent.PAGE_SUPERSEDED,
     );
     expect(supersededAudit?.context.actorType).toBe('user');
 
@@ -336,7 +340,7 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
 
     expect(result.status).toBe(PageStatus.SUPERSEDED);
     const supersededAudit = audit.logs.find(
-      (l) => l.payload.event === 'page.superseded',
+      (l) => l.payload.event === AuditEvent.PAGE_SUPERSEDED,
     );
     expect(supersededAudit?.context.actorType).toBe('api_key');
     expect(supersededAudit?.context.actorId).toBe(agentUserId);
@@ -421,7 +425,7 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
 
     expect(result.status).toBe(PageStatus.SUPERSEDED);
     const bypassAudit = audit.logs.find(
-      (l) => l.payload.event === 'page.supersede_forced_bypass',
+      (l) => l.payload.event === AuditEvent.SUPERSEDE_FORCED_BYPASS,
     );
     expect(bypassAudit).toBeDefined();
     const bypassMetadata = bypassAudit?.payload.metadata as
@@ -461,11 +465,11 @@ describe('TestSupersedeLifecycleAndBreakGlass — integration', () => {
     );
 
     const bypassAudit = audit.logs.find(
-      (l) => l.payload.event === 'page.supersede_forced_bypass',
+      (l) => l.payload.event === AuditEvent.SUPERSEDE_FORCED_BYPASS,
     );
     expect(bypassAudit).toBeUndefined();
     const supersededAudit = audit.logs.find(
-      (l) => l.payload.event === 'page.superseded',
+      (l) => l.payload.event === AuditEvent.PAGE_SUPERSEDED,
     );
     expect(supersededAudit?.context.actorType).toBe('api_key');
 

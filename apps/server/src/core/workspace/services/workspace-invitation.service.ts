@@ -217,7 +217,9 @@ export class WorkspaceInvitationService {
           metadata: {
             groupIds: invitation.groupIds,
           },
-        });
+        },
+          { workspaceId: workspace.id, actorId: authUser.id, actorType: 'user' },
+        );
       }
     }
   }
@@ -401,7 +403,9 @@ export class WorkspaceInvitationService {
         source: 'invitation',
         invitationId: invitation.id,
       },
-    });
+    },
+    { workspaceId: workspace.id, actorId: newUser.id, actorType: 'user' },
+    );
 
     if (workspace.enforceMfa) {
       return {
@@ -449,7 +453,9 @@ export class WorkspaceInvitationService {
         email: invitation.email,
         role: invitation.role,
       },
-    });
+    },
+      { workspaceId: workspace.id },
+    );
   }
 
   async revokeInvitation(
@@ -480,7 +486,9 @@ export class WorkspaceInvitationService {
             role: invitation.role,
           },
         },
-      });
+      },
+        { workspaceId },
+      );
     }
   }
 

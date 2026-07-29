@@ -94,7 +94,10 @@ export class SignupService {
       metadata: {
         source: 'signup',
       },
-    });
+    },
+      { workspaceId, actorId: user.id, actorType: 'user' },
+      trx,
+    );
 
     return user;
   }

@@ -92,7 +92,7 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
       { emitInvalidate: () => {} } as any,
     );
     pageHistoryRepo = new PageHistoryRepo(testDb.db as any);
-    orvexAudit = new OrvexAuditService(testDb.db as any);
+    orvexAudit = new OrvexAuditService(testDb.db as any, new OutboxWriter(testDb.db as any));
 
     updatePageContentCalls = [];
     // The only stubbed dependency (see file-header note): a thin fake of

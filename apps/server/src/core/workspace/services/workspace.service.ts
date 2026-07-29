@@ -679,7 +679,9 @@ export class WorkspaceService {
         resourceType: AuditResource.WORKSPACE,
         resourceId: workspaceId,
         changes: { before, after },
-      });
+      },
+        { workspaceId },
+      );
     }
 
     const { licenseKey, ...rest } = workspace;
@@ -756,7 +758,9 @@ export class WorkspaceService {
         before: { role: user.role },
         after: { role: newRole },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
   }
 
   /**
@@ -918,7 +922,9 @@ export class WorkspaceService {
           role: user.role,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
   }
 
   async activateUser(
@@ -959,7 +965,9 @@ export class WorkspaceService {
           role: user.role,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
   }
 
   async deleteUser(
@@ -1067,7 +1075,9 @@ export class WorkspaceService {
           role: user.role,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
 
     try {
       await this.attachmentQueue.add(QueueJob.DELETE_USER_AVATARS, user);

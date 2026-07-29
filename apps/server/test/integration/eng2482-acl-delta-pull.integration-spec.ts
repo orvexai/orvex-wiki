@@ -159,7 +159,7 @@ describe('ENG-2482: ACL delta-pull chokepoint (evalPage narrowing + filterAccess
       exportServiceStub,
     );
 
-    const orvexAudit = new OrvexAuditService(db);
+    const orvexAudit = new OrvexAuditService(db, new OutboxWriter(db));
     const pagePermissionService = new PagePermissionService(pagePermissionRepo);
     controller = new PagePermissionController(
       db,

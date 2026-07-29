@@ -84,7 +84,9 @@ export class ExportController {
         includeAttachments: dto.includeAttachments,
         spaceId: page.spaceId,
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
 
     if (result.type === 'file') {
       const ext = getExportExtension(dto.format);
@@ -145,7 +147,9 @@ export class ExportController {
         includeAttachments: dto.includeAttachments ?? false,
         spaceName: exportFile.spaceName,
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
 
     res.headers({
       'Content-Type': 'application/zip',

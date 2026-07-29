@@ -139,7 +139,9 @@ export class UserService {
         resourceType: AuditResource.USER,
         resourceId: userId,
         changes,
-      });
+      },
+        { workspaceId: workspace.id, actorId: userId, actorType: 'user' },
+      );
     }
 
     return user;

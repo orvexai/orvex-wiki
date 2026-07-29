@@ -77,7 +77,9 @@ export class CommentController {
       metadata: {
         pageId: page.id,
       },
-    });
+    },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
 
     return comment;
   }
@@ -191,6 +193,8 @@ export class CommentController {
           creatorId: comment.creatorId,
         },
       },
-    });
+    },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
   }
 }

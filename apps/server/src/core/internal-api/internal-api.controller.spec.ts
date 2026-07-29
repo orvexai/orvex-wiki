@@ -51,10 +51,8 @@ import { EnvironmentService } from '../../integrations/environment/environment.s
 import { DomainService } from '../../integrations/environment/domain.service';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import { WsService } from '../../ws/ws.service';
-import {
-  AUDIT_SERVICE,
-  NoopAuditService,
-} from '../../integrations/audit/audit.service';
+import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
+import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { UserRole, SpaceRole } from '../../common/helpers/types/permission';
 import type { DB } from '@docmost/db/types/db';
 
@@ -183,10 +181,10 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         },
         // AUDIT_SERVICE is the ONE no-op double (CS §5 — the EE audit sink is a
         // true external not loaded here). Use the REAL open-source
-        // `NoopAuditService` (exactly what prod's `NoopAuditModule` provides),
+        // the REAL `OrvexAuditService` (exactly what prod's `OrvexAuditModule` binds, ENG-3167),
         // not a hand-rolled stub, so every method the code-under-test calls
         // (`log`, `logWithContext`) exists with production semantics.
-        { provide: AUDIT_SERVICE, useClass: NoopAuditService },
+        { provide: AUDIT_SERVICE, useClass: OrvexAuditService },
       ],
       exports: [
         PageRepo,

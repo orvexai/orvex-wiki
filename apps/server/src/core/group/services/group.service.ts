@@ -93,7 +93,10 @@ export class GroupService {
           description: createdGroup.description,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+      trx,
+    );
 
     return createdGroup;
   }
@@ -157,7 +160,9 @@ export class GroupService {
         resourceType: AuditResource.GROUP,
         resourceId: group.id,
         changes,
-      });
+      },
+        { workspaceId },
+      );
     }
 
     return group;
@@ -210,7 +215,9 @@ export class GroupService {
           description: group.description,
         },
       },
-    });
+    },
+      { workspaceId },
+    );
   }
 
   async findAndValidateGroup(

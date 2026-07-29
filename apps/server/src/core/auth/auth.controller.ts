@@ -248,6 +248,8 @@ export class AuthController {
       event: AuditEvent.USER_LOGOUT,
       resourceType: AuditResource.USER,
       resourceId: user.id,
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
   }
 }

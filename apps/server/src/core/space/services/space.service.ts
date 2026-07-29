@@ -101,7 +101,10 @@ export class SpaceService {
           ...(space.isPersonal ? { isPersonal: true } : {}),
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+      trx,
+    );
 
     return { ...space, memberCount: 1 };
   }
@@ -271,7 +274,9 @@ export class SpaceService {
         resourceId: updateSpaceDto.spaceId,
         spaceId: updateSpaceDto.spaceId,
         changes: { before, after },
-      });
+      },
+        { workspaceId },
+      );
     }
 
     return updatedSpace;
@@ -326,6 +331,8 @@ export class SpaceService {
           description: space.description,
         },
       },
-    });
+    },
+      { workspaceId },
+    );
   }
 }

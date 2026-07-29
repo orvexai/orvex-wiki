@@ -99,7 +99,10 @@ export class GroupUserService {
             userName: user.name,
           },
         },
-      });
+      },
+        { workspaceId },
+        trx,
+      );
     }
   }
 
@@ -168,6 +171,8 @@ export class GroupUserService {
       metadata: {
         groupName: group.name,
       },
-    });
+    },
+      { workspaceId },
+    );
   }
 }
