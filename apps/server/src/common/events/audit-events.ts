@@ -1,135 +1,18 @@
-export const AuditEvent = {
-  // Workspace
-  WORKSPACE_CREATED: 'workspace.created',
-  WORKSPACE_UPDATED: 'workspace.updated',
-  WORKSPACE_INVITE_CREATED: 'workspace.invite_created',
-  WORKSPACE_INVITE_RESENT: 'workspace.invite_resent',
-  WORKSPACE_INVITE_REVOKED: 'workspace.invite_revoked',
+// ENG-3167 — the hand-typed two-segment AuditEvent map is REPLACED by the
+// engine's own generation lane (AD-5/AD-8): every audit type is a
+// contracts-registered `audit.<category>.<verb>` constant generated from the
+// pinned orvex-studio-contracts declaration (publisher orvex-wiki, AD-23
+// register-before-emit). See scripts/generate-audit-events.mjs and
+// contracts-pin/wiki-audit-types.json (provenance + regen-diff gate).
+export {
+  AuditEvent,
+  ALL_WIKI_AUDIT_TYPES,
+  AUDIT_EVENT_SOURCE,
+} from './audit-events.gen';
+export type { AuditEventType } from './audit-events.gen';
+import { AuditEvent } from './audit-events.gen';
+import type { AuditEventType } from './audit-events.gen';
 
-  // User
-  USER_CREATED: 'user.created',
-  USER_DELETED: 'user.deleted',
-  USER_LOGIN: 'user.login',
-  USER_LOGOUT: 'user.logout',
-  USER_ROLE_CHANGED: 'user.role_changed',
-  USER_PASSWORD_CHANGED: 'user.password_changed',
-  USER_PASSWORD_RESET: 'user.password_reset',
-  USER_UPDATED: 'user.updated',
-  USER_DEACTIVATED: 'user.deactivated',
-  USER_ACTIVATED: 'user.activated',
-
-  // API Keys
-  API_KEY_CREATED: 'api_key.created',
-  API_KEY_UPDATED: 'api_key.updated',
-  API_KEY_DELETED: 'api_key.deleted',
-  API_KEY_REVOKED: 'api_key.revoked',
-
-  // Auth (ENG-1380)
-  AUTH_FAILED: 'auth.failed',
-
-  // SCIM Tokens
-  SCIM_TOKEN_CREATED: 'scim_token.created',
-  SCIM_TOKEN_UPDATED: 'scim_token.updated',
-  SCIM_TOKEN_DELETED: 'scim_token.deleted',
-
-  // Space
-  SPACE_CREATED: 'space.created',
-  SPACE_UPDATED: 'space.updated',
-  SPACE_DELETED: 'space.deleted',
-  SPACE_MEMBER_ADDED: 'space.member_added',
-  SPACE_MEMBER_REMOVED: 'space.member_removed',
-  SPACE_MEMBER_ROLE_CHANGED: 'space.member_role_changed',
-
-  // Group
-  GROUP_CREATED: 'group.created',
-  GROUP_UPDATED: 'group.updated',
-  GROUP_DELETED: 'group.deleted',
-  GROUP_MEMBER_ADDED: 'group.member_added',
-  GROUP_MEMBER_REMOVED: 'group.member_removed',
-
-  // Comment
-  COMMENT_CREATED: 'comment.created',
-  COMMENT_DELETED: 'comment.deleted',
-
-  // Comment updates / resolve
-  COMMENT_UPDATED: 'comment.updated',
-  COMMENT_RESOLVED: 'comment.resolved',
-  COMMENT_REOPENED: 'comment.reopened',
-
-  // Page
-  PAGE_CREATED: 'page.created',
-  PAGE_TRASHED: 'page.trashed',
-  PAGE_DELETED: 'page.deleted',
-  PAGE_RESTORED: 'page.restored',
-  // ENG-1369: page-history restore (distinct from PAGE_RESTORED above,
-  // which is the trash-restore event).
-  PAGE_HISTORY_RESTORED: 'page.history_restored',
-  PAGE_MOVED_TO_SPACE: 'page.moved_to_space',
-  PAGE_DUPLICATED: 'page.duplicated',
-  // Page permission
-  PAGE_RESTRICTED: 'page.restricted',
-  PAGE_RESTRICTION_REMOVED: 'page.restriction_removed',
-  PAGE_PERMISSION_ADDED: 'page.permission_added',
-  PAGE_PERMISSION_REMOVED: 'page.permission_removed',
-  PAGE_PERMISSION_ROLE_UPDATED: 'page.permission_role_updated',
-  // Page verification
-  PAGE_VERIFICATION_CREATED: 'page.verification_created',
-  PAGE_VERIFICATION_UPDATED: 'page.verification_updated',
-  PAGE_VERIFICATION_REMOVED: 'page.verification_removed',
-  PAGE_VERIFIED: 'page.verified',
-  PAGE_APPROVAL_REQUESTED: 'page.approval_requested',
-  PAGE_APPROVAL_REJECTED: 'page.approval_rejected',
-  PAGE_MARKED_OBSOLETE: 'page.marked_obsolete',
-  // AI provenance (ENG-1447)
-  PAGE_PROVENANCE_CHANGED: 'page.provenance_changed',
-
-  // Share
-  SHARE_CREATED: 'share.created',
-  SHARE_DELETED: 'share.deleted',
-
-  // Import / Export
-  PAGE_IMPORTED: 'page.imported',
-  PAGE_EXPORTED: 'page.exported',
-  SPACE_EXPORTED: 'space.exported',
-
-  // SSO provider management
-  SSO_PROVIDER_CREATED: 'sso.provider_created',
-  SSO_PROVIDER_UPDATED: 'sso.provider_updated',
-  SSO_PROVIDER_DELETED: 'sso.provider_deleted',
-
-  // MFA
-  USER_MFA_ENABLED: 'user.mfa_enabled',
-  USER_MFA_DISABLED: 'user.mfa_disabled',
-  USER_MFA_BACKUP_CODE_GENERATED: 'user.mfa_backup_code_generated',
-
-  // License
-  LICENSE_ACTIVATED: 'license.activated',
-  LICENSE_REMOVED: 'license.removed',
-
-  // Attachment
-  ATTACHMENT_UPLOADED: 'attachment.uploaded',
-  // ATTACHMENT_DELETED: 'attachment.deleted',
-
-  // Enforce-SSO (ENG-1432)
-  OIDC_LOGIN_BLOCKED_BY_ENFORCE_SSO: 'oidc.login_blocked_by_enforce_sso',
-  OIDC_ENFORCE_SSO_TOGGLED: 'oidc.enforce_sso_toggled',
-
-  // Ratify gate (ENG-1445)
-  RATIFY_GATE_SETTING_UPDATED: 'ratify_gate.setting_updated',
-  RATIFY_GATE_FORCE_SELF_RATIFY: 'ratify_gate.force_self_ratify',
-
-  // Supersede lifecycle + forced-supersede break-glass (ENG-1434)
-  PAGE_SUPERSEDED: 'page.superseded',
-  PAGE_UNSUPERSEDED: 'page.unsuperseded',
-  SUPERSEDE_FORCED_BYPASS: 'page.supersede_forced_bypass',
-  FORCE_SUPERSEDE_SETTING_UPDATED: 'force_supersede.setting_updated',
-
-  // Transclusion write-block safeguard (ENG-1470)
-  TRANSCLUSION_REFERENCE_UNSYNCED: 'transclusion.reference_unsynced',
-  TRANSCLUSION_FORCE_DELETE: 'transclusion.force_delete',
-} as const;
-
-export type AuditEventType = (typeof AuditEvent)[keyof typeof AuditEvent];
 
 export const EXCLUDED_AUDIT_EVENTS: Set<string> = new Set([
   AuditEvent.PAGE_CREATED,
@@ -172,6 +55,10 @@ export interface AuditLogPayload {
   resourceType: AuditResourceType;
   resourceId?: string;
   spaceId?: string;
+  // ENG-3167 (AC4) — the closed outcome code carried in the staged outbox
+  // payload ('success' when omitted; a deny/failure lane site passes
+  // 'denied'/'blocked'/...). A reference code, never prose (AD-39).
+  outcome?: string;
   changes?: {
     before?: Record<string, any>;
     after?: Record<string, any>;
