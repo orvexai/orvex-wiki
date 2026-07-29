@@ -3,8 +3,9 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { Controller, Get, Inject, Req, Res, UnauthorizedException } from '@nestjs/common';
-import { OrvexMetricsService } from '@orvexai/metrics';
 import { FastifyReply, FastifyRequest } from 'fastify';
+
+import { OrvexMetricsService } from './metrics-service';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
@@ -21,9 +22,8 @@ import {
  *
  * Ported from the fork pin `050187676624f2395c55b36ec60e365f87fd4a9f`
  * (`apps/server/src/orvex/metrics/metrics.controller.ts#L20-L57`); the
- * registry itself now lives in the `@orvexai/metrics` npm package
- * (`orvex-studio-lib`, PD-4d ruling — see ENG-1360 §1) instead of being
- * re-declared locally.
+ * registry itself is engine-resident at `./metrics-service` (inlined by
+ * ENG-3149 from the retired AGPL shared metrics package — AD-8/AD-9).
  *
  * Route sits OUTSIDE the `/api` global prefix (`main.ts`'s
  * `setGlobalPrefix` exclude list) — AC6.

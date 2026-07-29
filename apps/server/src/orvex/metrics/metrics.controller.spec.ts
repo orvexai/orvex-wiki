@@ -4,9 +4,9 @@
 
 import { UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { OrvexMetricsService } from '@orvexai/metrics';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
+import { OrvexMetricsService } from './metrics-service';
 import { MetricsController } from './metrics.controller';
 import { METRICS_AUTH_CONFIG, readMetricsAuthConfig } from './metrics-auth';
 

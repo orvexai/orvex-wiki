@@ -3,8 +3,8 @@
 // See the LICENSE file at the repository root for the full license text.
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { OrvexMetricsService } from '@orvexai/metrics';
 import { Gauge } from 'prom-client';
+import { OrvexMetricsService } from '../../metrics/metrics-service';
 import { KyselyDB } from '../../../database/types/kysely.types';
 
 /**
@@ -36,8 +36,9 @@ export interface RelayHeartbeatStatus extends RelayHeartbeatSample {
  * actually draining.
  *
  * Exposed BOTH ways (A-OBSERVE):
- *  - as Prometheus gauges registered on the ONE shared `@orvexai/metrics`
- *    registry (po-ruling 10 — never a second `Registry`), scraped over the
+ *  - as Prometheus gauges registered on the ONE shared engine-resident
+ *    metrics registry (po-ruling 10 — never a second `Registry`;
+ *    `orvex/metrics/metrics-service`, ENG-3149), scraped over the
  *    existing `GET /metrics` surface; values are read live at scrape time
  *    via each gauge's own `collect()` (never a cached/fabricated figure);
  *  - as the `/health/orvex/relay` HTTP probe (`orvex-health` module, which
