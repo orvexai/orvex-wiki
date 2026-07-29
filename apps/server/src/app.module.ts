@@ -29,7 +29,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
 import { LoggerModule } from './common/logger/logger.module';
 import { ClsModule } from 'nestjs-cls';
-import { NoopAuditModule } from './integrations/audit/audit.module';
+import { OrvexAuditModule } from './core/audit/orvex-audit.module';
 import { ThrottleModule } from './integrations/throttle/throttle.module';
 import { OrvexRootModule } from './orvex/orvex-root.module';
 import { OrvexAttachmentsHostModule } from './orvex/attachments/orvex-attachments-host.module';
@@ -68,7 +68,7 @@ try {
       middleware: { mount: true },
     }),
     LoggerModule,
-    NoopAuditModule,
+    OrvexAuditModule,
     CoreModule,
     DatabaseModule,
     EnvironmentModule,

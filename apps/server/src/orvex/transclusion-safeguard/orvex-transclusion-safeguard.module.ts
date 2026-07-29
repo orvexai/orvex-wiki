@@ -11,7 +11,7 @@ import { TransclusionSafeguardInterceptor } from './interceptors/transclusion-sa
 /**
  * ENG-1470 — the transclusion write-block safeguard module. `KyselyDB`,
  * `PageTransclusionReferencesRepo` and `AUDIT_SERVICE` are all provided by
- * `@Global()` modules (`DatabaseModule`/`NoopAuditModule`), so this module
+ * `@Global()` modules (`DatabaseModule`/`OrvexAuditModule`), so this module
  * only declares + exports the safeguard's own three symbols and registers
  * `TransclusionSafeguardInterceptor` as a GLOBAL `APP_INTERCEPTOR` (T6) —
  * it must see every request to gate `/pages/delete` +

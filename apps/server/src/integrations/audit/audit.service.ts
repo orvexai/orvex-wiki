@@ -1,6 +1,13 @@
-import { Injectable } from '@nestjs/common';
 import { AuditLogPayload, ActorType } from '../../common/events/audit-events';
 import type { KyselyTransaction } from '@docmost/db/types/kysely.types';
+
+// ENG-3167 hard-cut: the silent-swallow `NoopAuditService` (whose every method
+// body swallowed the emit — 25 @Inject(AUDIT_SERVICE) sites recorded NOTHING)
+// is DELETED, not deprecated. `AUDIT_SERVICE` binds ONLY the real
+// transactional writer (`core/audit/OrvexAuditService`, provided globally by
+// `OrvexAuditModule`), which stages every audit record as an
+// `orvexEventOutbox` row inside the caller's own mutating transaction (AD-24).
+// This file keeps only the seam: the token and the tx-bearing interface.
 
 export type AuditLogContext = {
   workspaceId: string;
@@ -22,7 +29,9 @@ export type IAuditService = {
    * ENG-3167 — the tx-bearing emit signature (AD-24). A caller that runs a
    * mutating `KyselyTransaction` passes it so the audit record is staged as
    * an outbox row INSIDE that transaction (commit-together-or-not-at-all).
-   * `context` carries the attribution (workspace/actor) the writer needs.
+   * `context` carries the attribution (workspace/actor) the writer needs —
+   * an emit without a workspace context is a loud typed error (AD-3), never
+   * a silent no-op.
    */
   log(
     payload: AuditLogPayload,
@@ -39,45 +48,6 @@ export type IAuditService = {
     context: AuditLogContext,
     trx?: KyselyTransaction,
   ): void | Promise<void>;
-  setActorId(actorId: string): void;
-  setActorType(actorType: ActorType): void;
-  updateRetention(
-    workspaceId: string,
-    retentionDays: number,
-  ): void | Promise<void>;
 };
 
 export const AUDIT_SERVICE = Symbol('AUDIT_SERVICE');
-
-@Injectable()
-export class NoopAuditService implements IAuditService {
-  log(_payload: AuditLogPayload): void {
-    // No-op: swallow the log when EE module is not available
-  }
-
-  logWithContext(_payload: AuditLogPayload, _context: AuditLogContext): void {
-    // No-op: swallow the log when EE module is not available
-  }
-
-  logBatchWithContext(
-    _payloads: AuditLogPayload[],
-    _context: AuditLogContext,
-  ): void {
-    // No-op: swallow the log when EE module is not available
-  }
-
-  setActorId(_actorId: string): void {
-    // No-op
-  }
-
-  setActorType(_actorType: ActorType): void {
-    // No-op
-  }
-
-  updateRetention(
-    _workspaceId: string,
-    _retentionDays: number,
-  ): void {
-    // No-op
-  }
-}
