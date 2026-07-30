@@ -1,0 +1,45 @@
+---
+# Build-time only (NOT deployed to the cluster) — see kustomization.yaml.
+#
+# The substrate-owned half of the AD-29 image reference. Every value here is a
+# segment of the ONE formula `orvex-derive-image-ref` produces; nothing else in
+# the fleet may write an image segment (AD-29).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-ref
+  namespace: image-ref  # Dummy namespace (never deployed)
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    config.my-idp/build-time-only: "true"
+data:
+  # ── segment 0: the registry host workloads PULL from ────────────────────
+  # DELIBERATELY NOT the host the pipeline PUSHES to. Harbor is reached by two
+  # aliases: `repos-direct.…` is the in-cluster push endpoint (internal cert,
+  # tls-verify=false) and `repos.…` is the pull endpoint kubelets resolve. The
+  # pair is declared ONCE, in the derive Task (params `harbor` / `pull-host`),
+  # which emits both `image-ref` and `image-ref-pull` from the same identity —
+  # so this value is not a second opinion about the registry, it is the value
+  # that Task's `image-ref-pull` carries, and scripts/image-injection-conform.sh
+  # asserts the two are byte-equal.
+  imageRegistry: repos.eu-central-1.myidp.cloud
+
+  # ── segment 1: the Harbor project (AD-31) ───────────────────────────────
+  # The pipeline's `harbor-project` param. A service published into a different
+  # project patches this key in its own overlay (same key-wise union a
+  # cluster-config values patch uses) — it never edits this file.
+  imageProject: orvex-studio
+
+  # ── the tag: {branchSlug}-{shortSha}, DERIVED, never written by hand ─────
+  # FAIL-CLOSED SENTINEL. There is deliberately no default tag here: `dev`,
+  # `main` or `latest` would be a mutable tag, which is exactly the silent-rot
+  # the AD-29 derivation exists to remove, and a defaulted tag would let an
+  # unresolved render deploy *something* instead of refusing.
+  #
+  # The value is supplied per-render by the carrier (see kustomization.yaml,
+  # "THE CARRIER"). Until a carrier is wired, this sentinel survives the render
+  # and scripts/image-injection-conform.sh REDS on it — a service cannot adopt
+  # the shared pipeline and silently keep deploying the old mutable tag.
+  imageTag: IMAGE_TAG_UNRESOLVED
