@@ -445,11 +445,22 @@ jobs:
           export KAFKA_OUTBOX_TOPIC=wiki-events.solo
           export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
           nohup node apps/server/dist/main.js > server.log 2>&1 &
-          for _ in $(seq 1 30); do
+          # 120s, not 30s. The success condition is UNCHANGED — this only stops
+          # the wait from expiring while a healthy boot is still in progress.
+          # The old 30-iteration budget was raced by the boot itself on these
+          # ephemeral dind runners: the green dev run reached `Listening on ...`
+          # in ~24s, and run 30505591368 printed it at 02:01:57.680 — 0.16s
+          # AFTER the loop gave up at 02:01:57.52 — so the same commit was a
+          # coin-flip on boot latency, not on engine health. The engine's own
+          # startup work (Kafka topic-shape assertion + DB connect + migrations
+          # + orvex migrations) is not bounded by 30s on a cold runner. A real
+          # failure to boot still reds this step, just after a budget that a
+          # healthy boot cannot exhaust.
+          for _ in $(seq 1 120); do
             curl -sf http://localhost:3000/api/health && exit 0
             sleep 1
           done
-          echo "Engine did not become healthy within 30s" >&2
+          echo "Engine did not become healthy within 120s" >&2
           cat server.log
           exit 1
       - name: TestGateM6E2E
