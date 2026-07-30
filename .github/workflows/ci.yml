@@ -701,13 +701,21 @@ jobs:
           cache-dependency-path: tests/smoke/go.sum
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # The exception mechanism is gated BEFORE the scan it governs: this
+      # hermetic suite proves osv-scanner.toml cannot be turned into a
+      # fail-open switch (undated / unowned / expired / over-long / stale
+      # entries all red), and validates the committed ledger itself (ENG-3274).
+      - name: TestOsvExceptionLedger (DoD suite, hermetic)
+        run: bash scripts/test/audit-osv-exceptions.spec.sh
       # Supply-chain audit of the npm dependency tree (high+). NOT `pnpm audit`:
       # pnpm's audit hits npm's /-/npm/v1/security/audits endpoint, which npm
       # RETIRED (HTTP 410 Gone — "use the bulk advisory endpoint instead"), so
       # `pnpm audit` is broken for every pnpm version. We scan the same
       # pnpm-lock.yaml-resolved tree with osv-scanner (OSV.dev) instead and gate
       # on HIGH/CRITICAL only, reproducing the prior --audit-level=high
-      # threshold. No bypass: all findings are reported. See scripts/ci/audit-osv.sh.
+      # threshold. Every finding is reported — the only permitted non-red for a
+      # HIGH is a dated, expiring, ticket-owning entry in osv-scanner.toml.
+      # See scripts/ci/audit-osv.sh and scripts/ci/osv-gate.py.
       - name: Dependency audit (osv-scanner, high+)
         run: bash scripts/ci/audit-osv.sh pnpm-lock.yaml
       - name: govulncheck (smoke module)
