@@ -177,7 +177,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: ESLint (contracts-generated substrate ban config, ratcheted to changed files)
         run: |
-          git fetch --no-tags --depth=0 origin dev
+          git fetch --no-tags origin dev
           git diff --name-only --diff-filter=d "$(git merge-base HEAD origin/dev)" \
             | xargs -r npx eslint --config eslint.substrate.config.mjs --no-error-on-unmatched-pattern
 
