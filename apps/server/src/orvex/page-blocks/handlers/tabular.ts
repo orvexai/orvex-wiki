@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -24,7 +25,7 @@ registerBlockSchema('table', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     node: {
       type: 'object',
       description: 'Pre-built ProseMirror table node. When present, headers and rows are ignored.',
@@ -60,7 +61,7 @@ registerBlockSchema('task_list', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     node: {
       type: 'object',
       description: 'Pre-built ProseMirror taskList node. When present, items is ignored.',
@@ -99,7 +100,7 @@ registerBlockSchema('chart', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     node: {
       type: 'object',
       description: 'Pre-built ProseMirror chart node. When present, chartType/data/title are ignored.',

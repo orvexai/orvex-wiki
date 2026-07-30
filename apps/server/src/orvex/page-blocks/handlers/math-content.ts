@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -24,7 +25,7 @@ registerBlockSchema('math_block', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     text: {
       type: 'string',
       description: 'LaTeX source for the display-mode math block.',
@@ -45,7 +46,7 @@ registerBlockSchema('math_inline', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     text: {
       type: 'string',
       description: 'LaTeX source for the inline math span.',
@@ -66,7 +67,7 @@ registerBlockSchema('callout', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     type: {
       type: 'string',
       enum: ['info', 'success', 'warning', 'danger'],
@@ -92,7 +93,7 @@ registerBlockSchema('status', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     text: {
       type: 'string',
       description: 'Badge label text displayed inside the status chip.',
@@ -118,7 +119,7 @@ registerBlockSchema('details', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     summary: {
       type: 'string',
       description: 'Disclosure heading — shown as the clickable toggle label.',

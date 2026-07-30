@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -55,10 +56,7 @@ registerBlockSchema('embed', {
       type: 'string',
       description: 'Block ID reference for replace-at / insert-at ops',
     },
-    ifVersion: {
-      type: 'string',
-      description: 'CAS guard — reject if page version does not match',
-    },
+    ifVersion: IF_VERSION_SCHEMA,
   },
   additionalProperties: false,
 });

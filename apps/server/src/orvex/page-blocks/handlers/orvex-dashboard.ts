@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -35,7 +36,7 @@ registerBlockSchema('orvex_dashboard', {
       description: 'Block placement operation',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     node: {
       type: 'object',
       required: ['type', 'attrs'],

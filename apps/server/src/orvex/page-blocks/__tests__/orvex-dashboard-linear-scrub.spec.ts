@@ -52,7 +52,19 @@ describe('orvex_dashboard schema — Linear vocabulary scrub (ENG-2951)', () => 
         description: 'Block placement operation',
       },
       refBlockId: { type: 'string' },
-      ifVersion: { type: 'string' },
+      // ENG-3289: the CAS baseline is an INTEGER (ADR-0053) — the golden is
+      // spelled out literally rather than referencing IF_VERSION_SCHEMA, so
+      // that a change to the shared primitive has to be re-affirmed here
+      // instead of silently satisfying its own assertion.
+      ifVersion: {
+        type: 'integer',
+        minimum: 0,
+        description:
+          "CAS guard — the page's persisted write-commit counter " +
+          '(orvex_page_meta.version). The write is rejected with 409 ' +
+          'VERSION_MISMATCH if it does not match the current version. An ' +
+          'integer, never a timestamp string (ADR-0053).',
+      },
       node: {
         type: 'object',
         required: ['type', 'attrs'],
