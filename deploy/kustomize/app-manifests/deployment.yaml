@@ -53,10 +53,23 @@ spec:
           type: RuntimeDefault
       containers:
         - name: orvex-wiki
-          # Tag overwritten by the kustomize replacement (data.branchSlug).
-          # Moving tag + imagePullPolicy Always: Tekton's rollout-restart
-          # PATCH is enough to roll a new build, no manifest bump needed.
-          image: repos.eu-central-1.myidp.cloud/orvex-wiki/orvex-wiki:main
+          # AD-29: the three-token shape. `IMAGE_REGISTRY`, `IMAGE_PROJECT`
+          # and `IMAGE_TAG` are stamped by components/image-injection; only
+          # `orvex-wiki-engine` — this service's AD-31 identity — is a literal.
+          # The token text is arbitrary to kustomize (only the `/` and `:`
+          # positions matter) but NOT to the reader or the gate: it is
+          # obviously not a deployable reference, so if the component is ever
+          # not applied the tokens survive the render and the deploy REFUSES
+          # instead of silently shipping a mutable tag.
+          #
+          # The tag is no longer a moving `:dev`. It is
+          # `{branchSlug}-{shortSha}`, derived by orvex-shared-build from the
+          # commit its clone landed on and re-derived by the render from the
+          # commit ArgoCD is rendering — the same string by construction. That
+          # is why `imagePullPolicy: Always` is now belt-and-braces rather than
+          # load-bearing: an immutable tag cannot change under a running pod,
+          # which is exactly the silent staleness the mutable tag allowed.
+          image: IMAGE_REGISTRY/IMAGE_PROJECT/orvex-wiki-engine:IMAGE_TAG
           imagePullPolicy: Always
           ports:
             - name: http

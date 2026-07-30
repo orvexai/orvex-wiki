@@ -9,6 +9,75 @@
 #
 # Flow: push to orvex-wiki -> GitHub webhook -> platform listener
 #       -> matching Trigger (filters repo + branch) -> PipelineRun.
+#
+# ── ENG-3154 / ENG-3305 / ENG-3327: REPOINTED TO THE SHARED PIPELINE ────────
+# This template now runs `orvex-shared-build` (my-idp-apps,
+# tekton/orvex-shared-build-pipeline.yaml) instead of this repo's own
+# `orvex-wiki-build` pipeline.
+#
+#   * The image reference is DERIVED, once, by `orvex-derive-image-ref`:
+#     {harbor}/{project}/{serviceToken}-{cmd}:{branchSlug}-{shortSha} (AD-29).
+#     No caller may pass a tag. `image-tag` survives below ONLY as the
+#     human-readable branch slug used in the PipelineRun's generateName, its
+#     labels and the rollout namespace — it is never an image tag any more.
+#   * `fleet-promotion-gate` (ENG-3155) runs between derive and build with
+#     `when: None` — no skip, force or dry-run escape, so no image can be
+#     pushed around it.
+#   * The deploy half matches by construction: `deploy/kustomize` carries the
+#     shared `components/image-injection` component and `idp-render` fills its
+#     tag from the revision ArgoCD is rendering. Same commit -> same string on
+#     both halves. Before the repoint this overlay rendered
+#     `…/orvex-wiki/orvex-wiki:dev` — a MUTABLE tag — while a build published
+#     something else, so the cell could stop advancing with every dashboard
+#     reading Healthy.
+#
+# `orvex-wiki-build` is deliberately LEFT IN PLACE and unreferenced (ENG-3297
+# owns its retirement after a soak). Nothing routes to it; deleting it now
+# would remove the only rollback that does not need a new build.
+#
+# ── AD-31 identity: `orvex-studio` project, `orvex-wiki-engine` image ──────
+# RULING (2026-07-30, ENG-3327): the AGPL engine image moves to the
+# `orvex-studio` Harbor project.
+#
+# The first draft kept it in `orvex-wiki` and patched the shared component's
+# `imageProject` in the overlay — the mechanism that component's own header
+# documents. MEASURED against kustomize v5.8.1: that does not work. An overlay
+# `patches:` entry is applied AFTER the component's `replacements` have already
+# stamped the image string, so the render still carries `orvex-studio`,
+# silently and with exit 0. The override is a dead end and is filed against the
+# component rather than worked around here (ENG-3337).
+#
+# So the choice was: change the shared component (new hashes, roster regen,
+# every consumer re-materializes) or take its default. Default, because the
+# Harbor project is a PUBLISHING LOCATION, not the licence boundary — the AGPL
+# boundary is enforced where it is checkable (the source repo,
+# engine-license-guard, license-header-check, engine-only-import-guard), and
+# none of that depends on which project a built layer sits in. The old
+# `orvex-wiki/orvex-wiki` images are left in place; an older revision stays
+# pullable by digest.
+#
+# `deploy/kustomize/kustomization.yaml` therefore adds nothing and takes the
+# same default, so the two halves agree by construction — which is precisely
+# what ENG-3296 measured and found broken fleet-wide.
+#
+# `cmd: engine` — the derive Task refuses an empty cmd ("every image ships
+# exactly one command") and this repo ships exactly one: the wiki engine.
+# `orvex-wiki-engine` is the honest name; `orvex-wiki-orvex-wiki` would be a
+# doubled token carrying no information. (Unlike `orvex-studio-api-api`, where
+# `api` genuinely IS that repo's binary name.)
+#
+# ── No `github-netrc` workspace, deliberately ───────────────────────────────
+# The shared pipeline declares it optional, for builds that fetch PRIVATE
+# github.com/orvexai Go modules. This repo is PUBLIC and its image is a clean
+# docmost fork with no private-module dependency, so binding
+# `tekton-github-netrc` here would mount a private-repo credential into a
+# public repo's build for no reason. Omitted, not forgotten.
+#
+# On `finally: rollout`: it restarts the workload after a successful push, as
+# the legacy pipeline's inline `rollout-restart` step did. With the AD-29 tag
+# it is a SAFETY NET, not the delivery mechanism — the tag changes every
+# commit, so ArgoCD's own re-render is what moves the pod. Do not read a green
+# rollout as delivery; read the pod's image.
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
@@ -23,12 +92,24 @@ spec:
       default: https://github.com/orvexai/orvex-wiki.git
     - name: git-revision
       description: Commit SHA to build (from the push payload)
+    - name: git-ref
+      description: >-
+        The FULL pushed ref (refs/heads/dev, refs/heads/crew/daniel). The sole
+        input to branchSlug — orvex-derive-image-ref refuses a bare branch name
+        and refuses any ref outside refs/heads/*.
     - name: image-tag
       description: |
-        Image tag derived from the git ref:
+        The branch SLUG, derived from the git ref:
           refs/heads/main        -> main
           refs/heads/dev         -> dev
           refs/heads/crew/daniel -> crew-daniel  (slash flattened to a dash)
+        NOT an image tag any more (AD-29 derives that): used only for the
+        PipelineRun name, its labels and the rollout namespace.
+    - name: rollout-namespace
+      description: >-
+        Namespace of the workload to restart after a successful push —
+        main -> orvex-wiki, otherwise orvex-wiki-<slug>. The same ladder the
+        legacy pipeline's inline rollout step applied.
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
@@ -36,23 +117,42 @@ spec:
         generateName: orvex-wiki-build-$(tt.params.image-tag)-
         namespace: tekton-pipelines
         labels:
-          app.kubernetes.io/name: orvex-wiki-build
-          tekton.dev/pipeline: orvex-wiki-build
+          app.kubernetes.io/name: orvex-shared-build
+          tekton.dev/pipeline: orvex-shared-build
+          orvex.ai/service: orvex-wiki
           orvex.ai/branch: $(tt.params.image-tag)
+          orvex.ai/binary: engine
       spec:
         pipelineRef:
-          name: orvex-wiki-build
+          name: orvex-shared-build
         params:
           - name: repo-url
             value: $(tt.params.git-url)
+          - name: git-ref
+            value: $(tt.params.git-ref)
           - name: revision
             value: $(tt.params.git-revision)
-          - name: image-tag
-            value: $(tt.params.image-tag)
+          # AD-31 identity. `harbor`, `harbor-pull` and the Dockerfile/context
+          # defaults are the shared pipeline's; this repo does not restate them.
+          - name: harbor-project
+            value: orvex-studio
+          - name: service-token
+            value: orvex-wiki
+          - name: cmd
+            value: engine
+          # No `build-arg-1`: this repo's root Dockerfile declares no `CMD` ARG
+          # (the legacy pipeline passed none either), so a `CMD=` build arg
+          # would be silently unconsumed — it would read as configuration while
+          # doing nothing. The shared pipeline's empty default is the honest
+          # value.
+          - name: rollout-namespace
+            value: $(tt.params.rollout-namespace)
+          - name: rollout-workload-name
+            value: orvex-wiki
         taskRunTemplate:
           serviceAccountName: tekton-smoke-test-builder
         taskRunSpecs:
-          - pipelineTaskName: rollout-restart
+          - pipelineTaskName: rollout
             serviceAccountName: tekton-studio-rollout
         workspaces:
           - name: source
@@ -109,6 +209,11 @@ spec:
             # image tag). main/dev are unaffected.
             - key: image-tag
               expression: "body.ref.replace('refs/heads/', '').replace('/', '-')"
+            # The same ladder the legacy pipeline's inline rollout step applied.
+            - key: rollout-namespace
+              expression: >-
+                body.ref == 'refs/heads/main' ? 'orvex-wiki' :
+                'orvex-wiki-' + body.ref.replace('refs/heads/', '').replace('/', '-')
             # github-push-defaults also binds git-branch from
             # extensions.git-branch; publish it or the binding fails
             # ApplyEventValuesToParams (no PipelineRun is ever created). Keep
@@ -120,9 +225,15 @@ spec:
     # the git-branch overlay above).
     - ref: github-push-defaults
       kind: ClusterTriggerBinding
-    # Map the CEL overlay into the TriggerTemplate param.
+    # Map the CEL overlays into the TriggerTemplate params.
+    - kind: TriggerBinding
+      name: git-ref
+      value: $(body.ref)
     - kind: TriggerBinding
       name: image-tag
       value: $(extensions.image-tag)
+    - kind: TriggerBinding
+      name: rollout-namespace
+      value: $(extensions.rollout-namespace)
   template:
     ref: orvex-wiki-build-template

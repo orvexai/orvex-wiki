@@ -1,0 +1,278 @@
+---
+# Shared kustomize component — image-injection (ENG-3154 T2/AC4, ENG-3296).
+#
+# THE ONE PLACE a family image reference is stamped into a manifest (AD-29 /
+# AD-35). Before this component the two halves of the fleet disagreed about
+# what an Orvex image is even called:
+#
+#   the shared pipeline PUSHES   {harbor}/{project}/{serviceToken}-{cmd}:{branchSlug}-{shortSha}
+#   the deployed manifest PULLED {registry}/{appName}/{binary}:{branchSlug}
+#
+# — divergent in the registry host alias, in the repository path, AND in the
+# tag. Repointing a service at `orvex-shared-build` while that held would have
+# produced a GREEN PipelineRun that published an image nothing deploys and a
+# `finally: rollout` that restarted a workload on an unchanged mutable tag: the
+# cell silently stops advancing with every dashboard reading Healthy. This
+# component closes all three axes, in one place, for every service.
+#
+# ── What it does ─────────────────────────────────────────────────────────────
+# It owns three segments of every injected workload's container image and
+# nothing else:
+#
+#   segment 0 (before the 1st `/`)  ← data.imageRegistry   the PULL host
+#   segment 1 (before the 2nd `/`)  ← data.imageProject    the Harbor project
+#   the tag   (after the `:`)       ← data.imageTag        {branchSlug}-{shortSha}
+#
+# The remaining segment — `{serviceToken}-{cmd}`, e.g. `orvex-studio-staging-api`
+# — stays a literal in the service's own manifest, because it IS genuinely
+# per-service (AD-31 identity, one image per binary) and AC4 asks the overlay to
+# carry exactly that and no more.
+#
+# So an adopting Deployment writes its image as the three-token shape:
+#
+#   image: IMAGE_REGISTRY/IMAGE_PROJECT/orvex-studio-staging-api:IMAGE_TAG
+#
+# The token text is arbitrary to kustomize (only the `/` and `:` positions
+# matter) but is NOT arbitrary to the reader or to the gate: it is greppable,
+# it is obviously not a deployable reference, and if this component is not
+# applied the tokens survive the render and `scripts/image-injection-conform.sh`
+# reds. An overlay that forgets the component fails loudly instead of shipping
+# a manifest that ArgoCD happily syncs into an ImagePullBackOff.
+#
+# ── THE CARRIER — how data.imageTag gets its per-render value ────────────────
+# Design-it-twice (CS §3.7). A digest, and a `{branchSlug}-{shortSha}` tag, are
+# both facts about a BUILD; ArgoCD renders from git. Something has to carry the
+# fact across. Three candidates were weighed against what this cluster actually
+# permits, and two of the three are structurally dead — recorded here because
+# both look obvious and both cost a day to disprove:
+#
+#   (A) ArgoCD Image Updater. REJECTED — already removed from this repo's
+#       ApplicationSets, and for a reason that has not changed: its
+#       `kustomize.images` overrides do not work with a CMP plugin source
+#       (see applications/eu-central-1/app-environments-appset.yaml). Every
+#       Studio Application is a CMP plugin source.
+#
+#   (B) A substrate write-back: the pipeline commits the resolved ref into the
+#       service repo's own deploy/ tree on the branch ArgoCD tracks. REJECTED —
+#       it cannot execute. Every one of the 18 studio repos now carries an
+#       ACTIVE `ci-success-required` ruleset on its mainline with
+#       `bypass_actors: 0`, so a bot push to `dev` is refused by GitHub before
+#       any of this matters. The only way to make it work is to punch a bypass
+#       actor through the fleet-wide merge gate, which trades a build
+#       convenience for the gate the whole of Phase 1.5 exists to arm. Refused.
+#       (Its PR-per-build variant is worse: it doubles every merge and each
+#       write-back commit is itself buildable, so it loops.)
+#
+#   (C) CHOSEN — the render learns the revision it is already rendering.
+#       ArgoCD resolves a revision before it invokes the plugin, and the SCM
+#       generator that mints these Applications already carries the branch head
+#       SHA. `{branchSlug}-{shortSha}` is then a PURE FUNCTION of (branch,
+#       commit) on BOTH sides: the pipeline derives it from the commit its clone
+#       landed on, the render derives it from the commit ArgoCD is rendering,
+#       and for the same commit the two strings are identical by construction —
+#       no write-back, no mutable tag, no second source of truth, and rollback
+#       stays "sync an older revision", which re-derives the older tag.
+#
+#       Its one honest cost, stated rather than discovered later: between a push
+#       and the completion of that commit's build the render names an image that
+#       does not exist yet, so the rollout waits in ImagePullBackOff instead of
+#       silently serving the previous build. That is the loud failure the
+#       mutable `:dev` tag was hiding.
+#
+#       (C) is not wired yet, and this component does not pretend it is: the
+#       sentinel in image-ref.yaml survives every render until a carrier fills
+#       it, and the conformance gate reds on the sentinel. The remaining piece
+#       is one flag in `orvexai/idp-render` (`--image-tag`, the same shape as
+#       the `--branch` / `--crew-name` flags it already has) plus the matching
+#       plugin `env:` entry in this repo's ApplicationSets. That is a platform
+#       change in another repo, which is why it is NOT smuggled in here as an
+#       inert ApplicationSet env var that would read as done while doing
+#       nothing.
+#
+# ── WHICH KINDS ARE STAMPED, and why `Job` is NOT ────────────────────────────
+# Stamped: Deployment, StatefulSet, DaemonSet, CronJob, and the Knative
+# `serving.knative.dev/v1 Service` (selected by GROUP, so a core `v1 Service`
+# — which has no pod template — is never matched).
+#
+# Measured across every `deploy/kustomize` tree in the fleet, the image-bearing
+# kinds are exactly: Deployment (12 repos), Knative Service (billing, identity),
+# CronJob (billing), and Job (api, ui).
+#
+# `Job` is deliberately EXCLUDED. The only Jobs in the fleet are bootstrap
+# scaffolding inside `platform-resources/harbor-project.yaml`, and they run
+# `alpine:3.20` and `python:3.12-alpine` — third-party images with no
+# `{project}` segment at all. Stamping them would rewrite `alpine:3.20` into a
+# Harbor path that does not exist and break both repos' renders outright. A Job
+# that genuinely ships a family binary must be added here explicitly, with its
+# third-party siblings moved out of the stamped set first.
+#
+# ── STATED LIMIT (do not discover this in production) ───────────────────────
+# Within a stamped kind the replacements target `containers.*.image`, so EVERY
+# container of that workload is treated as a family image. A pod that also runs
+# a third-party sidecar (`envoyproxy/envoy:v1.31.0`) would have that image
+# rewritten too — kustomize replacements select by GVK, never by field value,
+# so the component cannot tell the two apart. It is not silent: the sidecar's
+# mangled reference is not equal to any Task-derived ref, so
+# `scripts/image-injection-conform.sh` reds at adoption time with the offending
+# image printed. No Studio service has such a pod today. A service that grows
+# one must extend this component (e.g. by container name), not work around it.
+#
+# `initContainers` are deliberately NOT targeted: a fieldPath that does not
+# exist on a matched resource is a kustomize error, so blanket-targeting them
+# would break every workload that has none. The gate still CHECKS an
+# initContainer's image for a surviving token, so an unstamped one reds rather
+# than shipping.
+#
+# ── CONSUMPTION (PO-2026-07-30-1) ────────────────────────────────────────────
+# This component is consumed by a MATERIALIZED IN-REPO COPY at
+# `<service>/deploy/kustomize/components/image-injection/`, never by a
+# cross-repo reference — ArgoCD's repo-server silently DROPS a remote component
+# it cannot resolve and renders on without it, Healthy and wrong.
+# `orvex-studio-contracts`' `manifest-copy-check` is the regen gate: a copy at a
+# `**/components/<label>` path must hash-match the canonical file here, byte for
+# byte. Note that byte-identity is why a materialized copy carries NO extra
+# `Code generated … DO NOT EDIT` banner — a banner the canonical file does not
+# have would change the hash and red the very gate that governs the copy.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - image-ref.yaml
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Replacements — stamp the three substrate-owned segments.
+#
+# Same shape for every stamped workload kind, so a service that grows a
+# StatefulSet or a CronJob is injected by the same rule rather than by a new
+# one. A `select:` that matches nothing is a no-op (verified against kustomize
+# v5.8.1), so the kinds no service uses today cost nothing.
+# ═══════════════════════════════════════════════════════════════════════════
+replacements:
+  # ─── segment 0: registry host ────────────────────────────────────────────
+  - source:
+      kind: ConfigMap
+      name: image-ref
+      fieldPath: data.imageRegistry
+    targets:
+      - select:
+          kind: Deployment
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 0
+      - select:
+          kind: StatefulSet
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 0
+      - select:
+          kind: DaemonSet
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 0
+      - select:
+          kind: CronJob
+        fieldPaths:
+          - spec.jobTemplate.spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 0
+      - select:
+          group: serving.knative.dev
+          kind: Service
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 0
+
+  # ─── segment 1: Harbor project ───────────────────────────────────────────
+  - source:
+      kind: ConfigMap
+      name: image-ref
+      fieldPath: data.imageProject
+    targets:
+      - select:
+          kind: Deployment
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 1
+      - select:
+          kind: StatefulSet
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 1
+      - select:
+          kind: DaemonSet
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 1
+      - select:
+          kind: CronJob
+        fieldPaths:
+          - spec.jobTemplate.spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 1
+      - select:
+          group: serving.knative.dev
+          kind: Service
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: /
+          index: 1
+
+  # ─── the tag ─────────────────────────────────────────────────────────────
+  - source:
+      kind: ConfigMap
+      name: image-ref
+      fieldPath: data.imageTag
+    targets:
+      - select:
+          kind: Deployment
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: ":"
+          index: 1
+      - select:
+          kind: StatefulSet
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: ":"
+          index: 1
+      - select:
+          kind: DaemonSet
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: ":"
+          index: 1
+      - select:
+          kind: CronJob
+        fieldPaths:
+          - spec.jobTemplate.spec.template.spec.containers.*.image
+        options:
+          delimiter: ":"
+          index: 1
+      - select:
+          group: serving.knative.dev
+          kind: Service
+        fieldPaths:
+          - spec.template.spec.containers.*.image
+        options:
+          delimiter: ":"
+          index: 1
