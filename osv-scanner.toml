@@ -1,0 +1,41 @@
+# osv-scanner exception ledger — the ONLY sanctioned way an advisory may fail to
+# red `Security (audit + govulncheck)`, and it is neither silent nor permanent.
+#
+# This is osv-scanner's own documented per-advisory ignore format
+# (https://google.github.io/osv-scanner/configuration/), so the scanner honours
+# it directly for anyone running `osv-scanner scan --lockfile=pnpm-lock.yaml`
+# here, AND scripts/ci/audit-osv.sh reads this same file to print + VALIDATE
+# every entry. That gate does not trust the file: it fails the build if an entry
+# lacks a reason or an `ignoreUntil`, if `ignoreUntil` has passed, if the window
+# is longer than 120 days, if the reason names no ENG ticket, or if an excepted
+# advisory is no longer reported at all (a stale exception must be deleted, not
+# parked). Every finding — excepted or not — is printed in the CI log.
+#
+# WHEN AN ENTRY IS LEGITIMATE — exactly one case, and it is a DATA defect, not a
+# vulnerability we are choosing to carry: upstream published the fix as a
+# BACKPORT onto an older release line, this repo resolves that patched backport,
+# but the GitHub advisory range was never SPLIT to exclude it, so OSV still
+# matches the version. The vulnerable code is not present in the resolved tree;
+# the advisory range is stale. Both entries below are that case and each is
+# proven by unpacking the resolved tarball, not by argument.
+#
+# WHEN AN ENTRY IS NOT LEGITIMATE: "the upgrade is inconvenient", "the path is
+# not reachable in our app", "we will do it next sprint". Those are reds. Fix
+# the dependency.
+#
+# EXIT CONDITION for every entry: the advisory-database range gets split (report
+# it: https://github.com/github/advisory-database/issues), or the resolved
+# version leaves the range. Then delete the entry — the gate will fail while a
+# stale entry remains, so deletion is not optional.
+#
+# Tracking ticket for both entries: ENG-3274.
+
+[[IgnoredVulns]]
+id = "GHSA-mh99-v99m-4gvg"
+ignoreUntil = 2026-10-28
+reason = "ENG-3274. brace-expansion DoS (CVE-2026-14257). The GHSA range is a single unsplit [0, 5.0.8) — but upstream backported the fix onto the v1 and v2 maintenance lines AFTER the advisory was cut: 5.0.8 (2026-07-23), 2.1.3 (2026-07-28), 1.1.17 (2026-07-29). This repo pins the range-scoped overrides to exactly those patched tips (package.json: brace-expansion@^1 -> 1.1.17, @^2 -> 2.1.3, @^5 -> 5.0.8), and the resolved 1.1.17 / 2.1.3 tarballs DO carry the EXPANSION_MAX_LENGTH guard (verified by unpacking each tarball and grepping package/index.js; 1.1.16 / 2.1.2 do not). A blanket override to 5.0.8 is NOT available: brace-expansion v3 changed the CJS export from a callable default to a named `expand`, so minimatch v3/v5 consumers would throw at require-time. Exit: advisory range split, or minimatch drops the v1/v2 lines."
+
+[[IgnoredVulns]]
+id = "GHSA-qwww-vcr4-c8h2"
+ignoreUntil = 2026-10-28
+reason = "ENG-3274. react-router RSC-mode CSRF bypass. The GHSA range is a single unsplit [7.12.0, 8.3.0) naming 8.3.0 as the only fix — but upstream ALSO backported it to the v7 line in 7.18.2 (published 2026-07-28), whose CHANGELOG entry is literally 'Harden RSC CSRF codepaths (#15353)'. apps/client/package.json pins react-router-dom 7.18.2, which pins react-router 7.18.2 exactly, so the fix IS in the resolved tree; react-router-dom has no 8.x line at all (v8 dropped the package), so 7.18.2 is the patched version for this dependency. Exit: advisory range split, or the client migrates to react-router 8.x."

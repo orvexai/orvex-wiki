@@ -1,6 +1,6 @@
 {
   "class": "hardening",
-  "description": "A-HARDENING correctness-hardening allow-list (ENG-2478, Architecture twQ3BBzpTE section 2). The 15 items below are the fork's correctness fixes to upstream behaviour, each tagged with its REAL, currently-resolvable anchor (file + a marker string the file must contain) so ENG-2477's FR-30 divergence gate recognises them as permitted divergence rather than un-permitted drift, and so an upstream tag bump that breaks an anchor fails ledger validation LOUDLY naming the item. Distinct from patches/inline-edit-allowlist.json (ENG-1649 context-drift subsystem) and from fr30/allowlist.json's own 13-row allow-list class. Cosmetics (Swagger tags, log-level tuning, micro-fixes) are a NAMED, NOT-applied class recorded in docs/runbooks/overlay-rebase-import.md — never re-applied on import, never listed here.",
+  "description": "A-HARDENING correctness-hardening allow-list (ENG-2478, Architecture twQ3BBzpTE section 2). The 18 items below are the fork's correctness fixes to upstream behaviour — the first 15 are the architecture-named set; items 16-18 are the post-activation null-userAtom client guards admitted under ENG-3287 (see their own descriptions), and the architecture page still says 15, a drift recorded on that ticket rather than left silent. Each item is tagged with its REAL, currently-resolvable anchor (file + a marker string the file must contain) so ENG-2477's FR-30 divergence gate recognises them as permitted divergence rather than un-permitted drift, and so an upstream tag bump that breaks an anchor fails ledger validation LOUDLY naming the item. Distinct from patches/inline-edit-allowlist.json (ENG-1649 context-drift subsystem) and from fr30/allowlist.json's own 13-row allow-list class. Cosmetics (Swagger tags, log-level tuning, micro-fixes) are a NAMED, NOT-applied class recorded in docs/runbooks/overlay-rebase-import.md — never re-applied on import, never listed here.",
   "items": [
     {
       "name": "ifVersion CAS",
@@ -76,6 +76,21 @@
       "name": "slug-rewrite-on-title-change",
       "anchor": { "path": "apps/server/src/integrations/queue/tasks/slug-rewrite.task.ts", "contains": "the slug-rewrite queue task" },
       "description": "A title change enqueues an in-place rewrite of referring ProseMirror link nodes (ENG-1398), exercised by the testcontainers-backed slug-rewrite.task.spec.ts."
+    },
+    {
+      "name": "null-user settings guard (page width)",
+      "anchor": { "path": "apps/client/src/features/user/components/page-width-pref.tsx", "contains": "The optional chain has to start at `user`" },
+      "description": "userAtom is null until the user query resolves, so `user.settings?...` — optional-chaining the second hop but not the first — threw an UNCAUGHT 'Cannot read properties of null' on a cold load of /settings/account/preferences, which unmounted the React tree and left #root empty: a total white screen. Observed live before the fix (body text length 0) and after (renders). ENG-3287."
+    },
+    {
+      "name": "null-user settings guard (fixed toolbar)",
+      "anchor": { "path": "apps/client/src/features/user/components/fixed-toolbar-pref.tsx", "contains": "`user` is null until the user query resolves" },
+      "description": "Same null-userAtom deref as the page-width guard, in the editor-toolbar preference toggle. Pinned by apps/client/src/features/user/components/__tests__/null-user-settings-guard.spec.ts. ENG-3287."
+    },
+    {
+      "name": "null-user settings guard (notifications)",
+      "anchor": { "path": "apps/client/src/features/user/components/notification-pref.tsx", "contains": "`user` is null until the user query resolves" },
+      "description": "Same null-userAtom deref as the page-width guard, in the notification preference toggles. Pinned by apps/client/src/features/user/components/__tests__/null-user-settings-guard.spec.ts. ENG-3287."
     }
   ]
 }

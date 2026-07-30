@@ -227,6 +227,22 @@ jobs:
           pnpm --dir packages/base-formula build
           pnpm --dir packages/@orvex/extensions build
           pnpm --dir packages/@orvex/dfm build
+      # Pre-pull the testcontainers images ONCE, serially, BEFORE jest starts.
+      # These runners are ephemeral (minRunners 0), so the image cache is always
+      # cold; without this, the multi-hundred-MB pull happens INSIDE a spec's
+      # `beforeAll`, and 44 specs' worth of jest workers race to pull the same
+      # image concurrently. That pull time is charged against each spec's
+      # `jest.setTimeout(120_000)` hook budget, which is how the job produced
+      # `Exceeded timeout of 120000 ms for a hook` on a DIFFERENT testcontainers
+      # spec on each of three consecutive runs of the same commit
+      # (outbox-atomicity-and-relay, then slug-rewrite.task) — a contention
+      # symptom, not a defect in any one spec. Warming the cache here moves the
+      # pull outside every hook budget. Job-step fix only: no test, timeout or
+      # assertion changed.
+      - name: Warm the testcontainers image cache (ephemeral runner, cold cache)
+        run: |
+          docker pull postgres:16-alpine
+          docker pull redis:7-alpine
       # test:ci excludes the 16 NAMED upstream never-green DI-scaffold specs
       # (upstream test debt, recorded in the foundation handoff). Full suite:
       # make test-server-full.
@@ -699,15 +715,32 @@ jobs:
         with:
           go-version: '1.26'
           cache-dependency-path: tests/smoke/go.sum
+      # PINNED, not inherited: scripts/ci/osv-gate.py parses the exception
+      # ledger with `tomllib`, which is stdlib only from 3.11. The runner
+      # image's system python3 is not a contract we control, and the gate
+      # deliberately exits 2 (INFRA-ERROR) rather than run unvalidated if
+      # tomllib is absent — so the version is nailed down here instead of
+      # discovered as a red.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # The exception mechanism is gated BEFORE the scan it governs: this
+      # hermetic suite proves osv-scanner.toml cannot be turned into a
+      # fail-open switch (undated / unowned / expired / over-long / stale
+      # entries all red), and validates the committed ledger itself (ENG-3274).
+      - name: TestOsvExceptionLedger (DoD suite, hermetic)
+        run: bash scripts/test/audit-osv-exceptions.spec.sh
       # Supply-chain audit of the npm dependency tree (high+). NOT `pnpm audit`:
       # pnpm's audit hits npm's /-/npm/v1/security/audits endpoint, which npm
       # RETIRED (HTTP 410 Gone — "use the bulk advisory endpoint instead"), so
       # `pnpm audit` is broken for every pnpm version. We scan the same
       # pnpm-lock.yaml-resolved tree with osv-scanner (OSV.dev) instead and gate
       # on HIGH/CRITICAL only, reproducing the prior --audit-level=high
-      # threshold. No bypass: all findings are reported. See scripts/ci/audit-osv.sh.
+      # threshold. Every finding is reported — the only permitted non-red for a
+      # HIGH is a dated, expiring, ticket-owning entry in osv-scanner.toml.
+      # See scripts/ci/audit-osv.sh and scripts/ci/osv-gate.py.
       - name: Dependency audit (osv-scanner, high+)
         run: bash scripts/ci/audit-osv.sh pnpm-lock.yaml
       - name: govulncheck (smoke module)
@@ -835,6 +868,15 @@ jobs:
       - security
       - sbom-generation
       - workflow-lint
+      # Four gate jobs that existed in this file but were NOT fanned in, so a
+      # red on any of them left `ci-success` GREEN — a fail-open hole in the one
+      # context the required-status ruleset arms on. Every job in this workflow
+      # is now a dependency; adding a job without adding it here is the same
+      # hole, so keep this list exhaustive.
+      - tenant-move-coverage
+      - patches-drift-check
+      - hardening-allowlist-check
+      - image-freshness-check
     runs-on: public-runners
     if: always()
     steps:

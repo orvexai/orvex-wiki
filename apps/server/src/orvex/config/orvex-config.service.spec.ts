@@ -135,8 +135,16 @@ describe('OrvexConfigService', () => {
   });
 
   describe('ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4)', () => {
-    it('defaults to health/orvex when unset', () => {
-      expect(svc({}).globalPrefixExclude).toEqual(['health/orvex']);
+    // The default is a PAIR: the bare route plus its wildcard. `health/orvex`
+    // alone excludes only the exact aggregate path, so the per-role sub-probes
+    // (`health/orvex/collab` ENG-2510, `health/orvex/relay` ENG-2496) fell
+    // through to the SPA catch-all and answered with index.html — a kubelet
+    // httpGet on them could never fire. See orvex-config.service.ts.
+    it('defaults to health/orvex plus its wildcard when unset', () => {
+      expect(svc({}).globalPrefixExclude).toEqual([
+        'health/orvex',
+        'health/orvex/(.*)',
+      ]);
     });
 
     it('reads a comma-separated override, trimmed', () => {
