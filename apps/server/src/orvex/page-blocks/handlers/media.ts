@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -25,7 +26,7 @@ registerBlockSchema('video', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     attachmentId: {
       type: 'string',
       format: 'uuid',
@@ -51,7 +52,7 @@ registerBlockSchema('audio', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     attachmentId: {
       type: 'string',
       format: 'uuid',
@@ -77,7 +78,7 @@ registerBlockSchema('pdf', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     attachmentId: {
       type: 'string',
       format: 'uuid',
@@ -109,7 +110,7 @@ registerBlockSchema('attachment', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     attachmentId: {
       type: 'string',
       format: 'uuid',
@@ -139,7 +140,7 @@ registerBlockSchema('image_from_prompt', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     prompt: {
       type: 'string',
       description: 'Text description of the image to generate.',
