@@ -232,7 +232,7 @@ export class SpaceMemberService {
 
       // Audit log for each member added
       for (const user of validUsers) {
-        this.auditService.log({
+        await this.auditService.log({
           event: AuditEvent.SPACE_MEMBER_ADDED,
           resourceType: AuditResource.SPACE_MEMBER,
           resourceId: dto.spaceId,
@@ -247,11 +247,13 @@ export class SpaceMemberService {
             userName: user.name,
             memberType: 'user',
           },
-        });
+        },
+          { workspaceId, actorId: authUser.id, actorType: 'user' },
+        );
       }
 
       for (const group of validGroups) {
-        this.auditService.log({
+        await this.auditService.log({
           event: AuditEvent.SPACE_MEMBER_ADDED,
           resourceType: AuditResource.SPACE_MEMBER,
           resourceId: dto.spaceId,
@@ -266,7 +268,9 @@ export class SpaceMemberService {
             groupName: group.name,
             memberType: 'group',
           },
-        });
+        },
+          { workspaceId, actorId: authUser.id, actorType: 'user' },
+        );
       }
     }
   }
@@ -352,7 +356,7 @@ export class SpaceMemberService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SPACE_MEMBER_REMOVED,
       resourceType: AuditResource.SPACE_MEMBER,
       resourceId: dto.spaceId,
@@ -367,7 +371,9 @@ export class SpaceMemberService {
         groupId: spaceMember.groupId,
         memberType: spaceMember.userId ? 'user' : 'group',
       },
-    });
+    },
+      { workspaceId },
+    );
   }
 
   async updateSpaceMemberRole(
@@ -437,7 +443,7 @@ export class SpaceMemberService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SPACE_MEMBER_ROLE_CHANGED,
       resourceType: AuditResource.SPACE_MEMBER,
       resourceId: dto.spaceId,
@@ -453,7 +459,9 @@ export class SpaceMemberService {
         groupId: spaceMember.groupId,
         memberType: spaceMember.userId ? 'user' : 'group',
       },
-    });
+    },
+      { workspaceId },
+    );
   }
 
   async validateLastAdmin(spaceId: string): Promise<void> {

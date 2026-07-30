@@ -89,7 +89,7 @@ export class GroupUserService {
       .execute();
 
     for (const user of validUsers) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.GROUP_MEMBER_ADDED,
         resourceType: AuditResource.GROUP,
         resourceId: groupId,
@@ -99,7 +99,10 @@ export class GroupUserService {
             userName: user.name,
           },
         },
-      });
+      },
+        { workspaceId },
+        trx,
+      );
     }
   }
 
@@ -155,7 +158,7 @@ export class GroupUserService {
       }
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.GROUP_MEMBER_REMOVED,
       resourceType: AuditResource.GROUP,
       resourceId: groupId,
@@ -168,6 +171,8 @@ export class GroupUserService {
       metadata: {
         groupName: group.name,
       },
-    });
+    },
+      { workspaceId },
+    );
   }
 }

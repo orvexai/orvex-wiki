@@ -10,7 +10,7 @@ import {
 import { OrvexWorkspaceUpdateInterceptor } from './orvex-workspace-update.interceptor';
 import { OrvexSsoEventsListener } from '../../core/auth/orvex-sso-events.listener';
 import { OrvexMemberLookupAdapter } from '../../core/auth/orvex-member-lookup';
-import { NoopAuditModule } from '../../integrations/audit/audit.module';
+import { OrvexAuditModule } from '../../core/audit/orvex-audit.module';
 
 /**
  * OrvexEnforceSsoModule — the composition point for the ported
@@ -39,7 +39,7 @@ import { NoopAuditModule } from '../../integrations/audit/audit.module';
  *    toggle path is ENG-1572.
  */
 @Module({
-  imports: [NoopAuditModule],
+  imports: [OrvexAuditModule],
   providers: [
     { provide: ORVEX_MEMBER_LOOKUP, useClass: OrvexMemberLookupAdapter },
     OrvexEnforceSsoCheckService,

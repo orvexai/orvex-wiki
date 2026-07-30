@@ -147,7 +147,7 @@ export class AttachmentController {
         attachmentId: attachmentId,
       });
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.ATTACHMENT_UPLOADED,
         resourceType: AuditResource.ATTACHMENT,
         resourceId: fileResponse?.id ?? attachmentId,
@@ -157,7 +157,9 @@ export class AttachmentController {
           pageId,
           spaceId,
         },
-      });
+      },
+        { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+      );
 
       return res.send(fileResponse);
     } catch (err: any) {

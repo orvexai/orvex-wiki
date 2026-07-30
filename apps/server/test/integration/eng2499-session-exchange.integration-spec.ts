@@ -60,7 +60,7 @@ import { UserSessionRepo } from '@docmost/db/repos/session/user-session.repo';
 import { SessionService } from '../../src/core/session/session.service';
 import { TokenService } from '../../src/core/auth/services/token.service';
 import { EnvironmentService } from '../../src/integrations/environment/environment.service';
-import { NoopAuditModule } from '../../src/integrations/audit/audit.module';
+import { OrvexAuditModule } from '../../src/core/audit/orvex-audit.module';
 import { OrvexNativeLoginGuard } from '../../src/orvex/http/orvex-native-login.guard';
 import {
   seedAuthAccount,
@@ -193,7 +193,7 @@ async function buildExchangeApp(
         plugins: [new CamelCasePlugin()],
       }),
       ClsModule.forRoot({ global: true, middleware: { mount: true } }),
-      NoopAuditModule,
+      OrvexAuditModule,
       TestGlobalsModule,
       OrvexSessionMintModule,
     ],

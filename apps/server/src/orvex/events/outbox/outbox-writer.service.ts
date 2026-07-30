@@ -23,6 +23,13 @@ export interface OutboxEvent {
   aggregateId: string;
   workspaceId: string;
   payload: Record<string, unknown>;
+  /**
+   * ENG-3167 (AD-20/AD-24) — an ACTIVE emission (the audit lane) mints its
+   * UUIDv7 event id at enqueue, inside the caller's transaction. When set,
+   * the row is inserted with this id; when omitted the table default
+   * (`gen_uuid_v7()`) applies. Never derived at relay time.
+   */
+  id?: string;
 }
 
 /**
@@ -57,6 +64,7 @@ export class OutboxWriter {
     await trx
       .insertInto('orvexEventOutbox')
       .values({
+        ...(event.id !== undefined ? { id: event.id } : {}),
         type: event.type,
         aggregateId: event.aggregateId,
         workspaceId: event.workspaceId,

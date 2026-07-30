@@ -338,7 +338,7 @@ describe('TestCollabSchemaRegistersAdditiveNodesNoLinear (ENG-2506)', () => {
       provenanceService = new OrvexPageProvenanceService(
         db,
         pageRepo,
-        new OrvexAuditService(db),
+        new OrvexAuditService(db, new OutboxWriter(db)),
         outboxWriter,
       );
 

@@ -183,7 +183,7 @@ export class ShareController {
       createShareDto,
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SHARE_CREATED,
       resourceType: AuditResource.SHARE,
       resourceId: share.id,
@@ -192,7 +192,9 @@ export class ShareController {
         pageId: page.id,
         spaceId: page.spaceId,
       },
-    });
+    },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
 
     return share;
   }
@@ -236,7 +238,7 @@ export class ShareController {
 
     await this.shareRepo.deleteShare(share.id);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SHARE_DELETED,
       resourceType: AuditResource.SHARE,
       resourceId: share.id,
@@ -247,7 +249,9 @@ export class ShareController {
           spaceId: share.spaceId,
         },
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
   }
 
   @Public()

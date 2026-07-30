@@ -352,6 +352,22 @@ export class PageController {
         );
       }
 
+      // ENG-3167 (AD-24) — the audit record is staged as an outbox row
+      // INSIDE this same mutating transaction: the page create and its
+      // audit row commit or roll back together, and a failed audit stage
+      // aborts the create (the ONLY audit failure that may abort a user
+      // action). Awaited: the stage is a synchronous in-tx INSERT.
+      await this.auditService.log(
+        {
+          event: AuditEvent.PAGE_CREATED,
+          resourceType: AuditResource.PAGE,
+          resourceId: created.id,
+          spaceId: created.spaceId,
+        },
+        { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+        trx,
+      );
+
       return created;
     });
 
@@ -365,19 +381,6 @@ export class PageController {
     // this is the baseline 1) so the caller can round-trip create -> If-Match
     // edit without guessing the version.
     const version = await this.pageRepo.getMetaVersion(page.id);
-
-    this.auditService.log({
-      event: AuditEvent.PAGE_CREATED,
-      resourceType: AuditResource.PAGE,
-      resourceId: page.id,
-      spaceId: page.spaceId,
-      changes: {
-        after: {
-          title: getPageTitle(page.title),
-          spaceId: page.spaceId,
-        },
-      },
-    });
 
     if (
       createPageDto.format &&
@@ -464,7 +467,7 @@ export class PageController {
     );
 
     if (upserted === 'created') {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_CREATED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -472,7 +475,9 @@ export class PageController {
         changes: {
           after: { title: getPageTitle(page.title), spaceId: page.spaceId },
         },
-      });
+      },
+        { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+      );
     }
 
     // Version-semantics unification (amazing-MCP): the upsert receipt carries
@@ -590,7 +595,7 @@ export class PageController {
       }
       await this.pageService.forceDelete(deletePageDto.pageId, workspace.id);
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DELETED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -603,7 +608,9 @@ export class PageController {
             spaceId: page.spaceId,
           },
         },
-      });
+      },
+        { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+      );
     } else {
       // User with edit permission can delete
       await this.pageAccessService.validateCanEdit(page, user);
@@ -614,7 +621,7 @@ export class PageController {
         workspace.id,
       );
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_TRASHED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -627,7 +634,9 @@ export class PageController {
             spaceId: page.spaceId,
           },
         },
-      });
+      },
+        { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+      );
     }
   }
 
@@ -681,7 +690,7 @@ export class PageController {
 
       await this.pageService.forceDelete(pageId, workspace.id);
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DELETED,
         resourceType: AuditResource.PAGE,
         resourceId: page.id,
@@ -694,7 +703,9 @@ export class PageController {
             spaceId: page.spaceId,
           },
         },
-      });
+      },
+        { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+      );
 
       deletedIds.push(pageId);
     }
@@ -726,7 +737,7 @@ export class PageController {
 
     await this.pageRepo.restorePage(pageIdDto.pageId, workspace.id);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_RESTORED,
       resourceType: AuditResource.PAGE,
       resourceId: page.id,
@@ -737,7 +748,9 @@ export class PageController {
           spaceId: page.spaceId,
         },
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
 
     return this.pageRepo.findById(pageIdDto.pageId, {
       includeHasChildren: true,
@@ -967,7 +980,7 @@ export class PageController {
       user.id,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_MOVED_TO_SPACE,
       resourceType: AuditResource.PAGE,
       resourceId: movedPage.id,
@@ -980,7 +993,9 @@ export class PageController {
         title: getPageTitle(movedPage.title),
         ...(childPageIds.length > 0 && { childPageIds }),
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -1018,7 +1033,7 @@ export class PageController {
         user,
       );
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DUPLICATED,
         resourceType: AuditResource.PAGE,
         resourceId: result.id,
@@ -1032,7 +1047,9 @@ export class PageController {
             childPageIds: result.childPageIds,
           }),
         },
-      });
+      },
+        { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+      );
     } else {
       // If no spaceId, it's a duplicate in same space
       const ability = await this.spaceAbility.createForUser(
@@ -1049,7 +1066,7 @@ export class PageController {
         user,
       );
 
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_DUPLICATED,
         resourceType: AuditResource.PAGE,
         resourceId: result.id,
@@ -1061,7 +1078,9 @@ export class PageController {
             childPageIds: result.childPageIds,
           }),
         },
-      });
+      },
+        { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+      );
     }
 
     return result;

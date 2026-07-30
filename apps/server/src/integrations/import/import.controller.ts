@@ -106,7 +106,7 @@ export class ImportController {
     };
 
     if (createdPage) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.PAGE_CREATED,
         resourceType: AuditResource.PAGE,
         resourceId: createdPage.id,
@@ -115,7 +115,9 @@ export class ImportController {
           source: sourceMap[ext],
           fileName: file.filename,
         },
-      });
+      },
+        { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+      );
     }
 
     return createdPage;
@@ -177,7 +179,7 @@ export class ImportController {
       throw new ForbiddenException();
     }
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_IMPORTED,
       resourceType: AuditResource.PAGE,
       resourceId: spaceId,
@@ -187,7 +189,9 @@ export class ImportController {
         source,
         spaceId,
       },
-    });
+    },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
 
     return this.importService.importZip(
       file,

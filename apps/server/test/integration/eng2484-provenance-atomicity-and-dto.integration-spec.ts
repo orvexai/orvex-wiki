@@ -104,7 +104,7 @@ describe('TestAiProvenanceStampedAtomicRestAndCollab (ENG-2484)', () => {
     provenanceService = new OrvexPageProvenanceService(
       db,
       pageRepo,
-      new OrvexAuditService(db),
+      new OrvexAuditService(db, new OutboxWriter(db)),
       outboxWriter,
     );
 

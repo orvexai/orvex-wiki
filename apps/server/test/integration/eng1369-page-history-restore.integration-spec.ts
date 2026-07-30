@@ -27,6 +27,7 @@
  * transaction and all remaining ACs against REAL Postgres.
  */
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AuditEvent } from '../../src/common/events/audit-events';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PageHistoryRepo } from '@docmost/db/repos/page/page-history.repo';
 import { PageHistoryService } from 'src/core/page/services/page-history.service';
@@ -92,7 +93,7 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
       { emitInvalidate: () => {} } as any,
     );
     pageHistoryRepo = new PageHistoryRepo(testDb.db as any);
-    orvexAudit = new OrvexAuditService(testDb.db as any);
+    orvexAudit = new OrvexAuditService(testDb.db as any, new OutboxWriter(testDb.db as any));
 
     updatePageContentCalls = [];
     // The only stubbed dependency (see file-header note): a thin fake of
@@ -172,7 +173,7 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     const rows = await testDb.db
       .selectFrom('audit' as any)
       .select('id')
-      .where('event', '=', 'page.history_restored')
+      .where('event', '=', AuditEvent.PAGE_HISTORY_RESTORED)
       .where('resourceId', '=', pageId)
       .execute();
     return rows.length;
@@ -233,7 +234,7 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     const auditRows = await testDb.db
       .selectFrom('audit' as any)
       .selectAll()
-      .where('event', '=', 'page.history_restored')
+      .where('event', '=', AuditEvent.PAGE_HISTORY_RESTORED)
       .where('resourceId', '=', page.id)
       .execute();
     expect(auditRows).toHaveLength(1);
@@ -359,7 +360,7 @@ describe('PageHistoryService.restoreFromHistory (ENG-1369)', () => {
     const rows = await testDb.db
       .selectFrom('audit' as any)
       .selectAll()
-      .where('event', '=', 'page.history_restored')
+      .where('event', '=', AuditEvent.PAGE_HISTORY_RESTORED)
       .where('resourceId', '=', page.id)
       .execute();
     expect(rows).toHaveLength(1);

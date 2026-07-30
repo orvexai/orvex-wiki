@@ -96,7 +96,7 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
     provenanceService = new OrvexPageProvenanceService(
       testDb.db as any,
       pageRepo,
-      new OrvexAuditService(testDb.db as any),
+      new OrvexAuditService(testDb.db as any, new OutboxWriter(testDb.db as any)),
       outboxWriter,
     );
 

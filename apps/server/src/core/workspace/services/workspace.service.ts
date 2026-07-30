@@ -674,12 +674,14 @@ export class WorkspaceService {
     }
 
     if (Object.keys(after).length > 0) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.WORKSPACE_UPDATED,
         resourceType: AuditResource.WORKSPACE,
         resourceId: workspaceId,
         changes: { before, after },
-      });
+      },
+        { workspaceId },
+      );
     }
 
     const { licenseKey, ...rest } = workspace;
@@ -748,7 +750,7 @@ export class WorkspaceService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_ROLE_CHANGED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -756,7 +758,9 @@ export class WorkspaceService {
         before: { role: user.role },
         after: { role: newRole },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
   }
 
   /**
@@ -907,7 +911,7 @@ export class WorkspaceService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_DEACTIVATED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -918,7 +922,9 @@ export class WorkspaceService {
           role: user.role,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
   }
 
   async activateUser(
@@ -948,7 +954,7 @@ export class WorkspaceService {
       workspaceId,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_ACTIVATED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -959,7 +965,9 @@ export class WorkspaceService {
           role: user.role,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
   }
 
   async deleteUser(
@@ -1056,7 +1064,7 @@ export class WorkspaceService {
       });
     });
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_DELETED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -1067,7 +1075,9 @@ export class WorkspaceService {
           role: user.role,
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+    );
 
     try {
       await this.attachmentQueue.add(QueueJob.DELETE_USER_AVATARS, user);

@@ -72,7 +72,7 @@ export class ExportController {
       user.id,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.PAGE_EXPORTED,
       resourceType: AuditResource.PAGE,
       resourceId: page.id,
@@ -84,7 +84,9 @@ export class ExportController {
         includeAttachments: dto.includeAttachments,
         spaceId: page.spaceId,
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
 
     if (result.type === 'file') {
       const ext = getExportExtension(dto.format);
@@ -135,7 +137,7 @@ export class ExportController {
       user.id,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SPACE_EXPORTED,
       resourceType: AuditResource.SPACE,
       resourceId: dto.spaceId,
@@ -145,7 +147,9 @@ export class ExportController {
         includeAttachments: dto.includeAttachments ?? false,
         spaceName: exportFile.spaceName,
       },
-    });
+    },
+      { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
+    );
 
     res.headers({
       'Content-Type': 'application/zip',
