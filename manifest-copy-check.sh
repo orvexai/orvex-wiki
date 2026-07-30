@@ -13,7 +13,7 @@
 # because `ci-success` is the only required status in every repo's ruleset.
 #
 #     - name: manifest-copy-check (AD-35 regen gate, standalone)
-#       run: ./scripts/manifest-copy-check.sh
+#       run: ./manifest-copy-check.sh
 #
 # Re-copy it whenever you repin the contracts tag; the roster inside it is a
 # snapshot of my-idp-apps' components/** at the tag this file was cut from.
