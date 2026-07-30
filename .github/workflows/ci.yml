@@ -699,6 +699,15 @@ jobs:
         with:
           go-version: '1.26'
           cache-dependency-path: tests/smoke/go.sum
+      # PINNED, not inherited: scripts/ci/osv-gate.py parses the exception
+      # ledger with `tomllib`, which is stdlib only from 3.11. The runner
+      # image's system python3 is not a contract we control, and the gate
+      # deliberately exits 2 (INFRA-ERROR) rather than run unvalidated if
+      # tomllib is absent — so the version is nailed down here instead of
+      # discovered as a red.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       # The exception mechanism is gated BEFORE the scan it governs: this
