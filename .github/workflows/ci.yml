@@ -843,6 +843,15 @@ jobs:
       - security
       - sbom-generation
       - workflow-lint
+      # Four gate jobs that existed in this file but were NOT fanned in, so a
+      # red on any of them left `ci-success` GREEN — a fail-open hole in the one
+      # context the required-status ruleset arms on. Every job in this workflow
+      # is now a dependency; adding a job without adding it here is the same
+      # hole, so keep this list exhaustive.
+      - tenant-move-coverage
+      - patches-drift-check
+      - hardening-allowlist-check
+      - image-freshness-check
     runs-on: public-runners
     if: always()
     steps:
