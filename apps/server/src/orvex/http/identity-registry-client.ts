@@ -200,6 +200,32 @@ export interface HttpIdentityRegistryClientDeps {
   readonly fetch: RegistryFetchLike;
 }
 
+/**
+ * The ONE place a success body becomes an object, typed on the way.
+ *
+ * ENG-3350 — `request()` maps an empty body to `payload: null`, which is right
+ * for the 404/409 branches (they never read it) and wrong for every branch that
+ * DOES: `payload as Record<string, unknown>` is a compile-time cast with no
+ * runtime check, so `null` (an empty body, a whitespace-only body, or a literal
+ * `null`) reached a property read and threw a raw `TypeError`. That is the same
+ * escape as the `SyntaxError` this fix exists to close — an untyped throw
+ * crossing the seam, which NestJS renders as `{"statusCode":500}` — so it is
+ * closed the same way, at the parse boundary rather than at each call site.
+ */
+function asJsonObject(payload: unknown, what: string): Record<string, unknown> {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    throw new RegistryClientError(
+      'DEPENDENCY_ERROR',
+      `identity registry ${what} returned a success status with no JSON object body`,
+    );
+  }
+  return payload as Record<string, unknown>;
+}
+
 /** Narrows an identity registry JSON body into the typed `RegistryTenantCell`. */
 function narrowTenantCell(payload: unknown): RegistryTenantCell | null {
   if (typeof payload !== 'object' || payload === null) {
@@ -256,7 +282,7 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     );
 
     if (status === 200) {
-      const body = payload as Record<string, unknown>;
+      const body = asJsonObject(payload, 'move');
       const tenantId = typeof body.tenantId === 'string' ? body.tenantId : '';
       const cellId = typeof body.cellId === 'string' ? body.cellId : '';
       if (tenantId === '' || cellId === '') {
@@ -336,7 +362,7 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     );
 
     if (status === 200) {
-      const body = payload as Record<string, unknown>;
+      const body = asJsonObject(payload, 'reserve');
       const tenantId = typeof body.tenantId === 'string' ? body.tenantId : '';
       const reserved = body.reserved === true;
       if (tenantId === '' || !reserved) {

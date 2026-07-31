@@ -172,6 +172,38 @@ describe('HttpIdentityRegistryClient — non-JSON responses (the ENG-3350 defect
 
     expect((err as RegistryClientError).code).toBe('TENANT_ALREADY_RESERVED');
   });
+
+  it('an EMPTY or null body on a SUCCESS status is a typed refusal, not a TypeError', async () => {
+    // The mirror image of the case above, and the one the empty-body rule
+    // opened: `raw.trim() === '' -> payload: null` is right for the 404/409
+    // branches (they never read the payload) but the 200 branches DO, and
+    // `payload as Record<string, unknown>` on `null` throws a raw TypeError.
+    // That is the same escape as the original SyntaxError — an untyped throw
+    // crossing this seam, which NestJS renders as an opaque 500 — so it is
+    // asserted on every 200-reading method, for both spellings of "no body".
+    for (const raw of ['', '   ', 'null']) {
+      const reserve = await captureError(
+        newClient(respondWith(200, raw)).reserveTenant({
+          tenantId: TENANT,
+          hostname: '',
+          principalKind: 'user',
+        }),
+      );
+      expect(reserve).toBeInstanceOf(RegistryClientError);
+      expect((reserve as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
+
+      const move = await captureError(
+        newClient(respondWith(200, raw)).moveTenantCell({
+          moveId: 'm1',
+          tenantId: TENANT,
+          fromCell: 'eu1a',
+          toCell: 'eu1b',
+        }),
+      );
+      expect(move).toBeInstanceOf(RegistryClientError);
+      expect((move as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
+    }
+  });
 });
 
 describe('HttpIdentityRegistryClient — the reserve seam (ENG-3350)', () => {
