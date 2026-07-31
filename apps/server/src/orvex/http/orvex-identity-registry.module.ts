@@ -35,6 +35,11 @@ export function composeIdentityRegistryClient(
   return new HttpIdentityRegistryClient({
     baseUrl: identityUrl,
     timeoutMs: IDENTITY_REGISTRY_TIMEOUT_MS,
+    // ENG-3350 — the shared engine seam credential for identity's
+    // origin-locked POST /internal/registry/reserve. Read here (the ONE
+    // composition point) rather than at the call site; null when unset, which
+    // the client turns into a typed refusal, never an unauthenticated call.
+    internalToken: config.internalApiBearerToken,
     fetch: (input, init) => fetch(input, init),
   });
 }
