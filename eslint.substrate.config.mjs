@@ -39,6 +39,21 @@
 // Removing this ratchet (flip ratchet.status to `retired` here and
 // regenerate) is a REQUIRED item of the service's Phase-2 adoption DoD.
 //
+// INLINE CONFIG: FORBIDDEN (gates/lint/materialisation.yaml eslint.inline_config)
+// — `linterOptions.noInlineConfig: true` below. An ESLint directive comment
+// CANNOT disable a substrate ban: without this, one
+// `/* eslint-disable no-restricted-properties */` at the top of a file disarms
+// the ban for that whole file with no trace in the declaration plane. The only
+// ways out of a ban are DATA — the owner markers, the per-service exemption and
+// the test surfaces, all resolved above.
+// It is also what makes this config safe to run BESIDE the repo's own: a
+// directive naming a rule from the repo's own plugin set (this config registers
+// no plugin) used to report `Definition for rule ... was not found` — an ERROR
+// on a line the branch never wrote, which the changed-files ratchet then made
+// unmergeable. Now it is a severity-1 advisory and the run exits 0.
+// Passing `--no-inline-config` on the command line as well is redundant but
+// harmless: it silences those advisories.
+//
 // TEST SURFACES (ENG-3328) — the trailing override block below stands these
 // restrictions down inside the globs declared at lint.test_surfaces, because a
 // test that stands up a server MUST exercise the unconfigured path the ban's own
@@ -77,6 +92,9 @@ export default [
     files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs"],
     languageOptions: {
       parser: substrateParser,
+    },
+    linterOptions: {
+      noInlineConfig: true,
     },
     rules: {
       "no-restricted-properties": [
@@ -142,6 +160,13 @@ export default [
     },
   },
   {
+    files: ["apps/server/src/orvex/config/**"],
+    // apps/server/src/orvex/config is the declared owner of: process-env.
+    rules: {
+      "no-restricted-properties": "off",
+    },
+  },
+  {
     files: [
       "**/*.test.ts",
       "**/*.test.tsx",
@@ -159,9 +184,9 @@ export default [
       "**/*.spec.jsx",
       "**/*.spec.mjs",
       "**/*.spec.cjs",
-      "test/**",
-      "tests/**",
-      "e2e/**",
+      "**/test/**",
+      "**/tests/**",
+      "**/e2e/**",
       "**/__tests__/**",
       "**/__mocks__/**",
       "**/__fixtures__/**",
@@ -193,9 +218,9 @@ export const substrateTestSurfaces = [
   "**/*.spec.jsx",
   "**/*.spec.mjs",
   "**/*.spec.cjs",
-  "test/**",
-  "tests/**",
-  "e2e/**",
+  "**/test/**",
+  "**/tests/**",
+  "**/e2e/**",
   "**/__tests__/**",
   "**/__mocks__/**",
   "**/__fixtures__/**",
