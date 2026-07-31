@@ -39,6 +39,13 @@
 // Removing this ratchet (flip ratchet.status to `retired` here and
 // regenerate) is a REQUIRED item of the service's Phase-2 adoption DoD.
 //
+// TEST SURFACES (ENG-3328) — the trailing override block below stands these
+// restrictions down inside the globs declared at lint.test_surfaces, because a
+// test that stands up a server MUST exercise the unconfigured path the ban's own
+// remedy forbids. Every OTHER ban on the same mechanism is re-declared inside
+// that block, so this can never widen past the restrictions named here:
+//   - process-env
+//
 // NOT ENFORCED BY THIS FILE — derived per restriction from the declaration plane
 // (id — disposition), never a blanket sentence. PO-2026-07-29-9: a restriction
 // flips pending -> active PER RULE, as ITS mechanism ships; until then it is
@@ -77,7 +84,7 @@ export default [
         {
           object: "process",
           property: "env",
-          message: "process.env is the TS analogue of os.Getenv — load typed config through @orvexai/contracts.loadConfig, never a bare process.env read (config/services.yaml lint.substrate_allow.config).",
+          message: "process.env is the TS analogue of os.Getenv — load typed config through @orvexai/contracts.loadConfig (config/services.yaml lint.substrate_allow.config_ts), never a bare process.env read. In a PUBLIC repo, which cannot consume the private @orvexai/contracts package at all, that remedy is unreachable: declare the path in config/services.yaml services.<repo>.lint.env_read_paths instead — a per-service exemption, never a widening of the family-fixed marker. Test surfaces are exempted via lint.test_surfaces.",
         },
       ],
       "no-restricted-imports": [
@@ -114,8 +121,15 @@ export default [
     },
   },
   {
-    files: ["pkg/config/**"],
-    // pkg/config is the declared owner of: process-env.
+    files: ["scripts/**"],
+    // scripts is the declared owner of: process-env.
+    rules: {
+      "no-restricted-properties": "off",
+    },
+  },
+  {
+    files: ["src/config/**"],
+    // src/config is the declared owner of: process-env.
     rules: {
       "no-restricted-properties": "off",
     },
@@ -127,4 +141,63 @@ export default [
       "no-restricted-imports": "off",
     },
   },
+  {
+    files: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.test.mts",
+      "**/*.test.cts",
+      "**/*.test.js",
+      "**/*.test.jsx",
+      "**/*.test.mjs",
+      "**/*.test.cjs",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "**/*.spec.mts",
+      "**/*.spec.cts",
+      "**/*.spec.js",
+      "**/*.spec.jsx",
+      "**/*.spec.mjs",
+      "**/*.spec.cjs",
+      "test/**",
+      "tests/**",
+      "e2e/**",
+      "**/__tests__/**",
+      "**/__mocks__/**",
+      "**/__fixtures__/**",
+      "**/fixtures/**",
+    ],
+    // test surfaces (lint.test_surfaces) stand down: process-env.
+    rules: {
+      "no-restricted-properties": "off",
+    },
+  },
+];
+
+// The TEST SURFACES this config stands process-env down inside
+// (config/services.yaml lint.test_surfaces). Not read by ESLint.
+export const substrateTestSurfaces = [
+  "**/*.test.ts",
+  "**/*.test.tsx",
+  "**/*.test.mts",
+  "**/*.test.cts",
+  "**/*.test.js",
+  "**/*.test.jsx",
+  "**/*.test.mjs",
+  "**/*.test.cjs",
+  "**/*.spec.ts",
+  "**/*.spec.tsx",
+  "**/*.spec.mts",
+  "**/*.spec.cts",
+  "**/*.spec.js",
+  "**/*.spec.jsx",
+  "**/*.spec.mjs",
+  "**/*.spec.cjs",
+  "test/**",
+  "tests/**",
+  "e2e/**",
+  "**/__tests__/**",
+  "**/__mocks__/**",
+  "**/__fixtures__/**",
+  "**/fixtures/**",
 ];
