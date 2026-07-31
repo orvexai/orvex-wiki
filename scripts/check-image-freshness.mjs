@@ -2,7 +2,7 @@
 //
 // check-image-freshness.mjs — CI-side image-freshness / drift alarm for the
 // orvex-wiki ("engine") service (ENG-1973, per-repo scope). Detects when the
-// deployed `:dev` image's built-from commit diverges from origin/dev HEAD,
+// deployed image's built-from commit diverges from origin/dev HEAD,
 // so a broken image build surfaces immediately instead of silently freezing
 // the deployed image (per the 2026-07-12 cell-wide sweep evidence).
 //
@@ -34,8 +34,15 @@ const SERVICE_NAME = 'engine (orvex-wiki)';
 const NAMESPACE = process.env.ORVEX_WIKI_NAMESPACE || 'orvex-wiki-dev';
 const APP_LABEL = process.env.ORVEX_WIKI_APP_LABEL || 'app.kubernetes.io/name=orvex-wiki,app.kubernetes.io/component=server';
 const HARBOR_URL = process.env.HARBOR_URL || 'https://repos.eu-central-1.myidp.cloud';
-const HARBOR_PROJECT = process.env.HARBOR_PROJECT || 'orvex-wiki';
-const HARBOR_REPO = process.env.HARBOR_REPO || 'orvex-wiki';
+// ENG-3327 — MOVED with the shared-build cutover. This repo's image is now
+// derived by `orvex-derive-image-ref` (AD-29/AD-31) and published to
+// `orvex-studio/orvex-wiki-engine`, not `orvex-wiki/orvex-wiki`. These two
+// constants are how the alarm resolves the deployed digest's push_time in
+// Harbor; leaving them on the old coordinates does NOT fail open quietly —
+// `curl -sf` 404s and the run exits 2 — but the alarm is then dead for every
+// scheduled invocation, which is the same blindness by a louder route.
+const HARBOR_PROJECT = process.env.HARBOR_PROJECT || 'orvex-studio';
+const HARBOR_REPO = process.env.HARBOR_REPO || 'orvex-wiki-engine';
 
 /** parseGitLog — `git log --format=%H,%ct` output (newest-first) into the
  * `commits` array shape `evaluateService` expects. */
@@ -131,7 +138,16 @@ function getLatestBuildStatus(builtFromSha, headSha) {
       [
         '-n', 'tekton-pipelines',
         'get', 'pipelinerun',
-        '-l', 'app.kubernetes.io/name=orvex-wiki',
+        // `orvex.ai/service` is the label the SHARED pipeline's PipelineRuns
+        // carry to say which repo they built (ENG-3327); the pipeline name is
+        // `orvex-shared-build` for every consumer, so it cannot be the
+        // selector. The previous value, `app.kubernetes.io/name=orvex-wiki`,
+        // matched NOTHING even before the cutover — the legacy template
+        // labelled its runs `orvex-wiki-build` — so this lookup has been
+        // silently returning 'pending' since it was written, downgrading every
+        // STALE_BUILD_FAILING to STALE_BUILD_PENDING. Verified against the live
+        // namespace: 0 runs match the old selector.
+        '-l', 'orvex.ai/service=orvex-wiki',
         '--sort-by=.metadata.creationTimestamp',
         '-o', 'jsonpath={.items[-1:].status.conditions[-1:].status}',
       ],
