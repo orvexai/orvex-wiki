@@ -65,9 +65,37 @@ resources:
 #
 # The CMP plugin APPENDS the resource-profile component (`components/staging`
 # in dev) to this list rather than replacing it; the two are independent.
+#
+# ── components/telemetry-env (AD-25 / ENG-3103) ────────────────────────────
+# The ONE family app-telemetry OTLP target. Same materialized shape and the
+# same regen gate as image-injection above, for the same public-repo reason.
+#
+# This is the LIVE fix for the black hole: this engine's ~1,918 LOC of OTel
+# used to export into a collector in the orvex-studio-console namespace that
+# exists in no namespace at all, so every span, metric and log was silently
+# discarded. (The host string itself is deliberately not re-typed here — the
+# one place in this repo that still spells it is the render gate that asserts
+# its ABSENCE, otlp_single_endpoint_test.go, the same way contracts' obs-gate
+# keeps it in rules.yaml.) ENG-3103's first attempt (PR #135) adopted the shared
+# component by CROSS-REPO reference and was reverted the same day
+# (`ef16602f`) — `public-runners` hold no credential for the PRIVATE
+# my-idp-apps, so `kustomize build` died on `could not read Username`. The
+# workaround that followed hand-set the endpoint as a per-service literal in
+# app-manifests/configmap-env.yaml, which is the exact shape AD-25 forbids
+# ("MUST NOT appear in any per-service ConfigMap, Deployment or chart values
+# file"). Both are now closed by materializing instead: no cross-repo read at
+# render time, no private-repo credential at CI time, and no literal.
+#
+# The component carries BOTH halves — the `telemetry-env` ConfigMap whose one
+# key IS the env var name, and the JSON6902 patch that appends
+# `configMapRef: telemetry-env` to `containers[0].envFrom`. So the reference
+# below is the ENTIRE integration; nothing in this repo names the variable.
+# app-manifests/deployment.yaml already carries a populated `envFrom:` list
+# (the precondition the component's own header states its `-` append needs).
 # ═══════════════════════════════════════════════════════════════════════════
 components:
   - components/image-injection
+  - components/telemetry-env
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Harbor project — RULING (2026-07-30, ENG-3327): the AGPL engine image moves

@@ -1,0 +1,67 @@
+---
+# Shared kustomize component — telemetry-env (AD-35 substrate, ENG-3103
+# executes AD-25 the ONE OTLP endpoint on top of it).
+#
+# Owns the family's OTLP env-block SHAPE *and* VALUE for a service's server
+# container: this component (a) carries the real `telemetry-env` ConfigMap
+# whose one key IS the env var name (`OTEL_EXPORTER_OTLP_ENDPOINT`, see
+# configmap.yaml) and (b) itself injects that ConfigMap into
+# `containers[0].envFrom` via the JSON6902 patch below — so a consuming
+# overlay does ZERO wiring of its own: `components: [.../telemetry-env]` is
+# the entire integration. No per-service file ever types the string
+# `OTEL_EXPORTER_OTLP_ENDPOINT` (AD-25 AC2 — CI rejects a repo that does).
+#
+# Why `envFrom` (append to the array) and not a JSON6902 `env`/`-` append:
+# every family Deployment's `containers[0]` already carries a populated
+# `envFrom:` list (secrets/config refs — verified across the fleet's
+# deployment-*.yaml files 2026-07-22) but several do NOT carry an `env:`
+# list at all, and JSON Patch `add .../env/-` 404s when the parent array is
+# entirely absent (RFC 6902 §4.1 — `-` only names a position inside an
+# array that already exists). `envFrom` is the one container field proven
+# present everywhere in the family, so appending to it is safe fleet-wide
+# without special-casing any service.
+#
+# Targets every `kind: Deployment` the consuming kustomization renders (no
+# name filter, matching probes/resource-envelopes) — safe for the same
+# reason those components document: exactly one server container at
+# `containers[0]` per family Deployment.
+#
+# A SECOND patch target below covers Knative workers: family Knative
+# Services (`group: serving.knative.dev, kind: Service`, e.g. identity's
+# `studio-identity-deprovisioner`) are NOT `kind: Deployment` and were
+# silently excluded by the Deployment-only patch (ENG-3103 adversarial
+# review finding, 2026-07-21) — the ConfigMap rendered so an author could
+# assume injection while the ksvc container never got the envFrom, which
+# would brick any Knative worker vendoring pkg/obs once it goes strict
+# (Migration Order step 3, AD-3/AD-10). A Knative `Service`'s revision
+# template is `spec.template.spec.containers` — IDENTICAL shape to a
+# Deployment's `spec.template.spec.containers` — so the exact same JSON6902
+# path applies; only the target selector's `group`/`kind` differ. Every
+# family Knative worker verified so far (identity's deprovisioner) already
+# carries a populated `envFrom:` list, so the same `-` append is safe
+# without special-casing any worker (same precondition as the Deployment
+# patch above).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - configmap.yaml
+
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value:
+          configMapRef:
+            name: telemetry-env
+  - target:
+      group: serving.knative.dev
+      kind: Service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value:
+          configMapRef:
+            name: telemetry-env

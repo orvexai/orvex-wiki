@@ -499,14 +499,29 @@ jobs:
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
   # ---------------------------------------------------------------------------
-  # Deploy render gate (ENG-1505 — M14 short-cell DNS/cert cutover). The named
-  # binary DoD gate: renders base (prod) + base+components/staging (dev) with
-  # the real kustomize binary and asserts every public hostname carries the
-  # short cell token (wiki.eu1.orvex.{ai,dev}), never the AWS-AZ id
-  # (eu-central-1), while cluster-config.yaml's internal AZ id stays put.
+  # Deploy render gate. Renders base (prod) + base+components/staging (dev) with
+  # the real kustomize binary and asserts on the RESULT — the manifest stream a
+  # cluster would actually receive — never on the wiring in between:
+  #
+  #   * ENG-1505 (M14 short-cell DNS/cert cutover): every public hostname
+  #     carries the short cell token (wiki.eu1.orvex.{ai,dev}), never the
+  #     AWS-AZ id (eu-central-1), while cluster-config.yaml's internal AZ id
+  #     stays put.
+  #   * ENG-3103 (AD-25 the ONE OTLP endpoint): exactly one rendered document
+  #     sets OTEL_EXPORTER_OTLP_ENDPOINT — the materialized shared telemetry
+  #     component's ConfigMap — it carries the Alloy target verbatim, every
+  #     container envFroms it, the two phantom collector hosts appear nowhere,
+  #     and no deploy source re-types the variable.
+  #
+  # NOTE(ENG-3103): the step below deliberately has NO `-run` filter. It used to
+  # carry `-run TestHttpRouteHostnameShortCellToken`, which meant a test added
+  # to this package was DECORATIVE — present, passing locally, never selected in
+  # CI. That is the same fail-open shape ENG-3290 closed for jobs missing from
+  # `ci-success.needs`, one level down. Every test in deploy/kustomize now runs;
+  # adding one needs no workflow edit.
   # ---------------------------------------------------------------------------
   deploy-render-gate:
-    name: Deploy Render Gate (hostname cutover)
+    name: Deploy Render Gate (hostname cutover + OTLP single endpoint)
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
@@ -519,11 +534,11 @@ jobs:
       - name: gofmt clean
         working-directory: deploy/kustomize
         run: test -z "$(gofmt -l .)"
-      - name: go test (TestHttpRouteHostnameShortCellToken)
+      - name: go test (whole deploy/kustomize render-gate package)
         working-directory: deploy/kustomize
         run: |
           export PATH="$(go env GOPATH)/bin:$PATH"
-          go test ./... -run TestHttpRouteHostnameShortCellToken -v
+          go test ./... -v
 
   # ---------------------------------------------------------------------------
   # Engine license guard (ENG-1381 — P10: no closed EE submodule/gitlink/
