@@ -10,6 +10,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
@@ -36,10 +37,7 @@ import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import {
-  AuditEvent,
-  AuditResource,
-} from '../../common/events/audit-events';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import {
   EVT_WORKSPACE_CREATED,
@@ -204,167 +202,170 @@ export class PrincipalProvisioningService {
     // replacement for it.
     const result = await executeTx(this.db, (outerTrx) =>
       withTenantScopedTransaction(outerTrx, tenant, async (trx) => {
-      // Serialize concurrent materialization of the SAME workspace up front:
-      // `findById ... FOR UPDATE` cannot lock a not-yet-existing row, so two
-      // concurrent first-exchange provisions would both race the insert. The
-      // advisory lock makes the loser block, then re-resolve on the get path.
-      await acquireWorkspaceProvisionLock(trx, tenant);
+        // Serialize concurrent materialization of the SAME workspace up front:
+        // `findById ... FOR UPDATE` cannot lock a not-yet-existing row, so two
+        // concurrent first-exchange provisions would both race the insert. The
+        // advisory lock makes the loser block, then re-resolve on the get path.
+        await acquireWorkspaceProvisionLock(trx, tenant);
 
-      // Resolve-or-materialize the workspace, atomically with the account.
-      // Fail-closed by default: an unknown workspace is a hard 404. The engine
-      // materializes ONLY when the registry-authorized caller EXPLICITLY vouches
-      // for the identity-issued UUID (deny-by-default for an unregistered UUID;
-      // the read seam never reaches this write path, so no create-on-resolve).
-      let workspace = await this.workspaceRepo.findById(tenant, {
-        trx,
-        withLock: true,
-      });
-      let workspaceCreated = false;
+        // Resolve-or-materialize the workspace, atomically with the account.
+        // Fail-closed by default: an unknown workspace is a hard 404. The engine
+        // materializes ONLY when the registry-authorized caller EXPLICITLY vouches
+        // for the identity-issued UUID (deny-by-default for an unregistered UUID;
+        // the read seam never reaches this write path, so no create-on-resolve).
+        let workspace = await this.workspaceRepo.findById(tenant, {
+          trx,
+          withLock: true,
+        });
+        let workspaceCreated = false;
 
-      if (!workspace) {
-        if (!provisionWorkspace) {
-          throw new NotFoundException('Workspace not found');
+        if (!workspace) {
+          if (!provisionWorkspace) {
+            throw new NotFoundException('Workspace not found');
+          }
+          // ENG-2503 AC4 — delegate tenant/hostname uniqueness to the GLOBAL
+          // identity registry BEFORE the local `workspaces` insert. The local
+          // `workspaces_hostname_unique` constraint stays a per-cell backstop
+          // only. A registry rejection aborts this transaction — nothing is
+          // ever silently accepted locally after a global refusal.
+          await this.reserveTenantGlobally(tenant, principalKind);
+          workspace = await this.materializeWorkspace(tenant, trx, {
+            principalKind,
+            principalId: principalKind === 'org' ? input.orgId! : subject,
+          });
+          workspaceCreated = true;
+          auditNewWorkspace = { id: workspace.id, name: workspace.name };
         }
-        // ENG-2503 AC4 — delegate tenant/hostname uniqueness to the GLOBAL
-        // identity registry BEFORE the local `workspaces` insert. The local
-        // `workspaces_hostname_unique` constraint stays a per-cell backstop
-        // only. A registry rejection aborts this transaction — nothing is
-        // ever silently accepted locally after a global refusal.
-        await this.reserveTenantGlobally(tenant, principalKind);
-        workspace = await this.materializeWorkspace(tenant, trx, {
-          principalKind,
-          principalId: principalKind === 'org' ? input.orgId! : subject,
-        });
-        workspaceCreated = true;
-        auditNewWorkspace = { id: workspace.id, name: workspace.name };
-      }
 
-      // Idempotency: an existing live linkage short-circuits with ZERO further
-      // writes, returning the already-resolved user id. The read seam is the
-      // source of truth for "is this subject already provisioned here".
-      const existing = await this.userRepo.findUserIdByProviderUserId(
-        subject,
-        tenant,
-        trx,
-      );
-      if (existing) {
-        return { userId: existing, created: false, workspaceCreated };
-      }
-
-      // Account-linking: an already workspace-invited engine user with this
-      // email is LINKED (the invited-then-SSO case), never duplicated. The
-      // `users_email_workspace_id_unique` constraint is the concurrency guard
-      // against a racing create.
-      let user = await this.userRepo.findByEmail(email, tenant, { trx });
-
-      if (!user) {
-        // ENG-2491 AC4 — the SSO/SCIM JIT member-cap chokepoint: JIT
-        // provisioning is allowed to a bounded overage of the member cap
-        // (JIT_MEMBER_OVERAGE_MULTIPLIER — first login never breaks a
-        // tenant slightly over via a stale SCIM sync), while manual invites
-        // (`WorkspaceInvitationService.acceptInvitation`) keep blocking at
-        // 100%. Same F1 discipline as that path: the advisory xact lock
-        // makes count → assert → insert one atomic critical section, so two
-        // concurrent JIT logins cannot both slip past the overage bound.
-        // The comparison itself lives in the domain fn, never here (❌#1).
-        await acquireWorkspaceQuotaLock(trx, 'members', tenant);
-        const currentMemberCount = await this.userRepo.countByWorkspaceId(
+        // Idempotency: an existing live linkage short-circuits with ZERO further
+        // writes, returning the already-resolved user id. The read seam is the
+        // source of truth for "is this subject already provisioned here".
+        const existing = await this.userRepo.findUserIdByProviderUserId(
+          subject,
           tenant,
           trx,
         );
-        await this.entitlementService.assertWithinQuotaAllowingOverage(
-          tenant,
-          'members',
-          currentMemberCount,
-          JIT_MEMBER_OVERAGE_MULTIPLIER,
-        );
+        if (existing) {
+          return { userId: existing, created: false, workspaceCreated };
+        }
 
-        user = await this.userRepo.insertUser(
-          {
-            email,
-            name,
+        // Account-linking: an already workspace-invited engine user with this
+        // email is LINKED (the invited-then-SSO case), never duplicated. The
+        // `users_email_workspace_id_unique` constraint is the concurrency guard
+        // against a racing create.
+        let user = await this.userRepo.findByEmail(email, tenant, { trx });
+
+        if (!user) {
+          // ENG-2491 AC4 — the SSO/SCIM JIT member-cap chokepoint: JIT
+          // provisioning is allowed to a bounded overage of the member cap
+          // (JIT_MEMBER_OVERAGE_MULTIPLIER — first login never breaks a
+          // tenant slightly over via a stale SCIM sync), while manual invites
+          // (`WorkspaceInvitationService.acceptInvitation`) keep blocking at
+          // 100%. Same F1 discipline as that path: the advisory xact lock
+          // makes count → assert → insert one atomic critical section, so two
+          // concurrent JIT logins cannot both slip past the overage bound.
+          // The comparison itself lives in the domain fn, never here (❌#1).
+          await acquireWorkspaceQuotaLock(trx, 'members', tenant);
+          const currentMemberCount = await this.userRepo.countByWorkspaceId(
+            tenant,
+            trx,
+          );
+          await this.entitlementService.assertWithinQuotaAllowingOverage(
+            tenant,
+            'members',
+            currentMemberCount,
+            JIT_MEMBER_OVERAGE_MULTIPLIER,
+          );
+
+          user = await this.userRepo.insertUser(
+            {
+              email,
+              name,
+              workspaceId: tenant,
+              // The principal that MATERIALIZES the workspace is its OWNER (parity
+              // with the signup path, WorkspaceService.create); a principal
+              // joining an existing workspace gets the workspace default role.
+              role: workspaceCreated ? UserRole.OWNER : workspace.defaultRole,
+              emailVerifiedAt: new Date(),
+              // SSO principals never password-authenticate (they always arrive
+              // via identity/exchange-token). A strong random secret keeps the
+              // NOT-NULL password column honest without a usable credential.
+              password: randomBytes(32).toString('base64url'),
+              hasGeneratedPassword: true,
+            } as InsertableUser,
+            trx,
+          );
+
+          // Full member parity — default-group membership + the ENG-1609
+          // member_added event, atomic in this same transaction.
+          await this.groupUserRepo.addUserToDefaultGroup(user.id, tenant, trx);
+          await this.outboxWriter.enqueue(trx, {
+            type: EVT_WORKSPACE_MEMBER_ADDED,
+            aggregateId: user.id,
             workspaceId: tenant,
-            // The principal that MATERIALIZES the workspace is its OWNER (parity
-            // with the signup path, WorkspaceService.create); a principal
-            // joining an existing workspace gets the workspace default role.
-            role: workspaceCreated ? UserRole.OWNER : workspace.defaultRole,
-            emailVerifiedAt: new Date(),
-            // SSO principals never password-authenticate (they always arrive
-            // via identity/exchange-token). A strong random secret keeps the
-            // NOT-NULL password column honest without a usable credential.
-            password: randomBytes(32).toString('base64url'),
-            hasGeneratedPassword: true,
-          } as InsertableUser,
+            payload: { userId: user.id, workspaceId: tenant },
+          });
+
+          auditNewUser = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+          };
+        }
+
+        await this.userRepo.linkProviderAccount(
+          { userId: user.id, providerUserId: subject, workspaceId: tenant },
           trx,
         );
 
-        // Full member parity — default-group membership + the ENG-1609
-        // member_added event, atomic in this same transaction.
-        await this.groupUserRepo.addUserToDefaultGroup(user.id, tenant, trx);
-        await this.outboxWriter.enqueue(trx, {
-          type: EVT_WORKSPACE_MEMBER_ADDED,
-          aggregateId: user.id,
-          workspaceId: tenant,
-          payload: { userId: user.id, workspaceId: tenant },
-        });
-
-        auditNewUser = {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
-      }
-
-      await this.userRepo.linkProviderAccount(
-        { userId: user.id, providerUserId: subject, workspaceId: tenant },
-        trx,
-      );
-
-      // Default "General" space (ENG-1559 R6 completion — signup parity):
-      // a workspace materialized at a registry-issued UUID is born with a
-      // default space so its OWNER can create pages IMMEDIATELY. Without it a
-      // provisioned principal resolves a session but has no space to write into
-      // — every `/v1` page create 404s PAGE_NOT_FOUND, and the host-gated
-      // `/api` space-create path is unreachable for an identity-federated
-      // tenant (reached by tenant-claim UUID, not hostname). Only on a
-      // genuinely NEW workspace (`workspaceCreated`); a principal joining an
-      // existing workspace inherits its spaces. Mirrors
-      // WorkspaceService.create's default-space block exactly (owner ADMIN +
-      // default "Everyone" group WRITER + workspace.defaultSpaceId), atomic in
-      // this same transaction.
-      if (workspaceCreated) {
-        const defaultGroup = await this.groupRepo.getDefaultGroup(tenant, trx);
-        const space = await this.spaceService.create(
-          user.id,
-          tenant,
-          { name: 'General', slug: 'general' } as CreateSpaceDto,
-          trx,
-        );
-        await this.spaceMemberService.addUserToSpace(
-          user.id,
-          space.id,
-          SpaceRole.ADMIN,
-          tenant,
-          trx,
-        );
-        if (defaultGroup?.id) {
-          await this.spaceMemberService.addGroupToSpace(
-            defaultGroup.id,
+        // Default "General" space (ENG-1559 R6 completion — signup parity):
+        // a workspace materialized at a registry-issued UUID is born with a
+        // default space so its OWNER can create pages IMMEDIATELY. Without it a
+        // provisioned principal resolves a session but has no space to write into
+        // — every `/v1` page create 404s PAGE_NOT_FOUND, and the host-gated
+        // `/api` space-create path is unreachable for an identity-federated
+        // tenant (reached by tenant-claim UUID, not hostname). Only on a
+        // genuinely NEW workspace (`workspaceCreated`); a principal joining an
+        // existing workspace inherits its spaces. Mirrors
+        // WorkspaceService.create's default-space block exactly (owner ADMIN +
+        // default "Everyone" group WRITER + workspace.defaultSpaceId), atomic in
+        // this same transaction.
+        if (workspaceCreated) {
+          const defaultGroup = await this.groupRepo.getDefaultGroup(
+            tenant,
+            trx,
+          );
+          const space = await this.spaceService.create(
+            user.id,
+            tenant,
+            { name: 'General', slug: 'general' } as CreateSpaceDto,
+            trx,
+          );
+          await this.spaceMemberService.addUserToSpace(
+            user.id,
             space.id,
-            SpaceRole.WRITER,
+            SpaceRole.ADMIN,
+            tenant,
+            trx,
+          );
+          if (defaultGroup?.id) {
+            await this.spaceMemberService.addGroupToSpace(
+              defaultGroup.id,
+              space.id,
+              SpaceRole.WRITER,
+              tenant,
+              trx,
+            );
+          }
+          await this.workspaceRepo.updateWorkspace(
+            { defaultSpaceId: space.id },
             tenant,
             trx,
           );
         }
-        await this.workspaceRepo.updateWorkspace(
-          { defaultSpaceId: space.id },
-          tenant,
-          trx,
-        );
-      }
 
-      return { userId: user.id, created: true, workspaceCreated };
+        return { userId: user.id, created: true, workspaceCreated };
       }),
     );
 
@@ -421,8 +422,19 @@ export class PrincipalProvisioningService {
    *  - `TENANT_ALREADY_RESERVED` (cross-cell mint collision): surfaces as a
    *    typed 409 Conflict carrying the code — never a bare 500, never a
    *    silent local accept.
-   *  - any other registry failure: propagated (fail loud) — the engine
-   *    never fabricates a reservation it could not obtain.
+   *  - `NOT_FOUND` (the global registry has never homed this tenant): a typed
+   *    409 carrying `TENANT_NOT_REGISTERED`. Deny-by-default — the engine does
+   *    not materialize a workspace for a tenant the routing core disowns.
+   *  - `DEPENDENCY_ERROR` (unreachable / malformed / uncredentialled): a typed
+   *    503 carrying `REGISTRY_UNAVAILABLE`. RETRYABLE, and distinguishable —
+   *    which is the ENG-3350 fix: every one of these used to leave as a raw
+   *    `RegistryClientError` that NestJS rendered as
+   *    `{"statusCode":500,"message":"Internal server error"}`, so identity
+   *    could report only `principal_provision_failed` and a whole onboarding
+   *    outage looked identical to a routine conflict.
+   *
+   * The engine still never fabricates a reservation it could not obtain — the
+   * change is in how loudly and how specifically it says so.
    */
   private async reserveTenantGlobally(
     tenant: string,
@@ -444,14 +456,30 @@ export class PrincipalProvisioningService {
         );
         return;
       }
-      if (
-        err instanceof RegistryClientError &&
-        err.code === 'TENANT_ALREADY_RESERVED'
-      ) {
-        throw new ConflictException({
-          code: 'TENANT_ALREADY_RESERVED',
-          message: `tenant ${tenant} is already reserved in the global registry`,
-        });
+      if (err instanceof RegistryClientError) {
+        // Logged with the client's own message (which names the status and,
+        // for a malformed body, a bounded snippet) so the cause is readable
+        // where an operator looks — the wire carries only the code.
+        this.logger.error(
+          `global tenant reservation for ${tenant} failed [${err.code}]: ${err.message}`,
+        );
+        switch (err.code) {
+          case 'TENANT_ALREADY_RESERVED':
+            throw new ConflictException({
+              code: 'TENANT_ALREADY_RESERVED',
+              message: `tenant ${tenant} is already reserved in the global registry`,
+            });
+          case 'NOT_FOUND':
+            throw new ConflictException({
+              code: 'TENANT_NOT_REGISTERED',
+              message: `tenant ${tenant} has no cell binding in the global registry`,
+            });
+          default:
+            throw new ServiceUnavailableException({
+              code: 'REGISTRY_UNAVAILABLE',
+              message: `the global identity registry could not adjudicate tenant ${tenant}`,
+            });
+        }
       }
       throw err;
     }
