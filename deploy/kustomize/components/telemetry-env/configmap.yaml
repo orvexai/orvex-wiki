@@ -1,0 +1,26 @@
+---
+# ENG-3103 (AD-25, [verified live]) — the ONE family app-telemetry OTLP
+# target, now populated. Unlike cluster-config/external-secrets-defaults,
+# this ConfigMap is a REAL, EMITTED resource (no local-config annotation):
+# a consuming overlay's Deployment reads it at runtime via
+# `envFrom: - configMapRef: {name: telemetry-env}` (this component's own
+# kustomization.yaml injects that envFrom entry onto containers[0] — see
+# kustomization.yaml for why). `metadata.namespace` is deliberately OMITTED:
+# this component is consumed by every fleet surface, each with its own
+# per-env namespace, so it cannot carry one literal namespace the way
+# cluster-config's dummy/never-emitted namespace can. ArgoCD applies a
+# namespace-less resource into the owning Application's own
+# `destination.namespace` (see my-idp-apps
+# applications/eu-central-1/app-environments-appset.yaml), which is already
+# per-service/per-branch — the same place every other resource in that
+# Application lands.
+#
+# The key is spelled EXACTLY as the env var name so envFrom maps it
+# 1:1 — `OTEL_EXPORTER_OTLP_ENDPOINT` is never typed again in any
+# consuming repo (AD-25 AC2: the string lives HERE only).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemetry-env
+data:
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318"

@@ -121,29 +121,24 @@ data:
   ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
   ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"
 
-  # ENG-1599 / AD-25 — OTel export (A-OBSERVE "OTel to LGTM"). A configured URL,
-  # never a credential (A-PORTABLE); read ONLY by `initOrvexTracing`, itself
-  # gated on ORVEX_MODULES_ENABLED==='true'.
+  # NOT typed here: OTEL_EXPORTER_OTLP_ENDPOINT (ENG-1599 / AD-25 / ENG-3103).
+  # A per-service manifest MUST NOT set it — "OTEL_EXPORTER_OTLP_ENDPOINT is
+  # injected by the shared deploy layer and MUST NOT appear in any per-service
+  # ConfigMap, Deployment or chart values file. A service reads it and never
+  # chooses it." The ONE family target arrives via the shared telemetry
+  # component, materialized in this repo at
+  # `deploy/kustomize/components/telemetry-env/` and referenced from the root
+  # kustomization; that component both carries the value and appends its own
+  # ConfigMap to `containers[0].envFrom`, so the engine still reads the same
+  # variable from its environment and `initOrvexTracing` is unchanged.
   #
-  # This is the platform's ONE OTLP ingest point: the Alloy receiver fans a
-  # single stream out to all three LGTM backends (tempo-distributor for traces,
-  # mimir-gateway for metrics, loki-gateway for logs — see my-idp
-  # platform/apps/observability/k8s-monitoring/values.yaml
-  # applicationObservability.destinations). It is cluster-wide, NOT per-cell, so
-  # this base value is correct for every cell and no component patches it. (The
-  # previous comment here claimed components/staging and components/crew
-  # overrode it — they never did; grep them.)
-  #
-  # In-cluster, so the .svc address is used deliberately: the public route
-  # otlp.eu-central-1.myidp.cloud exists for OFF-CLUSTER producers (browser
-  # SDKs, the Cloudflare Worker UI) and routing internal telemetry through the
-  # edge would add a pointless round trip and make observability depend on
-  # external DNS. Same convention loki/mimir document on their own HTTPRoutes.
-  #
-  # Was http://otel-collector.orvex-studio-console.svc.cluster.local:4318 — a
-  # service that does not exist in any namespace, so every span, metric and log
-  # this engine emitted was silently discarded.
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318"
+  # This key WAS set here, at the right value, between 2026-07-24 and
+  # ENG-3103's close — the workaround after the cross-repo component reference
+  # (PR #135) was reverted for breaking a PUBLIC repo's CI. It is deleted, not
+  # repointed: a correct value in a forbidden place is still the shape that let
+  # the black hole — a console-namespace collector that exists in no namespace
+  # at all — go unnoticed for months in the first place. See the root
+  # kustomization's components block for the full history.
 
   # ── Edge-assertion config (ADR-0049 / ENG-3063 flip step 1) ──────────────
   # ORVEX_EDGE_ISSUER / ORVEX_EDGE_JWKS_URL are the two deps
