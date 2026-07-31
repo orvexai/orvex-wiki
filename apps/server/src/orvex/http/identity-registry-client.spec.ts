@@ -286,7 +286,7 @@ describe('HttpIdentityRegistryClient — the reserve seam (ENG-3350)', () => {
     const err = await captureError(
       client.reserveTenant({
         tenantId: TENANT,
-        hostname: 'acme.orvex.dev',
+        hostname: 'acme.example.invalid',
         principalKind: 'org',
       }),
     );
