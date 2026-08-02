@@ -124,7 +124,31 @@ spec:
           orvex.ai/binary: engine
       spec:
         pipelineRef:
-          name: orvex-shared-build
+          # ENG-3154 AC10/T9 / AD-30: resolved by the Tekton git resolver, pinned
+          # to a my-idp-apps RELEASE TAG — never a bare in-cluster `name:` (which
+          # is a mutable cluster singleton nothing versions) and never `dev` or a
+          # branch. `token`/`tokenKey` name the SAME `tekton-git-credentials`
+          # basic-auth Secret the platform's git resolver already uses fleet-wide
+          # (it authenticates to my-idp-apps, a repo this build never checks out
+          # or reads code from — unrelated to this repo's own PUBLIC visibility
+          # or its `private-modules: false` CI posture). Bump `revision` on every
+          # my-idp-apps release this repo re-pins to; never silently float it.
+          resolver: git
+          params:
+            - name: org
+              value: orvexai
+            - name: repo
+              value: my-idp-apps
+            - name: revision
+              value: v0.10.4
+            - name: pathInRepo
+              value: tekton/orvex-shared-build-pipeline.yaml
+            - name: token
+              value: tekton-git-credentials
+            - name: tokenKey
+              value: password
+            - name: scmType
+              value: github
         params:
           - name: repo-url
             value: $(tt.params.git-url)
