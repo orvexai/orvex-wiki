@@ -70,6 +70,53 @@ fail=0
 # consumes the new tag until that PR merges, so the window is inert.
 # The roster cannot carry both hashes for one label — two hashes mapping
 # to one label trips the "roster must be a function" refusal below.
+#
+# ENG-3337 (2026-07-30): BOTH image-injection rows move.
+#   image-ref.yaml      321fc93c -> 70429682
+#   kustomization.yaml  6300e806 -> 9f575cb5
+# my-idp-apps deletes the `imageProject` overlay-override promise from
+# both files (the override does not work and fails SILENTLY — a
+# consuming overlay's `patches:` lands after the component's
+# `replacements:`, so kustomize exits 0 and renders a valid, deployable
+# reference to the DEFAULT Harbor project) and adds conformance rule I5,
+# which REDS on any consuming kustomization that targets the
+# substrate-owned `image-ref` ConfigMap. Every other row is byte-
+# identical, verified by hashing every tracked components/** file in
+# that branch's tree.
+#
+# SAME LANDING ORDER AS THE ENG-3296 ROWS ABOVE, for the same reason:
+# these rows are ahead of my-idp-apps `main`, which still pins
+# manifest-copy-check@v0.60.0 (the roster carrying the OLD hashes) and
+# therefore stays GREEN. The my-idp-apps PR carries BOTH the component
+# edit AND the repin to the tag cut from this commit. Consumers that
+# materialize this component are NOT broken by this row moving: each
+# pins its own contracts tag, so each keeps matching its own pinned
+# roster until it deliberately repins and re-materializes.
+#
+# ENG-3357 F3 (2026-08-02): BOTH image-injection rows move again.
+#   kustomization.yaml  9f575cb5 -> 47c323a7
+#   image-ref.yaml      70429682 -> 89466af6
+# my-idp-apps corrects the component's own CARRIER comment section,
+# which contradicted the shipped mechanism: it said the render-learns-
+# the-revision carrier "is not wired yet" and prescribed exactly the
+# `--image-tag`-from-the-generator design `tekton/README.md` already
+# records as a measured, REJECTED dead end (`idp-render` has carried
+# it since v0.3.3, ENG-3305). image-ref.yaml's sibling sentinel note
+# carried the same stale claim and moves for the same reason. This is
+# a COMMENT-ONLY change on both files — `kustomize build` is byte-
+# identical before/after, proven per adopting repo in the ENG-3357
+# re-materialization sweep this tag enables. Every other row is
+# byte-identical, verified by hashing every tracked components/**
+# file in that branch's tree.
+#
+# SAME LANDING ORDER AS BOTH BLOCKS ABOVE: this tag is cut AHEAD of
+# my-idp-apps `main` merging the F3 fix, exactly like the ENG-3296 and
+# ENG-3337 rows before it — inert until my-idp-apps repins to it, and
+# my-idp-apps' own PR carries BOTH the carrier-text fix AND the repin
+# in one merge. ENG-3357 F4's drift-lag ledger (my-idp-apps
+# `image-injection-drift/`) is what makes "how long a consumer stays
+# on the OLD hash" a measured, ratcheted number instead of invisible
+# the way it was for the ENG-3337 gap this same ticket found.
 declare -A KNOWN_HASHES=(
   ["0e97f6060374cdf08aa1ee118f85b10810c38a765b22daf664faeb94f11ac79e"]="base/kustomization.yaml"
   ["1f2a26ba1d467d2a6c1950021f3bfb27770c4f9c084e45e453629cc89f7f39a4"]="cell-promoted/kustomization.yaml"
@@ -77,8 +124,8 @@ declare -A KNOWN_HASHES=(
   ["f4d99e9a70033673450e7a847645f015823a8e6382d4198bb7af45e73f8c2ee6"]="cluster-config/kustomization.yaml"
   ["d73f23be4a550806f1ad0b526e4165f0cd50f09de76c8bc64c5b0118f8428598"]="external-secrets/configmap.yaml"
   ["16e86a5c94093285ff1a34c111bdec08399fe8800e6ad477234ffd80fce027db"]="external-secrets/kustomization.yaml"
-  ["321fc93ca7e7d5ab62e294e67dbd8dbae4c4dd609391ff3086c1b972619f66e8"]="image-injection/image-ref.yaml"
-  ["6300e806f078211e44d66042fabb48542d08f7d5407c228765ab71d83c5fbfe6"]="image-injection/kustomization.yaml"
+  ["89466af674d6f5ac1c5fadaed7ae5dcf3a87003a89c809943c3bc5fba3105953"]="image-injection/image-ref.yaml"
+  ["47c323a7102e1c5edb1ce08e1d913f193efc6b70d9bca3dd043ac83731bfeeed"]="image-injection/kustomization.yaml"
   ["efcd3aae999ed7e1d5cd20a7fa8407fe00866edc1d9db0fab62d4b8d12025c08"]="kafka-topics/kustomization.yaml"
   ["ace05be3c65c129e122022b371d779fe8f8941be3b5fc1245312bb37feedbd10"]="probes/kustomization.yaml"
   ["9758d718e1ce5842782373ca706d700e85916bc14dfa74954bac46c0c78da303"]="product-route-middleware/kustomization.yaml"
