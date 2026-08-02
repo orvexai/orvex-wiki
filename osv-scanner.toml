@@ -29,11 +29,13 @@
 # stale entry remains, so deletion is not optional.
 #
 # Tracking ticket for both entries: ENG-3274.
-
-[[IgnoredVulns]]
-id = "GHSA-mh99-v99m-4gvg"
-ignoreUntil = 2026-10-28
-reason = "ENG-3274. brace-expansion DoS (CVE-2026-14257). The GHSA range is a single unsplit [0, 5.0.8) — but upstream backported the fix onto the v1 and v2 maintenance lines AFTER the advisory was cut: 5.0.8 (2026-07-23), 2.1.3 (2026-07-28), 1.1.17 (2026-07-29). This repo pins the range-scoped overrides to exactly those patched tips (package.json: brace-expansion@^1 -> 1.1.17, @^2 -> 2.1.3, @^5 -> 5.0.8), and the resolved 1.1.17 / 2.1.3 tarballs DO carry the EXPANSION_MAX_LENGTH guard (verified by unpacking each tarball and grepping package/index.js; 1.1.16 / 2.1.2 do not). A blanket override to 5.0.8 is NOT available: brace-expansion v3 changed the CJS export from a callable default to a named `expand`, so minimatch v3/v5 consumers would throw at require-time. Exit: advisory range split, or minimatch drops the v1/v2 lines."
+#
+# GHSA-mh99-v99m-4gvg (brace-expansion DoS) removed 2026-08-02, unrelated to
+# ENG-3357: osv-scanner stopped reporting it entirely (its CI log prints
+# "the advisory is no longer reported by the scanner — this exception is
+# STALE and must be DELETED"), meaning the advisory-database range was split
+# or the resolved dependency left it — the exit condition this file's own
+# header names. Deleted per that same header: "deletion is not optional."
 
 [[IgnoredVulns]]
 id = "GHSA-qwww-vcr4-c8h2"

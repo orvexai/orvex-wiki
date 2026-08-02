@@ -27,9 +27,44 @@ data:
   imageRegistry: repos.eu-central-1.myidp.cloud
 
   # ── segment 1: the Harbor project (AD-31) ───────────────────────────────
-  # The pipeline's `harbor-project` param. A service published into a different
-  # project patches this key in its own overlay (same key-wise union a
-  # cluster-config values patch uses) — it never edits this file.
+  # The pipeline's `harbor-project` param. SUBSTRATE-OWNED AND SINGLE-VALUED
+  # (ENG-3337) — there is one Harbor project for the family and this file is
+  # where it is written.
+  #
+  # WHAT THIS FILE USED TO SAY, AND WHY IT WAS DELETED. Until ENG-3337 the line
+  # here read: "A service published into a different project patches this key in
+  # its own overlay … it never edits this file." That did not work, and it
+  # failed in the worst available way — SILENTLY. Measured on kustomize v5.8.1:
+  # a consuming overlay's `patches:` entry is applied AFTER this component's
+  # `replacements:` have already stamped the image string, so the patched
+  # ConfigMap value never reaches the render. kustomize exits 0, prints no
+  # warning, and emits a VALID, DEPLOYABLE reference to the DEFAULT project. The
+  # deploy then succeeds against the wrong project — or, if the intended project
+  # does not exist, the build pushes somewhere the render never looks.
+  #
+  # A bogus JSON6902 path against the same target (`/data/thisKeyDoesNotExist`)
+  # also exits 0, and so does a target that omits `namespace: image-ref` and
+  # therefore selects nothing — so a reader gets no signal in either direction
+  # and cannot tell a working override from a no-op. The same trap swallows an
+  # `imageRegistry` override identically; measured, not assumed.
+  #
+  # SO THE PROMISE IS GONE RATHER THAN PATCHED UP. Making the override real
+  # means moving this ConfigMap out of the component so a consuming overlay
+  # OWNS it — a breaking change for all 12 repos that materialize this
+  # component today, none of which supply one. That is a fleet migration, not a
+  # comment fix, and it is not smuggled in behind a sentence.
+  #
+  # WHAT A SERVICE THAT GENUINELY NEEDS A DIFFERENT PROJECT DOES INSTEAD: raise
+  # it as a substrate change against this file, so the Harbor project stays one
+  # declared value the whole fleet reads. Attempting the override anyway is no
+  # longer silent — `scripts/image-injection-conform.sh` rule I5 REFUSES any
+  # overlay that patches, merges or replaces a key of this ConfigMap, because a
+  # request that cannot be honoured must be a loud error and never a no-op.
+  #
+  # (ENG-3327 is the worked example: orvex-wiki needed the AGPL engine image in
+  # a different project, hit this, and moved the image into `orvex-studio`
+  # instead — the Harbor project is a publishing location, not a licence
+  # boundary.)
   imageProject: orvex-studio
 
   # ── the tag: {branchSlug}-{shortSha}, DERIVED, never written by hand ─────
@@ -39,7 +74,12 @@ data:
   # unresolved render deploy *something* instead of refusing.
   #
   # The value is supplied per-render by the carrier (see kustomization.yaml,
-  # "THE CARRIER"). Until a carrier is wired, this sentinel survives the render
-  # and scripts/image-injection-conform.sh REDS on it — a service cannot adopt
-  # the shared pipeline and silently keep deploying the old mutable tag.
+  # "THE CARRIER") — LIVE since `idp-render` v0.3.3 (ENG-3305), which fills
+  # this sentinel from `ARGOCD_APP_REVISION` in `idp-render prepare`, a step
+  # ahead of kustomize. Run `kustomize build` alone, without that prepare step
+  # having run first, and this sentinel survives the render unfilled by
+  # design — scripts/image-injection-conform.sh REDS on it, so a service
+  # cannot adopt the shared pipeline and silently keep deploying the old
+  # mutable tag, and a hand-run of the deploy-side gate over an unprepared
+  # tree is not this component regressing (see tekton/README.md).
   imageTag: IMAGE_TAG_UNRESOLVED
