@@ -118,8 +118,9 @@
 #       the `image-ref.yaml` sentinel below with the derived
 #       `{branchSlug}-{shortSha}` BEFORE kustomize ever runs — the carrier is a
 #       render-time step ahead of this component, not a feature of it. There is
-#       no ApplicationSet `env:` entry for it and no parameter to keep in sync
-#       (that is exactly the (D) shape this section rejects): `kustomize build`
+#       no ApplicationSet `env:` entry for it and nothing extra for a future
+#       edit here to fall out of step with (that is exactly the (D) shape
+#       this section rejects): `kustomize build`
 #       run alone, without `idp-render prepare` in front of it, still emits the
 #       sentinel unfilled and the conformance gate reds on it — see
 #       `tekton/README.md`'s "Consequence for anyone running the deploy-side
