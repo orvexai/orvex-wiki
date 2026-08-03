@@ -117,19 +117,6 @@ fail=0
 # `image-injection-drift/`) is what makes "how long a consumer stays
 # on the OLD hash" a measured, ratcheted number instead of invisible
 # the way it was for the ENG-3337 gap this same ticket found.
-#
-# ENG-3357 F3, take 2 (2026-08-02): kustomization.yaml ONLY moves
-# again, image-ref.yaml UNCHANGED.
-#   kustomization.yaml  47c323a7 -> ce17cb00
-# A wording-only fixup to the SAME comment section: "no parameter to
-# keep in sync" trips a repo-local AD-5 scanner in
-# orvex-studio-audit (gates/contractspin/pin-static-scan.sh bans the
-# literal phrase anywhere in tracked source — a different, correct
-# rule aimed at hand-synced Go-module contract pins, incidentally
-# matched here). Reworded to the same meaning without the trigger
-# phrase; still comment-only, still zero render diff. Every other
-# row, including image-ref.yaml, is byte-identical to the previous
-# snapshot.
 declare -A KNOWN_HASHES=(
   ["0e97f6060374cdf08aa1ee118f85b10810c38a765b22daf664faeb94f11ac79e"]="base/kustomization.yaml"
   ["1f2a26ba1d467d2a6c1950021f3bfb27770c4f9c084e45e453629cc89f7f39a4"]="cell-promoted/kustomization.yaml"
@@ -138,7 +125,7 @@ declare -A KNOWN_HASHES=(
   ["d73f23be4a550806f1ad0b526e4165f0cd50f09de76c8bc64c5b0118f8428598"]="external-secrets/configmap.yaml"
   ["16e86a5c94093285ff1a34c111bdec08399fe8800e6ad477234ffd80fce027db"]="external-secrets/kustomization.yaml"
   ["89466af674d6f5ac1c5fadaed7ae5dcf3a87003a89c809943c3bc5fba3105953"]="image-injection/image-ref.yaml"
-  ["ce17cb00832d35dac6d249286a96e4d3e4359872f3f634bfcd509d4de8289e37"]="image-injection/kustomization.yaml"
+  ["47c323a7102e1c5edb1ce08e1d913f193efc6b70d9bca3dd043ac83731bfeeed"]="image-injection/kustomization.yaml"
   ["efcd3aae999ed7e1d5cd20a7fa8407fe00866edc1d9db0fab62d4b8d12025c08"]="kafka-topics/kustomization.yaml"
   ["ace05be3c65c129e122022b371d779fe8f8941be3b5fc1245312bb37feedbd10"]="probes/kustomization.yaml"
   ["9758d718e1ce5842782373ca706d700e85916bc14dfa74954bac46c0c78da303"]="product-route-middleware/kustomization.yaml"
