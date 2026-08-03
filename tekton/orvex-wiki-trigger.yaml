@@ -124,10 +124,15 @@ spec:
           orvex.ai/binary: engine
       spec:
         pipelineRef:
-          # ENG-3154 AC10/T9 / AD-30: resolved by the Tekton git resolver, pinned
-          # to a my-idp-apps RELEASE TAG — never a bare in-cluster `name:` (which
-          # is a mutable cluster singleton nothing versions) and never `dev` or a
-          # branch. `token`/`tokenKey` name the SAME `tekton-git-credentials`
+          # ENG-3154 AC10/T9 / AD-30 / ENG-3377: resolved by the Tekton git
+          # resolver, pinned to a my-idp-apps RELEASE TAG — never a bare
+          # in-cluster `name:` (which is a mutable cluster singleton nothing
+          # versions) and never `dev` or a branch. CLONE mode (`url` +
+          # `gitToken`/`gitTokenKey`, a plain `git clone` over HTTPS) — not
+          # API mode (`org`/`repo`) — because API mode is billed against the
+          # org's single shared GitHub REST rate limit, which the platform's
+          # own ApplicationSet controllers already saturate (ENG-3377/ENG-3356
+          # F1). `gitToken`/`gitTokenKey` name the SAME `tekton-git-credentials`
           # basic-auth Secret the platform's git resolver already uses fleet-wide
           # (it authenticates to my-idp-apps, a repo this build never checks out
           # or reads code from — unrelated to this repo's own PUBLIC visibility
@@ -135,20 +140,16 @@ spec:
           # my-idp-apps release this repo re-pins to; never silently float it.
           resolver: git
           params:
-            - name: org
-              value: orvexai
-            - name: repo
-              value: my-idp-apps
+            - name: url
+              value: https://github.com/orvexai/my-idp-apps.git
             - name: revision
-              value: v0.10.4
+              value: v0.10.5
             - name: pathInRepo
               value: tekton/orvex-shared-build-pipeline.yaml
-            - name: token
+            - name: gitToken
               value: tekton-git-credentials
-            - name: tokenKey
+            - name: gitTokenKey
               value: password
-            - name: scmType
-              value: github
         params:
           - name: repo-url
             value: $(tt.params.git-url)
