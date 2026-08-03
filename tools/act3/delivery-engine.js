@@ -41,6 +41,17 @@ export const meta = {
 // entries that carry a dated moved/deferred/sanctioned-TBD/exempt annotation (regex: an
 // ISO date plus one of those keywords, either order) — only genuinely-unannotated boxes still
 // block. The census counts/reporting are unchanged; only the refusal logic was over-strict.
+// v11.4 (2026-08-03): ENG-2034 AC2 producer wiring. A milestone gate reaching Done (the
+// existing MILESTONE COMPLETE branch, marker "notify") IS the "milestone-arming merge" the
+// family-E2E cadence's repository_dispatch consumer (my-idp-apps
+// .github/workflows/family-e2e-cadence.yml, event_type "milestone-armed") has been waiting on
+// since ENG-2034's first pass — that pass wired and rehearsed the consumer/freeze-gate live but
+// left this producer call unwritten (confirmed by grep: zero dispatches POST callers anywhere
+// in the fleet). Fix: the same milestone-complete agent call that sends the PushNotification now
+// also fires `gh api repos/orvexai/my-idp-apps/dispatches -f event_type=milestone-armed …` —
+// best-effort, non-blocking (the freeze gate is fail-open by design, ENG-2034 R3, and a missed
+// dispatch here is still covered by the next nightly run), so a `gh` auth/network hiccup here
+// can never fail milestone-completion bookkeeping itself.
 
 // ---- Constants -------------------------------------------------------------
 const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
@@ -398,6 +409,7 @@ async function deliverItem(item, seq) {
         log('MILESTONE COMPLETE: ' + item.milestone + ' (gate ' + item.eng + ' Done)')
         await agent([
           'Milestone notification: use ToolSearch (query select:PushNotification) to load the PushNotification tool if this environment exposes it, then send: "Orvex Studio: milestone ' + item.milestone + ' COMPLETE (gate ' + item.eng + ' Done; ' + (doneThisRun.length) + ' issues delivered this run)". If the tool is unavailable, return ok=true with detail noting it was skipped.',
+          'ENG-2034 family-E2E producer (AC2): this milestone-gate-Done event IS the "milestone-arming merge" the family-E2E cadence\'s repository_dispatch consumer (my-idp-apps .github/workflows/family-e2e-cadence.yml, event_type "milestone-armed") is waiting on. Fire it for real now: run `gh api repos/orvexai/my-idp-apps/dispatches -f event_type=milestone-armed -f "client_payload[milestone]=' + item.milestone + '" -f "client_payload[gateIssue]=' + item.eng + '"`. This is BEST-EFFORT and MUST NOT fail or block this task: the merge-freeze gate it feeds is fail-open by design (ENG-2034 ruling R3) and a missed dispatch here is still covered by the next 02:00 UTC nightly run — if `gh` is unauthenticated, lacks access, or the call errors for any reason, log the exact error/exit code in detail and still return ok=true. Report whatever HTTP status / gh exit code was actually observed.',
           RETDISC,
         ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':notify:' + item.milestone, phase: T, schema: NOTE_SCHEMA })
       }
