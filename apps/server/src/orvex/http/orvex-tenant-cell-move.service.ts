@@ -185,6 +185,22 @@ export class OrvexTenantCellMoveService {
           return new ConflictException(
             'stale move: registry has moved on',
           );
+        case 'AUTH_FAILED':
+          // ENG-3313 — identity refused THIS ENGINE's seam credential. That
+          // is a server-side misconfiguration (the two deployments hold
+          // different INTERNAL_API_BEARER_TOKEN values), so it is NOT a 401:
+          // the CALLER's bearer was already validated and accepted above, and
+          // answering 401 would falsely blame it and send an operator to
+          // debug the wrong credential entirely. It is also not the generic
+          // DEPENDENCY_ERROR 502 — the exact indistinguishability this
+          // ticket exists to remove — so it carries its own message and is
+          // logged loudly, because nothing retries its way out of it.
+          this.logger.error(
+            `tenant-move ${step} rejected by identity: the engine seam credential was refused (401). Reconcile INTERNAL_API_BEARER_TOKEN with identity's ENGINE_INTERNAL_API_TOKEN.`,
+          );
+          return new BadGatewayException(
+            `identity registry ${step} rejected this engine's seam credential (misconfigured INTERNAL_API_BEARER_TOKEN)`,
+          );
         case 'DEPENDENCY_ERROR':
           return new BadGatewayException(
             `identity registry ${step} failed`,
