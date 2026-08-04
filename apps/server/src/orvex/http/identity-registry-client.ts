@@ -129,10 +129,13 @@ export class RegistryClientNotConfiguredError extends Error {
 
 export interface IdentityRegistryClient {
   /**
-   * Calls identity's `POST /v1/registry/move` — the REAL, atomic,
-   * `moveId`-keyed idempotent registry cell-binding relocation
-   * (ENG-1507 `Registry.Move`). Throws `RegistryClientError` with a typed
-   * `code` on a non-2xx identity response; never fabricates a success.
+   * Calls identity's `POST /internal/registry/move` (ENG-3427) — the REAL,
+   * atomic, `moveId`-keyed idempotent registry cell-binding relocation
+   * (ENG-1507 `Registry.Move`), reached via the engine-facing counterpart
+   * of the machine-only `/v1/registry/move` this engine holds no
+   * client-credentials grant for (see the implementation's own doc
+   * comment). Throws `RegistryClientError` with a typed `code` on a
+   * non-2xx identity response; never fabricates a success.
    */
   moveTenantCell(req: RegistryMoveRequest): Promise<RegistryMoveResult>;
 
@@ -270,15 +273,42 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   }
 
   async moveTenantCell(req: RegistryMoveRequest): Promise<RegistryMoveResult> {
+    // Fail closed on a missing credential (ENG-3427, mirrors reserveTenant's
+    // own ENG-3350 guard immediately below). THE DEFECT THIS CLOSES: this
+    // call used to POST /v1/registry/move with NO Authorization header at
+    // all. /v1/registry/move is machine-only (requireMachinePrincipal — it
+    // demands an identity-minted "svc:" client-credentials grant this engine
+    // does not hold in any cell, per reserveTenant's own comment below), so
+    // identity denied every call with a silent 401 (no-oracle by design,
+    // zero server-side log) that this client's own status switch collapsed
+    // into a generic DEPENDENCY_ERROR — surfaced by the controller as a 502
+    // "identity registry move failed" naming neither the real cause (wrong
+    // route/credential) nor even that auth, not the move, is what failed.
+    // Confirmed live: identity's own registryMove handler (which now logs
+    // every failure branch, ENG-3343) emitted ZERO lines for a run that hit
+    // this exact 502 — proof the request never reached it.
+    //
+    // Fix: identity now exposes POST /internal/registry/move (ENG-3427), the
+    // engine-facing counterpart of /v1/registry/move — the SAME placement
+    // reserveTenant's own /internal/registry/reserve already uses, admitting
+    // the SAME already-distributed mutual internalToken. Both /internal/
+    // registry/* routes now use one credential the engine already holds.
+    if (this.internalToken === null) {
+      throw new RegistryClientError(
+        'DEPENDENCY_ERROR',
+        'identity registry move requires INTERNAL_API_BEARER_TOKEN (the shared engine seam credential) and it is unset',
+      );
+    }
     const { status, payload } = await this.request(
       'POST',
-      '/v1/registry/move',
+      '/internal/registry/move',
       {
         moveId: req.moveId,
         tenantId: req.tenantId,
         fromCell: req.fromCell,
         toCell: req.toCell,
       },
+      { Authorization: `Bearer ${this.internalToken}` },
     );
 
     if (status === 200) {
