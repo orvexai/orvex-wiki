@@ -62,6 +62,44 @@ export const WORKSPACE_EXEMPT_PATHS: readonly string[] = [
   // be required of it). Without this entry a CLOUD-mode compliance request
   // 404s at this hook before the controller runs — a real §13 gap.
   '/api/orvex/source',
+  // ENG-3504 — wiki-api's engine COMPOSITION TIER (orvex-wiki-api's
+  // internal/clients/clients.go `Engine.*` methods, called over
+  // ENGINE_URL, a bare cluster-internal Service URL with NO tenant Host —
+  // confirmed live: `Host: orvex-wiki.orvex-wiki-dev.svc.cluster.local`,
+  // never a workspace subdomain). Under CLOUD mode this preHandler 404'd
+  // EVERY one of these calls before wiki-api's own S2S bearer (which the
+  // engine's JwtAuthGuard DOES verify) ever got evaluated — first surfaced
+  // narrowly as ENG-3464 ("Workspace not found" on the M9 gate's whoami
+  // leg), generalized here per ENG-3504's audit of the whole tier.
+  //
+  // Same shape/precedent as the FR-W6 session-exchange and ENG-1578
+  // tenant-move exemptions above: `@AuthWorkspace()`
+  // (common/decorators/auth-workspace.decorator.ts) already falls back to
+  // `request.user.workspace` — set by `JwtStrategy.validate()` from the
+  // VERIFIED bearer — whenever `request.raw.workspace` (the Host-derived
+  // value this preHandler would otherwise require) is absent. Every
+  // controller below keeps its class-level `@UseGuards(JwtAuthGuard)`
+  // unchanged, so exempting these paths skips ONLY the Host-based
+  // PRE-resolution, never authentication itself; the bearer-derived
+  // resolution is the SAME access control the tenant-move/session-exchange
+  // routes already rely on, not a new one.
+  //
+  // Scoped to the LITERAL, non-parameterized composition routes only
+  // (ENG-3504's audit of clients.go's remaining `Engine.*` methods) — the
+  // page-id-parameterized routes under `/api/orvex/pages/:pageId/...`
+  // (apply-ops, apply-doc) are DELIBERATELY NOT added here: a prefix broad
+  // enough to cover a path parameter (`/api/orvex/pages/`) would ALSO
+  // exempt the sibling `orvex/pages/supersede`, `/unsupersede`, `/status`
+  // routes (orvex-page-supersede.controller.ts) this pass never audited,
+  // which is exactly the "does widening skip a tenancy check something
+  // else relies on" hazard this list exists to avoid. Tracked as a
+  // follow-on (needs either a segment-aware matcher or a param-safe
+  // sub-list, not a blanket prefix).
+  '/api/workspace/info',
+  '/api/pages/info',
+  '/api/pages/create',
+  '/api/pages/upsert',
+  '/api/spaces/',
 ];
 
 /**
