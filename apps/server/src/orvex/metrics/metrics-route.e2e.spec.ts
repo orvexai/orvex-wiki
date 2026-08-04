@@ -7,6 +7,7 @@ import { Test } from '@nestjs/testing';
 
 import { resolveGlobalPrefixExclude } from '../http/orvex-global-prefix-exclude';
 import { OrvexRootModule } from '../orvex-root.module';
+import { DbFreeAuditKyselyStubModule } from '../__fixtures__/db-free-root-module-testing';
 
 /**
  * ENG-1360 §5b route test (review1 F1) — `/metrics` sits OUTSIDE the `/api`
@@ -33,7 +34,7 @@ describe('AC6 — /metrics route sits outside the /api global prefix', () => {
     setEnv('ORVEX_MODULES_ENABLED', 'true');
 
     const moduleRef = await Test.createTestingModule({
-      imports: [OrvexRootModule.register()],
+      imports: [OrvexRootModule.register(), DbFreeAuditKyselyStubModule],
     }).compile();
 
     app = moduleRef.createNestApplication<NestFastifyApplication>(

@@ -6,11 +6,8 @@ import { Global, Module } from '@nestjs/common';
 
 import { OrvexMetricsService } from './metrics-service';
 import { MetricsController } from './metrics.controller';
-import {
-  METRICS_AUTH_CONFIG,
-  MetricsAuthConfig,
-  readMetricsAuthConfig,
-} from './metrics-auth';
+import { METRICS_AUTH_CONFIG, MetricsAuthConfig } from './metrics-auth';
+import { readMetricsAuthConfigFromProcessEnv } from '../config/orvex-metrics-auth-config.factory';
 
 /**
  * OrvexMetricsModule (ENG-1360, T4) — the single `@Global()` DI seam that
@@ -39,7 +36,7 @@ import {
     },
     {
       provide: METRICS_AUTH_CONFIG,
-      useFactory: (): MetricsAuthConfig => readMetricsAuthConfig(process.env),
+      useFactory: (): MetricsAuthConfig => readMetricsAuthConfigFromProcessEnv(),
     },
   ],
   exports: [OrvexMetricsService],

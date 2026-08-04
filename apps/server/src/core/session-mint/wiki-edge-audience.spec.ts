@@ -2,16 +2,21 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { SignJWT, exportJWK, generateKeyPair } from 'jose';
-import type { JSONWebKeySet } from 'jose';
+import { webcrypto } from 'node:crypto';
 
-/** jose 6 dropped the `KeyLike` alias; infer the private-key type instead. */
-type PrivateKey = Awaited<ReturnType<typeof generateKeyPair>>['privateKey'];
-
+import {
+  SignJws,
+  TestJwks,
+  exportEs256PublicJwk,
+  generateEs256KeyPair,
+} from '../../orvex/edge-auth/__fixtures__/jws-test-mint';
 import { EdgeAssertionVerifier } from '../../orvex/edge-auth/edge-assertion-verifier';
 import { StaticEdgeAssertionKeySource } from '../../orvex/edge-auth/edge-assertion-key-source';
 import { EdgeAssertionVerificationError } from '../../orvex/edge-auth/edge-assertion.types';
 import { WIKI_EDGE_AUDIENCE } from './wiki-edge-audience';
+
+/** The private-key half of an ES256 keypair minted by {@link generateEs256KeyPair}. */
+type PrivateKey = webcrypto.CryptoKey;
 
 /**
  * The engine's WIKI_EDGE_AUDIENCE binding, proven end-to-end through the REAL
@@ -20,8 +25,9 @@ import { WIKI_EDGE_AUDIENCE } from './wiki-edge-audience';
  * proves the FIVE checks but NOT that THIS engine binds to `orvex-wiki`. This
  * spec closes that gap: an assertion minted `aud=orvex-wiki` is ACCEPTED, and
  * one minted for any OTHER fleet service is REJECTED (confused-deputy) — the
- * whole point of ADR-0049's aud VALUE bind. It signs with a real jose keypair
- * (no hand-authored key) and reads the audience from the shipped constant.
+ * whole point of ADR-0049's aud VALUE bind. It signs with a real ES256
+ * keypair (no hand-authored key) and reads the audience from the shipped
+ * constant.
  */
 
 const ISSUER = 'https://identity.edge.orvex.internal/edge-authn';
@@ -29,9 +35,9 @@ const KID = 'test-kid-eu1a';
 const NOW = 1_800_000_000;
 
 async function setup() {
-  const { publicKey, privateKey } = await generateKeyPair('ES256');
-  const jwk = await exportJWK(publicKey);
-  const jwks: JSONWebKeySet = {
+  const { publicKey, privateKey } = await generateEs256KeyPair();
+  const jwk = await exportEs256PublicJwk(publicKey);
+  const jwks: TestJwks = {
     keys: [{ ...jwk, kid: KID, alg: 'ES256', use: 'sig' }],
   };
   const verifier = new EdgeAssertionVerifier({
@@ -59,7 +65,7 @@ async function sign(
     exp: NOW + 120,
     ...overrides,
   };
-  return new SignJWT(claims as Record<string, unknown>)
+  return new SignJws(claims as Record<string, unknown>)
     .setProtectedHeader({ alg: 'ES256', kid: KID })
     .sign(privateKey);
 }

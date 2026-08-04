@@ -12,6 +12,7 @@ import { Test } from '@nestjs/testing';
 import { TransformHttpResponseInterceptor } from '../../common/interceptors/http-response.interceptor';
 import { ORVEX_NOT_IMPLEMENTED } from '../not-implemented';
 import { OrvexRootModule } from '../orvex-root.module';
+import { DbFreeAuditKyselyStubModule } from '../__fixtures__/db-free-root-module-testing';
 
 /**
  * Flag-ON e2e through the exported OrvexRootModule surface (@nestjs/testing +
@@ -57,7 +58,7 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     delete process.env.ORVEX_IDENTITY_URL;
 
     const moduleRef = await Test.createTestingModule({
-      imports: [OrvexRootModule.register()],
+      imports: [OrvexRootModule.register(), DbFreeAuditKyselyStubModule],
     }).compile();
 
     app = moduleRef.createNestApplication<NestFastifyApplication>(
@@ -138,7 +139,7 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     delete process.env.ORVEX_SOURCE_REPO;
     try {
       const moduleRef = await Test.createTestingModule({
-        imports: [OrvexRootModule.register()],
+        imports: [OrvexRootModule.register(), DbFreeAuditKyselyStubModule],
       }).compile();
       const bare = moduleRef.createNestApplication<NestFastifyApplication>(
         new FastifyAdapter(),

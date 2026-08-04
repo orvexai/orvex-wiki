@@ -39,7 +39,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { AddressInfo } from 'net';
-import * as jwt from 'jsonwebtoken';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { ExecutionContext, Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -74,6 +74,36 @@ const TEST_APP_SECRET = 'eng-2499-test-secret-at-least-32-characters-long';
 const FIXED_COOKIE_EXPIRY = new Date('2030-01-01T00:00:00.000Z');
 const IDP_SUBJECT = 'idp-subject-eng-2499';
 const VALID_OPAQUE_TOKEN = 'opaque-exchange-token-fixture-1';
+
+/**
+ * TEST-ONLY HS256 JWT verify — `@nestjs/jwt`'s `JwtModule.register({secret})`
+ * (this suite's own `authToken` cookie minter, above) signs with HS256 by
+ * default. Hand-rolled here (HMAC-SHA256 over `header.payload`, timing-safe
+ * compare, then decode) rather than via the `jsonwebtoken` package: AD-9's
+ * `jose_jwt` substrate-allow list names ONLY `pkg/auth` (Go) and its TS peer
+ * `@orvexai/auth-node` as sanctioned JWT/JOSE-library importers, with no
+ * test-file exemption (`orvex-studio-contracts`
+ * `gates/eslint/restrictions.yaml` — this restriction, unlike the
+ * neighbouring `process-env` ban, carries no `test_exempt_ref`).
+ */
+function verifyHs256Jwt(token: string, secret: string): Record<string, unknown> {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    throw new Error('verifyHs256Jwt: not a 3-part compact JWT');
+  }
+  const [headerB64, payloadB64, signatureB64] = parts;
+  const expectedSig = createHmac('sha256', secret)
+    .update(`${headerB64}.${payloadB64}`)
+    .digest();
+  const actualSig = Buffer.from(signatureB64, 'base64url');
+  if (expectedSig.length !== actualSig.length || !timingSafeEqual(expectedSig, actualSig)) {
+    throw new Error('verifyHs256Jwt: signature mismatch');
+  }
+  return JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as Record<
+    string,
+    unknown
+  >;
+}
 
 /** One recorded introspect call at the fixture identity server. */
 interface RecordedIntrospectCall {
@@ -291,7 +321,7 @@ describe('TestExchangeTokenMintsSessionViaIntrospection (ENG-2499 DoD gate)', ()
     // `createSessionAndToken` (same chokepoint as password/OIDC paths).
     const authCookie = res.cookies.find((c) => c.name === 'authToken');
     expect(authCookie).toBeDefined();
-    const claims = jwt.verify(authCookie!.value, TEST_APP_SECRET) as {
+    const claims = verifyHs256Jwt(authCookie!.value, TEST_APP_SECRET) as {
       sub: string;
       workspaceId: string;
       type: string;

@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { OrvexRootModule } from './orvex-root.module';
+import { DbFreeAuditKyselyStubModule } from './__fixtures__/db-free-root-module-testing';
 
 /**
  * ENG-2508 §5a — TestEngineHasNoSwaggerAndDegradesGracefully, the ONE named
@@ -117,7 +118,7 @@ async function bootRealApp(): Promise<{
   routes: string[];
 }> {
   const moduleRef = await Test.createTestingModule({
-    imports: [OrvexRootModule.register()],
+    imports: [OrvexRootModule.register(), DbFreeAuditKyselyStubModule],
   }).compile();
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),

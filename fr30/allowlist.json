@@ -1,5 +1,5 @@
 {
-  "description": "FR-30 divergence-gate ledger (ENG-2477) — the frozen 13-row allow-list of UPSTREAM files the fork may diverge from, verbatim per Architecture twQ3BBzpTE section 2 A-THIN. Distinct from patches/inline-edit-allowlist.json (the ENG-1649 patches-drift subsystem: per-declared-edit context drift), and from docs/runbooks/hardening-allowlist.json (the ENG-2478 A-HARDENING class the gate reads as class 'hardening' rows). The architecture's 'page DTOs orvex field' item has no upstream DTO carrying an orvex field at HEAD (page metadata rides the orvex_page_meta side table, outside divergence scope) — it is therefore not a row here; the 13 rows are the 13 real files below.",
+  "description": "FR-30 divergence-gate ledger (ENG-2477) — the allow-list of UPSTREAM files the fork may diverge from, verbatim per Architecture twQ3BBzpTE section 2 A-THIN. Distinct from patches/inline-edit-allowlist.json (the ENG-1649 patches-drift subsystem: per-declared-edit context drift), and from docs/runbooks/hardening-allowlist.json (the ENG-2478 A-HARDENING class the gate reads as class 'hardening' rows). The architecture's 'page DTOs orvex field' item has no upstream DTO carrying an orvex field at HEAD (page metadata rides the orvex_page_meta side table, outside divergence scope) — it is therefore not a row here. ORIGINAL 13 rows at ENG-2477 activation; ENG-3167 AD-24 (IAuditService (data, context) signature migration off the deleted NoopAuditService, PR crew/yafet #163) added 9 more — every row's own `note` field, when present, states its architectural reason (never a silent addition; see `preexistingDivergenceNote` for the one companion baseline entry the same migration required).",
   "pinnedUpstreamSha": "e28df6ad8826dba580829f6794d19c5dd4082c83",
   "rows": [
     {
@@ -67,10 +67,64 @@
       "path": "apps/server/src/database/listeners/page.listener.ts",
       "weight": 1,
       "class": "allowlist"
+    },
+    {
+      "path": "apps/server/src/core/auth/services/auth.service.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — every upstream AUDIT_SERVICE.log() caller updated for the tx-bearing IAuditService's new (data, context) signature (now awaited: the noop write became a real, awaitable outbox-staging INSERT). Same class of foundational-seam edit jwt.strategy.ts's existing row already covers."
+    },
+    {
+      "path": "apps/server/src/core/auth/services/signup.service.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/core/group/services/group-user.service.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/core/group/services/group.service.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/core/share/share.controller.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/core/space/space.controller.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/core/user/user.service.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/integrations/export/export.controller.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
+    },
+    {
+      "path": "apps/server/src/integrations/import/import.controller.ts",
+      "weight": 1,
+      "class": "allowlist",
+      "note": "ENG-3167 AD-24 — same IAuditService (data, context) call-site update as auth.service.ts's row."
     }
   ],
   "pinnedUpstreamShaNote": "The fork point: the last upstream (docmost/docmost) commit in this repo's own history, immediately before Orvex's first commit (2078d15c 'vanilla docmost v0.95.0 deploy tree'). It is an ancestor of HEAD, so the gate resolves it from the local clone (fetch-depth: 0) and needs no network fetch or 'upstream' remote. ACTIVE — the gate enforces against it.",
-  "preexistingDivergenceNote": "RATCHET BASELINE (human-ratified, frozen). At activation the fork already carried 162 upstream files diverging outside the 13-row allow-list — years of legitimate pre-allow-list divergence. Failing all of them on landing would be a fabricated, un-actionable red gate (the same reasoning as the sibling subsystem's design section 8), so they are recorded here as the frozen starting point. The gate reds on any NEW off-allow-list upstream file, i.e. any path not in this baseline — that is the enforcement AC2 promises, live today. This list may only SHRINK: an entry removed (the divergence reverted or the file folded into orvex additive surface) is the G1 counter-metric falling. Adding an entry is a ceiling raise and requires a stated architectural reason in the PR (see the ticket's not-to-do item 10), never a silent merge.",
+  "preexistingDivergenceNote": "RATCHET BASELINE (human-ratified, frozen). At activation the fork already carried 162 upstream files diverging outside the 13-row allow-list — years of legitimate pre-allow-list divergence. Failing all of them on landing would be a fabricated, un-actionable red gate (the same reasoning as the sibling subsystem's design section 8), so they are recorded here as the frozen starting point. The gate reds on any NEW off-allow-list upstream file, i.e. any path not in this baseline — that is the enforcement AC2 promises, live today. This list may only SHRINK: an entry removed (the divergence reverted or the file folded into orvex additive surface) is the G1 counter-metric falling. Adding an entry is a ceiling raise and requires a stated architectural reason in the PR (see the ticket's not-to-do item 10), never a silent merge. ONE POST-ACTIVATION ADDITION, honestly disclosed rather than folded silently into the '162 at activation' count: 'apps/server/src/integrations/audit/audit.module.ts' — the upstream NoopAuditModule (the global binding for the deleted silent-swallow NoopAuditService, ENG-3167 hard-cut) is DELETED outright, never left as dead code (Daniel's standing no-legacy/no-fallback ruling): app.module.ts and orvex-enforce-sso.module.ts now wire core/audit's OrvexAuditModule instead. It cannot be an allow-list ROW (that ledger's own DoD test requires every row path to resolve via `git cat-file -e HEAD:<path>`, which a deleted file structurally cannot) — the baseline is the only mechanically-available disposition for a legitimate divergence that takes the form of a deletion. The seam (AUDIT_SERVICE token + IAuditService) stays in the sibling audit.service.ts, already on this baseline.",
   "preexistingDivergence": [
     ".github/workflows/release.yml",
     ".gitignore",
@@ -209,6 +263,7 @@
     "apps/server/src/database/types/entity.types.ts",
     "apps/server/src/database/utils.ts",
     "apps/server/src/ee",
+    "apps/server/src/integrations/audit/audit.module.ts",
     "apps/server/src/integrations/audit/audit.service.ts",
     "apps/server/src/integrations/environment/environment.service.ts",
     "apps/server/src/integrations/export/export.module.ts",
