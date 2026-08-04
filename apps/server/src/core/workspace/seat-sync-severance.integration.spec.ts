@@ -56,7 +56,7 @@ import { GroupRepo } from '@docmost/db/repos/group/group.repo';
 import type { Workspace } from '@docmost/db/types/entity.types';
 
 import { WorkspaceInvitationService } from './services/workspace-invitation.service';
-import { NoopAuditService } from '../../integrations/audit/audit.service';
+import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import {
   OutboxRelayService,
@@ -162,7 +162,7 @@ describe('TestSeatSyncEmitsBillingEventNoStripe', () => {
     const groupRepo = new GroupRepo(kdb);
     const groupUserRepo = new GroupUserRepo(kdb, groupRepo, userRepo);
     const outboxWriter = new OutboxWriter(kdb);
-    const audit = new NoopAuditService();
+    const audit = new OrvexAuditService(kdb, outboxWriter);
     mailCalls = [];
     const fakeMail = {
       sendToQueue: async (msg: unknown) => {

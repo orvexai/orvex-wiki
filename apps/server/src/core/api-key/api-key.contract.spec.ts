@@ -1,6 +1,5 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import * as jwt from 'jsonwebtoken';
 import { Global, Module } from '@nestjs/common';
 import {
   FastifyAdapter,
@@ -23,7 +22,9 @@ import {
 } from '@testcontainers/postgresql';
 
 import { ApiKeyModule } from './api-key.module';
+import { signHs256Jwt, verifyHs256Jwt } from './__fixtures__/hs256-jwt-test';
 import { OrvexAuditService } from '../audit/orvex-audit.service';
+import { AuditEvent } from '../../common/events/audit-events.gen';
 import { JwtStrategy } from '../../core/auth/strategies/jwt.strategy';
 import { TOKEN_SCOPE_SYMBOL } from '../../core/casl/scope-intersection';
 import { UserRepo } from '@docmost/db/repos/user/user.repo';
@@ -66,7 +67,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
     ws: string,
     scope?: 'restricted',
   ): string =>
-    jwt.sign(
+    signHs256Jwt(
       {
         sub,
         email: 'user@example.com',
@@ -231,7 +232,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
     // Same secret, same claims shape, but a freshly re-signed JWT string is
     // NOT byte-identical to the one that was hashed at creation (different
     // `iat`) — a valid signature, wrong hash.
-    const forged = jwt.sign(
+    const forged = signHs256Jwt(
       { sub: adminId, workspaceId, apiKeyId: created.apiKey.id, type: 'api_key' },
       TEST_APP_SECRET,
     );
@@ -249,7 +250,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       .values({ creatorId: adminId, workspaceId, name: 'legacy' })
       .returning('id')
       .executeTakeFirstOrThrow();
-    const legacyToken = jwt.sign(
+    const legacyToken = signHs256Jwt(
       { sub: adminId, workspaceId, apiKeyId: legacy.id, type: 'api_key' },
       TEST_APP_SECRET,
     );
@@ -292,7 +293,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       .selectFrom('audit')
       .selectAll()
       .where('resourceId', '=', created.apiKey.id)
-      .where('event', '=', 'api_key.revoked')
+      .where('event', '=', AuditEvent.API_KEY_REVOKED)
       .execute();
     expect(revokedRows).toHaveLength(1);
   });
@@ -373,7 +374,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       .selectFrom('audit')
       .selectAll()
       .where('resourceId', '=', memberKey.apiKey.id)
-      .where('event', '=', 'api_key.revoked')
+      .where('event', '=', AuditEvent.API_KEY_REVOKED)
       .executeTakeFirstOrThrow();
     const metadata = JSON.parse(auditRow.metadata as unknown as string);
     expect(metadata.revokedByAdmin).toBe(true);
@@ -395,7 +396,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       .selectFrom('audit')
       .selectAll()
       .where('resourceId', '=', created.apiKey.id)
-      .where('event', '=', 'api_key.updated')
+      .where('event', '=', AuditEvent.API_KEY_UPDATED)
       .execute();
     expect(updatedRows).toHaveLength(0);
   });
@@ -415,7 +416,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       .selectFrom('audit')
       .selectAll()
       .where('actorId', '=', memberId)
-      .where('event', '=', 'auth.failed')
+      .where('event', '=', AuditEvent.AUTH_FAILED)
       .execute();
     expect(failedRows.length).toBeGreaterThan(0);
     const failedMetadata = JSON.parse(
@@ -510,7 +511,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       // marked as api_key auth. Asserts observable outcomes only — survives
       // any internal rename of the service's private hashing/lookup helpers.
       const strategy = app.get(JwtStrategy);
-      const payload = jwt.verify(created.token, TEST_APP_SECRET) as {
+      const payload = verifyHs256Jwt(created.token, TEST_APP_SECRET) as {
         sub: string;
         workspaceId: string;
         apiKeyId: string;
@@ -551,7 +552,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
         .execute();
 
       const strategy = app.get(JwtStrategy);
-      const payload = jwt.verify(created.token, TEST_APP_SECRET) as object;
+      const payload = verifyHs256Jwt(created.token, TEST_APP_SECRET) as object;
       const principal = (await strategy.validate(
         { raw: {}, headers: authHeader(created.token) },
         payload as never,
@@ -576,7 +577,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
 
       // Valid signature, real apiKeyId — but claiming the OTHER tenant. The
       // workspace-scoped auth-record lookup must resolve nothing (deny).
-      const crossTenant = jwt.sign(
+      const crossTenant = signHs256Jwt(
         {
           sub: adminId,
           workspaceId: otherWs.id,
@@ -619,7 +620,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
 
       // The verify path itself resolves no principal for the expired key.
       const strategy = app.get(JwtStrategy);
-      const payload = jwt.verify(created.token, TEST_APP_SECRET) as object;
+      const payload = verifyHs256Jwt(created.token, TEST_APP_SECRET) as object;
       await expect(
         strategy.validate(
           { raw: {}, headers: authHeader(created.token) },
@@ -636,7 +637,7 @@ describe('OrvexApiKeyAuthContractSpec', () => {
       });
       expect(malformed.statusCode).toBe(401);
 
-      const wrongSecret = jwt.sign(
+      const wrongSecret = signHs256Jwt(
         {
           sub: adminId,
           workspaceId,

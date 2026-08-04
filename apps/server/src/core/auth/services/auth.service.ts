@@ -87,12 +87,14 @@ export class AuthService {
     user.lastLoginAt = new Date();
     await this.userRepo.updateLastLogin(user.id, workspaceId);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_LOGIN,
       resourceType: AuditResource.USER,
       resourceId: user.id,
       metadata: { source: 'password' },
-    });
+    },
+      { workspaceId, actorId: user.id, actorType: 'user' },
+    );
 
     return this.sessionService.createSessionAndToken(user);
   }
@@ -153,11 +155,13 @@ export class AuthService {
       await this.userSessionRepo.deleteByUserId(userId, workspaceId);
     }
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_PASSWORD_CHANGED,
       resourceType: AuditResource.USER,
       resourceId: userId,
-    });
+    },
+      { workspaceId, actorId: userId, actorType: 'user' },
+    );
 
     const emailTemplate = ChangePasswordEmail({ username: user.name });
     await this.mailService.sendToQueue({
@@ -261,12 +265,14 @@ export class AuthService {
 
     await this.userSessionRepo.deleteByUserId(user.id, workspace.id);
 
-    this.auditService.setActorId(user.id);
-    this.auditService.log({
-      event: AuditEvent.USER_PASSWORD_RESET,
-      resourceType: AuditResource.USER,
-      resourceId: user.id,
-    });
+    await this.auditService.log(
+      {
+        event: AuditEvent.USER_PASSWORD_RESET,
+        resourceType: AuditResource.USER,
+        resourceId: user.id,
+      },
+      { workspaceId: workspace.id, actorId: user.id, actorType: 'user' },
+    );
 
     const emailTemplate = ChangePasswordEmail({ username: user.name });
     await this.mailService.sendToQueue({

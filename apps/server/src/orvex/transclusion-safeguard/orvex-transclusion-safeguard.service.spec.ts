@@ -24,7 +24,11 @@ import {
   AuditLogContext,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { ActorType, AuditLogPayload } from '../../common/events/audit-events';
+import {
+  ActorType,
+  AuditEvent,
+  AuditLogPayload,
+} from '../../common/events/audit-events';
 import { TransclusionReferencesActiveException } from './exceptions/transclusion-references-active.exception';
 import type { DbInterface } from '../../database/types/db.interface';
 import type { KyselyDB } from '../../database/types/kysely.types';
@@ -272,7 +276,7 @@ describe('TransclusionSafeguardBlockAndUnsyncSpec', () => {
     expect(await countReferenceRows(source.id)).toBe(0);
 
     const unsyncLogs = audit.logs.filter(
-      (l) => l.payload.event === 'transclusion.reference_unsynced',
+      (l) => l.payload.event === AuditEvent.TRANSCLUSION_REFERENCE_UNSYNCED,
     );
     expect(unsyncLogs).toHaveLength(2);
     expect(unsyncLogs.map((l) => l.payload.resourceId).sort()).toEqual(
@@ -325,7 +329,7 @@ describe('TransclusionSafeguardBlockAndUnsyncSpec', () => {
     expect(callCount).toBe(2);
 
     const unsyncLogs = audit.logs.filter(
-      (l) => l.payload.event === 'transclusion.reference_unsynced',
+      (l) => l.payload.event === AuditEvent.TRANSCLUSION_REFERENCE_UNSYNCED,
     );
     expect(unsyncLogs).toHaveLength(0);
   });
@@ -387,7 +391,7 @@ describe('TransclusionSafeguardBlockAndUnsyncSpec', () => {
     expect(await countReferenceRows(source.id)).toBe(1);
 
     const forceLogs = audit.logs.filter(
-      (l) => l.payload.event === 'transclusion.force_delete',
+      (l) => l.payload.event === AuditEvent.TRANSCLUSION_FORCE_DELETE,
     );
     expect(forceLogs).toHaveLength(1);
     expect(forceLogs[0].payload.metadata).toMatchObject({

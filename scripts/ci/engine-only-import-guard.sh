@@ -37,19 +37,16 @@ fi
 # satellite list this stands in for.
 BANNED_IMPORT_REGEX='@orvexai/|orvex-wiki-api|orvex-studio-(knowledge|identity|ai|mcp|console|billing|workflows|contracts|lib)|(^|/)orvex-cli(/|$)|@docmost/(ee|cloud)|docmost-ee|@forkmost/|(^|/)ee/'
 
-# ALLOWLIST (ENG-1360, ciauth orchestrator ruling 2026-07-09): @orvexai/metrics
-# is NOT a closed satellite — it is orvex-studio-lib's shared Prometheus
-# registry, deliberately published to the PUBLIC npm registry (anonymously
-# resolvable, no auth/OIDC) specifically so this AGPL engine can depend on it
-# as an ordinary versioned npm dep without violating Q22 slim-AGPL (the
-# registry itself still lives OUTSIDE the engine, in orvex-studio-lib — only
-# the small typed read/record surface is imported). The blanket `@orvexai/`
-# ban above predates that ruling and would otherwise false-positive on this
-# one ratified exception; every OTHER `@orvexai/*` import remains banned.
+# NO ALLOWLIST. The former ENG-1360 exception for the shared metrics
+# package (@orvexai scope) was retired by ENG-3149: that package's source is
+# now INLINED at apps/server/src/orvex/metrics/ (AD-8/AD-9, CS ❌#7), the
+# npm package is deprecated, and the engine imports no @orvexai/* package at
+# all. The blanket @orvexai/ ban above therefore applies with zero
+# exceptions — the AGPL boundary is enforced by ABSENCE of the package, not
+# by a standing lint exception.
 hits="$(grep -RnE "from ['\"](${BANNED_IMPORT_REGEX})|require\(['\"](${BANNED_IMPORT_REGEX})" \
           "$ORVEX_DIR" --include='*.ts' \
-          --exclude='engine-only-import-guard.spec.ts' 2>/dev/null \
-          | grep -vE "@orvexai/metrics['\"]" || true)"
+          --exclude='engine-only-import-guard.spec.ts' 2>/dev/null || true)"
 
 if [[ -n "$hits" ]]; then
   echo "FAIL: forbidden closed-satellite/non-AGPL import found under apps/server/src/orvex/:" >&2

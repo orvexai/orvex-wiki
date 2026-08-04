@@ -15,8 +15,9 @@ import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { OrvexMetricsService } from '@orvexai/metrics';
 import type { Gauge } from 'prom-client';
+
+import { OrvexMetricsService } from '../../../../metrics/metrics-service';
 
 import {
   DEFAULT_RELAY_STALENESS_SECONDS,
@@ -173,7 +174,7 @@ describe('OutboxRelayHeartbeatSpec (ENG-2496 AC4)', () => {
     expect(drained.unrelayedCount).toBe(0);
   });
 
-  it('TestRelayHeartbeatMetricReflectsUnrelayedCountAndAge — the gauges on the shared @orvexai/metrics registry report the live unrelayed count and oldest-row age at scrape time', async () => {
+  it('TestRelayHeartbeatMetricReflectsUnrelayedCountAndAge — the gauges on the shared engine-resident metrics registry (ENG-3149 inline) report the live unrelayed count and oldest-row age at scrape time', async () => {
     const metrics = new OrvexMetricsService();
     const heartbeat = new OutboxRelayHeartbeat(db, metrics);
     heartbeat.registerGauges();

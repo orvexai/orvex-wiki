@@ -80,7 +80,7 @@ export class SignupService {
       trx,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_CREATED,
       resourceType: AuditResource.USER,
       resourceId: user.id,
@@ -94,7 +94,10 @@ export class SignupService {
       metadata: {
         source: 'signup',
       },
-    });
+    },
+      { workspaceId, actorId: user.id, actorType: 'user' },
+      trx,
+    );
 
     return user;
   }

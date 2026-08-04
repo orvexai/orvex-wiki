@@ -204,7 +204,7 @@ export class WorkspaceInvitationService {
 
       // Audit log for each invitation created
       for (const invitation of invites) {
-        this.auditService.log({
+        await this.auditService.log({
           event: AuditEvent.WORKSPACE_INVITE_CREATED,
           resourceType: AuditResource.WORKSPACE_INVITATION,
           resourceId: invitation.id,
@@ -217,7 +217,9 @@ export class WorkspaceInvitationService {
           metadata: {
             groupIds: invitation.groupIds,
           },
-        });
+        },
+          { workspaceId: workspace.id, actorId: authUser.id, actorType: 'user' },
+        );
       }
     }
   }
@@ -386,7 +388,7 @@ export class WorkspaceInvitationService {
       });
     }
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.USER_CREATED,
       resourceType: AuditResource.USER,
       resourceId: newUser.id,
@@ -401,7 +403,9 @@ export class WorkspaceInvitationService {
         source: 'invitation',
         invitationId: invitation.id,
       },
-    });
+    },
+    { workspaceId: workspace.id, actorId: newUser.id, actorType: 'user' },
+    );
 
     if (workspace.enforceMfa) {
       return {
@@ -441,7 +445,7 @@ export class WorkspaceInvitationService {
       workspace.hostname,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.WORKSPACE_INVITE_RESENT,
       resourceType: AuditResource.WORKSPACE_INVITATION,
       resourceId: invitation.id,
@@ -449,7 +453,9 @@ export class WorkspaceInvitationService {
         email: invitation.email,
         role: invitation.role,
       },
-    });
+    },
+      { workspaceId: workspace.id },
+    );
   }
 
   async revokeInvitation(
@@ -470,7 +476,7 @@ export class WorkspaceInvitationService {
       .execute();
 
     if (invitation) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.WORKSPACE_INVITE_REVOKED,
         resourceType: AuditResource.WORKSPACE_INVITATION,
         resourceId: invitation.id,
@@ -480,7 +486,9 @@ export class WorkspaceInvitationService {
             role: invitation.role,
           },
         },
-      });
+      },
+        { workspaceId },
+      );
     }
   }
 

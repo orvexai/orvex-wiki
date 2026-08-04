@@ -117,7 +117,7 @@ describe('TestPageHistoryRestoreEndpoint_HttpContractAndAuth (ENG-1369 fix1 F1)'
       spaceRepo,
     );
     const pageHistoryRepo = new PageHistoryRepo(db);
-    const orvexAudit = new OrvexAuditService(db);
+    const orvexAudit = new OrvexAuditService(db, new OutboxWriter(db));
 
     // Only the collab-gateway hand-off is faked (real content persistence,
     // same convention as the sibling service-level suite) — everything else

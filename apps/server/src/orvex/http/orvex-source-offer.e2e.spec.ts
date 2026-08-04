@@ -13,6 +13,7 @@ import * as path from 'node:path';
 // upstream modules (A-THIN).
 import { TransformHttpResponseInterceptor } from '../../common/interceptors/http-response.interceptor';
 import { OrvexRootModule } from '../orvex-root.module';
+import { DbFreeAuditKyselyStubModule } from '../__fixtures__/db-free-root-module-testing';
 import {
   WORKSPACE_EXEMPT_PATHS,
   registerWorkspaceExemptPreHandler,
@@ -72,7 +73,7 @@ describe('TestSourceOfferReachableAndCanonical (ENG-2500)', () => {
 
   async function boot({ cloudHook }: { cloudHook: boolean }): Promise<NestFastifyApplication> {
     const moduleRef = await Test.createTestingModule({
-      imports: [OrvexRootModule.register()],
+      imports: [OrvexRootModule.register(), DbFreeAuditKyselyStubModule],
     }).compile();
     const app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),

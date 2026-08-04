@@ -110,7 +110,7 @@ describe('ENG-1373: per-page ACL + filterAccessiblePageIds + audit', () => {
       pagePermissionRepo,
       spaceAbility,
     );
-    orvexAudit = new OrvexAuditService(db);
+    orvexAudit = new OrvexAuditService(db, new OutboxWriter(db));
     const pagePermissionService = new PagePermissionService(pagePermissionRepo);
     controller = new PagePermissionController(
       db,

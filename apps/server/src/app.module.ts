@@ -29,7 +29,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import KeyvRedis from '@keyv/redis';
 import { LoggerModule } from './common/logger/logger.module';
 import { ClsModule } from 'nestjs-cls';
-import { NoopAuditModule } from './integrations/audit/audit.module';
+import { OrvexAuditModule } from './core/audit/orvex-audit.module';
 import { ThrottleModule } from './integrations/throttle/throttle.module';
 import { OrvexRootModule } from './orvex/orvex-root.module';
 import { OrvexAttachmentsHostModule } from './orvex/attachments/orvex-attachments-host.module';
@@ -41,6 +41,7 @@ import { OrvexEventsModule } from './orvex/events/orvex-events.module';
 import { OrvexMigratorModule } from './orvex/extensions/orvex-migrator.module';
 import { InternalApiModule } from './core/internal-api/internal-api.module';
 import { OrvexSessionMintModule } from './core/session-mint/orvex-session-mint.module';
+import { isCloudModeAtBoot } from './orvex/config/orvex-cloud-mode';
 
 const enterpriseModules = [];
 try {
@@ -50,7 +51,7 @@ try {
     enterpriseModules.push(require('./ee/ee.module')?.EeModule);
   }
 } catch (err) {
-  if (process.env.CLOUD === 'true') {
+  if (isCloudModeAtBoot()) {
     // FR-W20 CLOUD-clean boot decouple: the multi-tenant hot path must NOT depend
     // on ee/. A missing ee/ under CLOUD=true is a loud warning, NEVER a
     // boot-killing process.exit — the engine continues.
@@ -68,7 +69,7 @@ try {
       middleware: { mount: true },
     }),
     LoggerModule,
-    NoopAuditModule,
+    OrvexAuditModule,
     CoreModule,
     DatabaseModule,
     EnvironmentModule,

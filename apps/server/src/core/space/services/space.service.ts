@@ -89,7 +89,7 @@ export class SpaceService {
       trx,
     );
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SPACE_CREATED,
       resourceType: AuditResource.SPACE,
       resourceId: space.id,
@@ -101,7 +101,10 @@ export class SpaceService {
           ...(space.isPersonal ? { isPersonal: true } : {}),
         },
       },
-    });
+    },
+      { workspaceId, actorId: authUser.id, actorType: 'user' },
+      trx,
+    );
 
     return { ...space, memberCount: 1 };
   }
@@ -140,6 +143,7 @@ export class SpaceService {
   async updateSpace(
     updateSpaceDto: UpdateSpaceDto,
     workspaceId: string,
+    authUser?: User,
   ): Promise<Space> {
     if (updateSpaceDto?.slug) {
       const slugExists = await this.spaceRepo.slugExists(
@@ -265,13 +269,17 @@ export class SpaceService {
     }
 
     if (Object.keys(after).length > 0) {
-      this.auditService.log({
+      await this.auditService.log({
         event: AuditEvent.SPACE_UPDATED,
         resourceType: AuditResource.SPACE,
         resourceId: updateSpaceDto.spaceId,
         spaceId: updateSpaceDto.spaceId,
         changes: { before, after },
-      });
+      },
+        authUser
+          ? { workspaceId, actorId: authUser.id, actorType: 'user' }
+          : { workspaceId },
+      );
     }
 
     return updatedSpace;
@@ -295,7 +303,11 @@ export class SpaceService {
     return this.spaceRepo.getSpacesInWorkspace(workspaceId, pagination);
   }
 
-  async deleteSpace(spaceId: string, workspaceId: string): Promise<void> {
+  async deleteSpace(
+    spaceId: string,
+    workspaceId: string,
+    authUser?: User,
+  ): Promise<void> {
     const space = await this.spaceRepo.findById(spaceId, workspaceId);
     if (!space) {
       throw new NotFoundException('Space not found');
@@ -314,7 +326,7 @@ export class SpaceService {
     });
     await this.attachmentQueue.add(QueueJob.DELETE_SPACE_ATTACHMENTS, space);
 
-    this.auditService.log({
+    await this.auditService.log({
       event: AuditEvent.SPACE_DELETED,
       resourceType: AuditResource.SPACE,
       resourceId: spaceId,
@@ -326,6 +338,10 @@ export class SpaceService {
           description: space.description,
         },
       },
-    });
+    },
+      authUser
+        ? { workspaceId, actorId: authUser.id, actorType: 'user' }
+        : { workspaceId },
+    );
   }
 }
