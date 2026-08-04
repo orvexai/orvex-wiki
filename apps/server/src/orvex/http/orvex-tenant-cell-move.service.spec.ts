@@ -248,6 +248,50 @@ describe('OrvexTenantCellMoveService', () => {
     ).rejects.toBeInstanceOf(BadGatewayException);
   });
 
+  it('MOVE auth failure is DISTINGUISHABLE from a generic dependency failure (ENG-3313)', async () => {
+    // The defect this closes: identity refusing THIS ENGINE's seam credential
+    // arrived as an untyped dependency failure and left as the byte-identical
+    // 502 a genuinely-down identity produces, so an operator reading the
+    // response could not tell "reconcile INTERNAL_API_BEARER_TOKEN" from
+    // "identity is unhealthy" — two unrelated remedies behind one message.
+    const authFailed = makeService({
+      principal: MACHINE_PRINCIPAL,
+      moveResult: () =>
+        Promise.reject(
+          new RegistryClientError('AUTH_FAILED', 'identity refused the bearer'),
+        ),
+    });
+    const authErr = await authFailed.service
+      .moveCell('svc-token', DTO, null)
+      .then(
+        () => {
+          throw new Error('expected a rejection, got a resolved value');
+        },
+        (e: unknown) => e,
+      );
+
+    const depFailed = makeService({
+      principal: MACHINE_PRINCIPAL,
+      moveResult: () =>
+        Promise.reject(new RegistryClientError('DEPENDENCY_ERROR', 'down')),
+    });
+    const depErr = await depFailed.service.moveCell('svc-token', DTO, null).then(
+      () => {
+        throw new Error('expected a rejection, got a resolved value');
+      },
+      (e: unknown) => e,
+    );
+
+    // It must NOT be a 401: the CALLER's bearer was already introspected and
+    // accepted, so answering 401 would blame the wrong credential entirely.
+    expect(authErr).not.toBeInstanceOf(UnauthorizedException);
+    // The two must not be the same opaque answer.
+    expect((authErr as Error).message).not.toBe((depErr as Error).message);
+    expect((authErr as Error).message).toContain(
+      'INTERNAL_API_BEARER_TOKEN',
+    );
+  });
+
   it('VERIFY dependency failure (post-move read-back) maps to 502, not a fabricated targetCellHasData', async () => {
     const t = makeService({
       principal: MACHINE_PRINCIPAL,
