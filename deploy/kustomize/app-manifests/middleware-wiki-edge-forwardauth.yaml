@@ -4,12 +4,23 @@
 #
 # Phase-B shape (WAVE-4-EXECUTION-PLAN.md §5 Phase B): sanitize -> target ->
 # authn, NO strip-bearer. The identity-minted assertion is injected
-# ALONGSIDE whatever auth this service already performs on the gated path —
-# this repo does NOT yet consume the assertion anywhere (see
-# apps/server/src/orvex/edge-auth: EdgeAssertionVerifier/EdgeAuthModule are
-# code-complete but deliberately unwired, ENG-3063), so this attach is
-# strictly additive: a request that reaches the gated rule below is
-# unaffected except for one extra header.
+# ALONGSIDE whatever auth this service already performs on the gated path.
+#
+# UPDATED (ADR-0049 Wave-5, ENG-3236, PRs #130/#131 — dual-accept promoted
+# dev->main 2026-07-23): the blanket "this repo does NOT yet consume the
+# assertion anywhere" claim this paragraph made at Phase-B time (ENG-3063
+# flip step 1) is no longer true fleet-wide. `apps/server/src/orvex/edge-auth`
+# (EdgeAssertionVerifier/EdgeAuthModule) IS wired and live — but as the
+# `EDGE_ASSERTION_VERIFIER` dependency `OrvexSessionMintModule` composes for
+# the PUBLIC, FA-EXEMPT `POST /api/orvex/session/exchange` route (see that
+# controller's own docstring), NOT as a consumer reached through THIS
+# middleware's gated `/internal/*` rule below. `InternalApiAuthGuard`
+# (ENG-1957) still gates `/internal/*` purely on the shared bearer token
+# (`internal-api-auth.guard.ts`) and does not read `X-Orvex-Assertion` — so
+# for THIS gated subtree specifically, the attach remains strictly additive:
+# a request that reaches the gated rule below is unaffected except for one
+# extra header. Wiring `/internal/*` itself to authorize on the assertion
+# (not just carry it) is a distinct, later, un-ticketed piece of work.
 #
 # WHY ONLY `/internal` IS GATED (not the whole route, unlike a pure M2M
 # service): the wiki engine is docmost — the overwhelming majority of its
