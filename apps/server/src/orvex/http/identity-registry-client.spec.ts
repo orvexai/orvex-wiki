@@ -327,3 +327,99 @@ describe('HttpIdentityRegistryClient — the reserve seam (ENG-3350)', () => {
     expect((err as RegistryClientError).message).toContain('501');
   });
 });
+
+describe('HttpIdentityRegistryClient — the move seam (ENG-3427)', () => {
+  // THE DEFECT THIS CLOSES: moveTenantCell used to POST /v1/registry/move
+  // with NO Authorization header at all. That route is machine-only
+  // (requireMachinePrincipal — an identity-minted "svc:" client-credentials
+  // grant this engine holds in no cell, exactly like reserveTenant's own
+  // ENG-3350 defect above), so identity denied every call with a silent 401
+  // (no server-side log, by design) that this client's own status switch
+  // collapsed into a generic DEPENDENCY_ERROR, surfaced by the controller as
+  // an unhelpful 502 "identity registry move failed" — the M14 gate's AC6
+  // (tenant-move) step, red for this reason, not the M14_SOURCE_CELL_ID
+  // mismatch its own CI comment used to suspect.
+  it('calls the ORIGIN-LOCKED /internal route carrying the shared engine bearer, not the machine-only /v1 route', async () => {
+    const calls: RecordedCall[] = [];
+    const client = newClient(
+      respondWith(
+        200,
+        JSON.stringify({ tenantId: TENANT, cellId: 'us1a' }),
+        calls,
+      ),
+    );
+
+    const result = await client.moveTenantCell({
+      moveId: 'm1',
+      tenantId: TENANT,
+      fromCell: 'eu1a',
+      toCell: 'us1a',
+    });
+
+    expect(result).toEqual({ tenantId: TENANT, cellId: 'us1a' });
+    expect(calls).toHaveLength(1);
+    // NOT /v1/registry/move: that route is machine-only and this engine
+    // holds no "svc:" client-credentials grant in any cell.
+    expect(calls[0].url).toBe(
+      'http://identity.invalid/internal/registry/move',
+    );
+    expect(calls[0].headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('refuses to call at all when the shared seam credential is unset (fail closed)', async () => {
+    const calls: RecordedCall[] = [];
+    const client = newClient(
+      respondWith(
+        200,
+        JSON.stringify({ tenantId: TENANT, cellId: 'us1a' }),
+        calls,
+      ),
+      null,
+    );
+
+    const err = await captureError(
+      client.moveTenantCell({
+        moveId: 'm1',
+        tenantId: TENANT,
+        fromCell: 'eu1a',
+        toCell: 'us1a',
+      }),
+    );
+
+    expect((err as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
+    expect((err as RegistryClientError).message).toContain(
+      'INTERNAL_API_BEARER_TOKEN',
+    );
+    // It must not have gone out unauthenticated "just in case".
+    expect(calls).toHaveLength(0);
+  });
+
+  it('maps identity 404 to NOT_FOUND and 409 to STALE_MOVE', async () => {
+    const notFound = await captureError(
+      newClient(
+        respondWith(404, JSON.stringify({ error: 'tenant not found' })),
+      ).moveTenantCell({
+        moveId: 'm1',
+        tenantId: TENANT,
+        fromCell: 'eu1a',
+        toCell: 'us1a',
+      }),
+    );
+    expect((notFound as RegistryClientError).code).toBe('NOT_FOUND');
+
+    const stale = await captureError(
+      newClient(
+        respondWith(
+          409,
+          JSON.stringify({ error: 'stale move: registry has moved on' }),
+        ),
+      ).moveTenantCell({
+        moveId: 'm1',
+        tenantId: TENANT,
+        fromCell: 'eu1a',
+        toCell: 'us1a',
+      }),
+    );
+    expect((stale as RegistryClientError).code).toBe('STALE_MOVE');
+  });
+});
