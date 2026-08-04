@@ -9,7 +9,9 @@ import {
 } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import {
+  WORKSPACE_EXEMPT_EXACT_PATHS,
   WORKSPACE_EXEMPT_PATHS,
+  isWorkspaceExempt,
   registerWorkspaceExemptPreHandler,
 } from './orvex-workspace-exempt-paths';
 
@@ -55,7 +57,45 @@ class DummyCompositionTierController {
     return { ok: true };
   }
   @Post('spaces/')
+  spacesList() {
+    return { ok: true };
+  }
+  // The EIGHT sibling SpaceController routes (core/space/space.controller.ts
+  // `@Controller('spaces')`) that wiki-api's engine client NEVER calls —
+  // `grep 'BaseURL+"/api/' internal/clients/clients.go` yields exactly one
+  // `/api/spaces...` entry, `POST /api/spaces/` (clients.go:950, ListSpaces).
+  // Mounted at their REAL paths so the prefix-vs-exact boundary is asserted
+  // against the actual route shapes, not a stand-in.
+  @Post('spaces/info')
+  spacesInfo() {
+    return { ok: true };
+  }
+  @Post('spaces/create')
   spacesCreate() {
+    return { ok: true };
+  }
+  @Post('spaces/update')
+  spacesUpdate() {
+    return { ok: true };
+  }
+  @Post('spaces/delete')
+  spacesDelete() {
+    return { ok: true };
+  }
+  @Post('spaces/members')
+  spacesMembers() {
+    return { ok: true };
+  }
+  @Post('spaces/members/add')
+  spacesMembersAdd() {
+    return { ok: true };
+  }
+  @Post('spaces/members/remove')
+  spacesMembersRemove() {
+    return { ok: true };
+  }
+  @Post('spaces/members/change-role')
+  spacesMembersChangeRole() {
     return { ok: true };
   }
   // Stand-in for orvex-page-supersede.controller.ts's real route — same
@@ -78,6 +118,25 @@ describe('TestEngineCompositionTierExempt (ENG-3504)', () => {
     '/api/pages/create',
     '/api/pages/upsert',
     '/api/spaces/',
+  ];
+
+  /**
+   * The routes that must STAY guarded. The eight are every OTHER
+   * `SpaceController` route — the exact set a prefix entry `'/api/spaces/'`
+   * silently admitted before this fix, and the reason the composition-tier
+   * exemptions are exact-matched rather than prefix-matched. The ninth is the
+   * `orvex/pages` sibling proving the same for that family.
+   */
+  const NOT_EXEMPT_CONTROL_ROUTES: readonly string[] = [
+    '/api/spaces/info',
+    '/api/spaces/create',
+    '/api/spaces/update',
+    '/api/spaces/delete',
+    '/api/spaces/members',
+    '/api/spaces/members/add',
+    '/api/spaces/members/remove',
+    '/api/spaces/members/change-role',
+    '/api/orvex/pages/supersede',
   ];
 
   async function boot(
@@ -124,19 +183,43 @@ describe('TestEngineCompositionTierExempt (ENG-3504)', () => {
     },
   );
 
-  it('ENG-3504 control — /api/orvex/pages/supersede (NOT added to the allow-list) STILL 404s "Workspace not found" under the identical CLOUD hook', async () => {
+  it.each(NOT_EXEMPT_CONTROL_ROUTES)(
+    'ENG-3504 control — %s (NOT on either allow-list) STILL 404s "Workspace not found" under the identical CLOUD hook',
+    async (route) => {
+      const app = await boot();
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: route,
+          headers: { host: 'no-such-workspace.example.com' },
+        });
+        expect(res.statusCode).toBe(404);
+        expect(res.json()).toMatchObject({ message: 'Workspace not found' });
+      } finally {
+        await app.close();
+      }
+    },
+  );
+
+  it('ENG-3504 — `/api/spaces` (no trailing slash) is exempt too: `ignoreTrailingSlash` routes it to the SAME list handler, so the exact matcher must agree with the router', async () => {
     const app = await boot();
     try {
       const res = await app.inject({
         method: 'POST',
-        url: '/api/orvex/pages/supersede',
+        url: '/api/spaces',
         headers: { host: 'no-such-workspace.example.com' },
       });
-      expect(res.statusCode).toBe(404);
-      expect(res.json()).toMatchObject({ message: 'Workspace not found' });
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toEqual({ ok: true });
     } finally {
       await app.close();
     }
+  });
+
+  it('ENG-3504 — a query string does not defeat the exact matcher (path is compared, not the raw URL)', () => {
+    expect(isWorkspaceExempt('/api/pages/create?trace=1')).toBe(true);
+    // ...and does not smuggle a non-exempt path past it either.
+    expect(isWorkspaceExempt('/api/spaces/delete?x=/api/spaces/')).toBe(false);
   });
 
   it('ENG-3504 — under a RESOLVED workspace Host, both the new routes and the control route are equally reachable (the hook only gates the UNRESOLVED case)', async () => {
@@ -154,7 +237,10 @@ describe('TestEngineCompositionTierExempt (ENG-3504)', () => {
         });
     });
     try {
-      for (const route of [...NEW_EXEMPT_ROUTES, '/api/orvex/pages/supersede']) {
+      for (const route of [
+        ...NEW_EXEMPT_ROUTES,
+        ...NOT_EXEMPT_CONTROL_ROUTES,
+      ]) {
         const res = await app.inject({
           method: 'POST',
           url: route,
@@ -167,13 +253,27 @@ describe('TestEngineCompositionTierExempt (ENG-3504)', () => {
     }
   });
 
-  it('ENG-3504 — the 5 new composition-tier routes are on the committed allow-list, and the parameterized apply-ops/apply-doc routes are deliberately absent (no prefix widening)', () => {
+  it('ENG-3504 — the 5 composition-tier routes are on the EXACT list (not the prefix list), and no entry anywhere is a prefix of a route that must stay guarded', () => {
     for (const route of NEW_EXEMPT_ROUTES) {
-      expect(WORKSPACE_EXEMPT_PATHS).toContain(route);
+      expect(WORKSPACE_EXEMPT_EXACT_PATHS).toContain(route);
+      // The bug this test pins: they must NOT be on the prefix list, where
+      // `'/api/spaces/'` admitted all nine SpaceController routes.
+      expect(WORKSPACE_EXEMPT_PATHS).not.toContain(route);
     }
-    expect(WORKSPACE_EXEMPT_PATHS).not.toContain('/api/orvex/pages/');
-    expect(WORKSPACE_EXEMPT_PATHS.some((p) => p.startsWith('/api/orvex/pages/'))).toBe(
-      false,
-    );
+    // Nothing on the PREFIX list may be a prefix of a control route — this is
+    // the invariant, checked structurally rather than by enumerating today's
+    // entries, so a future prefix addition that re-widens `/api/spaces/` or
+    // `/api/orvex/pages/` reds here.
+    for (const guarded of NOT_EXEMPT_CONTROL_ROUTES) {
+      expect(
+        WORKSPACE_EXEMPT_PATHS.filter((p) => guarded.startsWith(p)),
+      ).toEqual([]);
+      expect(isWorkspaceExempt(guarded)).toBe(false);
+    }
+    expect(
+      WORKSPACE_EXEMPT_EXACT_PATHS.some((p) =>
+        p.startsWith('/api/orvex/pages/'),
+      ),
+    ).toBe(false);
   });
 });
