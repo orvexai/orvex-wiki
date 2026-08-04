@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import { createHash } from 'node:crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
   CamelCasePlugin,
   FileMigrationProvider,
@@ -437,8 +438,32 @@ describe('PageServiceBlockIdChokepointSpec', () => {
     });
   });
 
-  it('AC7 — malformed ProseMirror json is rejected with INVALID_CONTENT_FORMAT', async () => {
-    await expect(
+  /**
+   * ENG-3275 regression guard — the defect mechanism, recorded so a
+   * re-regression is recognisable rather than merely red.
+   *
+   * ENG-2487 put the DfM opaque fence INSIDE `jsonToNode`
+   * (`collaboration.util.ts:148-165`): on `RangeError: Unknown node type` it
+   * rewrites the unknown nodes into a `:::dfm-opaque` paragraph and re-parses,
+   * so `jsonToNode` STOPPED THROWING for a document whose node types are
+   * unknown. `parseProsemirrorContent` guarded only that `jsonToNode` probe;
+   * `stampBlockIds` then parsed the RAW (unfenced) json against the same
+   * schema and threw a bare `RangeError` OUTSIDE the guard — so the input
+   * ENG-1397 AC7 specifies as a typed 400 escaped as an unhandled 500.
+   *
+   * The fix brought `stampBlockIds` under the SAME typed guard. Both parses
+   * ask the same validity question, so both must produce the same typed
+   * rejection.
+   *
+   * The assertions below are deliberately two-sided: the `toMatchObject`
+   * pins the typed 400 body, and the explicit try/catch pins the THROWN TYPE.
+   * A re-regression re-raises the bare `RangeError`, whose `.response` is
+   * undefined — `toMatchObject` alone would still fail, but it would fail
+   * indistinguishably from a code rename. `not.toBeInstanceOf(RangeError)`
+   * names the actual defect class so the failure is self-describing.
+   */
+  it('AC7 (ENG-3275 regression) — malformed ProseMirror json is rejected with INVALID_CONTENT_FORMAT, never a 500 RangeError', async () => {
+    const malformedUpsert = () =>
       service.upsert(
         {
           spaceId,
@@ -448,10 +473,126 @@ describe('PageServiceBlockIdChokepointSpec', () => {
         } as any,
         userId,
         workspaceId,
-      ),
-    ).rejects.toMatchObject({
+      );
+
+    await expect(malformedUpsert()).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'INVALID_CONTENT_FORMAT' }),
     });
+
+    // Thrown-TYPE assertion: a re-regression surfaces the raw `RangeError`
+    // from `stampBlockIds` (a 500), not the typed `BadRequestException` (400).
+    let caught: unknown;
+    try {
+      await malformedUpsert();
+      throw new Error(
+        'expected the malformed-ProseMirror upsert to reject, but it resolved',
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(BadRequestException);
+    expect(caught).not.toBeInstanceOf(RangeError);
+    expect((caught as BadRequestException).getStatus()).toBe(400);
+  });
+
+  /**
+   * ENG-3275 LEG 2 — the AC7 guard must not become a blanket error launderer.
+   *
+   * The guard wraps BOTH `jsonToNode` and `stampBlockIds`. Catching every
+   * error from that block and rewriting it to a 400 INVALID_CONTENT_FORMAT
+   * would tell the caller their document was malformed even when the real
+   * fault was internal to `stampBlockIds` — a false accusation against the
+   * client, and a real server bug hidden behind a 4xx that never pages
+   * anyone.
+   *
+   * The schema-validity family that legitimately maps to 400 is verified to
+   * arrive as `RangeError` from ProseMirror's `Node.fromJSON` ("Unknown node
+   * type", "Invalid input for Node.fromJSON", "Invalid text node in JSON",
+   * "There is no mark type x in this schema"). A generic `Error` is NOT in
+   * that family, so it must propagate as a 500 rather than be relabelled.
+   *
+   * The fault is injected on the shared `collaboration.util` module binding
+   * that `parseProsemirrorContent` calls, so the failure originates inside
+   * the guarded block exactly as a genuine internal fault would.
+   */
+  it('ENG-3275 — a non-validity internal fault inside the guarded block is NOT laundered into a 400', async () => {
+    const collabUtil = require('../../../../collaboration/collaboration.util');
+    const internalFault = new Error('simulated internal fault in stampBlockIds');
+    const stampSpy = jest
+      .spyOn(collabUtil, 'stampBlockIds')
+      .mockImplementation(() => {
+        throw internalFault;
+      });
+
+    try {
+      // Valid ProseMirror — `jsonToNode` succeeds, so the ONLY error comes
+      // from the injected internal fault, not from a schema problem.
+      const validContent = {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Valid doc' }] },
+        ],
+      };
+
+      let caught: unknown;
+      try {
+        await (service as any).parseProsemirrorContent(validContent, 'json');
+        throw new Error(
+          'expected the injected internal fault to propagate, but the call resolved',
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      // The internal fault propagates verbatim — same error identity, and
+      // crucially NOT rewritten into a client-blaming 400.
+      expect(caught).toBe(internalFault);
+      expect(caught).not.toBeInstanceOf(BadRequestException);
+      expect((caught as any)?.response?.code).toBeUndefined();
+      expect(stampSpy).toHaveBeenCalled();
+    } finally {
+      stampSpy.mockRestore();
+    }
+  });
+
+  /**
+   * ENG-3275 LEG 2 — an ALREADY-typed HttpException raised inside the guarded
+   * block keeps its own decided status and body instead of being flattened
+   * into INVALID_CONTENT_FORMAT.
+   */
+  it('ENG-3275 — an HttpException from inside the guarded block is re-thrown untouched', async () => {
+    const collabUtil = require('../../../../collaboration/collaboration.util');
+    const typedFailure = new ConflictException({ code: 'SOME_OTHER_CODE' });
+    const stampSpy = jest
+      .spyOn(collabUtil, 'stampBlockIds')
+      .mockImplementation(() => {
+        throw typedFailure;
+      });
+
+    try {
+      const validContent = {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Valid doc' }] },
+        ],
+      };
+
+      let caught: unknown;
+      try {
+        await (service as any).parseProsemirrorContent(validContent, 'json');
+        throw new Error(
+          'expected the typed failure to propagate, but the call resolved',
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBe(typedFailure);
+      expect((caught as ConflictException).getStatus()).toBe(409);
+      expect(caught).not.toBeInstanceOf(BadRequestException);
+    } finally {
+      stampSpy.mockRestore();
+    }
   });
 });
 
