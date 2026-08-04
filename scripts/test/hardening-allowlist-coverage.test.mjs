@@ -2,7 +2,7 @@
 // driven sub-tests.
 //
 // Behaviour-through-interface (CS §4.2): asserts on the REAL committed
-// ledger's own shape (15 entries, each with a resolvable anchor) and on the
+// ledger's own shape (18 entries, each with a resolvable anchor) and on the
 // validator's/harness's pass-fail OUTCOMES + the FR-30 gate's recognition
 // outcome — never on internal parsing-helper names. No mock of the ledger
 // reader (CS §5 ❌#4): the real committed docs/runbooks/hardening-allowlist.json
@@ -34,14 +34,17 @@ const LEDGER = path.join(REPO_ROOT, 'docs', 'runbooks', 'hardening-allowlist.jso
 // TestHardeningAllowlistClassCoverage — the DoD gate (AC1 + AC5)
 // ---------------------------------------------------------------------------
 
-test('TestHardeningAllowlistClassCoverage: the real committed ledger has exactly 15 items, every anchor resolvable', () => {
+test('TestHardeningAllowlistClassCoverage: the real committed ledger has exactly 18 items, every anchor resolvable', () => {
   const result = validateHardeningLedger(REPO_ROOT);
   assert.deepEqual(result.errors, []);
-  assert.equal(result.itemCount, 15);
+  assert.equal(result.itemCount, 18);
   assert.equal(result.ok, true);
 });
 
 test('TestHardeningAllowlistClassCoverage: all 15 architecture-named items are present by name', () => {
+  // The architecture names 15; the ledger also carries the 3 ENG-3287 client
+  // guards. Presence of the named 15 is what this asserts — additions are
+  // policed by the exactly-18 count check above, not here.
   const items = JSON.parse(readFileSync(LEDGER, 'utf8')).items.map((i) => i.name);
   for (const name of [
     'ifVersion CAS',
@@ -70,14 +73,14 @@ test('TestBrokenAnchorFailsLedgerValidationNamingItem (AC5): a broken fixture le
   const named = result.errors.find((e) => e.item === 'move-cycle guard');
   assert.ok(named, 'the unresolved item must be NAMED in the failure');
   assert.match(named.problem, /does not exist/);
-  // and the broken fixture also fails the exactly-15 count check
-  assert.ok(result.errors.some((e) => e.problem.includes('expected exactly 15')));
+  // and the broken fixture also fails the exactly-N count check
+  assert.ok(result.errors.some((e) => e.problem.includes('expected exactly 18')));
 });
 
 test('the ledger validator CLI (--validate-ledger) exits 0 against the real tree', () => {
   const res = spawnSync('node', [HARNESS, '--validate-ledger'], { cwd: REPO_ROOT, encoding: 'utf8' });
   assert.equal(res.status, 0, res.stderr);
-  assert.match(res.stdout, /OK: hardening allow-list — 15\/15 items/);
+  assert.match(res.stdout, /OK: hardening allow-list — 18\/18 items/);
 });
 
 // ---------------------------------------------------------------------------
@@ -142,7 +145,7 @@ test('TestHardeningAnchorEditNotFlaggedByFr30Gate (AC4): a REAL hardening item e
   // class:"hardening" rows — not a fixture stand-in.
   const ledger = loadFr30Ledger(REPO_ROOT);
   const hardeningRows = ledger.rows.filter((r) => r.class === 'hardening');
-  assert.equal(hardeningRows.length, 15);
+  assert.equal(hardeningRows.length, 18);
 
   const itemPath = 'apps/server/src/core/page/if-version.util.ts';
   assert.ok(hardeningRows.some((r) => r.path === itemPath));

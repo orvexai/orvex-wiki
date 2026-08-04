@@ -397,9 +397,26 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
       .returning(['id', 'workspaceId'])
       .executeTakeFirstOrThrow();
 
-    // Entitlement read BEFORE the upgrade (records the principal key).
+    // `billingPort` is a SUITE-scoped recorder: AC1 (PERSONAL_TENANT) and AC2
+    // (TEAM_TENANT) already resolved their own tenants through it before this
+    // test runs. Everything AC3 asserts about the seat key is about the reads
+    // it makes ITSELF, so mark the recorder's high-water line here and assert
+    // only on the slice from here on. (The pre-fix assertion compared the
+    // WHOLE suite-wide recording against a single key — a claim AC3 never
+    // makes, and one that could only hold while AC3 happened to run first.)
+    const recordedBeforeThisTest = billingPort.principals.length;
+
+    // Entitlement read BEFORE the upgrade (records the principal key). Uses a
+    // dedicated cache so the read genuinely reaches the billing port inside
+    // this test's window — the suite-shared `entitlements` instance already
+    // holds a warm entry for this tenant from AC1, so it would record nothing
+    // and the before/after pair this AC is built on would be half-empty.
+    const preUpgradeReader = new EntitlementService(
+      billingPort as any,
+      new InMemoryEntitlementCache() as any,
+    );
     await expect(
-      entitlements.hasFeature(PERSONAL_TENANT, 'composer'),
+      preUpgradeReader.hasFeature(PERSONAL_TENANT, 'composer'),
     ).resolves.toBe(true);
 
     // The upgrade-pass — the exported entry point under test.
@@ -445,10 +462,17 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
     await expect(
       cacheBuster.hasFeature(PERSONAL_TENANT, 'composer'),
     ).resolves.toBe(true);
-    expect(billingPort.principals.length).toBeGreaterThanOrEqual(2);
-    const keys = billingPort.principals.map((p) => p.principal_id);
+    const keys = billingPort.principals
+      .slice(recordedBeforeThisTest)
+      .map((p) => p.principal_id);
+    // Billing was asked twice inside this test — once before the upgrade,
+    // once after it …
+    expect(keys.length).toBeGreaterThanOrEqual(2);
+    // … and both times about the SAME key …
     expect(new Set(keys).size).toBe(1);
+    // … which is the unchanged workspace id, never the minted org id.
     expect(keys[0]).toBe(PERSONAL_TENANT);
+    expect(keys).not.toContain(MINTED_ORG_ID);
 
     // Idempotency: a second upgrade is a no-op, never a re-mint.
     const again = await upgrade.upgradeToTeam({ workspaceId: PERSONAL_TENANT });

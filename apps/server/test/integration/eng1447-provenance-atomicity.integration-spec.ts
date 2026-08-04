@@ -38,6 +38,7 @@ import { OutboxWriter } from 'src/orvex/events/outbox/outbox-writer.service';
 import { PageService } from 'src/core/page/services/page.service';
 import { OrvexPageProvenanceService } from 'src/core/page-provenance/orvex-page-provenance.service';
 import { OrvexAuditService } from 'src/core/audit/orvex-audit.service';
+import { nonBlockingEntitlementServiceDouble } from 'src/orvex/entitlement/testing/entitlement-service.double';
 import {
   seedPage,
   seedSpace,
@@ -87,10 +88,10 @@ describe('ENG-1447 F1 — REST provenance stamp is atomic with the content write
       { addPageWatchers: async () => {} } as any, // watcherService
       {} as any, // transclusionService
       {} as any, // idempotencyStore — casOpts never passed on this path, so claim/record are never invoked
-      {
-        assertWithinQuota: async () => undefined,
-        hasFeature: async () => true,
-      } as any, // entitlementService — this spec exercises provenance atomicity, not F-QUOTA
+      // entitlementService — this spec exercises provenance atomicity, not
+      // F-QUOTA. ENG-2493: shared, typed double (entitlement-service.double.ts)
+      // so quota-surface drift reds at compile time in one place.
+      nonBlockingEntitlementServiceDouble(),
     );
 
     provenanceService = new OrvexPageProvenanceService(

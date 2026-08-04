@@ -14,7 +14,7 @@
 // Usage:
 //   node scripts/dry-run-overlay-import.mjs --validate-ledger
 //       validate docs/runbooks/hardening-allowlist.json against the tree:
-//       exactly 15 items, every anchor resolves (path exists + marker
+//       exactly 18 items, every anchor resolves (path exists + marker
 //       present). Exit 1 names each unresolved item.
 //   node scripts/dry-run-overlay-import.mjs --fixture <dir>
 //       walk the six stages against a fixture input dir. Exit 1 names the
@@ -28,7 +28,11 @@ import { runFixture as runFr30Fixture } from './check-fr30-divergence.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const HARDENING_LEDGER_PATH = 'docs/runbooks/hardening-allowlist.json';
-const EXPECTED_ITEM_COUNT = 15;
+// Raised 15 -> 18 under ENG-3287 (the three null-userAtom client guards from
+// PR #148 admitted to the A-HARDENING class). This constant is the
+// no-silent-addition tripwire: growing the ledger MUST be a deliberate,
+// reviewed edit here as well.
+const EXPECTED_ITEM_COUNT = 18;
 
 /** The six runbook stages, fixed order (FR-W23). Deploy is deliberately NOT
  * a stage: it is the human-gated action after the sequence completes. */

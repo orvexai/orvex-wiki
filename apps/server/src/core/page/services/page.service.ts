@@ -1790,8 +1790,24 @@ export class PageService {
 
     const prosemirrorJson: any = content;
 
+    // AC7 + AC2 — validity and stamping are ONE guarded step (ENG-3275).
+    // ENG-2487 put the DfM opaque fence INSIDE `jsonToNode`: on
+    // `RangeError: Unknown node type` it rewrites the unknown nodes into a
+    // `:::dfm-opaque` paragraph and re-parses, so `jsonToNode` no longer
+    // throws for a document whose node types are unknown. `stampBlockIds`
+    // then parsed the RAW (unfenced) json against the same schema and threw
+    // the bare `RangeError` — which, sitting outside this guard, escaped as
+    // an unhandled 500 for exactly the input AC7 specifies as a typed 400.
+    // Both parses ask the SAME validity question, so both live under the same
+    // typed rejection. ENG-3275 owns the deeper decision (should the write
+    // chokepoint ACCEPT a fenced document instead of rejecting it?); until
+    // that is ruled, this restores the documented ENG-1397 AC7 contract and
+    // removes the 500.
     try {
       jsonToNode(prosemirrorJson);
+      // AC2 — stamp missing block ids at the chokepoint.
+      const { content: stamped } = stampBlockIds(prosemirrorJson);
+      return stamped;
     } catch (err) {
       // AC7
       throw new BadRequestException({
@@ -1799,10 +1815,6 @@ export class PageService {
         message: 'Invalid content format',
       });
     }
-
-    // AC2 — stamp missing block ids at the chokepoint.
-    const { content: stamped } = stampBlockIds(prosemirrorJson);
-    return stamped;
   }
 
   /**

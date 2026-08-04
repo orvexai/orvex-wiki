@@ -40,6 +40,100 @@ resources:
   - platform-resources/redis-claim.yaml                 # wave 3
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Components — the shared image-injection component (AD-29 / ENG-3296 /
+# ENG-3327).
+#
+# This overlay no longer says what an Orvex image is called. The container
+# image in app-manifests/deployment.yaml is written as the three-token shape
+# `IMAGE_REGISTRY/IMAGE_PROJECT/orvex-wiki-engine:IMAGE_TAG`, and the component
+# stamps the registry host, the Harbor project and the derived
+# `{branchSlug}-{shortSha}` tag — the SAME three segments
+# `orvex-derive-image-ref` emits inside `orvex-shared-build`. Only
+# `orvex-wiki-engine`, which is genuinely this service's AD-31 identity, stays
+# a literal.
+#
+# MATERIALIZED IN-REPO COPY (PO-2026-07-30-1), never a cross-repo reference —
+# ArgoCD's repo-server silently DROPS a remote component it cannot resolve and
+# renders on without it, Healthy and wrong. The copy is held byte-identical to
+# my-idp-apps' canonical `components/image-injection/` by
+# `./manifest-copy-check.sh`, which is in `ci-success`'s `needs:`.
+#
+# That gate is a COMMITTED SCRIPT here, not the reusable workflow every private
+# sibling calls, because this repo is PUBLIC and GitHub refuses a public repo
+# calling a private repo's reusable workflow — the same constraint
+# `substrate-lint-drift.sh` beside it already carries (ENG-3327).
+#
+# The CMP plugin APPENDS the resource-profile component (`components/staging`
+# in dev) to this list rather than replacing it; the two are independent.
+#
+# ── components/telemetry-env (AD-25 / ENG-3103) ────────────────────────────
+# The ONE family app-telemetry OTLP target. Same materialized shape and the
+# same regen gate as image-injection above, for the same public-repo reason.
+#
+# This is the LIVE fix for the black hole: this engine's ~1,918 LOC of OTel
+# used to export into a collector in the orvex-studio-console namespace that
+# exists in no namespace at all, so every span, metric and log was silently
+# discarded. (The host string itself is deliberately not re-typed here — the
+# one place in this repo that still spells it is the render gate that asserts
+# its ABSENCE, otlp_single_endpoint_test.go, the same way contracts' obs-gate
+# keeps it in rules.yaml.) ENG-3103's first attempt (PR #135) adopted the shared
+# component by CROSS-REPO reference and was reverted the same day
+# (`ef16602f`) — `public-runners` hold no credential for the PRIVATE
+# my-idp-apps, so `kustomize build` died on `could not read Username`. The
+# workaround that followed hand-set the endpoint as a per-service literal in
+# app-manifests/configmap-env.yaml, which is the exact shape AD-25 forbids
+# ("MUST NOT appear in any per-service ConfigMap, Deployment or chart values
+# file"). Both are now closed by materializing instead: no cross-repo read at
+# render time, no private-repo credential at CI time, and no literal.
+#
+# The component carries BOTH halves — the `telemetry-env` ConfigMap whose one
+# key IS the env var name, and the JSON6902 patch that appends
+# `configMapRef: telemetry-env` to `containers[0].envFrom`. So the reference
+# below is the ENTIRE integration; nothing in this repo names the variable.
+# app-manifests/deployment.yaml already carries a populated `envFrom:` list
+# (the precondition the component's own header states its `-` append needs).
+# ═══════════════════════════════════════════════════════════════════════════
+components:
+  - components/image-injection
+  - components/telemetry-env
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Harbor project — RULING (2026-07-30, ENG-3327): the AGPL engine image moves
+# to the `orvex-studio` Harbor project, i.e. the component's default is taken
+# unchanged and this overlay adds NOTHING.
+#
+# The first draft of this change kept the engine in the `orvex-wiki` project
+# and patched the component's `imageProject` key here — the mechanism the
+# component's own header documents ("a service published into a different
+# project patches this key in its own overlay ... it never edits this file").
+#
+# MEASURED: that mechanism does not work. A `patches:` entry at this level is
+# applied AFTER the component's `replacements` have already stamped the image
+# string, so the render still carries `orvex-studio` — silently, exit 0, no
+# warning. Verified with kustomize v5.8.1 against this exact tree, including
+# with the target's `namespace: image-ref` supplied (without it the target
+# matches nothing at all, which a JSON6902 `replace` on a bogus path proves by
+# NOT erroring). The component's documented override is a dead end, and that
+# is filed against the component rather than worked around here (ENG-3337).
+#
+# Given the override cannot work, the choice was: change the shared component
+# (new hashes, roster regen, every consumer re-materializes) or take the
+# default. Taking the default, because the Harbor project is a PUBLISHING
+# LOCATION, not the licence boundary. The AGPL boundary is enforced where it
+# is actually checkable — the source repo, `engine-license-guard`,
+# `license-header-check` and `engine-only-import-guard`, all of which run in
+# this file — and none of that changes with the project a built layer sits in.
+#
+# The old `orvex-wiki/orvex-wiki` images are LEFT IN PLACE; nothing is deleted,
+# and an older revision remains pullable by digest.
+#
+# `tekton/orvex-wiki-trigger.yaml` carries `harbor-project: orvex-studio` to
+# match. That agreement between the two halves is precisely what ENG-3296
+# measured and found broken fleet-wide, so it is asserted, not assumed:
+# `image-injection-conform.sh` compares the rendered string against the string
+# the derive Task emits.
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Replacements — inject cluster-config values at build time.
 # ═══════════════════════════════════════════════════════════════════════════
 replacements:
@@ -65,20 +159,16 @@ replacements:
         fieldPaths:
           - metadata.name
 
-  # ─── Container image tag: PLACEHOLDER_BRANCH_TAG → branchSlug ───────────
-  - source:
-      kind: ConfigMap
-      name: cluster-config
-      fieldPath: data.branchSlug
-    targets:
-      - select:
-          kind: Deployment
-          name: orvex-wiki
-        fieldPaths:
-          - spec.template.spec.containers.0.image
-        options:
-          delimiter: ":"
-          index: 1
+  # NOTE(AD-29): the image-tag replacement that used to live here — branchSlug
+  # into the tag — is DELETED, not moved. It was this repo's own opinion about
+  # what an Orvex image is called, and it disagreed with the shared pipeline's
+  # on the repository path AND on the tag: it rendered
+  # `…/orvex-wiki/orvex-wiki:dev` while `orvex-derive-image-ref` pushes
+  # `…/orvex-wiki/orvex-wiki-engine:dev-<sha>`. Keeping it alongside
+  # components/image-injection would not merely be redundant — both target
+  # `containers.*.image`, so the two would fight over the same field. There is
+  # exactly one producer of an image reference in this fleet, and it is not
+  # this file.
 
   # ─── Load-balancer target for external-dns (HTTPRoute) ──────────────────
   - source:

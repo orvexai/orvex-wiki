@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -23,7 +24,7 @@ registerBlockSchema('mermaid', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     diagram: {
       type: 'string',
       minLength: 1,
@@ -49,7 +50,7 @@ registerBlockSchema('excalidraw', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     diagram: {
       type: 'string',
       minLength: 1,
@@ -70,7 +71,7 @@ registerBlockSchema('excalidraw-scene', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     scene: {
       type: 'string',
       minLength: 1,
@@ -96,7 +97,7 @@ registerBlockSchema('drawio', {
       default: 'append',
     },
     refBlockId: { type: 'string' },
-    ifVersion: { type: 'string' },
+    ifVersion: IF_VERSION_SCHEMA,
     diagram: {
       type: 'string',
       minLength: 1,

@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { registerBlockSchema } from '../schemas.controller';
+import { IF_VERSION_SCHEMA } from '../block-schema-primitives';
 
 /**
  * Schema-only port of orvexai/docmost @ 050187676624f2395c55b36ec60e365f87fd4a9f
@@ -60,10 +61,7 @@ registerBlockSchema('subpages', {
       type: 'string',
       description: 'Required for replace-at and insert-at ops.',
     },
-    ifVersion: {
-      type: 'string',
-      description: 'CAS version guard.',
-    },
+    ifVersion: IF_VERSION_SCHEMA,
     parentId: {
       type: 'string',
       format: 'uuid',
@@ -104,10 +102,7 @@ registerBlockSchema('tldr', {
       type: 'string',
       description: 'Required for replace-at and insert-at ops.',
     },
-    ifVersion: {
-      type: 'string',
-      description: 'CAS version guard.',
-    },
+    ifVersion: IF_VERSION_SCHEMA,
     content: {
       type: 'string',
       description: 'Body text for the lead callout.',
@@ -134,10 +129,7 @@ registerBlockSchema('transclusion', {
       type: 'string',
       description: 'Required for replace-at and insert-at ops.',
     },
-    ifVersion: {
-      type: 'string',
-      description: 'CAS version guard.',
-    },
+    ifVersion: IF_VERSION_SCHEMA,
     node: {
       type: 'object',
       description: 'Pre-built ProseMirror transclusionReference node.',
@@ -182,10 +174,7 @@ registerBlockSchema('columns', {
       type: 'string',
       description: 'Required for replace-at and insert-at ops.',
     },
-    ifVersion: {
-      type: 'string',
-      description: 'CAS version guard.',
-    },
+    ifVersion: IF_VERSION_SCHEMA,
     layout: {
       type: 'string',
       enum: VALID_LAYOUTS,
@@ -238,10 +227,7 @@ registerBlockSchema('section-edit', {
       description: 'ProseMirror JSON nodes to insert/replace.',
       items: { type: 'object' },
     },
-    ifVersion: {
-      type: 'string',
-      description: 'CAS version guard (integer or ISO-8601 timestamp).',
-    },
+    ifVersion: IF_VERSION_SCHEMA,
     idempotencyKey: {
       type: 'string',
       maxLength: 256,

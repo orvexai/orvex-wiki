@@ -25,6 +25,7 @@ import { TransclusionService } from '../transclusion/transclusion.service';
 import type { DbInterface } from '@docmost/db/types/db.interface';
 import type { KyselyDB } from '@docmost/db/types/kysely.types';
 import type { Page, User } from '@docmost/db/types/entity.types';
+import { nonBlockingEntitlementServiceDouble } from '../../../orvex/entitlement/testing/entitlement-service.double';
 
 /**
  * ENG-1471 — `PageUpsertDedupSpec`, the named binary DoD gate.
@@ -142,12 +143,12 @@ describe('PageUpsertDedupSpec', () => {
       undefined,
     );
 
-    // ENG-1382 — this spec exercises upsert semantics, not F-QUOTA; a stub
-    // that never blocks keeps prior scenarios unaffected.
-    const entitlementServiceStub = {
-      assertWithinQuota: async () => undefined,
-      hasFeature: async () => true,
-    } as any;
+    // ENG-1382 — this spec exercises upsert semantics, not F-QUOTA; a double
+    // that never blocks keeps prior scenarios unaffected. ENG-2493: the double
+    // is now the SHARED, `Pick<EntitlementService, …>`-typed one, so a future
+    // quota-surface addition reds at compile time in one place instead of
+    // throwing `is not a function` at runtime here.
+    const entitlementServiceStub = nonBlockingEntitlementServiceDouble();
 
     service = new PageService(
       pageRepo,

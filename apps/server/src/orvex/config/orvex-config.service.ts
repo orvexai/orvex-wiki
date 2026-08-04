@@ -58,6 +58,20 @@ export class OrvexConfigService {
   }
 
   /**
+   * INTERNAL_API_BEARER_TOKEN — the SHARED engine↔identity internal seam
+   * credential (ENG-1957). Identity already sends it INBOUND on every
+   * `/internal/principals/provision` call (where `InternalApiAuthGuard` is the
+   * matching gate); ENG-3350 makes the same secret the OUTBOUND credential for
+   * identity's origin-locked `POST /internal/registry/reserve`, so the
+   * mint-time global-uniqueness delegation needs no second credential, no new
+   * OpenBao path and no new ExternalSecret. Null when unset → the registry
+   * client refuses to reserve rather than calling unauthenticated. NEVER logged.
+   */
+  get internalApiBearerToken(): string | null {
+    return this.read('INTERNAL_API_BEARER_TOKEN');
+  }
+
+  /**
    * ORVEX_IDENTITY_INTROSPECTION_TOKEN — the OPTIONAL bearer the FR-W6
    * session-mint sends on its `POST {identity}/v1/introspect` call (parity with
    * knowledge's `IDENTITY_INTROSPECTION_TOKEN`). Identity's introspect endpoint

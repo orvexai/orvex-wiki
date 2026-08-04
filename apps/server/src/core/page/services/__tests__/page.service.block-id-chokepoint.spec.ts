@@ -32,6 +32,7 @@ import {
 } from '../../../../collaboration/backfill-block-ids.util';
 import { canonicalJsonStringify } from '../../../../common/helpers/canonical-json';
 import { OutboxWriter } from '../../../../orvex/events/outbox/outbox-writer.service';
+import { nonBlockingEntitlementServiceDouble } from '../../../../orvex/entitlement/testing/entitlement-service.double';
 
 /**
  * ENG-1397 — `page.service.block-id-chokepoint.spec.ts`, the named binary
@@ -175,11 +176,10 @@ describe('PageServiceBlockIdChokepointSpec', () => {
     } as any;
 
     // ENG-1382 — this spec exercises block-id chokepoint behaviour, not
-    // F-QUOTA; a stub that never blocks keeps prior scenarios unaffected.
-    const entitlementServiceStub = {
-      assertWithinQuota: async () => undefined,
-      hasFeature: async () => true,
-    } as any;
+    // F-QUOTA; a double that never blocks keeps prior scenarios unaffected.
+    // ENG-2493: shared, typed double (see entitlement-service.double.ts) so
+    // quota-surface drift reds at compile time in one place.
+    const entitlementServiceStub = nonBlockingEntitlementServiceDouble();
 
     service = new PageService(
       pageRepo,

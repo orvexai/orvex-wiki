@@ -93,12 +93,26 @@ import { GenericContainer, StartedTestContainer } from 'testcontainers';
 const BEARER = 'eng-2503-wiring-bearer';
 const PERSONAL_TENANT = '00000000-0000-4000-8000-00000000e501';
 const COLLIDING_TENANT = '00000000-0000-4000-8000-00000000e502';
+/** ENG-3350 — the tenant whose reserve answer is deliberately not JSON. */
+const NON_JSON_TENANT = '00000000-0000-4000-8000-00000000e503';
 const MINTED_ORG_ID = 'org_2wiring_minted_1';
 
 interface RecordedReserve {
   readonly url: string;
   readonly body: Record<string, unknown>;
+  /** ENG-3350 — the shared engine seam bearer the reserve call must carry. */
+  readonly authorization: string | undefined;
 }
+
+/**
+ * ENG-3350 — the ORIGIN-LOCKED path identity actually serves. The engine used
+ * to call `/v1/registry/reserve`, which identity has never had: net/http
+ * answered its default text/plain "404 page not found" and the client's
+ * unconditional `res.json()` threw a SyntaxError that NestJS rendered as an
+ * opaque 500. This fixture serves the real path, and answers anything else the
+ * way Go's default mux does — see the regression case below.
+ */
+const RESERVE_PATH = '/internal/registry/reserve';
 
 /**
  * The CS §5 remote-but-owned double: a LOCAL HTTP fixture standing in for
@@ -110,6 +124,13 @@ class FakeRegistryServer {
   readonly reserves: RecordedReserve[] = [];
   /** tenantId -> HTTP status to answer with (default 200). */
   readonly statusFor = new Map<string, number>();
+  /**
+   * ENG-3350 — tenantIds for which the fixture answers with a NON-JSON body,
+   * reproducing what a wrong/renamed identity route or an intercepting proxy
+   * actually puts on this wire. The engine must turn that into a typed 503,
+   * not the opaque 500 an escaped JSON.parse SyntaxError used to produce.
+   */
+  readonly nonJsonFor = new Set<string>();
   private server: http.Server | undefined;
   baseUrl = '';
 
@@ -126,13 +147,29 @@ class FakeRegistryServer {
         }
         const url = req.url ?? '';
         const tenantId = String(body.tenantId ?? '');
-        if (!url.startsWith('/v1/registry/reserve')) {
+        if (!url.startsWith(RESERVE_PATH)) {
+          // Byte-for-byte what Go's net/http DefaultServeMux writes for an
+          // unrouted path — text/plain, not JSON. This is the exact body that
+          // produced the ENG-3350 500, kept here so the client's non-JSON
+          // handling is exercised against the real thing rather than a
+          // stylized stand-in.
           res.statusCode = 404;
-          res.end('{}');
+          res.setHeader('content-type', 'text/plain; charset=utf-8');
+          res.end('404 page not found\n');
           return;
         }
-        this.reserves.push({ url, body });
+        this.reserves.push({
+          url,
+          body,
+          authorization: req.headers.authorization,
+        });
         const status = this.statusFor.get(tenantId) ?? 200;
+        if (this.nonJsonFor.has(tenantId)) {
+          res.statusCode = status;
+          res.setHeader('content-type', 'text/plain; charset=utf-8');
+          res.end('404 page not found\n');
+          return;
+        }
         res.statusCode = status;
         res.setHeader('content-type', 'application/json');
         if (status === 200) {
@@ -140,8 +177,7 @@ class FakeRegistryServer {
             JSON.stringify({
               tenantId,
               reserved: true,
-              orgId:
-                body.principalKind === 'org' ? MINTED_ORG_ID : undefined,
+              orgId: body.principalKind === 'org' ? MINTED_ORG_ID : undefined,
             }),
           );
         } else {
@@ -430,6 +466,11 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     const reserves = registryServer.reservesFor(PERSONAL_TENANT);
     expect(reserves).toHaveLength(1);
     expect(reserves[0].body.principalKind).toBe('user');
+    // ENG-3350 — it landed on the route identity actually serves, carrying the
+    // shared engine seam bearer. Both are load-bearing: the old path 404'd on
+    // every deployment, and the old call sent no credential at all.
+    expect(reserves[0].url).toBe(RESERVE_PATH);
+    expect(reserves[0].authorization).toBe(`Bearer ${BEARER}`);
 
     // AC1 — the tenant is user-keyed on the subject; no org anywhere.
     const ws = await testDb.db
@@ -465,6 +506,42 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
       .selectFrom('workspaces')
       .select(['id'])
       .where('id', '=', COLLIDING_TENANT)
+      .executeTakeFirst();
+    expect(local).toBeUndefined();
+  });
+
+  it('W4b (ENG-3350) — a NON-JSON registry response is a typed, retryable 503, never an opaque 500', async () => {
+    // This is the production defect, reproduced end to end through the composed
+    // app: identity had no reserve route, answered Go's default text/plain
+    // "404 page not found", the client JSON.parse'd it unconditionally, and the
+    // escaped SyntaxError became {"statusCode":500,"message":"Internal server
+    // error"} — which is all identity could report, and why locating this cost
+    // a whole diagnosis pass. It must now name itself.
+    registryServer.statusFor.set(NON_JSON_TENANT, 404);
+    registryServer.nonJsonFor.add(NON_JSON_TENANT);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/principals/provision',
+      headers: { authorization: `Bearer ${BEARER}` },
+      payload: {
+        subject: 'sub_wiring_nonjson',
+        tenant: NON_JSON_TENANT,
+        email: 'nonjson.wiring@example.com',
+        provision_workspace: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(503);
+    expect(JSON.parse(res.body)).toMatchObject({
+      code: 'REGISTRY_UNAVAILABLE',
+    });
+
+    // Fail-CLOSED is intact: nothing was materialized on an unreadable answer.
+    const local = await testDb.db
+      .selectFrom('workspaces')
+      .select(['id'])
+      .where('id', '=', NON_JSON_TENANT)
       .executeTakeFirst();
     expect(local).toBeUndefined();
   });
@@ -546,8 +623,9 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
   });
 
   it('W6 (AC3 seats) — the member-cap seat chokepoint keys on the SAME workspace_id after the re-key, so seats keep counting', async () => {
-    const entitlements = built.get(EntitlementService, { strict: false }) as
-      unknown as { seatPrincipalsAsked: string[] };
+    const entitlements = built.get(EntitlementService, {
+      strict: false,
+    }) as unknown as { seatPrincipalsAsked: string[] };
 
     // The pre-upgrade provisioning in W3 already hit the chokepoint once.
     const beforeCount = entitlements.seatPrincipalsAsked.filter(

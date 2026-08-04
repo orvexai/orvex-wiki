@@ -122,9 +122,7 @@ export class RegistryClientNotConfiguredError extends Error {
   public readonly code = 'NOT_CONFIGURED';
 
   constructor() {
-    super(
-      'orvex registry client is not configured (ORVEX_IDENTITY_URL unset)',
-    );
+    super('orvex registry client is not configured (ORVEX_IDENTITY_URL unset)');
     this.name = 'RegistryClientNotConfiguredError';
   }
 }
@@ -156,7 +154,21 @@ export interface IdentityRegistryClient {
   reserveTenant(req: RegistryReserveRequest): Promise<RegistryReserveResult>;
 }
 
-/** Minimal fetch surface (Node 18+ global `fetch`), narrowed for injection. */
+/**
+ * Minimal fetch surface (Node 18+ global `fetch`), narrowed for injection.
+ *
+ * ENG-3350 — this deliberately narrows `text()`, NOT `json()`. The previous
+ * shape forced {@link HttpIdentityRegistryClient.request} to call `res.json()`
+ * unconditionally, so any non-JSON identity response threw a raw `SyntaxError`
+ * that is NOT a {@link RegistryClientError} and escaped every typed mapping
+ * below. That is exactly what happened in production: identity had no
+ * `/v1/registry/reserve` route, Go's net/http answered its default
+ * `404 page not found` as `text/plain`, `JSON.parse` read `404` as a number and
+ * threw on the `p`, and NestJS turned the escaped SyntaxError into
+ * `{"statusCode":500,"message":"Internal server error"}` — the opaque 500 that
+ * made `POST /v1/exchange` refuse every fresh principal. Reading text and
+ * parsing HERE is what lets a malformed body become a typed DEPENDENCY_ERROR.
+ */
 export type RegistryFetchLike = (
   input: string,
   init: {
@@ -167,7 +179,7 @@ export type RegistryFetchLike = (
   },
 ) => Promise<{
   status: number;
-  json: () => Promise<unknown>;
+  text: () => Promise<string>;
 }>;
 
 export interface HttpIdentityRegistryClientDeps {
@@ -175,8 +187,43 @@ export interface HttpIdentityRegistryClientDeps {
   readonly baseUrl: string;
   /** Request timeout (ms). Bounds a hung dependency into an honest failure. */
   readonly timeoutMs: number;
+  /**
+   * ENG-3350 — the shared engine↔identity internal bearer
+   * (`INTERNAL_API_BEARER_TOKEN`), presented on the ORIGIN-LOCKED
+   * `POST /internal/registry/reserve` seam. It is the SAME secret identity
+   * already sends this engine on `/internal/principals/provision`; nothing new
+   * is provisioned for it. `null` when unset ⇒ `reserveTenant` refuses with a
+   * typed DEPENDENCY_ERROR rather than calling unauthenticated (fail closed).
+   */
+  readonly internalToken: string | null;
   /** Injected fetch (ACCEPT-DON'T-CREATE); defaults to global `fetch`. */
   readonly fetch: RegistryFetchLike;
+}
+
+/**
+ * The ONE place a success body becomes an object, typed on the way.
+ *
+ * ENG-3350 — `request()` maps an empty body to `payload: null`, which is right
+ * for the 404/409 branches (they never read it) and wrong for every branch that
+ * DOES: `payload as Record<string, unknown>` is a compile-time cast with no
+ * runtime check, so `null` (an empty body, a whitespace-only body, or a literal
+ * `null`) reached a property read and threw a raw `TypeError`. That is the same
+ * escape as the `SyntaxError` this fix exists to close — an untyped throw
+ * crossing the seam, which NestJS renders as `{"statusCode":500}` — so it is
+ * closed the same way, at the parse boundary rather than at each call site.
+ */
+function asJsonObject(payload: unknown, what: string): Record<string, unknown> {
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    Array.isArray(payload)
+  ) {
+    throw new RegistryClientError(
+      'DEPENDENCY_ERROR',
+      `identity registry ${what} returned a success status with no JSON object body`,
+    );
+  }
+  return payload as Record<string, unknown>;
 }
 
 /** Narrows an identity registry JSON body into the typed `RegistryTenantCell`. */
@@ -212,26 +259,31 @@ function narrowTenantCell(payload: unknown): RegistryTenantCell | null {
 export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
+  private readonly internalToken: string | null;
   private readonly fetch: RegistryFetchLike;
 
   constructor(deps: HttpIdentityRegistryClientDeps) {
     this.baseUrl = deps.baseUrl.replace(/\/+$/, '');
     this.timeoutMs = deps.timeoutMs;
+    this.internalToken = deps.internalToken;
     this.fetch = deps.fetch;
   }
 
   async moveTenantCell(req: RegistryMoveRequest): Promise<RegistryMoveResult> {
-    const { status, payload } = await this.request('POST', '/v1/registry/move', {
-      moveId: req.moveId,
-      tenantId: req.tenantId,
-      fromCell: req.fromCell,
-      toCell: req.toCell,
-    });
+    const { status, payload } = await this.request(
+      'POST',
+      '/v1/registry/move',
+      {
+        moveId: req.moveId,
+        tenantId: req.tenantId,
+        fromCell: req.fromCell,
+        toCell: req.toCell,
+      },
+    );
 
     if (status === 200) {
-      const body = payload as Record<string, unknown>;
-      const tenantId =
-        typeof body.tenantId === 'string' ? body.tenantId : '';
+      const body = asJsonObject(payload, 'move');
+      const tenantId = typeof body.tenantId === 'string' ? body.tenantId : '';
       const cellId = typeof body.cellId === 'string' ? body.cellId : '';
       if (tenantId === '' || cellId === '') {
         throw new RegistryClientError(
@@ -284,18 +336,33 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   async reserveTenant(
     req: RegistryReserveRequest,
   ): Promise<RegistryReserveResult> {
+    // Fail closed on a missing credential (ENG-3350). This is NOT the
+    // single-cell `NOT_CONFIGURED` skip — that one means "no identity to
+    // delegate to". This means "identity is configured but we hold no
+    // credential for it", which must never be waved through as a reservation.
+    if (this.internalToken === null) {
+      throw new RegistryClientError(
+        'DEPENDENCY_ERROR',
+        'identity registry reserve requires INTERNAL_API_BEARER_TOKEN (the shared engine seam credential) and it is unset',
+      );
+    }
     const { status, payload } = await this.request(
       'POST',
-      '/v1/registry/reserve',
+      // ENG-3350 — the ORIGIN-LOCKED internal seam, not /v1/registry/*. The
+      // /v1/registry write routes are machine-only (they require an
+      // identity-minted "svc:" client-credentials grant this engine does not
+      // hold in any cell); this route admits the shared engine bearer instead.
+      '/internal/registry/reserve',
       {
         tenantId: req.tenantId,
         hostname: req.hostname,
         principalKind: req.principalKind,
       },
+      { Authorization: `Bearer ${this.internalToken}` },
     );
 
     if (status === 200) {
-      const body = payload as Record<string, unknown>;
+      const body = asJsonObject(payload, 'reserve');
       const tenantId = typeof body.tenantId === 'string' ? body.tenantId : '';
       const reserved = body.reserved === true;
       if (tenantId === '' || !reserved) {
@@ -325,26 +392,74 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     );
   }
 
+  /**
+   * One request/response round trip, with the parse under THIS class's control.
+   *
+   * ENG-3350 — every failure mode below leaves as a typed
+   * {@link RegistryClientError}; nothing escapes as a raw `SyntaxError`,
+   * `TypeError` or `AbortError`. The class doc above promises "a non-2xx /
+   * transport / parse failure is a thrown RegistryClientError"; before this fix
+   * only the non-2xx leg actually kept that promise, and the parse leg's
+   * escape is what turned a missing identity route into an opaque NestJS 500.
+   *
+   * An EMPTY body is parsed as `null` rather than rejected: some identity
+   * refusals legitimately carry no body, and the per-status branches above
+   * (404/409/…) never read the payload, so failing here would convert a
+   * correctly-typed refusal into a DEPENDENCY_ERROR.
+   */
   private async request(
     method: 'GET' | 'POST',
     path: string,
     body?: Record<string, unknown>,
+    extraHeaders?: Record<string, string>,
   ): Promise<{ status: number; payload: unknown }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let status: number;
+    let raw: string;
     try {
       const res = await this.fetch(`${this.baseUrl}${path}`, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...extraHeaders },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
-      const payload = await res.json();
-      return { status: res.status, payload };
+      status = res.status;
+      raw = await res.text();
+    } catch (err) {
+      // Transport failure / timeout abort — honest and typed, never a
+      // fabricated result and never an untyped throw crossing the seam.
+      throw new RegistryClientError(
+        'DEPENDENCY_ERROR',
+        `identity registry ${method} ${path} failed: ${describeCause(err)}`,
+      );
     } finally {
       clearTimeout(timer);
     }
+
+    if (raw.trim() === '') {
+      return { status, payload: null };
+    }
+    try {
+      return { status, payload: JSON.parse(raw) as unknown };
+    } catch {
+      throw new RegistryClientError(
+        'DEPENDENCY_ERROR',
+        `identity registry ${method} ${path} returned HTTP ${status} with a non-JSON body: ${snippet(raw)}`,
+      );
+    }
   }
+}
+
+/** Bounded, log-safe excerpt of an unexpected response body. */
+function snippet(raw: string): string {
+  const flat = raw.replace(/\s+/g, ' ').trim();
+  return flat.length <= 120 ? flat : `${flat.slice(0, 120)}…`;
+}
+
+/** Message of an unknown thrown value, without assuming it is an Error. */
+function describeCause(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 }
 
 /**

@@ -40,6 +40,7 @@ import type { Queue } from 'bullmq';
 import type { Cache } from 'cache-manager';
 
 import { WorkspaceService } from '../../../../../core/workspace/services/workspace.service';
+import { NotConfiguredRegistryClient } from '../../../../http/identity-registry-client';
 import { SpaceService } from '../../../../../core/space/services/space.service';
 import { SpaceMemberService } from '../../../../../core/space/services/space-member.service';
 import { CommentService } from '../../../../../core/comment/comment.service';
@@ -216,6 +217,13 @@ describe('LifecycleEmitterCoverageSpec', () => {
       stubAuditService,
       userSessionRepo,
       outboxWriter,
+      // ENG-2503 AC4 added the REQUIRED identity-registry port as the 20th
+      // ctor arg. This spec asserts outbox LIFECYCLE emission and never mints
+      // a hostname, so it composes the same fail-closed
+      // `NotConfiguredRegistryClient` prod binds when ORVEX_IDENTITY_URL is
+      // unset — a real production class, not a hand-rolled stub, so any future
+      // registry call from this path reds loudly instead of silently passing.
+      new NotConfiguredRegistryClient(),
     );
 
     const stubWsService = {
