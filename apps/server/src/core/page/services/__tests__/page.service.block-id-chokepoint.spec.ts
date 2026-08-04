@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import { createHash } from 'node:crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
   CamelCasePlugin,
   FileMigrationProvider,
@@ -493,6 +493,106 @@ describe('PageServiceBlockIdChokepointSpec', () => {
     expect(caught).toBeInstanceOf(BadRequestException);
     expect(caught).not.toBeInstanceOf(RangeError);
     expect((caught as BadRequestException).getStatus()).toBe(400);
+  });
+
+  /**
+   * ENG-3275 LEG 2 — the AC7 guard must not become a blanket error launderer.
+   *
+   * The guard wraps BOTH `jsonToNode` and `stampBlockIds`. Catching every
+   * error from that block and rewriting it to a 400 INVALID_CONTENT_FORMAT
+   * would tell the caller their document was malformed even when the real
+   * fault was internal to `stampBlockIds` — a false accusation against the
+   * client, and a real server bug hidden behind a 4xx that never pages
+   * anyone.
+   *
+   * The schema-validity family that legitimately maps to 400 is verified to
+   * arrive as `RangeError` from ProseMirror's `Node.fromJSON` ("Unknown node
+   * type", "Invalid input for Node.fromJSON", "Invalid text node in JSON",
+   * "There is no mark type x in this schema"). A generic `Error` is NOT in
+   * that family, so it must propagate as a 500 rather than be relabelled.
+   *
+   * The fault is injected on the shared `collaboration.util` module binding
+   * that `parseProsemirrorContent` calls, so the failure originates inside
+   * the guarded block exactly as a genuine internal fault would.
+   */
+  it('ENG-3275 — a non-validity internal fault inside the guarded block is NOT laundered into a 400', async () => {
+    const collabUtil = require('../../../../collaboration/collaboration.util');
+    const internalFault = new Error('simulated internal fault in stampBlockIds');
+    const stampSpy = jest
+      .spyOn(collabUtil, 'stampBlockIds')
+      .mockImplementation(() => {
+        throw internalFault;
+      });
+
+    try {
+      // Valid ProseMirror — `jsonToNode` succeeds, so the ONLY error comes
+      // from the injected internal fault, not from a schema problem.
+      const validContent = {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Valid doc' }] },
+        ],
+      };
+
+      let caught: unknown;
+      try {
+        await (service as any).parseProsemirrorContent(validContent, 'json');
+        throw new Error(
+          'expected the injected internal fault to propagate, but the call resolved',
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      // The internal fault propagates verbatim — same error identity, and
+      // crucially NOT rewritten into a client-blaming 400.
+      expect(caught).toBe(internalFault);
+      expect(caught).not.toBeInstanceOf(BadRequestException);
+      expect((caught as any)?.response?.code).toBeUndefined();
+      expect(stampSpy).toHaveBeenCalled();
+    } finally {
+      stampSpy.mockRestore();
+    }
+  });
+
+  /**
+   * ENG-3275 LEG 2 — an ALREADY-typed HttpException raised inside the guarded
+   * block keeps its own decided status and body instead of being flattened
+   * into INVALID_CONTENT_FORMAT.
+   */
+  it('ENG-3275 — an HttpException from inside the guarded block is re-thrown untouched', async () => {
+    const collabUtil = require('../../../../collaboration/collaboration.util');
+    const typedFailure = new ConflictException({ code: 'SOME_OTHER_CODE' });
+    const stampSpy = jest
+      .spyOn(collabUtil, 'stampBlockIds')
+      .mockImplementation(() => {
+        throw typedFailure;
+      });
+
+    try {
+      const validContent = {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Valid doc' }] },
+        ],
+      };
+
+      let caught: unknown;
+      try {
+        await (service as any).parseProsemirrorContent(validContent, 'json');
+        throw new Error(
+          'expected the typed failure to propagate, but the call resolved',
+        );
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBe(typedFailure);
+      expect((caught as ConflictException).getStatus()).toBe(409);
+      expect(caught).not.toBeInstanceOf(BadRequestException);
+    } finally {
+      stampSpy.mockRestore();
+    }
   });
 });
 
