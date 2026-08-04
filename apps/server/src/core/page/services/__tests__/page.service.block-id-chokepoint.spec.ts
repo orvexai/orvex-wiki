@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import { createHash } from 'node:crypto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { BadRequestException } from '@nestjs/common';
 import {
   CamelCasePlugin,
   FileMigrationProvider,
@@ -437,8 +438,32 @@ describe('PageServiceBlockIdChokepointSpec', () => {
     });
   });
 
-  it('AC7 — malformed ProseMirror json is rejected with INVALID_CONTENT_FORMAT', async () => {
-    await expect(
+  /**
+   * ENG-3275 regression guard — the defect mechanism, recorded so a
+   * re-regression is recognisable rather than merely red.
+   *
+   * ENG-2487 put the DfM opaque fence INSIDE `jsonToNode`
+   * (`collaboration.util.ts:148-165`): on `RangeError: Unknown node type` it
+   * rewrites the unknown nodes into a `:::dfm-opaque` paragraph and re-parses,
+   * so `jsonToNode` STOPPED THROWING for a document whose node types are
+   * unknown. `parseProsemirrorContent` guarded only that `jsonToNode` probe;
+   * `stampBlockIds` then parsed the RAW (unfenced) json against the same
+   * schema and threw a bare `RangeError` OUTSIDE the guard — so the input
+   * ENG-1397 AC7 specifies as a typed 400 escaped as an unhandled 500.
+   *
+   * The fix brought `stampBlockIds` under the SAME typed guard. Both parses
+   * ask the same validity question, so both must produce the same typed
+   * rejection.
+   *
+   * The assertions below are deliberately two-sided: the `toMatchObject`
+   * pins the typed 400 body, and the explicit try/catch pins the THROWN TYPE.
+   * A re-regression re-raises the bare `RangeError`, whose `.response` is
+   * undefined — `toMatchObject` alone would still fail, but it would fail
+   * indistinguishably from a code rename. `not.toBeInstanceOf(RangeError)`
+   * names the actual defect class so the failure is self-describing.
+   */
+  it('AC7 (ENG-3275 regression) — malformed ProseMirror json is rejected with INVALID_CONTENT_FORMAT, never a 500 RangeError', async () => {
+    const malformedUpsert = () =>
       service.upsert(
         {
           spaceId,
@@ -448,10 +473,26 @@ describe('PageServiceBlockIdChokepointSpec', () => {
         } as any,
         userId,
         workspaceId,
-      ),
-    ).rejects.toMatchObject({
+      );
+
+    await expect(malformedUpsert()).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'INVALID_CONTENT_FORMAT' }),
     });
+
+    // Thrown-TYPE assertion: a re-regression surfaces the raw `RangeError`
+    // from `stampBlockIds` (a 500), not the typed `BadRequestException` (400).
+    let caught: unknown;
+    try {
+      await malformedUpsert();
+      throw new Error(
+        'expected the malformed-ProseMirror upsert to reject, but it resolved',
+      );
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(BadRequestException);
+    expect(caught).not.toBeInstanceOf(RangeError);
+    expect((caught as BadRequestException).getStatus()).toBe(400);
   });
 });
 
