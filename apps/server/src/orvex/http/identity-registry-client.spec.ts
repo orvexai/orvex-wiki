@@ -307,6 +307,23 @@ describe('HttpIdentityRegistryClient — the reserve seam (ENG-3350)', () => {
     );
   });
 
+  it('a 401 from the engine seam gate is AUTH_FAILED, not a generic dependency blip (ENG-3313)', async () => {
+    const client = newClient(
+      respondWith(401, JSON.stringify({ error: 'unauthorized' })),
+    );
+
+    const err = await captureError(
+      client.reserveTenant({
+        tenantId: TENANT,
+        hostname: '',
+        principalKind: 'user',
+      }),
+    );
+
+    expect((err as RegistryClientError).code).toBe('AUTH_FAILED');
+    expect((err as RegistryClientError).code).not.toBe('DEPENDENCY_ERROR');
+  });
+
   it("identity's 501 for the unimplemented hostname leg is loud and typed, never a silent success", async () => {
     const client = newClient(
       respondWith(
@@ -325,5 +342,142 @@ describe('HttpIdentityRegistryClient — the reserve seam (ENG-3350)', () => {
 
     expect((err as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
     expect((err as RegistryClientError).message).toContain('501');
+  });
+});
+
+/**
+ * ENG-3313 — the move seam, the sibling of the reserve block above and broken
+ * the same way: `moveTenantCell` POSTed `/v1/registry/move` with NO
+ * Authorization header at all. ENG-2013 made that route machine-only, so
+ * identity denied it with a uniform 401 that arrived here as an untyped
+ * dependency failure and left as a 502 naming nothing about authn.
+ *
+ * These specs pin the same three properties ENG-3350 pinned for reserve — the
+ * origin-locked route, the bearer, and the fail-closed refusal — plus the
+ * typed 401, and one that guards the DELIBERATE asymmetry: the discovery read
+ * must stay unauthenticated.
+ */
+describe('HttpIdentityRegistryClient — the move seam (ENG-3313)', () => {
+  const MOVE = {
+    moveId: 'm-3313',
+    tenantId: TENANT,
+    fromCell: 'eu1a',
+    toCell: 'us1a',
+  };
+
+  it('calls the ORIGIN-LOCKED /internal route carrying the shared engine bearer', async () => {
+    const calls: RecordedCall[] = [];
+    const client = newClient(
+      respondWith(
+        200,
+        JSON.stringify({ tenantId: TENANT, cellId: 'us1a' }),
+        calls,
+      ),
+    );
+
+    const result = await client.moveTenantCell(MOVE);
+
+    expect(result).toEqual({ tenantId: TENANT, cellId: 'us1a' });
+    expect(calls).toHaveLength(1);
+    // NOT /v1/registry/move: that route is machine-only (requireMachinePrincipal
+    // needs an identity-minted "svc:" grant this engine holds in no cell, and
+    // prod registers no machine client at all), so a move posted there 401s
+    // forever. Identity's ENG-3427 counterparty admits the shared engine bearer.
+    expect(calls[0].url).toBe('http://identity.invalid/internal/registry/move');
+    expect(calls[0].headers.Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+
+  it('keeps the request body byte-identical to identity registryMoveRequest json tags', async () => {
+    // The internal route delegates to the SAME doRegistryMove core as the
+    // machine-gated one, so re-pointing the path must not have re-shaped the
+    // body — that is what makes the 200/404/409 mapping still correct.
+    const calls: RecordedCall[] = [];
+    await newClient(
+      respondWith(
+        200,
+        JSON.stringify({ tenantId: TENANT, cellId: 'us1a' }),
+        calls,
+      ),
+    ).moveTenantCell(MOVE);
+
+    expect(JSON.parse(calls[0].body as string)).toEqual({
+      moveId: 'm-3313',
+      tenantId: TENANT,
+      fromCell: 'eu1a',
+      toCell: 'us1a',
+    });
+  });
+
+  it('refuses to call at all when the shared seam credential is unset (fail closed)', async () => {
+    const calls: RecordedCall[] = [];
+    const client = newClient(
+      respondWith(
+        200,
+        JSON.stringify({ tenantId: TENANT, cellId: 'us1a' }),
+        calls,
+      ),
+      null,
+    );
+
+    const err = await captureError(client.moveTenantCell(MOVE));
+
+    expect((err as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
+    expect((err as RegistryClientError).message).toContain(
+      'INTERNAL_API_BEARER_TOKEN',
+    );
+    // It must not have gone out unauthenticated "just in case".
+    expect(calls).toHaveLength(0);
+  });
+
+  it('maps a 401 to AUTH_FAILED, never to the generic DEPENDENCY_ERROR', async () => {
+    // identity's requireEngineInternal answers exactly this body, with no
+    // oracle distinguishing "wrong token" from "none configured".
+    const err = await captureError(
+      newClient(
+        respondWith(401, JSON.stringify({ error: 'unauthorized' })),
+      ).moveTenantCell(MOVE),
+    );
+
+    expect((err as RegistryClientError).code).toBe('AUTH_FAILED');
+    expect((err as RegistryClientError).code).not.toBe('DEPENDENCY_ERROR');
+  });
+
+  it('still maps 404 to NOT_FOUND and 409 to STALE_MOVE across the new route', async () => {
+    const notFound = await captureError(
+      newClient(respondWith(404, '')).moveTenantCell(MOVE),
+    );
+    expect((notFound as RegistryClientError).code).toBe('NOT_FOUND');
+
+    const stale = await captureError(
+      newClient(respondWith(409, '')).moveTenantCell(MOVE),
+    );
+    expect((stale as RegistryClientError).code).toBe('STALE_MOVE');
+  });
+
+  it('leaves the DISCOVERY READ unauthenticated — the deliberately-open route', async () => {
+    // Guards an ASSERTED scope boundary, not an oversight: identity pins it
+    // with TestRegistryResolve_StaysOpen. If a header ever appears here it
+    // must be a deliberate decision that deletes this spec, not a drive-by
+    // "harden everything" edit riding along with the write-path fix.
+    const calls: RecordedCall[] = [];
+    await newClient(
+      respondWith(
+        200,
+        JSON.stringify({
+          tenant_id: TENANT,
+          cell_id: 'eu1a',
+          residency_pin: 'eu',
+          cell_epoch: 3,
+          status: 'active',
+        }),
+        calls,
+      ),
+    ).resolveTenantCell(TENANT);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(
+      `http://identity.invalid/v1/registry/tenants/${TENANT}/cell`,
+    );
+    expect(calls[0].headers.Authorization).toBeUndefined();
   });
 });
