@@ -72,8 +72,13 @@ export interface TenantCellMoveResult {
  *     principal (`subject` prefixed `svc:`) may relocate a tenant's cell
  *     binding; without this an ordinary user session could move ANY
  *     tenant's cell (isolation break).
- *  2. MOVE — delegates to identity's real `POST /v1/registry/move`
- *     (registry is the SOLE writer, PO ruling 13). This one call already
+ *  2. MOVE — delegates to identity's real move core through the
+ *     origin-locked `POST /internal/registry/move` (ENG-3313; ENG-3427's
+ *     engine-facing entry point, reached with the shared engine seam bearer
+ *     because the `/v1/registry/*` writes are machine-only and this AGPL
+ *     engine holds no `svc:` grant — it delegates to the SAME
+ *     `doRegistryMove` core, so everything below is unchanged).
+ *     Registry remains the SOLE writer (PO ruling 13). This one call already
  *     satisfies: the registry cell-binding update, the `moveId`-keyed
  *     idempotency ledger, the atomic `identity.cell.moved` outbox audit
  *     event (identity `PutAndEnqueue`, ENG-1458 T5/AC6 — the SAME
