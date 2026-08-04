@@ -28,6 +28,22 @@
 # per-service (AD-31 identity, one image per binary) and AC4 asks the overlay to
 # carry exactly that and no more.
 #
+# ── ALL THREE ARE SUBSTRATE-OWNED AND SINGLE-VALUED (ENG-3337) ──────────────
+# A consuming overlay CANNOT change any of them, and must not try. The values
+# come from `image-ref.yaml` in this component; the `replacements:` below read
+# that ConfigMap and stamp the render. A `patches:` / `configMapGenerator` /
+# `replacements:` entry in the CONSUMING kustomization runs AFTER this
+# component has already stamped, so it changes the ConfigMap and nothing else:
+# kustomize exits 0, warns about nothing, and emits the DEFAULT reference.
+# Measured on kustomize v5.8.1 for `imageProject` and `imageRegistry` alike —
+# see the long note beside `imageProject` in image-ref.yaml for the full
+# measurement and for what to do instead.
+#
+# Because a silent no-op is worse than a refusal, `scripts/image-injection-
+# conform.sh` rule I5 REDS on any consuming kustomization that targets the
+# `image-ref` ConfigMap. That is the negative half of this rule: the promise is
+# not merely absent from the docs, an attempt to use it is detectable.
+#
 # So an adopting Deployment writes its image as the three-token shape:
 #
 #   image: IMAGE_REGISTRY/IMAGE_PROJECT/orvex-studio-staging-api:IMAGE_TAG
@@ -42,9 +58,9 @@
 # ── THE CARRIER — how data.imageTag gets its per-render value ────────────────
 # Design-it-twice (CS §3.7). A digest, and a `{branchSlug}-{shortSha}` tag, are
 # both facts about a BUILD; ArgoCD renders from git. Something has to carry the
-# fact across. Three candidates were weighed against what this cluster actually
-# permits, and two of the three are structurally dead — recorded here because
-# both look obvious and both cost a day to disprove:
+# fact across. Four candidates were weighed against what this cluster actually
+# permits, and three of the four are structurally dead — recorded here because
+# all three look obvious and each cost a day to disprove:
 #
 #   (A) ArgoCD Image Updater. REJECTED — already removed from this repo's
 #       ApplicationSets, and for a reason that has not changed: its
@@ -63,15 +79,33 @@
 #       (Its PR-per-build variant is worse: it doubles every merge and each
 #       write-back commit is itself buildable, so it loops.)
 #
-#   (C) CHOSEN — the render learns the revision it is already rendering.
-#       ArgoCD resolves a revision before it invokes the plugin, and the SCM
-#       generator that mints these Applications already carries the branch head
-#       SHA. `{branchSlug}-{shortSha}` is then a PURE FUNCTION of (branch,
-#       commit) on BOTH sides: the pipeline derives it from the commit its clone
-#       landed on, the render derives it from the commit ArgoCD is rendering,
-#       and for the same commit the two strings are identical by construction —
-#       no write-back, no mutable tag, no second source of truth, and rollback
-#       stays "sync an older revision", which re-derives the older tag.
+#   (D) `--image-tag`-from-the-generator: mint the tag where the SCM generator
+#       already carries a branch-head SHA, pass it into the render as an
+#       ApplicationSet-templated `env:` entry, and add a matching
+#       `orvexai/idp-render --image-tag` flag to consume it (the same shape as
+#       the `--branch` / `--crew-name` flags idp-render already has). REJECTED,
+#       and this is the one that looks like a natural fit for this component —
+#       weigh it before proposing it again. `targetRevision: {{.branch}}` lets
+#       ArgoCD re-render on ITS OWN 60-second reconcile the instant a new commit
+#       lands, but the SCM generator's `sha` only advances on the next
+#       webhook/poll cycle. The two clocks drift: a render can pick up a new
+#       commit's manifests while the generator-sourced `env:` var still names
+#       the PREVIOUS commit's tag — the render advances, the injected tag does
+#       not, silent staleness with a Healthy dashboard. That is the exact defect
+#       (C) exists to close, so wiring (D) would reintroduce it under a
+#       different name.
+#
+#   (C) CHOSEN, AND SHIPPED — the render learns the revision it is already
+#       rendering. ArgoCD resolves a revision BEFORE it invokes the CMP plugin
+#       and exposes it to that plugin invocation as `ARGOCD_APP_REVISION`
+#       (documented ArgoCD CMP behaviour, not a Studio convention), so unlike
+#       (D) the two clocks never diverge — there is only one clock.
+#       `{branchSlug}-{shortSha}` is then a PURE FUNCTION of (branch, commit) on
+#       BOTH sides: the pipeline derives it from the commit its clone landed on,
+#       the render derives it from `ARGOCD_APP_REVISION`, and for the same
+#       commit the two strings are identical by construction — no write-back,
+#       no mutable tag, no second source of truth, and rollback stays "sync an
+#       older revision", which re-derives the older tag.
 #
 #       Its one honest cost, stated rather than discovered later: between a push
 #       and the completion of that commit's build the render names an image that
@@ -79,15 +113,18 @@
 #       silently serving the previous build. That is the loud failure the
 #       mutable `:dev` tag was hiding.
 #
-#       (C) is not wired yet, and this component does not pretend it is: the
-#       sentinel in image-ref.yaml survives every render until a carrier fills
-#       it, and the conformance gate reds on the sentinel. The remaining piece
-#       is one flag in `orvexai/idp-render` (`--image-tag`, the same shape as
-#       the `--branch` / `--crew-name` flags it already has) plus the matching
-#       plugin `env:` entry in this repo's ApplicationSets. That is a platform
-#       change in another repo, which is why it is NOT smuggled in here as an
-#       inert ApplicationSet env var that would read as done while doing
-#       nothing.
+#       LIVE since `orvexai/idp-render` v0.3.3 (ENG-3305). `idp-render prepare`
+#       reads `ARGOCD_APP_REVISION` from its own process environment and fills
+#       the `image-ref.yaml` sentinel below with the derived
+#       `{branchSlug}-{shortSha}` BEFORE kustomize ever runs — the carrier is a
+#       render-time step ahead of this component, not a feature of it. There is
+#       no ApplicationSet `env:` entry for it and nothing extra for a future
+#       edit here to fall out of step with (that is exactly the (D) shape
+#       this section rejects): `kustomize build`
+#       run alone, without `idp-render prepare` in front of it, still emits the
+#       sentinel unfilled and the conformance gate reds on it — see
+#       `tekton/README.md`'s "Consequence for anyone running the deploy-side
+#       gate by hand" note before reading that as a regression.
 #
 # ── WHICH KINDS ARE STAMPED, and why `Job` is NOT ────────────────────────────
 # Stamped: Deployment, StatefulSet, DaemonSet, CronJob, and the Knative
