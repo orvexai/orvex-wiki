@@ -71,7 +71,7 @@ import { Test } from '@nestjs/testing';
 import { CamelCasePlugin, FileMigrationProvider, Kysely, Migrator } from 'kysely';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
-import { sign } from 'jsonwebtoken';
+import { createHmac } from 'node:crypto';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 
 import type { DbInterface } from '@docmost/db/types/db.interface';
@@ -214,11 +214,37 @@ describe('TestRlsRequestTierBackstop — ENG-3569 / ENG-3525', () => {
     return { ws, user, space, page };
   }
 
-  /** A token of the exact shape `resolveWorkspaceIdFromToken` accepts. */
+  /**
+   * A token of the exact shape `resolveWorkspaceIdFromToken` accepts.
+   *
+   * Minted by hand over `node:crypto` rather than via a JWT library: AD-9 bans
+   * JWT/JOSE library imports in this repo (`eslint.substrate.config.mjs`), and
+   * the precedent for satisfying that ban is to hand-roll the primitive rather
+   * than suppress the rule (ENG-3495 did the same for ES256/JWKS). The bytes
+   * are identical to what an HS256 signer emits — compact JWS,
+   * `base64url(header).base64url(payload).base64url(HMAC-SHA256)` — which is
+   * exactly what the engine's verifier consumes, so the test still proves the
+   * REAL verification path and not a bypass of it.
+   */
   function tokenFor(workspaceId: string, userId: string): string {
-    return sign({ sub: userId, workspaceId, type: 'access' }, APP_SECRET, {
-      expiresIn: '1h',
-    });
+    const b64url = (value: string) => Buffer.from(value).toString('base64url');
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const signingInput = [
+      b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' })),
+      b64url(
+        JSON.stringify({
+          sub: userId,
+          workspaceId,
+          type: 'access',
+          iat: issuedAt,
+          exp: issuedAt + 3600,
+        }),
+      ),
+    ].join('.');
+    const signature = createHmac('sha256', APP_SECRET)
+      .update(signingInput)
+      .digest('base64url');
+    return `${signingInput}.${signature}`;
   }
 
   async function probe(route: string, workspace: string, pageId: string) {
