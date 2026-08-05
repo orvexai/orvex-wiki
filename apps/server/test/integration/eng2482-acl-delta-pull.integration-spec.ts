@@ -157,6 +157,12 @@ describe('ENG-2482: ACL delta-pull chokepoint (evalPage narrowing + filterAccess
       workspaceRepo,
       userRepo,
       exportServiceStub,
+      // ENG-2483 added the audit collaborator to this constructor. Like
+      // `exportServiceStub` above it is UNREACHED on this ACL path
+      // (`filterAccessiblePages` never exports, so it never audits) — a
+      // construction convenience for an unreached dependency, not a
+      // behaviour substitution for anything this spec asserts on.
+      {} as any,
     );
 
     const orvexAudit = new OrvexAuditService(db, new OutboxWriter(db));
