@@ -17,6 +17,7 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 
+import * as collabUtil from '../../../../collaboration/collaboration.util';
 import { PageService } from '../page.service';
 import { PageRepo } from '@docmost/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@docmost/db/repos/page/page-permission.repo';
@@ -516,7 +517,6 @@ describe('PageServiceBlockIdChokepointSpec', () => {
    * the guarded block exactly as a genuine internal fault would.
    */
   it('ENG-3275 — a non-validity internal fault inside the guarded block is NOT laundered into a 400', async () => {
-    const collabUtil = require('../../../../collaboration/collaboration.util');
     const internalFault = new Error('simulated internal fault in stampBlockIds');
     const stampSpy = jest
       .spyOn(collabUtil, 'stampBlockIds')
@@ -561,7 +561,6 @@ describe('PageServiceBlockIdChokepointSpec', () => {
    * into INVALID_CONTENT_FORMAT.
    */
   it('ENG-3275 — an HttpException from inside the guarded block is re-thrown untouched', async () => {
-    const collabUtil = require('../../../../collaboration/collaboration.util');
     const typedFailure = new ConflictException({ code: 'SOME_OTHER_CODE' });
     const stampSpy = jest
       .spyOn(collabUtil, 'stampBlockIds')
