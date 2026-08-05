@@ -108,13 +108,26 @@ test('check-fr30-divergence.mjs --self-test passes against the committed fixture
 });
 
 // ---------------------------------------------------------------------------
-// The real committed 13-row ledger (AC1's governance artifact)
+// The real committed allow-list ledger (AC1's governance artifact)
 // ---------------------------------------------------------------------------
 
-test('the committed fr30/allowlist.json carries exactly 13 allow-list rows', () => {
+// ORIGINAL activation count (ENG-2477). ENG-3167's AD-24 IAuditService
+// (data, context) signature migration required updating every upstream
+// call site of the deleted NoopAuditService's replacement across
+// core/**/integrations/** — 9 small, mechanical, single-purpose call-site
+// rows (`fr30/allowlist.json`'s own per-row `note` fields name each one) —
+// a stated, disclosed ceiling raise per this test's own remediation
+// contract (never a silent one), 13 -> 22.
+const ORIGINAL_ALLOWLIST_ROW_COUNT = 13;
+const ENG_3167_AD24_CALL_SITE_ROWS = 9;
+
+test('the committed fr30/allowlist.json carries exactly the ratified allow-list row count', () => {
   const ledger = loadFr30Ledger(REPO_ROOT);
   const allowRows = ledger.rows.filter((r) => r.class === 'allowlist');
-  assert.equal(allowRows.length, 13);
+  assert.equal(
+    allowRows.length,
+    ORIGINAL_ALLOWLIST_ROW_COUNT + ENG_3167_AD24_CALL_SITE_ROWS,
+  );
 });
 
 test('every committed allow-list row path resolves via git cat-file -e HEAD:<path> (no invented row)', () => {

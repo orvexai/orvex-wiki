@@ -2,15 +2,10 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { compactVerify, errors } from 'jose';
-import type { CompactVerifyGetKey } from 'jose';
+import { webcrypto } from 'node:crypto';
 
 import type { EdgeAssertionKeySource } from './edge-assertion-key-source';
-import {
-  EdgeAssertionClaims,
-  EdgeAssertionErrorCode,
-  EdgeAssertionVerificationError,
-} from './edge-assertion.types';
+import { EdgeAssertionClaims, EdgeAssertionVerificationError } from './edge-assertion.types';
 
 /**
  * Construction dependencies for {@link EdgeAssertionVerifier}. Fixed set,
@@ -51,37 +46,50 @@ export interface EdgeAssertionVerifierDeps {
  *
  * Every OTHER consumer of identity's `/v1/edge-authn` assertion adopts
  * `pkg/auth` (Go, ENG-2408) or `@orvex/auth-node` (TS, ENG-3062); neither
- * is importable here (AGPL/closed-license boundary). This class is the
- * ONE sanctioned from-scratch implementation, and its correctness is
- * proven not by trusting this file but by replaying the SAME shared
- * conformance corpus those two verifiers replay
- * (`orvex-studio-contracts` `identity/vectors/edge-assertion`, pinned
- * `v0.1.4`) — see `edge-assertion-verifier.spec.ts`.
+ * is importable here (AGPL/closed-license boundary). AD-9's `jose_jwt`
+ * substrate-allow list names exactly those two as the fleet's ONLY sanctioned
+ * JWT/JOSE-library importers (`config/services.yaml` `lint.substrate_allow.
+ * jose_jwt: [pkg/auth]`, TS peer `@orvexai/auth-node`) — with NO per-service
+ * exemption route for a third implementation, not even a test-file one (the
+ * ban's own declaration explicitly does not carry a `test_exempt_ref`,
+ * unlike the `process-env` ban next to it). So this class is the ONE
+ * sanctioned TRULY-from-scratch implementation: it verifies the JWS by hand
+ * against Node's built-in Web Crypto `SubtleCrypto` (`node:crypto`
+ * `webcrypto`, never a JWT/JOSE package), and its correctness is proven not
+ * by trusting this file but by replaying the SAME shared conformance corpus
+ * those two library-backed verifiers replay (`orvex-studio-contracts`
+ * `identity/vectors/edge-assertion`, pinned `v0.1.4`) — see
+ * `edge-assertion-verifier.spec.ts`.
  *
  * The five ADR-0049 checks run in the order the ADR requires — signature
  * BEFORE any claim is read, full stop:
  *
- *   1. header parse (jose, `compactVerify`)
- *   2. alg-pin — `algorithms: ['ES256']` allowlist; jose evaluates this
- *      against the header BEFORE ever calling the key resolver (verified
- *      against `jose/dist/*\/jws/flattened/verify.js`), so `alg: none` /
- *      `HS256` / `RS256` never reach step 3.
+ *   1. header parse — split the compact JWS on `.`, base64url-decode all
+ *      three segments, `JSON.parse` the header. A structural failure here
+ *      (wrong segment count, bad base64url, non-object JSON) is MALFORMED.
+ *   2. alg-pin — the header's `alg` must be EXACTLY `'ES256'`, checked
+ *      BEFORE the key resolver is ever called, so `alg: none` / `HS256` /
+ *      `RS256` never reach step 3.
  *   3. kid resolve — via the injected {@link EdgeAssertionKeySource}, with
  *      this class's own exactly-one-refresh-then-reject orchestration
- *      (never jose's opaque internal retry policy).
- *   4. signature verify — over the raw JWS bytes, still inside
- *      `compactVerify`. Nothing below this line has been reached yet if
- *      this throws.
+ *      (a hand-rolled retry policy this class owns end-to-end, not a
+ *      library's opaque internal one).
+ *   4. signature verify — ECDSA/SHA-256 over the raw JWS signing-input bytes
+ *      (`base64url(header) + '.' + base64url(payload)`) via
+ *      `SubtleCrypto.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, ...)`.
+ *      WebCrypto's ECDSA signature encoding is the raw IEEE-P1363 `r || s`
+ *      concatenation — the SAME byte layout RFC 7515 §3.4 mandates for JWS
+ *      ES256 — so no DER conversion is needed. Nothing below this line has
+ *      been reached yet if this fails.
  *   5. (only now) payload is decoded and the remaining three claim checks
  *      run in this order: audience-value, expiry (zero-leeway `exp` +
  *      skewed `iat`/`nbf`), issuer.
  *
- * `compactVerify` — the JWS layer, not `jwtVerify` — is used deliberately:
- * jose's JWT-layer claims validator applies ONE `clockTolerance` to both
- * `exp` and `nbf`, which cannot express ADR-0049's asymmetric rule (zero
- * leeway on `exp`, up to `skewToleranceSeconds` on `iat`/`nbf`). Claims are
- * therefore validated by hand, below, after jose has finished the
- * signature-and-header half.
+ * The asymmetric expiry rule (zero leeway on `exp`, up to
+ * `skewToleranceSeconds` on `iat`/`nbf`) is why claims are validated by
+ * hand below rather than through any all-in-one JWT-layer verifier: no
+ * single `clockTolerance` knob can express two different tolerances for two
+ * different claims.
  *
  * NO DECODE-WITHOUT-VERIFY: the only public method is `verify()`. There is
  * no `decode()`/`unsafeDecode()`/static claim reader — claims are
@@ -136,33 +144,92 @@ export class EdgeAssertionVerifier {
   ): Promise<EdgeAssertionClaims> {
     const now = opts.now ?? Math.floor(Date.now() / 1000);
 
-    const getKey: CompactVerifyGetKey = async (protectedHeader) => {
-      const kid = protectedHeader.kid;
-      if (typeof kid !== 'string' || kid.length === 0) {
-        throw new EdgeAssertionVerificationError('UNKNOWN_KID');
-      }
-      let key = await this.keys.resolve(kid);
-      if (key === undefined) {
-        // Exactly one refresh attempt (ADR-0049 check 4) — never a loop,
-        // never a silent fall-through to accept.
-        await this.keys.refresh();
-        key = await this.keys.resolve(kid);
-      }
-      if (key === undefined) {
-        throw new EdgeAssertionVerificationError('UNKNOWN_KID');
-      }
-      return key;
-    };
+    // Step 1: header parse. Split the compact JWS on '.', base64url-decode
+    // and JSON.parse ONLY the header segment — the payload/signature
+    // segments are deliberately NOT touched yet (see the ordering note
+    // below step 3). Any structural failure here — wrong segment count,
+    // bad base64url, non-object JSON — is MALFORMED, never a crash.
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new EdgeAssertionVerificationError('MALFORMED');
+    }
+    const [headerB64, payloadB64, signatureB64] = parts;
 
-    let payloadBytes: Uint8Array;
+    let header: unknown;
     try {
-      const result = await compactVerify(token, getKey, { algorithms: ['ES256'] });
-      payloadBytes = result.payload;
+      header = JSON.parse(Buffer.from(decodeBase64Url(headerB64)).toString('utf8'));
+    } catch {
+      throw new EdgeAssertionVerificationError('MALFORMED');
+    }
+    if (typeof header !== 'object' || header === null || Array.isArray(header)) {
+      throw new EdgeAssertionVerificationError('MALFORMED');
+    }
+    const headerObj = header as Record<string, unknown>;
+
+    // Step 2: alg-pin. Checked BEFORE the key resolver is ever called, so
+    // `alg: none` / `HS256` / `RS256` never reach step 3 (verified below by
+    // the ENG-3063 hardening suite's `counting.refreshCalls === 0`
+    // assertion for a non-ES256 header) — and, just as importantly, before
+    // the payload/signature segments are decoded at all: an `alg: none`
+    // assertion legitimately carries an EMPTY signature segment (the
+    // conformance corpus's `alg-none` vector does exactly this), which must
+    // still resolve to ALG_REJECTED rather than a decode-triggered
+    // MALFORMED racing ahead of it.
+    if (headerObj.alg !== 'ES256') {
+      throw new EdgeAssertionVerificationError('ALG_REJECTED');
+    }
+
+    // Step 3: kid resolve, with this class's own exactly-one-refresh-then-
+    // reject orchestration (ADR-0049 check 4) — never a loop, never a
+    // silent fall-through to accept. Still before the payload/signature
+    // segments are decoded, for the same reason as step 2.
+    const kid = headerObj.kid;
+    if (typeof kid !== 'string' || kid.length === 0) {
+      throw new EdgeAssertionVerificationError('UNKNOWN_KID');
+    }
+    let key = await this.keys.resolve(kid);
+    if (key === undefined) {
+      await this.keys.refresh();
+      key = await this.keys.resolve(kid);
+    }
+    if (key === undefined) {
+      throw new EdgeAssertionVerificationError('UNKNOWN_KID');
+    }
+
+    // Step 4: signature verify — ECDSA/SHA-256 over the raw JWS signing
+    // input, via Node's built-in Web Crypto SubtleCrypto (never a JWT/JOSE
+    // package — AD-9). WebCrypto's ECDSA signature encoding is the raw
+    // IEEE-P1363 `r || s` concatenation, the SAME layout RFC 7515 §3.4
+    // mandates for JWS ES256, so no DER conversion is needed. Nothing below
+    // this line has been reached yet if this fails. The payload/signature
+    // segments are decoded ONLY now — a malformed one here (alg was
+    // confirmed ES256 and kid resolved) is MALFORMED, never a crash.
+    let payloadBytes: Uint8Array<ArrayBuffer>;
+    let signatureBytes: Uint8Array<ArrayBuffer>;
+    try {
+      payloadBytes = decodeBase64Url(payloadB64);
+      signatureBytes = decodeBase64Url(signatureB64);
+    } catch {
+      throw new EdgeAssertionVerificationError('MALFORMED');
+    }
+    const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    let verified: boolean;
+    try {
+      verified = await webcrypto.subtle.verify(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        key as unknown as webcrypto.CryptoKey,
+        signatureBytes,
+        signingInput,
+      );
     } catch (err: unknown) {
-      if (err instanceof EdgeAssertionVerificationError) {
-        throw err;
-      }
-      throw new EdgeAssertionVerificationError(mapJoseError(err), err);
+      // A key of the wrong type/curve or a malformed signature length
+      // throws from SubtleCrypto rather than returning false — treated
+      // identically to an unverified signature (never a crash, never an
+      // accept).
+      throw new EdgeAssertionVerificationError('BAD_SIGNATURE', err);
+    }
+    if (!verified) {
+      throw new EdgeAssertionVerificationError('BAD_SIGNATURE');
     }
 
     // Signature has verified. Only now is the payload decoded — nothing
@@ -274,22 +341,22 @@ function narrowClaims(payload: unknown): EdgeAssertionClaims {
 }
 
 /**
- * Map a thrown jose error to a stable {@link EdgeAssertionErrorCode}. Codes
- * and class↔code correspondence are pinned by jose's public error taxonomy
- * (verified against jose 6.2.3).
+ * RFC 4648 §5 base64url decode, no padding — the exact alphabet JWS compact
+ * serialisation uses for all three segments (RFC 7515 §3). Node's
+ * `Buffer.from(str, 'base64url')` silently drops characters outside the
+ * base64url alphabet rather than rejecting them, so the alphabet is
+ * validated by hand first: a malformed segment must throw here (mapped to
+ * MALFORMED by every caller), never silently decode a truncated/wrong value.
  */
-function mapJoseError(err: unknown): EdgeAssertionErrorCode {
-  if (err instanceof errors.JOSEAlgNotAllowed) {
-    return 'ALG_REJECTED';
+function decodeBase64Url(segment: string): Uint8Array<ArrayBuffer> {
+  if (segment.length === 0 || !/^[A-Za-z0-9_-]+$/.test(segment)) {
+    throw new Error('invalid base64url segment');
   }
-  if (err instanceof errors.JWSSignatureVerificationFailed) {
-    return 'BAD_SIGNATURE';
-  }
-  // JWSInvalid / JWKSNoMatchingKey / JWKSMultipleMatchingKeys / a raw
-  // TypeError from a malformed key — the token could not be parsed or
-  // matched to a usable key. Rejected as MALFORMED (this class's own
-  // UNKNOWN_KID throw from inside getKey is caught before this function
-  // ever runs — see the `instanceof EdgeAssertionVerificationError` guard
-  // in `verify()`).
-  return 'MALFORMED';
+  const decoded = Buffer.from(segment, 'base64url');
+  // Copied into a freshly-allocated (never shared) ArrayBuffer-backed
+  // Uint8Array: SubtleCrypto's BufferSource typing rejects the
+  // ArrayBufferLike-backed view Buffer.from returns directly.
+  const out = new Uint8Array(decoded.length);
+  out.set(decoded);
+  return out;
 }
