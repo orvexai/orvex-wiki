@@ -721,6 +721,27 @@ jobs:
         run: bash scripts/ci/engine-only-import-guard.sh .
 
   # ---------------------------------------------------------------------------
+  # RLS unscoped-read ratchet (ENG-3569). `set_config('app.workspace_id', $1,
+  # true)` is transaction-local, and the engine sets it at exactly one site —
+  # `executeTx`. A statement issued on the raw handle `dbOrTx(db, undefined)`
+  # returns opens no transaction, so the GUC is unset and the fail-closed RLS
+  # policies deny it, including to the row's OWN owner (proven end to end in
+  # database/rls-request-tier.integration.spec.ts). ~156 such sites exist
+  # today; this fence does not ban them, it makes the count a one-way
+  # function so a new one cannot be added silently while ENG-3569's read-path
+  # chokepoint lands. Same ratchet shape as lint-boundary-ratchet.sh
+  # (PO-2026-07-29-5). Retired by driving the count to zero, never by
+  # deleting the script.
+  # ---------------------------------------------------------------------------
+  rls-unscoped-read-ratchet:
+    name: RLS Unscoped-Read Ratchet (ENG-3569)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: rls-unscoped-read-ratchet.sh
+        run: bash scripts/ci/rls-unscoped-read-ratchet.sh
+
+  # ---------------------------------------------------------------------------
   # DfM AGPL import-boundary guard (ENG-2488 — AC2/AC3/AC4, A-SEAMS F8, P10
   # licensing direction). Static gate: `@orvex/dfm` (AGPL-3.0-only) may be
   # imported ONLY by the engine (apps/server/**) and by the package itself
