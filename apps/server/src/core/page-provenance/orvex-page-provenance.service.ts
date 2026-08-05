@@ -16,6 +16,7 @@ import {
 } from './provenance-content.util';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 import { EVT_PAGE_STATUS_CHANGED } from '../../orvex/events/constants/orvex-event-types';
+import { executeTx } from '@docmost/db/utils';
 
 /**
  * The set of provenance states a page can carry.
@@ -352,7 +353,10 @@ export class OrvexPageProvenanceService {
     if (trx) {
       await run(trx);
     } else {
-      await this.db.transaction().execute(run);
+      // ENG-2502 chokepoint — see `database/utils.ts`. A raw
+      // `this.db.transaction()` would leave `app.workspace_id` unset and the
+      // FORCE-RLS policies would deny this write.
+      await executeTx(this.db, run);
     }
   }
 }

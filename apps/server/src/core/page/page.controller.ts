@@ -67,6 +67,7 @@ import { ConfirmTokenService } from '../../orvex/page-metadata/confirm-token.ser
 import { OrvexPageMetadataService } from '../../orvex/page-metadata/orvex-page-metadata.service';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -331,7 +332,17 @@ export class PageController {
     // stamp (AC5) run in the SAME db transaction, so there is no committed
     // window where the page row exists with provenance_status = null
     // (NFR-freshness / Dev-Context §4e "no lag window").
-    const page = await this.db.transaction().execute(async (trx) => {
+    //
+    // The transaction is opened through `executeTx` — the ENG-2502 (FR-W8 AC1)
+    // shared chokepoint — and NOT through a raw `this.db.transaction()`. This
+    // route opens the OUTERMOST transaction of the create; every nested
+    // `executeTx` beneath it (`PageService.create`, `PageRepo.insertPage`)
+    // receives it as `existingTrx` and, by design, does not re-scope a
+    // transaction it does not own. So if this site does not go through the
+    // chokepoint, `set_config('app.workspace_id', …, true)` is never issued for
+    // the whole create and the FORCE-RLS policy on `pages` denies the insert
+    // with 42501 — which is exactly what it did.
+    const page = await executeTx(this.db, async (trx) => {
       const created = await this.pageService.create(
         user.id,
         workspace.id,
@@ -517,7 +528,9 @@ export class PageController {
     // stamp (AC5) run in the SAME db transaction, so there is no committed
     // window where the page row is updated with provenance_status = null
     // (NFR-freshness / Dev-Context §4e "no lag window").
-    const updatedPage = await this.db.transaction().execute(async (trx) => {
+    // Opened through the ENG-2502 `executeTx` chokepoint for the same reason
+    // the create route above is — see that comment.
+    const updatedPage = await executeTx(this.db, async (trx) => {
       const result = await this.pageService.update(
         page,
         updatePageDto,

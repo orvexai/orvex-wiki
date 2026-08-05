@@ -5,6 +5,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
 import { PageVerificationRepo } from './page-verification.repo';
 import {
   CreateVerificationDto,
@@ -175,7 +176,11 @@ export class PageVerificationService {
 
     const status: VerificationStatus = type === 'qms' ? 'draft' : 'verified';
 
-    const created = await this.db.transaction().execute(async (trx) => {
+    // ENG-2502 chokepoint: opened via `executeTx` so the transaction carries
+    // the ambient tenant scope into `set_config('app.workspace_id', …, true)`.
+    // A raw `this.db.transaction()` here leaves the GUC unset and the
+    // FORCE-RLS policies deny every write in it.
+    const created = await executeTx(this.db, async (trx) => {
       const inserted = await this.verificationRepo.insertVerification(
         {
           pageId: dto.pageId,
@@ -234,7 +239,8 @@ export class PageVerificationService {
             existing.verifiedAt ? new Date(existing.verifiedAt) : new Date(),
           );
 
-    await this.db.transaction().execute(async (trx) => {
+    // ENG-2502 chokepoint — see the create path above.
+    await executeTx(this.db, async (trx) => {
       await this.verificationRepo.updateVerification(
         existing.id,
         workspaceId,
