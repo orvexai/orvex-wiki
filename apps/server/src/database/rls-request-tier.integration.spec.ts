@@ -80,7 +80,7 @@ import { EnvironmentService } from '../integrations/environment/environment.serv
 import { OrvexConfigService } from '../orvex/config/orvex-config.service';
 import { DomainMiddleware } from '../common/middlewares/domain.middleware';
 import { currentTenantScope } from './rls/tenant-scope.context';
-import { executeTx } from './utils';
+import { MissingTenantScopeError, executeTx, scopedQuery } from './utils';
 import type { KyselyDB } from './types/kysely.types';
 
 const APP_ROLE = 'app_rls_request_tier';
@@ -122,6 +122,24 @@ class RlsRequestTierProbeController {
       .select(['id', 'title'])
       .where('id', '=', body.pageId)
       .execute();
+    return { scopeInHandler: currentTenantScope(), rows };
+  }
+
+  /**
+   * ENG-3569 — the same read through the new read/single-statement
+   * chokepoint. This is the shape the ~156 `dbOrTx` sites migrate to, so it
+   * is the shape that has to carry the same isolation proof `executeTx`
+   * carries: owner sees the row, wrong tenant does not.
+   */
+  @Post('via-scoped-query')
+  async viaScopedQuery(@Body() body: ProbeBody) {
+    const rows = await scopedQuery(this.db, (executor) =>
+      executor
+        .selectFrom('pages')
+        .select(['id', 'title'])
+        .where('id', '=', body.pageId)
+        .execute(),
+    );
     return { scopeInHandler: currentTenantScope(), rows };
   }
 }
@@ -379,6 +397,62 @@ describe('TestRlsRequestTierBackstop — ENG-3569 / ENG-3525', () => {
     // bytes=0: none of A's marker reaches B, through a path where the app
     // ACL would have said yes.
     expect(JSON.stringify(body)).not.toContain('RT-TENANT-A-SECRET-MARKER');
+  });
+
+  /**
+   * ENG-3569 — the read-path chokepoint, proven on the SAME harness as the
+   * `executeTx` pair above so the two are directly comparable.
+   *
+   * The three assertions are a set and only mean something together:
+   *  1. the owner GETS the row (this is the outage being fixed — the same
+   *     read through the `dbOrTx` handle answers `[]`),
+   *  2. the WRONG tenant does NOT, with the app ACL deliberately widened past
+   *     the tenant boundary so RLS is the only thing left standing, and
+   *  3. NO tenant is refused LOUDLY rather than answered with `[]`.
+   * Without (1), (2) is just an outage. Without (3), a lost scope still
+   * looks like an empty workspace.
+   */
+  it('POSITIVE CONTROL — tenant A reads its OWN page through scopedQuery (the dbOrTx replacement)', async () => {
+    const { status, body } = await probe('via-scoped-query', 'A', tenants.A.page.id);
+    expect(status).toBe(201);
+    expect(body.scopeInHandler).toBe(tenants.A.ws.id);
+    // The row the SAME query returns as [] through the plain `db` handle.
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].title).toContain('RT-TENANT-A-SECRET-MARKER');
+  });
+
+  it('DISCRIMINATOR — scopedQuery still refuses B with the space ACL widened cross-tenant (bytes=0)', async () => {
+    const { status, body } = await probe('via-scoped-query', 'B', tenants.A.page.id);
+    expect(status).toBe(201);
+    expect(body.scopeInHandler).toBe(tenants.B.ws.id);
+    expect(body.rows).toHaveLength(0);
+    expect(JSON.stringify(body)).not.toContain('RT-TENANT-A-SECRET-MARKER');
+  });
+
+  it('FAIL-CLOSED — with no ambient tenant scope, scopedQuery THROWS instead of answering []', async () => {
+    // No request, so no `runInTenantScope` — the system-context shape, and
+    // the shape a request path degrades to if the scope is ever lost.
+    expect(currentTenantScope()).toBeNull();
+
+    await expect(
+      scopedQuery(probeDb, (executor) =>
+        executor
+          .selectFrom('pages')
+          .select(['id', 'title'])
+          .where('id', '=', tenants.A.page.id)
+          .execute(),
+      ),
+    ).rejects.toBeInstanceOf(MissingTenantScopeError);
+
+    // And the contrast that makes the point: the unscoped handle this
+    // replaces answers the same question with a perfectly ordinary empty
+    // result, which no layer above can tell from "the tenant has no data".
+    const viaUnscopedHandle = await probeDb
+      .selectFrom('pages')
+      .select(['id', 'title'])
+      .where('id', '=', tenants.A.page.id)
+      .execute();
+    expect(viaUnscopedHandle).toHaveLength(0);
   });
 
   /**
