@@ -19,9 +19,25 @@
  *
  * That is not a hypothetical: it is exactly what
  * `PageController.create`/`update`, `PageVerificationService` and
- * `OrvexPageProvenanceService` did, and exactly what made
- * `POST /api/pages/create` surface as a wiki-api `502 ENGINE_UNAVAILABLE`
- * while `GET /v1/spaces` returned a false-empty `{"items":[]}`.
+ * `OrvexPageProvenanceService` did. Proven (not asserted) by
+ * `test/integration/eng3569-tenant-scope-propagation.integration-spec.ts`:
+ * a request whose ambient tenant scope IS established (the organic,
+ * Host-resolved browser-session path — `subdomain.wiki.eu1.orvex.ai` — the
+ * one that has produced zero new wiki pages since 2026-07-14) reaches the
+ * handler with a real `workspaceId`, and the bare-`.transaction()` sites
+ * above still opened the transaction with the GUC unset because nothing in
+ * the call path consulted that scope. `executeTx(db, cb)` fixes exactly
+ * that reachable, evidenced failure.
+ *
+ * MF-4 correction (reports/p1b/wiki-167-review.md): an earlier version of
+ * this comment additionally attributed a wiki-api `502 ENGINE_UNAVAILABLE`
+ * symptom to this same bug. That attribution was UNPROVEN — no test here
+ * drives a wiki-api-shaped (Host-less, bearer-only) request — and is very
+ * likely WRONG: before ENG-3504, a Host-less request never reached these
+ * handlers at all (`registerWorkspaceExemptPreHandler` 404'd it first), so
+ * it could not have hit this transaction code to 42501 inside it. Whether
+ * wiki-api's composition-tier calls need scoping once ENG-3504 exempts them
+ * is a question for ENG-3504/#164, not this gate — see MF-2 there.
  *
  * A comment cannot hold that line — a future transaction site added by hand
  * would reintroduce it silently, and the symptom (a deny) looks like working
