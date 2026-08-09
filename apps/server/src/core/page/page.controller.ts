@@ -67,6 +67,7 @@ import { ConfirmTokenService } from '../../orvex/page-metadata/confirm-token.ser
 import { OrvexPageMetadataService } from '../../orvex/page-metadata/orvex-page-metadata.service';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
 
 @UseGuards(JwtAuthGuard)
 @Controller('pages')
@@ -331,7 +332,14 @@ export class PageController {
     // stamp (AC5) run in the SAME db transaction, so there is no committed
     // window where the page row exists with provenance_status = null
     // (NFR-freshness / Dev-Context §4e "no lag window").
-    const page = await this.db.transaction().execute(async (trx) => {
+    // ENG-3569 — `executeTx` (the shared transaction chokepoint), NOT a bare
+    // `this.db.transaction()`. A transaction opened outside the chokepoint never
+    // runs `set_config('app.workspace_id', …, true)`, so under the deployed RLS
+    // posture (`relforcerowsecurity=t`, engine role NOBYPASSRLS) every statement
+    // inside it — including the ones nested `executeTx(db, cb, trx)` calls run on
+    // the passed-down `trx` — is evaluated with NO tenant GUC and is denied.
+    // `executeTx(db, cb)` opens the same transaction and additionally scopes it.
+    const page = await executeTx(this.db, async (trx) => {
       const created = await this.pageService.create(
         user.id,
         workspace.id,
@@ -517,7 +525,14 @@ export class PageController {
     // stamp (AC5) run in the SAME db transaction, so there is no committed
     // window where the page row is updated with provenance_status = null
     // (NFR-freshness / Dev-Context §4e "no lag window").
-    const updatedPage = await this.db.transaction().execute(async (trx) => {
+    // ENG-3569 — `executeTx` (the shared transaction chokepoint), NOT a bare
+    // `this.db.transaction()`. A transaction opened outside the chokepoint never
+    // runs `set_config('app.workspace_id', …, true)`, so under the deployed RLS
+    // posture (`relforcerowsecurity=t`, engine role NOBYPASSRLS) every statement
+    // inside it — including the ones nested `executeTx(db, cb, trx)` calls run on
+    // the passed-down `trx` — is evaluated with NO tenant GUC and is denied.
+    // `executeTx(db, cb)` opens the same transaction and additionally scopes it.
+    const updatedPage = await executeTx(this.db, async (trx) => {
       const result = await this.pageService.update(
         page,
         updatePageDto,
