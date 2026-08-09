@@ -53,10 +53,17 @@ overrides:
   y-prosemirror: 1.3.7
   glob: 13.0.6
   ws: 8.21.0
-  dompurify: 3.4.11
+  # dompurify: GHSA-c2j3-45gr-mqc4 (low) fixed at 3.4.12; GHSA-55q2-fjhq-7xh7
+  # (medium, detached-subtree IN_PLACE XSS) fixed at 3.4.13. Same-major patch
+  # bump — ENG-3698 dependabot follow-up, ruling #25.
+  dompurify: 3.4.13
   tmp: 0.2.7
   hono: 4.12.25
-  mermaid: 11.15.0
+  # mermaid: 5 distinct GHSAs (GHSA-c4c3-pg64-4m4v, GHSA-rhh3-jpg6-66xh,
+  # GHSA-3rrr-jr9j-h3q3, GHSA-6x64-9x62-f2gx, GHSA-2v8p-3f2j-5mp7), all fixed
+  # at 11.16.1. Same-major patch bump — ENG-3698 dependabot follow-up, ruling
+  # #25.
+  mermaid: 11.16.1
   # nanoid: GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (both HIGH). 3.x line
   # fixed at 3.3.17; 4.x/5.x line fixed at 5.1.16. ^4 -> 5.1.16 crosses a major
   # on purpose (nanoid has no 4.x patch release covering both advisories) —
