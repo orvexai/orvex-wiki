@@ -11,24 +11,39 @@
 # advisory is no longer reported at all (a stale exception must be deleted, not
 # parked). Every finding — excepted or not — is printed in the CI log.
 #
-# WHEN AN ENTRY IS LEGITIMATE — exactly one case, and it is a DATA defect, not a
-# vulnerability we are choosing to carry: upstream published the fix as a
-# BACKPORT onto an older release line, this repo resolves that patched backport,
-# but the GitHub advisory range was never SPLIT to exclude it, so OSV still
-# matches the version. The vulnerable code is not present in the resolved tree;
-# the advisory range is stale. Both entries below are that case and each is
-# proven by unpacking the resolved tarball, not by argument.
+# WHEN AN ENTRY IS LEGITIMATE — exactly two cases, and both are proven, not
+# argued:
 #
-# WHEN AN ENTRY IS NOT LEGITIMATE: "the upgrade is inconvenient", "the path is
-# not reachable in our app", "we will do it next sprint". Those are reds. Fix
-# the dependency.
+#   1. DATA DEFECT, not a vulnerability we are choosing to carry: upstream
+#      published the fix as a BACKPORT onto an older release line, this repo
+#      resolves that patched backport, but the GitHub advisory range was
+#      never SPLIT to exclude it, so OSV still matches the version. The
+#      vulnerable code is not present in the resolved tree; the advisory
+#      range is stale. Proven by unpacking the resolved tarball.
 #
-# EXIT CONDITION for every entry: the advisory-database range gets split (report
-# it: https://github.com/github/advisory-database/issues), or the resolved
-# version leaves the range. Then delete the entry — the gate will fail while a
-# stale entry remains, so deletion is not optional.
+#   2. PROVEN UNREACHABLE, upgrade impossible: no patched version exists
+#      upstream for ANY resolved candidate (ruling out fix-by-upgrade), AND a
+#      concrete call-path trace shows the vulnerable function can never
+#      execute in this repo — e.g. a dev-only build-tool code path gated on
+#      an input (a file extension, a config flag) that provably never occurs
+#      here. "We think it's probably not hit" is NOT this case — the trace
+#      must be as concrete as case 1's tarball unpack: name the exact gating
+#      condition and show, by direct inspection (a repo-wide grep, reading
+#      the gating source), that it is never satisfied. A hand-wave ("the
+#      upgrade is inconvenient", "the path is *probably* not reachable", "we
+#      will do it next sprint") is still a red — fix the dependency instead.
 #
-# Tracking ticket for both entries: ENG-3274.
+# EXIT CONDITION for every entry: for case 1, the advisory-database range
+# gets split (report it: https://github.com/github/advisory-database/issues)
+# or the resolved version leaves the range; for case 2, upstream ships an
+# actual fix and this repo takes it, OR the gating condition changes (e.g.
+# the repo starts using the previously-absent feature) and the entry must be
+# re-proven or deleted immediately, not carried on inertia. Then delete the
+# entry — the gate will fail while a stale entry remains, so deletion is not
+# optional.
+#
+# Tracking ticket for the case-1 entries: ENG-3274. For the case-2 entry
+# below: ENG-3698.
 #
 # GHSA-mh99-v99m-4gvg (brace-expansion DoS) removed 2026-08-02, unrelated to
 # ENG-3357: osv-scanner stopped reporting it entirely (its CI log prints
@@ -36,8 +51,22 @@
 # STALE and must be DELETED"), meaning the advisory-database range was split
 # or the resolved dependency left it — the exit condition this file's own
 # header names. Deleted per that same header: "deletion is not optional."
+#
+# GHSA-qwww-vcr4-c8h2 (react-router RSC-mode CSRF bypass, ENG-3274) removed
+# 2026-08-09 (ENG-3698): osv-scanner stopped reporting it entirely — the gate
+# itself flagged it STALE ("the advisory is no longer reported by the
+# scanner — this exception is STALE and must be DELETED") on the current
+# resolved tree, with react-router-dom still pinned at 7.18.2 (unchanged by
+# this session — `grep '"react-router-dom"' apps/client/package.json` and
+# `pnpm why -r react-router` both confirm). Deleted per the header's own
+# rule: "deletion is not optional."
 
 [[IgnoredVulns]]
-id = "GHSA-qwww-vcr4-c8h2"
-ignoreUntil = 2026-10-28
-reason = "ENG-3274. react-router RSC-mode CSRF bypass. The GHSA range is a single unsplit [7.12.0, 8.3.0) naming 8.3.0 as the only fix — but upstream ALSO backported it to the v7 line in 7.18.2 (published 2026-07-28), whose CHANGELOG entry is literally 'Harden RSC CSRF codepaths (#15353)'. apps/client/package.json pins react-router-dom 7.18.2, which pins react-router 7.18.2 exactly, so the fix IS in the resolved tree; react-router-dom has no 8.x line at all (v8 dropped the package), so 7.18.2 is the patched version for this dependency. Exit: advisory range split, or the client migrates to react-router 8.x."
+id = "GHSA-5p2g-fcmc-qvqq"
+ignoreUntil = 2026-11-20
+reason = "ENG-3698. image-size: JXL/HEIF parser DoS (infinite loop). Case 2 (proven unreachable, no upstream fix): OSV's own affected range for this advisory is introduced:0 -> last_affected:2.0.2 — 2.0.2 is image-size's CURRENT latest published version (`npm view image-size dist-tags.latest` = 2.0.2), so no upgrade exists that clears it; case-1 (upgrade) and the task's case-(b) (safe major bump) are both categorically unavailable. image-size@0.5.5 is pulled in ONLY via `less@4.2.0`, which is ONLY ever reached as vite's OPTIONAL peer dependency (`peerDependenciesMeta.less.optional === true` in vite's own package.json) — vite dynamically `require()`s it from exactly one place, its CSS-preprocessor dispatcher (`loadPreprocessorPath('less', root)`, apps/client's resolved vite/dist/node/chunks/node.js), which is called only when vite's build pipeline encounters a `.less`-extension import. `find . -iname '*.less' -not -path '*/node_modules/*'` across the ENTIRE repo returns ZERO files, and a repo-wide grep for `from 'less'`/`require('less')`/any `.less`-extension reference in source, config, or vite.config.* also returns zero hits — the gating condition (a `.less` import existing anywhere) is provably never satisfied, so this dynamic require, and therefore `less`'s own image-size()-calling code, never executes. less+vite are devDependencies only (never in the production client/server bundle) — belt-and-braces on top of the reachability proof. Exit: image-size ships a fix past 2.0.2 and this repo takes it, OR the repo starts using .less files (re-prove or delete immediately, not carried on inertia)."
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+ignoreUntil = 2026-11-20
+reason = "ENG-3698. image-size: ICNS parser DoS (infinite loop). Same package, same unreachable code path, same proof as GHSA-5p2g-fcmc-qvqq immediately above (both advisories live in image-size@0.5.5, pulled in only via vite's optional `less` peer, which is never `require()`'d because zero .less files exist anywhere in this repo) — OSV's affected range is also introduced:0 -> last_affected:2.0.2, i.e. still-latest, no upgrade exists. Exit: identical to GHSA-5p2g-fcmc-qvqq."
