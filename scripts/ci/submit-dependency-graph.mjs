@@ -186,7 +186,18 @@ const snapshot = {
   ref,
   job: {
     id: process.env.GITHUB_RUN_ID,
-    correlator: `${process.env.GITHUB_WORKFLOW || 'dependency-graph'}-submit-snapshot`,
+    // Hardcoded literal, NEVER derived from GITHUB_WORKFLOW (the workflow's
+    // human-editable `name:` display string). GitHub supersedes a submitted
+    // snapshot only by an exact (ref, correlator) match, and there is no
+    // delete API for a submitted snapshot — so a correlator that drifts
+    // (e.g. because GITHUB_WORKFLOW was unset on a manual run, or the
+    // workflow's `name:` was later renamed) orphans the old snapshot
+    // PERMANENTLY on dev instead of being superseded by it. A correlator is
+    // an identity key, not a label. This exact literal is also what the
+    // 2026-08-09 manual proof run (unset GITHUB_WORKFLOW) registered under,
+    // so the first CI run under this fix cleanly supersedes that snapshot
+    // rather than leaving it as a second, un-overwritable ghost source.
+    correlator: 'dependency-graph-submit-snapshot',
     ...(process.env.GITHUB_SERVER_URL
       ? { html_url: `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}` }
       : {}),
@@ -241,9 +252,15 @@ try {
   process.exit(1);
 }
 
-if (body.result && body.result !== 'SUCCESS') {
-  console.error(`FATAL: submission accepted (HTTP ${res.status}) but result="${body.result}": ${body.message || '(no message)'}`);
+// Assert result === 'SUCCESS' POSITIVELY, not merely "not an explicit
+// failure" — a 2xx response body that omits `result` entirely must NOT pass.
+// This script's whole thesis is "never fail invisibly"; `if (body.result &&
+// body.result !== 'SUCCESS')` would let exactly that slip through silently.
+if (body.result !== 'SUCCESS') {
+  console.error(
+    `FATAL: submission accepted (HTTP ${res.status}) but result="${body.result ?? '(missing)'}" (expected "SUCCESS"): ${body.message || '(no message)'}`,
+  );
   process.exit(1);
 }
 
-console.error(`Snapshot submitted OK: id=${body.id} result=${body.result || '(none)'} message=${body.message || ''}`);
+console.error(`Snapshot submitted OK: id=${body.id} result=${body.result} message=${body.message || ''}`);

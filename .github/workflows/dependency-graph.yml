@@ -36,12 +36,41 @@
 # the Actions tab, the same visibility bar every other job in this repo's CI
 # uses — it is just not a merge gate, because merges are the wrong place to
 # gate something that can only be computed after the merge exists.
+#
+# TWO independent snapshot streams, each with its own hardcoded correlator
+# (see the scripts' own comments for why hardcoded, not derived from
+# GITHUB_WORKFLOW): `submit-snapshot` covers the pnpm/npm workspace;
+# `submit-go-snapshot` covers the two Go modules this repo also carries
+# (deploy/kustomize, tests/smoke). Those Go modules previously rode ONLY the
+# passive/Dependabot-native graph updater — the exact mechanism that froze
+# silently for a month for the npm side — and they are where the 2026-08-09
+# re-ingest's 13 golang.org/x/crypto alerts (several critical) live. Kept as
+# a sibling job rather than folded into the npm script: different toolchain
+# (go vs pnpm), independent failure domain, independent correlator — a
+# broken Go resolution must not block or mask the npm submission succeeding,
+# and vice versa.
+#
+# `on: schedule:` (weekly) exists because the freeze this whole job cures was
+# a TIME-based failure (silently stopped updating, not silently rejected on a
+# push), and this job is deliberately NOT a merge gate (see above), so a
+# failure here is passive — nothing pages, a human has to look at the Actions
+# tab. A push-only trigger only re-verifies liveness when dev happens to
+# move; a weekly schedule makes the liveness check itself time-based, so a
+# graph-disable (or any other silent regression) during a quiet period is
+# caught within a week instead of waiting for the next merge to dev.
 name: Dependency Graph Submission
 
 on:
   push:
     branches:
       - dev
+  schedule:
+    # Mondays 06:17 UTC — an off-the-hour slot (GitHub Actions cron minutes
+    # that are exactly :00 are the most congested and can be delayed).
+    # Weekly liveness check for a job that is deliberately not a merge gate
+    # (see header comment) — its red is passive, so it needs a trigger that
+    # doesn't depend on someone else pushing to dev.
+    - cron: '17 6 * * 1'
   workflow_dispatch:
     inputs:
       ref:
@@ -69,6 +98,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || 'dev' }}
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -84,3 +114,37 @@ jobs:
           # the branch that dispatched the run (see script header comment).
           SNAPSHOT_REF: refs/heads/${{ github.event.inputs.ref || 'dev' }}
         run: node scripts/ci/submit-dependency-graph.mjs
+
+  submit-go-snapshot:
+    name: Submit Go module dependency snapshot
+    runs-on: public-runners
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'dev' }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: |
+            deploy/kustomize/go.sum
+            tests/smoke/go.sum
+      - name: Generate + submit Go module dependency snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Explicit, not ambient: `go list -m -json all` must resolve
+          # purely from the checked-in go.mod/go.sum, never opportunistically
+          # rewrite go.sum to complete a query (verified locally: both
+          # deploy/kustomize and tests/smoke resolve cleanly read-only
+          # against dev's checked-in go.sum, 6 and 246 modules respectively,
+          # zero go.sum drift). If a future dependency bump makes readonly
+          # resolution fail, that is a real "go.sum is not self-consistent"
+          # problem this job should surface loudly, not paper over.
+          GOFLAGS: -mod=readonly
+          # Same explicit-not-inferred discipline as the npm job (see its
+          # comment above) — required so workflow_dispatch from a feature
+          # branch still graphs dev's real state, not the dispatching branch.
+          SNAPSHOT_REF: refs/heads/${{ github.event.inputs.ref || 'dev' }}
+        run: node scripts/ci/submit-go-dependency-graph.mjs
