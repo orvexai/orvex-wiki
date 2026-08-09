@@ -7551,11 +7551,6 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  image-size@0.5.5:
-    resolution: {integrity: sha512-6TDAlDPZxUFCv+fuOkIoXT/V/f3Qbq8e37p+YOiYrUv3v9cc3/6x78VdfPgFVaB9dZYeLUfKgHRebpkm/oP2VQ==}
-    engines: {node: '>=0.10.0'}
-    hasBin: true
-
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
 
@@ -10936,6 +10931,9 @@ packages:
         optional: true
       react:
         optional: true
+
+ignoredOptionalDependencies:
+  - image-size
 
 snapshots:
 
@@ -18512,9 +18510,6 @@ snapshots:
 
   image-dimensions@2.5.0: {}
 
-  image-size@0.5.5:
-    optional: true
-
   immediate@3.0.6: {}
 
   immer@11.1.11: {}
@@ -19414,7 +19409,6 @@ snapshots:
     optionalDependencies:
       errno: 0.1.8
       graceful-fs: 4.2.11
-      image-size: 0.5.5
       make-dir: 2.1.0
       mime: 1.6.0
       needle: 3.5.0

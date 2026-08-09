@@ -42,8 +42,9 @@
 # entry — the gate will fail while a stale entry remains, so deletion is not
 # optional.
 #
-# Tracking ticket for the case-1 entries: ENG-3274. For the case-2 entry
-# below: ENG-3698.
+# Tracking ticket for the case-1 entries: ENG-3274. ENG-3698 was a case-2
+# entry (see the removal breadcrumb below) that turned out to have a better
+# fix than an exception; the ledger currently holds zero entries.
 #
 # GHSA-mh99-v99m-4gvg (brace-expansion DoS) removed 2026-08-02, unrelated to
 # ENG-3357: osv-scanner stopped reporting it entirely (its CI log prints
@@ -60,13 +61,17 @@
 # this session — `grep '"react-router-dom"' apps/client/package.json` and
 # `pnpm why -r react-router` both confirm). Deleted per the header's own
 # rule: "deletion is not optional."
-
-[[IgnoredVulns]]
-id = "GHSA-5p2g-fcmc-qvqq"
-ignoreUntil = 2026-11-20
-reason = "ENG-3698. image-size: JXL/HEIF parser DoS (infinite loop). Case 2 (proven unreachable, no upstream fix): OSV's own affected range for this advisory is introduced:0 -> last_affected:2.0.2 — 2.0.2 is image-size's CURRENT latest published version (`npm view image-size dist-tags.latest` = 2.0.2), so no upgrade exists that clears it; case-1 (upgrade) and the task's case-(b) (safe major bump) are both categorically unavailable. image-size@0.5.5 is pulled in ONLY via `less@4.2.0`, which is ONLY ever reached as vite's OPTIONAL peer dependency (`peerDependenciesMeta.less.optional === true` in vite's own package.json) — vite dynamically `require()`s it from exactly one place, its CSS-preprocessor dispatcher (`loadPreprocessorPath('less', root)`, apps/client's resolved vite/dist/node/chunks/node.js), which is called only when vite's build pipeline encounters a `.less`-extension import. `find . -iname '*.less' -not -path '*/node_modules/*'` across the ENTIRE repo returns ZERO files, and a repo-wide grep for `from 'less'`/`require('less')`/any `.less`-extension reference in source, config, or vite.config.* also returns zero hits — the gating condition (a `.less` import existing anywhere) is provably never satisfied, so this dynamic require, and therefore `less`'s own image-size()-calling code, never executes. less+vite are devDependencies only (never in the production client/server bundle) — belt-and-braces on top of the reachability proof. Exit: image-size ships a fix past 2.0.2 and this repo takes it, OR the repo starts using .less files (re-prove or delete immediately, not carried on inertia)."
-
-[[IgnoredVulns]]
-id = "GHSA-w3rx-r6r6-pgpr"
-ignoreUntil = 2026-11-20
-reason = "ENG-3698. image-size: ICNS parser DoS (infinite loop). Same package, same unreachable code path, same proof as GHSA-5p2g-fcmc-qvqq immediately above (both advisories live in image-size@0.5.5, pulled in only via vite's optional `less` peer, which is never `require()`'d because zero .less files exist anywhere in this repo) — OSV's affected range is also introduced:0 -> last_affected:2.0.2, i.e. still-latest, no upgrade exists. Exit: identical to GHSA-5p2g-fcmc-qvqq."
+#
+# GHSA-5p2g-fcmc-qvqq / GHSA-w3rx-r6r6-pgpr (image-size JXL/HEIF + ICNS parser
+# DoS, ENG-3698) carried here briefly on 2026-08-09 as case-2 entries, then
+# REMOVED the same day (PR #172 review, MF-1) once independently re-verified
+# and disproven as necessary: image-size@0.5.5 is an OPTIONAL transitive
+# dependency (vite's optional `less` peer's own optional dependency), and
+# pnpm-workspace.yaml's `ignoredOptionalDependencies: [image-size]` keeps it
+# out of the resolved tree entirely — a proven zero-collateral change (the
+# regenerated lockfile differs from the prior one only in the image-size
+# entries). A removed vulnerability outranks a proven exception: this repo now
+# carries ZERO image-size resolutions, so there is nothing left to except.
+# Should image-size ever re-enter the tree through a non-optional path, redo
+# the case-2 proof from scratch — do not simply restore these entries verbatim
+# on the assumption the reachability analysis still holds.
