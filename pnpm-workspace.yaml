@@ -2,3 +2,104 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'packages/@orvex/*'
+
+# Migrated from package.json's "pnpm" key (ENG-3698): pnpm 10.4.0 silently stops
+# reading pnpm.overrides / pnpm.patchedDependencies / pnpm.neverBuiltDependencies
+# from package.json ("[WARN] The "pnpm" field in package.json is no longer read
+# by pnpm") in favour of this file. Every entry below used to live there and was
+# being silently ignored — ALL of it, not just the security-relevant entries —
+# since whenever this repo moved to pnpm 10.4.0. Some resolved versions still
+# matched their old override target by coincidence of the packages' own declared
+# ranges; others (js-yaml, nanoid) drifted onto newly-vulnerable versions once
+# the override that was supposed to pin them past an advisory stopped applying.
+#
+# ALSO ENG-3698: package.json's packageManager was bumped 10.4.0 -> 10.34.5
+# (latest 10.x, same major, no config-breaking changes observed) because
+# 10.4.0 itself could not reliably apply even a *migrated, correctly-located*
+# override for a dependency pinned to an EXACT version by a third-party
+# package two levels deep (@excalidraw/excalidraw>nanoid,
+# @excalidraw/mermaid-to-excalidraw>nanoid below) — confirmed on repeated
+# from-scratch installs (rm -rf node_modules + fresh lockfile) that neither
+# a `nanoid@<exact-version>` selector nor a packageExtensions rewrite of the
+# dependent's own declared range took effect under 10.4.0, while the SAME
+# `parent>dep` override syntax converged cleanly under 10.34.5. 10.34.5 also
+# stopped eagerly resolving vite's `less` peer (and its transitive
+# `image-size`) when no `.less` file exists anywhere in the repo — see
+# reports/p1c/wiki-security-gate-impl.md for the full before/after.
+patchedDependencies:
+  scimmy@1.3.5: patches/scimmy@1.3.5.patch
+
+overrides:
+  prosemirror-changeset: 2.4.0
+  y-prosemirror: 1.3.7
+  glob: 13.0.6
+  ws: 8.21.0
+  dompurify: 3.4.11
+  tmp: 0.2.7
+  hono: 4.12.25
+  mermaid: 11.15.0
+  # nanoid: GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (both HIGH). 3.x line
+  # fixed at 3.3.17; 4.x/5.x line fixed at 5.1.16. ^4 -> 5.1.16 crosses a major
+  # on purpose (nanoid has no 4.x patch release covering both advisories) —
+  # verified safe: nanoid's `nanoid()`/`customAlphabet()` exported signatures
+  # are unchanged from 3.x through 5.x, the only consumer here
+  # (@excalidraw/mermaid-to-excalidraw, pinned exactly "4.0.2") only calls
+  # `nanoid()` for id generation, and this repo's Node (v24) exceeds 5.x's
+  # engines requirement (^18 || >=20).
+  nanoid@^3: 3.3.18
+  nanoid@^5.1.3: 5.1.16
+  # Exact-pin consumers: a bare `nanoid@<exact-version>` selector overlaps
+  # with `nanoid@^3` above (3.3.3 satisfies both selectors) and empirically
+  # did not get applied, nor did rewriting the declared range via
+  # packageExtensions — both tested and confirmed dead under the
+  # then-pinned pnpm@10.4.0 (`pnpm why -r nanoid` on a from-scratch install
+  # each time). Scoping by the exact parent package (pnpm's documented
+  # `parent>dep` override syntax) is unambiguous and DOES apply — but only
+  # once pnpm itself is current enough to honour it; see the packageManager
+  # bump note below (ENG-3698).
+  '@excalidraw/excalidraw>nanoid': 3.3.18
+  '@excalidraw/mermaid-to-excalidraw>nanoid': 5.1.16
+  socket.io-parser: 4.2.7
+  serialize-javascript: 7.0.3
+  lodash-es: 4.18.1
+  lodash: 4.18.1
+  '@hono/node-server': 1.19.13
+  undici: 7.29.0
+  ajv@^6: 6.14.0
+  ajv@^8: 8.18.0
+  underscore: 1.13.8
+  immutable: 4.3.9
+  express-rate-limit: 8.2.2
+  minimatch@^3: 3.1.5
+  minimatch@^5: 5.1.8
+  flatted: 3.4.2
+  picomatch@<2.3.2: 2.3.2
+  picomatch@>=4.0.0 <4.0.4: 4.0.4
+  fastify: 5.8.5
+  yaml@>=1.0.0 <1.10.3: 1.10.3
+  yaml@>=2.0.0 <2.8.3: 2.8.3
+  path-to-regexp@^8: 8.4.0
+  brace-expansion@^1: 1.1.18
+  brace-expansion@^2: 2.1.4
+  brace-expansion@^5: 5.0.9
+  '@xmldom/xmldom': 0.8.13
+  handlebars: 4.7.9
+  axios: 1.18.0
+  langsmith: 0.7.0
+  follow-redirects: 1.16.0
+  protobufjs: 7.6.5
+  ip-address: 10.1.1
+  fast-uri: 3.1.5
+  form-data@4: 4.0.6
+  '@babel/plugin-transform-modules-systemjs': 7.29.4
+  # js-yaml: GHSA-5p4m-2wfm-xmqj (HIGH, quadratic CPU consumption in !!omap
+  # resolution). Fixed at 3.15.1 (3.x line) / 4.3.1 (4.x line) — patch bumps,
+  # same majors as before.
+  js-yaml@^3: 3.15.1
+  js-yaml@^4: 4.3.1
+  postcss: 8.5.18
+  engine.io: 6.6.7
+  find-my-way: 9.7.0
+  shell-quote: 1.9.0
+
+neverBuiltDependencies: []
