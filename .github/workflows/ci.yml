@@ -1007,6 +1007,10 @@ jobs:
       - hardening-allowlist-check
       - image-freshness-check
       - manifest-copy-check
+      # PR #168 review MF-1: this job was added without being fanned in here,
+      # reopening the exact hole the comment above was written to close — a
+      # red rls-unscoped-read-ratchet left ci-success green. Fixed before merge.
+      - rls-unscoped-read-ratchet
     runs-on: public-runners
     if: always()
     steps:
