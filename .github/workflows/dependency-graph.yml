@@ -1,0 +1,150 @@
+# orvex-wiki — explicit Dependency Submission API push.
+#
+# WHY THIS EXISTS — see reports/security/wiki-ghost-alerts.md and
+# reports/security/wiki-depgraph-freeze-fix.md. GitHub's *passive*
+# lockfile-parse-on-push dependency graph for this repo has been frozen since
+# ~2026-07-06: Dependabot alerts kept citing packages removed from the tree
+# on 2026-07-12 (commit 9ca06aff, ENG-1481), including brand-new alerts
+# minted weeks after removal, across 5+ subsequent pushes that themselves
+# modified pnpm-lock.yaml. "Just push again" has already been tried
+# repeatedly without effect — this job replaces the passive parse with an
+# EXPLICIT snapshot push (POST /repos/{owner}/{repo}/dependency-graph/
+# snapshots), covering the WHOLE pnpm workspace (root + every apps/*,
+# packages/*, packages/@orvex/* member — see
+# scripts/ci/submit-dependency-graph.mjs), not just the root manifest: a
+# partial snapshot would trade a stale-but-broad graph for a fresh-but-narrow
+# one, which is worse.
+#
+# NOT wired into ci.yml's `ci-success` required-check fan-in, and this is
+# deliberate, not an oversight:
+#   - Dependabot alerts are computed against the DEFAULT branch's graph only
+#     (dev) — a per-PR submission would be graphing a branch nothing reads
+#     alerts from, so it cannot function as a meaningful pre-merge gate.
+#   - This job can therefore only run genuinely AFTER a push lands on dev —
+#     but ci.yml's `ci-success` job treats any `needs:` job's "skipped"
+#     result as a FAILURE (see its own header comment: "a red on any of them
+#     left ci-success GREEN — a fail-open hole"), so wiring a push-only job
+#     into that fan-in would red every single PR (this job would always
+#     report "skipped" during a pull_request-triggered run), which is a far
+#     worse outcome than not gating on it.
+#   - dev only advances via PR merge (branch policy: no direct pushes to
+#     dev), so this job's push-to-dev trigger IS, structurally, a
+#     post-merge-only check — there is no earlier point where "the real dev
+#     graph" exists to gate on.
+# Failure here still fails the job outright (see the FAIL LOUDLY design in
+# submit-dependency-graph.mjs) and shows as a red X on the dev commit / in
+# the Actions tab, the same visibility bar every other job in this repo's CI
+# uses — it is just not a merge gate, because merges are the wrong place to
+# gate something that can only be computed after the merge exists.
+#
+# TWO independent snapshot streams, each with its own hardcoded correlator
+# (see the scripts' own comments for why hardcoded, not derived from
+# GITHUB_WORKFLOW): `submit-snapshot` covers the pnpm/npm workspace;
+# `submit-go-snapshot` covers the two Go modules this repo also carries
+# (deploy/kustomize, tests/smoke). Those Go modules previously rode ONLY the
+# passive/Dependabot-native graph updater — the exact mechanism that froze
+# silently for a month for the npm side — and they are where the 2026-08-09
+# re-ingest's 13 golang.org/x/crypto alerts (several critical) live. Kept as
+# a sibling job rather than folded into the npm script: different toolchain
+# (go vs pnpm), independent failure domain, independent correlator — a
+# broken Go resolution must not block or mask the npm submission succeeding,
+# and vice versa.
+#
+# `on: schedule:` (weekly) exists because the freeze this whole job cures was
+# a TIME-based failure (silently stopped updating, not silently rejected on a
+# push), and this job is deliberately NOT a merge gate (see above), so a
+# failure here is passive — nothing pages, a human has to look at the Actions
+# tab. A push-only trigger only re-verifies liveness when dev happens to
+# move; a weekly schedule makes the liveness check itself time-based, so a
+# graph-disable (or any other silent regression) during a quiet period is
+# caught within a week instead of waiting for the next merge to dev.
+name: Dependency Graph Submission
+
+on:
+  push:
+    branches:
+      - dev
+  schedule:
+    # Mondays 06:17 UTC — an off-the-hour slot (GitHub Actions cron minutes
+    # that are exactly :00 are the most congested and can be delayed).
+    # Weekly liveness check for a job that is deliberately not a merge gate
+    # (see header comment) — its red is passive, so it needs a trigger that
+    # doesn't depend on someone else pushing to dev.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          Branch to check out and submit a snapshot FOR. Defaults to dev.
+          Exists so the submission can be safely tested/backfilled from a
+          feature branch's own Actions run (which is where a workflow_dispatch
+          for a not-yet-merged workflow file must be launched from) while
+          still graphing dev's real, already-merged state rather than the
+          feature branch's.
+        required: false
+        default: dev
+
+concurrency:
+  group: dependency-graph-submission
+  cancel-in-progress: false
+
+jobs:
+  submit-snapshot:
+    name: Submit full-workspace pnpm dependency snapshot
+    runs-on: public-runners
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'dev' }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - name: Install dependencies (whole workspace)
+        run: pnpm install --frozen-lockfile
+      - name: Generate + submit whole-workspace dependency snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Explicit, never inferred from the ambient GITHUB_REF — that would
+          # be WRONG under workflow_dispatch when `ref` input differs from
+          # the branch that dispatched the run (see script header comment).
+          SNAPSHOT_REF: refs/heads/${{ github.event.inputs.ref || 'dev' }}
+        run: node scripts/ci/submit-dependency-graph.mjs
+
+  submit-go-snapshot:
+    name: Submit Go module dependency snapshot
+    runs-on: public-runners
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'dev' }}
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: |
+            deploy/kustomize/go.sum
+            tests/smoke/go.sum
+      - name: Generate + submit Go module dependency snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Explicit, not ambient: `go list -m -json all` must resolve
+          # purely from the checked-in go.mod/go.sum, never opportunistically
+          # rewrite go.sum to complete a query (verified locally: both
+          # deploy/kustomize and tests/smoke resolve cleanly read-only
+          # against dev's checked-in go.sum, 6 and 246 modules respectively,
+          # zero go.sum drift). If a future dependency bump makes readonly
+          # resolution fail, that is a real "go.sum is not self-consistent"
+          # problem this job should surface loudly, not paper over.
+          GOFLAGS: -mod=readonly
+          # Same explicit-not-inferred discipline as the npm job (see its
+          # comment above) — required so workflow_dispatch from a feature
+          # branch still graphs dev's real state, not the dispatching branch.
+          SNAPSHOT_REF: refs/heads/${{ github.event.inputs.ref || 'dev' }}
+        run: node scripts/ci/submit-go-dependency-graph.mjs
