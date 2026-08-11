@@ -452,6 +452,7 @@ export interface Workspaces {
   auditRetentionDays: Generated<number>;
   trashRetentionDays: Generated<number>;
   billingEmail: string | null;
+  cellId: Generated<string>;
   createdAt: Generated<Timestamp>;
   customDomain: string | null;
   defaultRole: Generated<string>;

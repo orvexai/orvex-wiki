@@ -5,9 +5,12 @@ import { SpaceModule } from '../space/space.module';
 import { WorkspaceInvitationService } from './services/workspace-invitation.service';
 import { WorkspaceUpgradeService } from './services/workspace-upgrade.service';
 import { TokenModule } from '../auth/token.module';
+import { OrvexConfigModule } from '../../orvex/config/orvex-config.module';
 
 @Module({
-  imports: [SpaceModule, TokenModule],
+  // A-CELL — `OrvexConfigService` supplies the `CELL_ID` that
+  // `WorkspaceService.create` stamps onto every workspace it mints.
+  imports: [SpaceModule, TokenModule, OrvexConfigModule],
   controllers: [WorkspaceController],
   providers: [
     WorkspaceService,

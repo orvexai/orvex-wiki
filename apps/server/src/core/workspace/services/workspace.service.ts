@@ -67,6 +67,10 @@ import {
 } from '../../../orvex/http/identity-registry-client';
 import { IDENTITY_REGISTRY_CLIENT } from '../../../orvex/http/orvex-identity-registry.module';
 import { TenantPrincipalKind } from '../tenant-principal.types';
+import {
+  CELL_SOLO,
+  OrvexConfigService,
+} from '../../../orvex/config/orvex-config.service';
 
 @Injectable()
 export class WorkspaceService {
@@ -102,6 +106,12 @@ export class WorkspaceService {
      */
     @Inject(IDENTITY_REGISTRY_CLIENT)
     private readonly registryClient: IdentityRegistryClient,
+    /**
+     * A-CELL — the deployment's own `CELL_ID`, stamped onto every workspace
+     * this path mints so the request-time cell gate has an authoritative
+     * record to compare against instead of guessing from the `Host` header.
+     */
+    private readonly orvexConfigService: OrvexConfigService,
   ) {}
 
   async findById(workspaceId: string) {
@@ -215,6 +225,10 @@ export class WorkspaceService {
             // hostnames.
             principalKind: 'user',
             principalId: user.id,
+            // A-CELL — the tenant is born bound to the cell that minted it.
+            // `solo` when this deployment runs the sentinel (dev/crew/
+            // self-hosted), which is the true value there, not a placeholder.
+            cellId: this.orvexConfigService.cellId ?? CELL_SOLO,
           },
           trx,
         );

@@ -15,13 +15,18 @@ import {
 import { runInTenantScope } from '@docmost/db/rls/tenant-scope.context';
 
 /**
- * ENG-2501 AC3/AC5 — the typed SOFT rejection marker the label-2 cell
- * assertion surfaces on a mismatch (never a raw thrown `Error` with no code):
- * a greppable operator signal, distinct from a generic 500.
+ * The typed rejection marker the cell assertion surfaces on a mismatch (never
+ * a raw thrown `Error` with no code): a greppable operator signal, distinct
+ * from a generic 500.
+ *
+ * Deliberately carries NO tenant identifier. The two cell ids are operational
+ * facts about the DEPLOYMENT; the workspace id is the tenant's own, and is
+ * logged server-side rather than echoed to a caller this pod has just decided
+ * it should not be serving.
  */
-export interface CellLabelMismatch {
-  code: 'CELL_LABEL_MISMATCH';
-  hostLabel2: string;
+export interface WorkspaceCellMismatch {
+  code: 'WORKSPACE_CELL_MISMATCH';
+  workspaceCellId: string;
   podCellId: string;
 }
 
@@ -85,27 +90,12 @@ export class DomainMiddleware implements NestMiddleware {
         : undefined;
 
       if (workspace) {
-        // ENG-2501 AC3 — the SOFT label-2 cell assertion runs immediately
-        // after label-0 resolution succeeds. On a definite mismatch the one
-        // request is rejected with a typed marker; the process never dies.
-        const mismatch = this.assertLabel2CellSoft(
-          header,
-          this.orvexConfigService.cellId,
-        );
+        // The cell assertion runs immediately after resolution succeeds. On a
+        // definite mismatch the one request is rejected with a typed marker;
+        // the process never dies.
+        const mismatch = this.assertWorkspaceCell(workspace);
         if (mismatch) {
-          this.logger.warn(
-            `soft cell assertion rejected request: code=${mismatch.code} hostLabel2=${mismatch.hostLabel2} podCellId=${mismatch.podCellId}`,
-          );
-          res.statusCode = 421;
-          res.setHeader('content-type', 'application/json');
-          res.end(
-            JSON.stringify({
-              ...mismatch,
-              message:
-                'Request reached a pod outside its cell (defence-in-depth soft check; the edge routing layer remains authoritative).',
-            }),
-          );
-          return;
+          return this.rejectCellMismatch(res, mismatch, workspace.id);
         }
 
         (req as any).workspaceId = workspace.id;
@@ -127,50 +117,129 @@ export class DomainMiddleware implements NestMiddleware {
       // guarded handler runs, so a forged/expired token resolves nothing here
       // (verify throws) and is rejected downstream — no auth is bypassed and no
       // cross-tenant context is possible (a token can only carry its own tenant).
-      (req as any).workspaceId = this.resolveWorkspaceIdFromToken(req) ?? null;
+      const tokenWorkspaceId = this.resolveWorkspaceIdFromToken(req);
+
+      // THE PATH THAT ACTUALLY CARRIES PRODUCTION TRAFFIC. The hostname
+      // branch above cannot gate a federated tenant, because
+      // `PrincipalProvisioningService.materializeWorkspace` mints those
+      // deliberately WITHOUT a hostname ("reached by its tenant-claim UUID,
+      // not by hostname") and the deployed HTTPRoute serves exactly one fixed
+      // host. A cell check that lived only up there would be dead code in
+      // every real cell — which is precisely what the old label-count guess
+      // was. So the assertion is made here too, against the same
+      // authoritative record.
+      if (tokenWorkspaceId !== null && this.cellEnforcementActive()) {
+        const workspace = await this.workspaceRepo.findById(tokenWorkspaceId);
+        // An ABSENT row is not a mismatch — this pod has no cell claim to
+        // compare against, so it makes none (the check never guesses). The
+        // request keeps its existing fate: JwtStrategy re-validates the token
+        // against workspace existence and rejects it there.
+        if (workspace) {
+          const mismatch = this.assertWorkspaceCell(workspace);
+          if (mismatch) {
+            return this.rejectCellMismatch(res, mismatch, workspace.id);
+          }
+        }
+      }
+
+      (req as any).workspaceId = tokenWorkspaceId ?? null;
     }
 
     next();
   }
 
   /**
-   * ENG-2501 (FR-W20, A-TENANCY) — the SOFT label-2 cell assertion.
+   * Is this pod in a cell that can meaningfully be enforced?
    *
-   * Compares the `Host` header's label-2 segment (the cell segment, e.g.
-   * `eu1` in `acme.wiki.eu1.orvex.ai`) against this pod's own configured
-   * `CELL_ID`. This is EXPLICITLY a soft, defence-in-depth SECOND layer —
-   * the edge/principal-vs-`CELL_ID` check (cell-lint rule 3, an
-   * ingress-level control outside this middleware) remains the
-   * claim-superior, authoritative tenant-isolation gate. This check only
-   * flags a request the edge should never have routed here.
-   *
-   * No-op (returns null) when:
-   *  - the pod runs under the `solo` sentinel (`CELL_ID` unset or the
-   *    literal `"solo"`, mirroring the outbox relay's sentinel semantics) —
-   *    cell enforcement is off entirely in solo mode (AC5);
-   *  - the host does not carry a cell-shaped label-2 (fewer than four
-   *    labels) — a soft check never guesses on an ambiguous host;
-   *  - the label-2 matches the pod's cell.
-   *
-   * Pure in-memory string comparison: no I/O, no store call, no wall-clock.
+   * No when it runs the `solo` sentinel (`CELL_ID` unset or the literal
+   * `"solo"`, mirroring the outbox relay's sentinel semantics): cell
+   * enforcement is off entirely in solo mode, so dev/crew/self-hosted pay
+   * neither the comparison nor the lookup it would require.
    */
-  private assertLabel2CellSoft(
-    host: string | undefined,
-    podCellId: string | null,
-  ): CellLabelMismatch | null {
-    if (podCellId === null || podCellId === CELL_SOLO) {
+  private cellEnforcementActive(): boolean {
+    const podCellId = this.orvexConfigService.cellId;
+    return podCellId !== null && podCellId !== CELL_SOLO;
+  }
+
+  /**
+   * (FR-W20, A-TENANCY) — the cell assertion.
+   *
+   * Compares the RESOLVED workspace's own recorded `cellId` against this
+   * pod's configured `CELL_ID`. This replaces an earlier check that inferred
+   * the cell from the `Host` header's label-2 segment, which was wrong in two
+   * ways that compounded: it could only fire on hosts with four or more
+   * labels (so it silently no-opped for custom domains, `*.localhost`, and
+   * every short host), and it sat behind a hostname→workspace lookup that
+   * never succeeds in the real deploy — so in production it was not a lenient
+   * gate, it was an absent one.
+   *
+   * Reading the stored assignment removes the guess entirely: a custom-domain
+   * tenant and a `wiki.<cell>.orvex.ai` tenant are now judged by the same
+   * authoritative fact, and the host's shape stops mattering at all.
+   *
+   * Identity's global tenant→cell registry stays the cross-cell source of
+   * truth and its sole writer; `workspaces.cell_id` is that truth
+   * materialized cell-locally so the request path can enforce it without a
+   * per-request network hop to identity.
+   *
+   * No-op (returns null) under the `solo` sentinel, or when the stored cell
+   * matches. A stored `solo` against a real pod cell IS a mismatch: it means
+   * a row this cell did not mint (a restore from another environment, a
+   * hand-inserted row) and refusing to serve it is the correct outcome.
+   *
+   * Pure in-memory string comparison: no I/O, no wall-clock.
+   */
+  private assertWorkspaceCell(workspace: {
+    cellId?: string | null;
+  }): WorkspaceCellMismatch | null {
+    if (!this.cellEnforcementActive()) {
+      return null;
+    }
+    const podCellId = this.orvexConfigService.cellId as string;
+    const workspaceCellId = workspace.cellId;
+
+    // The column is NOT NULL, so absence here means the row was read through
+    // a projection that omitted it — a wiring defect, not a tenant fact. Make
+    // no claim about a cell nobody told us (the check never guesses); the
+    // repo's `baseFields` carries `cellId` precisely so this cannot happen.
+    if (
+      workspaceCellId === undefined ||
+      workspaceCellId === null ||
+      workspaceCellId === podCellId
+    ) {
       return null;
     }
 
-    const hostname = host?.split(':')[0];
-    const labels = hostname?.split('.') ?? [];
-    const hostLabel2 = labels.length >= 4 ? labels[2] : undefined;
+    return {
+      code: 'WORKSPACE_CELL_MISMATCH',
+      workspaceCellId,
+      podCellId,
+    };
+  }
 
-    if (!hostLabel2 || hostLabel2 === podCellId) {
-      return null;
-    }
-
-    return { code: 'CELL_LABEL_MISMATCH', hostLabel2, podCellId };
+  /**
+   * The one place a cell mismatch becomes a response: 421 Misdirected
+   * Request, a typed body, and a greppable operator log carrying the tenant
+   * id the body deliberately omits. Rejects the ONE request; the process
+   * never dies.
+   */
+  private rejectCellMismatch(
+    res: FastifyReply['raw'],
+    mismatch: WorkspaceCellMismatch,
+    workspaceId: string,
+  ): void {
+    this.logger.warn(
+      `cell assertion rejected request: code=${mismatch.code} workspaceId=${workspaceId} workspaceCellId=${mismatch.workspaceCellId} podCellId=${mismatch.podCellId}`,
+    );
+    res.statusCode = 421;
+    res.setHeader('content-type', 'application/json');
+    res.end(
+      JSON.stringify({
+        ...mismatch,
+        message:
+          'Request reached a pod outside the tenant’s cell (the workspace’s recorded cell does not match this deployment).',
+      }),
+    );
   }
 
   /**
