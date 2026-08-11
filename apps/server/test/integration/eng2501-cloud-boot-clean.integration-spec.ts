@@ -23,20 +23,25 @@
  *      `workspaceRepo.findByHostname`), driven through `DomainMiddleware`'s
  *      exported `use()` contract with the booted app's REAL repo +
  *      environment service;
- *  (3) AC3 — a wrong-cell label-2 request is SOFT-rejected with the typed
- *      `CELL_LABEL_MISMATCH` marker (421 — one request, never a crash),
- *      proven end-to-end through the app's REAL mounted middleware, while
- *      the edge/principal-vs-CELL_ID check (cell-lint rule 3) remains the
- *      claim-superior control this test does not touch;
+ *  (3) AC3 — a request resolving a workspace whose RECORDED `cell_id` is not
+ *      this deployment's is rejected with the typed `WORKSPACE_CELL_MISMATCH`
+ *      marker (421 — one request, never a crash), proven end-to-end through
+ *      the app's REAL mounted middleware against REAL rows in Postgres;
  *  (4) AC4 — no `ee/` dependency on the multi-tenant hot path beyond the
  *      single guarded require (grep-gate);
- *  (5) AC5 — under the `solo` sentinel (CELL_ID unset or `"solo"`) the
- *      label-2 assertion NO-OPS rather than rejecting;
- *  plus the NFR honesty gate (the new check documents itself as
- *  soft/defence-in-depth, never claims authority).
+ *  (5) AC5 — under the `solo` sentinel (CELL_ID unset or `"solo"`) the cell
+ *      assertion NO-OPS rather than rejecting;
+ *  plus the NFR honesty gate (the check states where cross-cell authority
+ *  actually lives and does not overclaim).
+ *
+ * The assertion originally compared the Host header's label-2 segment against
+ * `CELL_ID`. Both fixtures below now differ by their STORED cell rather than
+ * by hostname shape, because that guess has been replaced: the two workspaces
+ * are reached on identically-shaped hosts and are judged solely on the cell
+ * their own row records.
  *
  * Determinism: `CLOUD`/`CELL_ID` are set as explicit values per sub-case in
- * this spec's own setup (never inherited ambiently); the label-2 comparison
+ * this spec's own setup (never inherited ambiently); the cell comparison
  * involves no wall-clock or randomness.
  */
 import * as path from 'path';
@@ -94,6 +99,8 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
   let exitSpy: jest.SpyInstance;
 
   let acmeWorkspaceId: string;
+  /** A REAL row recorded in a DIFFERENT cell (`us1`) than the pod under test. */
+  let farawayWorkspaceId: string;
 
   beforeAll(async () => {
     testDb = await startTestDatabase();
@@ -139,12 +146,22 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
+    // Two REAL rows differing ONLY by their recorded cell — the fixture the
+    // record-based assertion is actually judged on. Both are reached on
+    // identically-shaped hosts, so nothing here can pass by hostname shape.
     const acme = await testDb.db
       .insertInto('workspaces')
-      .values({ name: 'ENG-2501 acme', hostname: 'acme' })
+      .values({ name: 'ENG-2501 acme', hostname: 'acme', cellId: 'eu1' })
       .returning('id')
       .executeTakeFirstOrThrow();
     acmeWorkspaceId = acme.id;
+
+    const faraway = await testDb.db
+      .insertInto('workspaces')
+      .values({ name: 'ENG-2501 faraway', hostname: 'faraway', cellId: 'us1' })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    farawayWorkspaceId = faraway.id;
   });
 
   afterAll(async () => {
@@ -215,9 +232,12 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('AC3 — a wrong-cell label-2 request is SOFT-rejected with the typed CELL_LABEL_MISMATCH marker (421), never an unhandled crash', async () => {
+  it('AC3 — a request resolving a workspace RECORDED in another cell is rejected with the typed WORKSPACE_CELL_MISMATCH marker (421), never an unhandled crash', async () => {
     const middleware = realMiddleware('eu1');
-    const req: any = { headers: { host: 'acme.wiki.us1.orvex.ai' } };
+    // Note the host: same shape as AC2's, and its label-2 is `eu1` — this pod's
+    // OWN cell. Only the stored row says otherwise, which is exactly the case
+    // the retired hostname-shape check was structurally unable to catch.
+    const req: any = { headers: { host: 'faraway.wiki.eu1.orvex.ai' } };
     const { res, state } = makeRes();
     const next = jest.fn();
 
@@ -226,9 +246,10 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     expect(next).not.toHaveBeenCalled();
     expect(state.statusCode).toBe(421);
     const body = JSON.parse(state.body ?? '{}');
-    expect(body.code).toBe('CELL_LABEL_MISMATCH');
-    expect(body.hostLabel2).toBe('us1');
+    expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
+    expect(body.workspaceCellId).toBe('us1');
     expect(body.podCellId).toBe('eu1');
+    expect(farawayWorkspaceId).toBeDefined();
   });
 
   it('AC3 (end-to-end) — the assertion is LIVE on the booted app\'s mounted middleware: a wrong-cell HTTP request is rejected 421 at the front door', async () => {
@@ -239,13 +260,13 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
       const rejected = await app.inject({
         method: 'POST',
         url: '/api/auth/login',
-        headers: { host: 'acme.wiki.us1.orvex.ai' },
+        headers: { host: 'faraway.wiki.eu1.orvex.ai' },
         payload: { email: 'nobody@example.com', password: 'irrelevant-pw' },
       });
       expect(rejected.statusCode).toBe(421);
       const body = rejected.json();
-      expect(body.code).toBe('CELL_LABEL_MISMATCH');
-      expect(body.hostLabel2).toBe('us1');
+      expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
+      expect(body.workspaceCellId).toBe('us1');
       expect(body.podCellId).toBe('eu1');
 
       // Matching cell: the SAME request shape passes the assertion (any
@@ -265,13 +286,15 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
   it('AC5 — under the solo sentinel (CELL_ID unset or "solo") a would-be mismatch NO-OPS: cell enforcement is off entirely', async () => {
     for (const cellId of [undefined, 'solo'] as const) {
       const middleware = realMiddleware(cellId);
-      const req: any = { headers: { host: 'acme.wiki.us1.orvex.ai' } };
+      // The `us1`-recorded workspace: a definite mismatch for any real cell,
+      // waved through here because the pod claims no cell of its own.
+      const req: any = { headers: { host: 'faraway.wiki.eu1.orvex.ai' } };
       const { res } = makeRes();
       const next = jest.fn();
 
       await middleware.use(req, res, next);
 
-      expect(req.workspaceId).toBe(acmeWorkspaceId);
+      expect(req.workspaceId).toBe(farawayWorkspaceId);
       expect(next).toHaveBeenCalledTimes(1);
       expect(res.end).not.toHaveBeenCalled();
     }
@@ -305,13 +328,19 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     ).rejects.toThrow();
   });
 
-  it('NFR honesty — the label-2 check documents itself as SOFT/defence-in-depth and carries no unfinished-work marker', async () => {
+  it('NFR honesty — the cell check names where cross-cell authority really lives, keeps no trace of the retired hostname guess, and carries no unfinished-work marker', async () => {
     const middlewareSource = await fs.readFile(
       path.join(__dirname, '../../src/common/middlewares/domain.middleware.ts'),
       'utf-8',
     );
-    expect(middlewareSource).toMatch(/soft/i);
-    expect(middlewareSource).toMatch(/defence-in-depth/i);
+    // It must still not overclaim: identity's global registry, not this
+    // middleware, is the cross-cell source of truth and its sole writer.
+    expect(middlewareSource).toMatch(/source of truth/i);
+    expect(middlewareSource).toMatch(/registry/i);
+    // The retired label-count heuristic is GONE, not left beside its
+    // replacement — two cell checks would be two answers to one question.
+    expect(middlewareSource).not.toMatch(/assertLabel2CellSoft/);
+    expect(middlewareSource).not.toMatch(/labels\.length/);
     expect(middlewareSource).not.toMatch(/TODO|FIXME/);
     // No wall-clock / randomness in the middleware's decision logic (❌#9).
     expect(middlewareSource).not.toMatch(/Date\.now\(\)|Math\.random/);
