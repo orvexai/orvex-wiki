@@ -58,6 +58,7 @@ import { DomainMiddleware } from '../../src/common/middlewares/domain.middleware
 import { EnvironmentService } from '../../src/integrations/environment/environment.service';
 import { OrvexConfigService } from '../../src/orvex/config/orvex-config.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
+import { sign } from 'jsonwebtoken';
 import { startTestDatabase, TestDb } from './db-test-harness';
 
 const TEST_APP_SECRET = 'eng-2501-test-secret-at-least-32-characters-long';
@@ -298,6 +299,62 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
       expect(next).toHaveBeenCalledTimes(1);
       expect(res.end).not.toHaveBeenCalled();
     }
+  });
+
+  describe('the TOKEN-fallback path — the one production traffic actually takes', () => {
+    // `materializeWorkspace` mints federated tenants with NO hostname, and the
+    // deployed HTTPRoute serves one fixed host, so a real request resolves its
+    // tenant from its bearer token, not from `findByHostname`. Proving the
+    // gate there needs a REAL repo read against a REAL row: `workspaces`
+    // carries no RLS policy, so the middleware's pre-transaction `findById`
+    // genuinely returns the row — asserted here rather than assumed, since a
+    // read that silently returned nothing would make this gate look present
+    // and behave as absent.
+    const accessTokenFor = (workspaceId: string) =>
+      sign(
+        { sub: 'user-1', workspaceId, type: 'access' },
+        TEST_APP_SECRET,
+      );
+
+    it('rejects a token-resolved tenant RECORDED in another cell (421), on a host that resolves no workspace at all', async () => {
+      const middleware = realMiddleware('eu1');
+      const req: any = {
+        headers: {
+          host: 'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+          authorization: `Bearer ${accessTokenFor(farawayWorkspaceId)}`,
+        },
+      };
+      const { res, state } = makeRes();
+      const next = jest.fn();
+
+      await middleware.use(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(state.statusCode).toBe(421);
+      const body = JSON.parse(state.body ?? '{}');
+      expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
+      expect(body.workspaceCellId).toBe('us1');
+      expect(body.podCellId).toBe('eu1');
+    });
+
+    it('passes a token-resolved tenant recorded in THIS cell, still without setting req.workspace', async () => {
+      const middleware = realMiddleware('eu1');
+      const req: any = {
+        headers: {
+          host: 'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+          authorization: `Bearer ${accessTokenFor(acmeWorkspaceId)}`,
+        },
+      };
+      const next = jest.fn();
+
+      await middleware.use(req, makeRes().res, next);
+
+      expect(req.workspaceId).toBe(acmeWorkspaceId);
+      // JwtStrategy owns req.workspace — the cell lookup must not leak a
+      // middleware-trusted workspace object into the request.
+      expect(req.workspace).toBeUndefined();
+      expect(next).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('AC4 (grep-gate) — no ee/ dependency on the multi-tenant hot path beyond the single guarded require in app.module.ts', async () => {
