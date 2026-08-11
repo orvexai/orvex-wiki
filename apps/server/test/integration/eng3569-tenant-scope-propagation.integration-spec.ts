@@ -230,7 +230,16 @@ describe('TestTenantScopeReachesTheHandler (ENG-3569 DoD gate)', () => {
 
     const acme = await testDb.db
       .insertInto('workspaces')
-      .values({ name: 'ENG-3569 acme', hostname: TENANT_HOSTNAME })
+      // A-CELL — this app boots at CELL_ID=eu1, so its tenant must be recorded
+      // in eu1: `DomainMiddleware` now judges the workspace's OWN stored cell
+      // rather than the Host header's shape, and an unstamped row defaults to
+      // the fail-closed `solo` sentinel that a real cell refuses to serve
+      // (a 421 before the handler this spec exists to reach).
+      .values({
+        name: 'ENG-3569 acme',
+        hostname: TENANT_HOSTNAME,
+        cellId: CELL_ID,
+      })
       .returning('id')
       .executeTakeFirstOrThrow();
     acmeWorkspaceId = acme.id;

@@ -333,10 +333,14 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
       path.join(__dirname, '../../src/common/middlewares/domain.middleware.ts'),
       'utf-8',
     );
+    // Prose assertions run against a flattened copy: a doc comment's line
+    // wrapping is not a semantic change, and a gate that a future re-wrap can
+    // break is a gate that will be deleted rather than fixed.
+    const prose = middlewareSource.replace(/^\s*\*/gm, ' ').replace(/\s+/g, ' ');
     // It must still not overclaim: identity's global registry, not this
     // middleware, is the cross-cell source of truth and its sole writer.
-    expect(middlewareSource).toMatch(/source of truth/i);
-    expect(middlewareSource).toMatch(/registry/i);
+    expect(prose).toMatch(/source of truth/i);
+    expect(prose).toMatch(/registry/i);
     // The retired label-count heuristic is GONE, not left beside its
     // replacement — two cell checks would be two answers to one question.
     expect(middlewareSource).not.toMatch(/assertLabel2CellSoft/);
