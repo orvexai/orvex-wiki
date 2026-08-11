@@ -23,14 +23,37 @@ import { CELL_SOLO } from '../../orvex/config/orvex-config.service';
  * workspace of unknown provenance. In solo mode the sentinel is simply the
  * true value.
  *
- * BACKFILL — existing rows take THIS deployment's `CELL_ID` (the same env the
- * running pods read), not the sentinel. Each cell migrates its own database,
- * and every row already in it was, by construction, being served by this cell
- * and no other: the engine has never had a second cell serving the same
- * database, and identity's global registry (the cross-cell source of truth)
- * has always been the only thing that could have said otherwise. Reading the
- * env HERE rather than hardcoding a literal is what makes the backfill correct
- * in every cell instead of only in one.
+ * BACKFILL — existing rows take THIS deployment's `CELL_ID`, not the sentinel.
+ * Each cell migrates its own database, and every row already in it was, by
+ * construction, being served by this cell and no other: the engine has never
+ * had a second cell serving the same database, and identity's global registry
+ * (the cross-cell source of truth) has always been the only thing that could
+ * have said otherwise. Reading the env HERE rather than hardcoding a literal
+ * is what makes the backfill correct in every cell instead of only in one.
+ *
+ * WHY READING `process.env` HERE IS SOUND, and the constraint that makes it
+ * so: migrations run IN-PROCESS, from `DatabaseModule.onApplicationBootstrap`
+ * -> `MigrationService.migrateToLatest()`, on the app container's own boot
+ * (deploy/kustomize/app-manifests/configmap-env.yaml documents this — there is
+ * deliberately no migration Job or initContainer). So this reads the very same
+ * `process.env.CELL_ID` that `OrvexConfigService` hands the request-time check
+ * moments later, in the same process. The backfilled value cannot disagree
+ * with the enforcing pod's cell, because they are one variable.
+ *
+ * OPERATOR HAZARD (deliberately NOT guarded in code — it cannot be): run this
+ * migration from anywhere that does NOT share the app's environment — a
+ * separate Job/initContainer without the app's `envFrom`, or a manual
+ * `pnpm migration:latest` from a shell — with `CELL_ID` unset, and every
+ * tenant is backfilled `solo` while the pods keep enforcing `eu1`. The result
+ * is a total outage wearing the costume of a correctly fail-closed gate.
+ *
+ * There is no check that can catch this from inside `up()`: a misconfigured
+ * Job and a legitimate solo/self-hosted upgrade are indistinguishable here —
+ * both are "unset CELL_ID, non-empty workspaces" — and the solo case is
+ * entirely benign (unset CELL_ID also disables enforcement, in this same
+ * process, so `solo` rows and a `solo` pod agree). Refusing on that shape
+ * would break every self-hosted upgrade to catch a deploy mistake it cannot
+ * actually identify. Keep migrations in-process, and this cannot arise.
  *
  * NOT the cross-cell source of truth: identity's global tenant→cell registry
  * (`IdentityRegistryClient`) remains the sole authority and sole writer. This
