@@ -1,3 +1,28 @@
+import { vi } from "vitest";
+
+// Tests commonly replace the global fetch with an SSE-specific mock. The real
+// i18next-http-backend is initialized by the shared i18n singleton and can
+// otherwise issue delayed locale requests against whichever fetch mock happens
+// to be active. Keep test translation loads local and deterministic.
+vi.mock("i18next-http-backend", () => {
+  class NoopI18nextBackend {
+    static type = "backend";
+    type = "backend";
+
+    init() {}
+
+    read(
+      _language: string,
+      _namespace: string,
+      callback: (error: null, resources: Record<string, string>) => void,
+    ) {
+      callback(null, {});
+    }
+  }
+
+  return { default: NoopI18nextBackend };
+});
+
 // jsdom does not implement matchMedia; @mantine/core's color-scheme hooks
 // call it unconditionally on mount. Provide a minimal, spec-shaped stub so
 // component tests that render Mantine providers don't crash.

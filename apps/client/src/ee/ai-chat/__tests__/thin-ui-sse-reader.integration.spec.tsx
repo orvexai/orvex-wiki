@@ -233,6 +233,8 @@ describe("TestThinUiSseReaderHasNoServerAiLogic", () => {
   });
 
   afterEach(() => {
+    // Keep independently-created mocks tidy between tests.
+    vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
 
