@@ -233,6 +233,10 @@ describe("TestThinUiSseReaderHasNoServerAiLogic", () => {
   });
 
   afterEach(() => {
+    // Keep mock call history from leaking into a later test when this file is
+    // run in a shared Vitest worker (for example with --no-isolate). The
+    // transport tests intentionally assert exact fetch counts.
+    vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
 
