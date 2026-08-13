@@ -18,6 +18,7 @@ import {
   EntitlementChangedConsumer,
   BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
 } from './entitlement-changed.consumer';
+import { OrvexConfigService } from '../config/orvex-config.service';
 import {
   assertNoPaidPlanSellableWhileInterimFree,
   EntitlementCaps,
@@ -107,9 +108,12 @@ class StubBillingPort implements BillingEntitlementPort {
 function cloudEvent(
   type: string,
   data: Record<string, unknown>,
+  orvexcell?: string,
 ): string {
   // A real CloudEvents 1.0 structured-mode envelope (ADR-0007 shape — the
-  // same structure OutboxRelayService emits on the wiki.* side).
+  // same structure OutboxRelayService emits on the wiki.* side). `orvexcell`
+  // is OPTIONAL here on purpose: several C-cell cases below exercise the
+  // extension's genuine absence, not a stubbed-in default.
   return JSON.stringify({
     specversion: '1.0',
     id: 'evt-0001',
@@ -118,6 +122,7 @@ function cloudEvent(
     subject: 'entitlement',
     time: '2026-07-01T00:00:00.000Z',
     datacontenttype: 'application/json',
+    ...(orvexcell !== undefined ? { orvexcell } : {}),
     data,
   });
 }
@@ -317,6 +322,110 @@ describe('TestEntitlementReaderEvictsOnBillingChange (ENG-2489 DoD gate)', () =>
     await cache.evict({ principal_type: 'org', principal_id: WORKSPACE_ID });
     await service.assertWithinQuota(WORKSPACE_ID, 'pages', 0);
     expect(port.calls).toHaveLength(2);
+  });
+});
+
+describe('C-cell — event-path cell guard on EntitlementChangedConsumer (fleet AD-4/AD-13)', () => {
+  // The mirror of DomainMiddleware's HTTP-path guard, on the event path: an
+  // absent/empty/foreign `orvexcell` extension must be DROPPED before any
+  // eviction is issued, never dispatched to the handler on trust. No-op
+  // under the `solo` sentinel or an unconfigured CELL_ID — matching every
+  // other cell check in this repo (`OrvexConfigService` built with an
+  // EXPLICIT env bag, never ambient `process.env`, mirroring
+  // domain.middleware.spec.ts's own convention).
+  const WORKSPACE_ID = 'ws-entitlement-cell-guard';
+
+  function buildConsumer(cellId?: string): {
+    consumer: EntitlementChangedConsumer;
+    cache: InMemoryEntitlementCache;
+  } {
+    const clock = new FakeClock();
+    const cache = new InMemoryEntitlementCache(clock, CACHE_TTL_SECONDS);
+    const orvexConfig = new OrvexConfigService(
+      (cellId === undefined ? {} : { CELL_ID: cellId }) as NodeJS.ProcessEnv,
+    );
+    const consumer = new EntitlementChangedConsumer(
+      cache as EntitlementCache,
+      undefined,
+      orvexConfig,
+    );
+    return { consumer, cache };
+  }
+
+  it('evicts when the event orvexcell matches this deployment cell', async () => {
+    const { consumer } = buildConsumer('eu1');
+    const handled = await consumer.handleRawMessage(
+      cloudEvent(
+        BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
+        { principal_type: 'org', principal_id: WORKSPACE_ID },
+        'eu1',
+      ),
+    );
+    expect(handled).toBe(true);
+  });
+
+  it('drops the event when orvexcell is a FOREIGN cell — no eviction', async () => {
+    const { consumer } = buildConsumer('eu1');
+    const handled = await consumer.handleRawMessage(
+      cloudEvent(
+        BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
+        { principal_type: 'org', principal_id: WORKSPACE_ID },
+        'us1',
+      ),
+    );
+    expect(handled).toBe(false);
+  });
+
+  it('drops the event when orvexcell is ABSENT entirely — no eviction (the gap this guard closes)', async () => {
+    const { consumer } = buildConsumer('eu1');
+    const handled = await consumer.handleRawMessage(
+      cloudEvent(
+        BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
+        { principal_type: 'org', principal_id: WORKSPACE_ID },
+        // no orvexcell arg — genuinely absent from the envelope
+      ),
+    );
+    expect(handled).toBe(false);
+  });
+
+  it('drops the event when orvexcell is an empty/whitespace-only string', async () => {
+    const { consumer } = buildConsumer('eu1');
+    for (const blank of ['', '   ']) {
+      const handled = await consumer.handleRawMessage(
+        cloudEvent(
+          BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
+          { principal_type: 'org', principal_id: WORKSPACE_ID },
+          blank,
+        ),
+      );
+      expect(handled).toBe(false);
+    }
+  });
+
+  it('is a no-op under the `solo` sentinel — a foreign/absent orvexcell still evicts (enforcement off entirely)', async () => {
+    const { consumer } = buildConsumer('solo');
+    for (const orvexcell of [undefined, '', 'us1'] as const) {
+      const handled = await consumer.handleRawMessage(
+        cloudEvent(
+          BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
+          { principal_type: 'org', principal_id: WORKSPACE_ID },
+          orvexcell,
+        ),
+      );
+      expect(handled).toBe(true);
+    }
+  });
+
+  it('is a no-op with CELL_ID unset (null-on-unset semantics, matching DomainMiddleware)', async () => {
+    const { consumer } = buildConsumer(undefined);
+    const handled = await consumer.handleRawMessage(
+      cloudEvent(
+        BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
+        { principal_type: 'org', principal_id: WORKSPACE_ID },
+        // absent orvexcell too — still passes, enforcement is off
+      ),
+    );
+    expect(handled).toBe(true);
   });
 });
 

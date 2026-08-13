@@ -284,6 +284,53 @@ describe('DomainMiddleware', () => {
       expect(written().statusCode).toBe(421);
       expect(JSON.parse(written().body ?? '{}').workspaceCellId).toBe('solo');
     });
+
+    describe('C-cell — absent/empty/unparseable stored cell claim (fleet AD-4/AD-13)', () => {
+      // Fail-CLOSED, not fail-open: a resolved workspace whose OWN recorded
+      // cellId cannot be read as a real cell is refused 421-shaped under a
+      // dedicated typed code, never silently waved through. Enforcement must
+      // be genuinely active (a real, non-solo CELL_ID) for any of these to
+      // fire — see the paired "no-op" cases above.
+      it.each([
+        ['undefined', undefined],
+        ['null', null],
+        ['empty string', ''],
+        ['whitespace-only', '   '],
+      ])('a %s stored cellId is rejected 421 WORKSPACE_CELL_ABSENT, request does not proceed', async (_label, storedCellId) => {
+        const { middleware } = buildMiddleware({
+          cloud: true,
+          findByHostname: { id: 'tenant-by-host', cellId: storedCellId },
+          cellId: 'eu1',
+        });
+        const req = makeReq('acme.wiki.eu1.orvex.ai');
+        const { res, written } = makeRes();
+        const next = jest.fn();
+
+        await middleware.use(req, res, next);
+
+        expect(next).not.toHaveBeenCalled();
+        expect(req.workspaceId).toBeUndefined();
+        expect(written().statusCode).toBe(421);
+        const body = JSON.parse(written().body ?? '{}');
+        expect(body.code).toBe('WORKSPACE_CELL_ABSENT');
+        expect(body.podCellId).toBe('eu1');
+      });
+
+      it('is a no-op under the `solo` sentinel even with an absent stored cellId (enforcement off entirely)', async () => {
+        const { middleware } = buildMiddleware({
+          cloud: true,
+          findByHostname: { id: 'tenant-by-host', cellId: undefined },
+          cellId: 'solo',
+        });
+        const req = makeReq('acme.wiki.solo.orvex.ai');
+        const next = jest.fn();
+
+        await middleware.use(req, {} as any, next);
+
+        expect(req.workspaceId).toBe('tenant-by-host');
+        expect(next).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe('cloud — cell assertion on the TOKEN-fallback path', () => {
@@ -347,6 +394,27 @@ describe('DomainMiddleware', () => {
       expect(workspaceRepo.findById).not.toHaveBeenCalled();
       expect(req.workspaceId).toBe(TENANT);
       expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a token-resolved workspace whose recorded cell is ABSENT (empty string), same 421 WORKSPACE_CELL_ABSENT shape as the hostname path', async () => {
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: undefined,
+        findById: { id: TENANT, cellId: '' },
+        cellId: 'eu1',
+      });
+      const req = makeReq('orvex-wiki.orvex-wiki-dev.svc.cluster.local', `Bearer ${accessToken()}`);
+      const { res, written } = makeRes();
+      const next = jest.fn();
+
+      await middleware.use(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(req.workspaceId).toBeUndefined();
+      expect(written().statusCode).toBe(421);
+      const body = JSON.parse(written().body ?? '{}');
+      expect(body.code).toBe('WORKSPACE_CELL_ABSENT');
+      expect(body.podCellId).toBe('eu1');
     });
 
     it('an ABSENT workspace row is not treated as a mismatch — no cell claim exists to compare, downstream still rejects', async () => {

@@ -25,7 +25,7 @@ import { runInTenantScope } from '@docmost/db/rls/tenant-scope.context';
  * it should not be serving.
  */
 export interface WorkspaceCellMismatch {
-  code: 'WORKSPACE_CELL_MISMATCH';
+  code: 'WORKSPACE_CELL_MISMATCH' | 'WORKSPACE_CELL_ABSENT';
   workspaceCellId: string;
   podCellId: string;
 }
@@ -185,7 +185,9 @@ export class DomainMiddleware implements NestMiddleware {
    * No-op (returns null) under the `solo` sentinel, or when the stored cell
    * matches. A stored `solo` against a real pod cell IS a mismatch: it means
    * a row this cell did not mint (a restore from another environment, a
-   * hand-inserted row) and refusing to serve it is the correct outcome.
+   * hand-inserted row) and refusing to serve it is the correct outcome. An
+   * absent/empty/whitespace-only stored cell is ALSO refused (never a silent
+   * no-op) — see the dedicated `WORKSPACE_CELL_ABSENT` branch below.
    *
    * Pure in-memory string comparison: no I/O, no wall-clock.
    */
@@ -198,16 +200,29 @@ export class DomainMiddleware implements NestMiddleware {
     const podCellId = this.orvexConfigService.cellId as string;
     const workspaceCellId = workspace.cellId;
 
-    // The column is NOT NULL, so absence here means the row was read through
-    // a projection that omitted it — a wiring defect, not a tenant fact. Make
-    // no claim about a cell nobody told us (the check never guesses); the
-    // repo's `baseFields` carries `cellId` precisely so this cannot happen.
+    if (workspaceCellId === podCellId) {
+      return null;
+    }
+
+    // Fleet C-cell (AD-4/AD-13): an absent, empty, or whitespace-only cell
+    // claim is REFUSED, never silently served. The column is NOT NULL and the
+    // repo's `baseFields` carries `cellId` precisely so this branch should
+    // never be reached in a healthy deploy — but "should never happen" is not
+    // a guard; a row read through a projection that omitted the column, or a
+    // legacy/corrupt row that never got one, carries the SAME risk as a wrong
+    // cell (this pod cannot show the tenant belongs here), so it gets the
+    // same fail-closed 421 outcome under its own typed code, distinct from a
+    // definite cross-cell mismatch.
     if (
       workspaceCellId === undefined ||
       workspaceCellId === null ||
-      workspaceCellId === podCellId
+      workspaceCellId.trim() === ''
     ) {
-      return null;
+      return {
+        code: 'WORKSPACE_CELL_ABSENT',
+        workspaceCellId: workspaceCellId ?? '',
+        podCellId,
+      };
     }
 
     return {
@@ -233,11 +248,14 @@ export class DomainMiddleware implements NestMiddleware {
     );
     res.statusCode = 421;
     res.setHeader('content-type', 'application/json');
+    const message =
+      mismatch.code === 'WORKSPACE_CELL_ABSENT'
+        ? 'Request reached a pod that cannot confirm the tenant’s cell (the workspace record carries no usable cell claim).'
+        : 'Request reached a pod outside the tenant’s cell (the workspace’s recorded cell does not match this deployment).';
     res.end(
       JSON.stringify({
         ...mismatch,
-        message:
-          'Request reached a pod outside the tenant’s cell (the workspace’s recorded cell does not match this deployment).',
+        message,
       }),
     );
   }

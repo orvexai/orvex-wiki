@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { OrvexConfigService } from '../config/orvex-config.service';
+import { CELL_SOLO, OrvexConfigService } from '../config/orvex-config.service';
 import { ENTITLEMENT_CACHE, EntitlementCache } from './entitlement-cache';
 import { Principal, PrincipalType } from './entitlement.types';
 
@@ -48,6 +48,11 @@ const VALID_PRINCIPAL_TYPES: readonly PrincipalType[] = ['user', 'org'];
  * the cache TTL — bounded staleness, per the dual-transport design). A
  * broker outage never crashes boot: subscription failures are logged and
  * the PULL/TTL path remains the worst-case freshness bound.
+ *
+ * Fleet C-cell (AD-4/AD-13): before any eviction, `assertEventCell` checks
+ * the envelope's `orvexcell` extension against this deployment's own
+ * `CELL_ID` — an absent or foreign cell claim is dropped, never dispatched.
+ * No-op under the `solo` sentinel / unconfigured `CELL_ID`.
  */
 @Injectable()
 export class EntitlementChangedConsumer
@@ -138,8 +143,9 @@ export class EntitlementChangedConsumer
 
   /**
    * Handles one parsed CloudEvent envelope. Returns true iff the event was
-   * a well-formed `billing.entitlement.changed` and an eviction was issued.
-   * The ONLY fields read are `type` and the principal-identifying pair —
+   * a well-formed `billing.entitlement.changed`, carried a usable `orvexcell`
+   * extension for this deployment, and an eviction was issued. The ONLY
+   * fields read are `type`, `orvexcell`, and the principal-identifying pair —
    * the event payload's entitlement VALUE fields are never trusted (❌#12:
    * typed narrowing, no `any`-laundered value ever leaves this method).
    */
@@ -149,6 +155,10 @@ export class EntitlementChangedConsumer
     }
     const type = (envelope as { type?: unknown }).type;
     if (type !== BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE) {
+      return false;
+    }
+
+    if (!this.assertEventCell(envelope)) {
       return false;
     }
 
@@ -166,6 +176,33 @@ export class EntitlementChangedConsumer
     this.logger.debug(
       `Evicted cached entitlement for ${principal.principal_type}/${principal.principal_id} on ${BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE}`,
     );
+    return true;
+  }
+
+  /**
+   * Fleet C-cell (AD-4/AD-13, cell-contract rule #6 — event-consumer half):
+   * the envelope's `orvexcell` extension (the field name `OutboxRelayService`
+   * stamps on the wiki.* publish side — the same producer this billing.*
+   * consumer's sibling API-BFF consumer checks, `orvex-studio-api`'s
+   * `entitlement.ts`) must equal THIS deployment's own `CELL_ID`. An absent,
+   * empty, or foreign `orvexcell` is DROPPED before any eviction is issued —
+   * never dispatched to the handler on trust. No-op under the `solo`
+   * sentinel or an unconfigured `CELL_ID` (mirrors
+   * `DomainMiddleware.cellEnforcementActive()` — enforcement is off entirely
+   * in dev/crew/self-hosted, matching every other cell check in this repo).
+   */
+  private assertEventCell(envelope: object): boolean {
+    const podCellId = this.orvexConfig?.cellId ?? null;
+    if (podCellId === null || podCellId === CELL_SOLO) {
+      return true;
+    }
+    const eventCell = (envelope as { orvexcell?: unknown }).orvexcell;
+    if (typeof eventCell !== 'string' || eventCell.trim() === '' || eventCell !== podCellId) {
+      this.logger.warn(
+        `EntitlementChangedConsumer dropped a ${BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE} event: orvexcell mismatch (eventCell=${JSON.stringify(eventCell ?? null)} podCellId=${podCellId})`,
+      );
+      return false;
+    }
     return true;
   }
 
