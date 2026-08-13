@@ -1,4 +1,4 @@
-import { sign } from 'jsonwebtoken';
+import { JwtService } from '@nestjs/jwt';
 import { DomainMiddleware } from './domain.middleware';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
@@ -22,6 +22,7 @@ import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 
 const APP_SECRET = 'test-app-secret-value-at-least-32-chars-long';
 const TENANT = 'f799e55a-478a-4ca7-9b0e-6e1324b6c6a7';
+const jwtService = new JwtService();
 
 function makeReq(host?: string, authorization?: string): any {
   return { headers: { host, authorization } };
@@ -61,7 +62,9 @@ function buildMiddleware(opts: {
 
   const workspaceRepo = {
     findFirst: jest.fn().mockResolvedValue(opts.findFirst ?? undefined),
-    findByHostname: jest.fn().mockResolvedValue(opts.findByHostname ?? undefined),
+    findByHostname: jest
+      .fn()
+      .mockResolvedValue(opts.findByHostname ?? undefined),
     findById: jest.fn().mockResolvedValue(opts.findById ?? undefined),
   } as unknown as WorkspaceRepo;
 
@@ -77,6 +80,7 @@ function buildMiddleware(opts: {
       workspaceRepo,
       environmentService,
       orvexConfigService,
+      jwtService,
     ),
     workspaceRepo,
   };
@@ -96,7 +100,10 @@ describe('DomainMiddleware', () => {
     });
 
     it('sets workspaceId null when there is no workspace', async () => {
-      const { middleware } = buildMiddleware({ cloud: false, findFirst: undefined });
+      const { middleware } = buildMiddleware({
+        cloud: false,
+        findFirst: undefined,
+      });
       const req = makeReq('anything.example.com');
       const next = jest.fn();
       await middleware.use(req, {} as any, next);
@@ -296,25 +303,28 @@ describe('DomainMiddleware', () => {
         ['null', null],
         ['empty string', ''],
         ['whitespace-only', '   '],
-      ])('a %s stored cellId is rejected 421 WORKSPACE_CELL_ABSENT, request does not proceed', async (_label, storedCellId) => {
-        const { middleware } = buildMiddleware({
-          cloud: true,
-          findByHostname: { id: 'tenant-by-host', cellId: storedCellId },
-          cellId: 'eu1',
-        });
-        const req = makeReq('acme.wiki.eu1.orvex.ai');
-        const { res, written } = makeRes();
-        const next = jest.fn();
+      ])(
+        'a %s stored cellId is rejected 421 WORKSPACE_CELL_ABSENT, request does not proceed',
+        async (_label, storedCellId) => {
+          const { middleware } = buildMiddleware({
+            cloud: true,
+            findByHostname: { id: 'tenant-by-host', cellId: storedCellId },
+            cellId: 'eu1',
+          });
+          const req = makeReq('acme.wiki.eu1.orvex.ai');
+          const { res, written } = makeRes();
+          const next = jest.fn();
 
-        await middleware.use(req, res, next);
+          await middleware.use(req, res, next);
 
-        expect(next).not.toHaveBeenCalled();
-        expect(req.workspaceId).toBeUndefined();
-        expect(written().statusCode).toBe(421);
-        const body = JSON.parse(written().body ?? '{}');
-        expect(body.code).toBe('WORKSPACE_CELL_ABSENT');
-        expect(body.podCellId).toBe('eu1');
-      });
+          expect(next).not.toHaveBeenCalled();
+          expect(req.workspaceId).toBeUndefined();
+          expect(written().statusCode).toBe(421);
+          const body = JSON.parse(written().body ?? '{}');
+          expect(body.code).toBe('WORKSPACE_CELL_ABSENT');
+          expect(body.podCellId).toBe('eu1');
+        },
+      );
 
       it('is a no-op under the `solo` sentinel even with an absent stored cellId (enforcement off entirely)', async () => {
         const { middleware } = buildMiddleware({
@@ -338,7 +348,10 @@ describe('DomainMiddleware', () => {
     // minted WITHOUT a hostname, so the hostname branch never resolves them
     // and a check living only up there would be dead in every real cell.
     const accessToken = () =>
-      sign({ sub: 'user-1', workspaceId: TENANT, type: 'access' }, APP_SECRET);
+      jwtService.sign(
+        { sub: 'user-1', workspaceId: TENANT, type: 'access' },
+        { secret: APP_SECRET },
+      );
 
     it('rejects a token-resolved workspace whose recorded cell mismatches this deployment', async () => {
       const { middleware } = buildMiddleware({
@@ -347,7 +360,10 @@ describe('DomainMiddleware', () => {
         findById: { id: TENANT, cellId: 'us1' },
         cellId: 'eu1',
       });
-      const req = makeReq('orvex-wiki.orvex-wiki-dev.svc.cluster.local', `Bearer ${accessToken()}`);
+      const req = makeReq(
+        'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+        `Bearer ${accessToken()}`,
+      );
       const { res, written } = makeRes();
       const next = jest.fn();
 
@@ -403,7 +419,10 @@ describe('DomainMiddleware', () => {
         findById: { id: TENANT, cellId: '' },
         cellId: 'eu1',
       });
-      const req = makeReq('orvex-wiki.orvex-wiki-dev.svc.cluster.local', `Bearer ${accessToken()}`);
+      const req = makeReq(
+        'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+        `Bearer ${accessToken()}`,
+      );
       const { res, written } = makeRes();
       const next = jest.fn();
 
@@ -449,12 +468,18 @@ describe('DomainMiddleware', () => {
 
   describe('cloud — federated token fallback (no hostname match)', () => {
     it('resolves workspaceId from a signature-verified ACCESS token, without setting req.workspace', async () => {
-      const { middleware } = buildMiddleware({ cloud: true, findByHostname: undefined });
-      const token = sign(
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findByHostname: undefined,
+      });
+      const token = jwtService.sign(
         { sub: 'user-1', workspaceId: TENANT, type: 'access' },
-        APP_SECRET,
+        { secret: APP_SECRET },
       );
-      const req = makeReq('orvex-wiki.orvex-wiki-dev.svc.cluster.local', `Bearer ${token}`);
+      const req = makeReq(
+        'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+        `Bearer ${token}`,
+      );
       const next = jest.fn();
       await middleware.use(req, {} as any, next);
       expect(req.workspaceId).toBe(TENANT);
@@ -465,9 +490,9 @@ describe('DomainMiddleware', () => {
 
     it('resolves workspaceId from a verified API_KEY token', async () => {
       const { middleware } = buildMiddleware({ cloud: true });
-      const token = sign(
+      const token = jwtService.sign(
         { sub: 'user-1', workspaceId: TENANT, type: 'api_key', apiKeyId: 'k1' },
-        APP_SECRET,
+        { secret: APP_SECRET },
       );
       const req = makeReq('svc.internal', `Bearer ${token}`);
       await middleware.use(req, {} as any, jest.fn());
@@ -476,7 +501,10 @@ describe('DomainMiddleware', () => {
 
     it('sets workspaceId null for a BAD-SIGNATURE token (deny-by-default)', async () => {
       const { middleware } = buildMiddleware({ cloud: true });
-      const token = sign({ sub: 'x', workspaceId: TENANT, type: 'access' }, 'a-different-secret');
+      const token = jwtService.sign(
+        { sub: 'x', workspaceId: TENANT, type: 'access' },
+        { secret: 'a-different-secret' },
+      );
       const req = makeReq('svc.internal', `Bearer ${token}`);
       await middleware.use(req, {} as any, jest.fn());
       expect(req.workspaceId).toBeNull();
@@ -485,10 +513,9 @@ describe('DomainMiddleware', () => {
 
     it('sets workspaceId null for an EXPIRED token', async () => {
       const { middleware } = buildMiddleware({ cloud: true });
-      const token = sign(
+      const token = jwtService.sign(
         { sub: 'x', workspaceId: TENANT, type: 'access' },
-        APP_SECRET,
-        { expiresIn: -10 },
+        { secret: APP_SECRET, expiresIn: -10 },
       );
       const req = makeReq('svc.internal', `Bearer ${token}`);
       await middleware.use(req, {} as any, jest.fn());
@@ -497,7 +524,10 @@ describe('DomainMiddleware', () => {
 
     it('sets workspaceId null for a non-request token type (e.g. collab)', async () => {
       const { middleware } = buildMiddleware({ cloud: true });
-      const token = sign({ sub: 'x', workspaceId: TENANT, type: 'collab' }, APP_SECRET);
+      const token = jwtService.sign(
+        { sub: 'x', workspaceId: TENANT, type: 'collab' },
+        { secret: APP_SECRET },
+      );
       const req = makeReq('svc.internal', `Bearer ${token}`);
       await middleware.use(req, {} as any, jest.fn());
       expect(req.workspaceId).toBeNull();

@@ -3,9 +3,10 @@ import {
   Logger,
   NestMiddleware,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { verify } from 'jsonwebtoken';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import {
@@ -38,6 +39,7 @@ export class DomainMiddleware implements NestMiddleware {
     private workspaceRepo: WorkspaceRepo,
     private environmentService: EnvironmentService,
     private orvexConfigService: OrvexConfigService,
+    @Optional() private jwtService: JwtService = new JwtService(),
   ) {}
   /**
    * ENG-2502 (FR-W8, AC1) — the request-lifecycle half of the RLS wiring.
@@ -278,7 +280,9 @@ export class DomainMiddleware implements NestMiddleware {
     }
 
     try {
-      const payload = verify(token, this.environmentService.getAppSecret()) as {
+      const payload = this.jwtService.verify(token, {
+        secret: this.environmentService.getAppSecret(),
+      }) as {
         workspaceId?: string;
         type?: string;
       };
