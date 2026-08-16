@@ -3,6 +3,7 @@ import { DomainMiddleware } from './domain.middleware';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
+import { WorkspaceCellAssertionService } from '../cell-isolation/workspace-cell-assertion.service';
 
 // FR-W6 (ENG-1559) — DomainMiddleware federated workspace resolution. The
 // closing wall behind CLOUD mode was that a cluster-internal / cell host
@@ -15,10 +16,10 @@ import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 // NEVER set from the token (so @AuthWorkspace uses the JwtStrategy-verified
 // req.user.workspace, never a middleware-trusted object).
 //
-// ENG-2501 (FR-W20, A-TENANCY) adds the SOFT label-2 cell assertion cases:
-// a definite Host-label-2 vs pod-CELL_ID mismatch is soft-rejected with a
-// typed CELL_LABEL_MISMATCH marker (421, one request, never a crash), while
-// the `solo` sentinel / unset CELL_ID no-ops the check entirely.
+// ENG-2501 (FR-W20, A-TENANCY) adds the stored-workspace cell assertion:
+// a definite workspace-vs-deployment mismatch is rejected with canonical
+// CELL_MISMATCH (421, one request, never a crash). This suite also pins that a
+// CLOUD/fleet deployment cannot disable the assertion with null/`solo`.
 
 const APP_SECRET = 'test-app-secret-value-at-least-32-chars-long';
 const TENANT = 'f799e55a-478a-4ca7-9b0e-6e1324b6c6a7';
@@ -79,7 +80,11 @@ function buildMiddleware(opts: {
     middleware: new DomainMiddleware(
       workspaceRepo,
       environmentService,
-      orvexConfigService,
+      new WorkspaceCellAssertionService(
+        workspaceRepo,
+        environmentService,
+        orvexConfigService,
+      ),
       jwtService,
     ),
     workspaceRepo,
@@ -113,10 +118,11 @@ describe('DomainMiddleware', () => {
 
   describe('cloud — hostname resolution', () => {
     it('resolves the workspace by subdomain when a hostname matches', async () => {
-      const ws = { id: 'tenant-by-host' };
+      const ws = { id: 'tenant-by-host', cellId: 'eu1' };
       const { middleware, workspaceRepo } = buildMiddleware({
         cloud: true,
         findByHostname: ws,
+        cellId: 'eu1',
       });
       const req = makeReq('acme.wiki.eu1.orvex.dev');
       const next = jest.fn();
@@ -131,7 +137,7 @@ describe('DomainMiddleware', () => {
     const inCell = { id: 'tenant-by-host', cellId: 'eu1' };
     const otherCell = { id: 'tenant-by-host', cellId: 'us1' };
 
-    it('a definite workspace-cell vs CELL_ID mismatch is rejected with the typed WORKSPACE_CELL_MISMATCH marker (421), request does not proceed', async () => {
+    it('a definite workspace-cell vs CELL_ID mismatch is rejected with canonical CELL_MISMATCH (421), request does not proceed', async () => {
       const { middleware } = buildMiddleware({
         cloud: true,
         findByHostname: otherCell,
@@ -147,9 +153,12 @@ describe('DomainMiddleware', () => {
       expect(req.workspaceId).toBeUndefined();
       expect(written().statusCode).toBe(421);
       const body = JSON.parse(written().body ?? '{}');
-      expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
-      expect(body.workspaceCellId).toBe('us1');
-      expect(body.podCellId).toBe('eu1');
+      expect(body).toEqual({
+        errorCode: 'CELL_MISMATCH',
+        message:
+          'This host does not serve the requested workspace; re-discover.',
+        details: { cell: 'eu1', reResolve: { action: 'rediscover' } },
+      });
       // The tenant id is an operator-log fact, never echoed to a caller this
       // pod has just decided it should not be serving.
       expect(body.workspaceId).toBeUndefined();
@@ -189,33 +198,43 @@ describe('DomainMiddleware', () => {
       expect(next).toHaveBeenCalledTimes(1);
     });
 
-    it('under the `solo` sentinel a would-be mismatch NO-OPS (cell enforcement off entirely in solo mode)', async () => {
+    it('under the `solo` sentinel a fleet deployment fails closed', async () => {
       const { middleware } = buildMiddleware({
         cloud: true,
         findByHostname: otherCell,
         cellId: 'solo',
       });
       const req = makeReq('acme.wiki.us1.orvex.ai');
+      const { res, written } = makeRes();
       const next = jest.fn();
 
-      await middleware.use(req, {} as any, next);
+      await middleware.use(req, res, next);
 
-      expect(req.workspaceId).toBe('tenant-by-host');
-      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).not.toHaveBeenCalled();
+      expect(written().statusCode).toBe(421);
+      expect(JSON.parse(written().body ?? '{}').errorCode).toBe(
+        'CELL_MISMATCH',
+      );
     });
 
-    it('with CELL_ID unset the assertion no-ops identically (null-on-unset semantics, no fabricated cell)', async () => {
+    it('with CELL_ID unset a fleet deployment fails closed instead of becoming solo', async () => {
       const { middleware } = buildMiddleware({
         cloud: true,
         findByHostname: otherCell,
       });
       const req = makeReq('acme.wiki.us1.orvex.ai');
+      const { res, written } = makeRes();
       const next = jest.fn();
 
-      await middleware.use(req, {} as any, next);
+      await middleware.use(req, res, next);
 
-      expect(req.workspaceId).toBe('tenant-by-host');
-      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).not.toHaveBeenCalled();
+      expect(written().statusCode).toBe(421);
+      expect(JSON.parse(written().body ?? '{}')).toEqual({
+        errorCode: 'CELL_MISMATCH',
+        message: 'This deployment cannot confirm its cell; re-discover.',
+        details: { reResolve: { action: 'rediscover' } },
+      });
     });
 
     describe('short / ambiguous / custom-domain hosts', () => {
@@ -253,8 +272,8 @@ describe('DomainMiddleware', () => {
 
         expect(next).not.toHaveBeenCalled();
         expect(written().statusCode).toBe(421);
-        expect(JSON.parse(written().body ?? '{}').code).toBe(
-          'WORKSPACE_CELL_MISMATCH',
+        expect(JSON.parse(written().body ?? '{}').errorCode).toBe(
+          'CELL_MISMATCH',
         );
       });
 
@@ -289,7 +308,9 @@ describe('DomainMiddleware', () => {
 
       expect(next).not.toHaveBeenCalled();
       expect(written().statusCode).toBe(421);
-      expect(JSON.parse(written().body ?? '{}').workspaceCellId).toBe('solo');
+      expect(JSON.parse(written().body ?? '{}').errorCode).toBe(
+        'CELL_MISMATCH',
+      );
     });
 
     describe('C-cell — absent/empty/unparseable stored cell claim (fleet AD-4/AD-13)', () => {
@@ -321,24 +342,28 @@ describe('DomainMiddleware', () => {
           expect(req.workspaceId).toBeUndefined();
           expect(written().statusCode).toBe(421);
           const body = JSON.parse(written().body ?? '{}');
-          expect(body.code).toBe('WORKSPACE_CELL_ABSENT');
-          expect(body.podCellId).toBe('eu1');
+          expect(body.errorCode).toBe('CELL_MISMATCH');
+          expect(body.details).toEqual({
+            cell: 'eu1',
+            reResolve: { action: 'rediscover' },
+          });
         },
       );
 
-      it('is a no-op under the `solo` sentinel even with an absent stored cellId (enforcement off entirely)', async () => {
+      it('fails closed under the `solo` sentinel in a fleet deployment', async () => {
         const { middleware } = buildMiddleware({
           cloud: true,
           findByHostname: { id: 'tenant-by-host', cellId: undefined },
           cellId: 'solo',
         });
         const req = makeReq('acme.wiki.solo.orvex.ai');
+        const { res, written } = makeRes();
         const next = jest.fn();
 
-        await middleware.use(req, {} as any, next);
+        await middleware.use(req, res, next);
 
-        expect(req.workspaceId).toBe('tenant-by-host');
-        expect(next).toHaveBeenCalledTimes(1);
+        expect(next).not.toHaveBeenCalled();
+        expect(written().statusCode).toBe(421);
       });
     });
   });
@@ -373,9 +398,11 @@ describe('DomainMiddleware', () => {
       expect(req.workspaceId).toBeUndefined();
       expect(written().statusCode).toBe(421);
       const body = JSON.parse(written().body ?? '{}');
-      expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
-      expect(body.workspaceCellId).toBe('us1');
-      expect(body.podCellId).toBe('eu1');
+      expect(body.errorCode).toBe('CELL_MISMATCH');
+      expect(body.details).toEqual({
+        cell: 'eu1',
+        reResolve: { action: 'rediscover' },
+      });
     });
 
     it('passes a token-resolved workspace recorded in THIS cell, still without setting req.workspace', async () => {
@@ -396,20 +423,22 @@ describe('DomainMiddleware', () => {
       expect(next).toHaveBeenCalledTimes(1);
     });
 
-    it('makes NO lookup at all under the `solo` sentinel (enforcement off costs nothing)', async () => {
+    it('rejects before lookup when a fleet deployment uses the `solo` sentinel', async () => {
       const { middleware, workspaceRepo } = buildMiddleware({
         cloud: true,
         findById: { id: TENANT, cellId: 'us1' },
         cellId: 'solo',
       });
       const req = makeReq('svc.internal', `Bearer ${accessToken()}`);
+      const { res, written } = makeRes();
       const next = jest.fn();
 
-      await middleware.use(req, {} as any, next);
+      await middleware.use(req, res, next);
 
       expect(workspaceRepo.findById).not.toHaveBeenCalled();
-      expect(req.workspaceId).toBe(TENANT);
-      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.workspaceId).toBeUndefined();
+      expect(next).not.toHaveBeenCalled();
+      expect(written().statusCode).toBe(421);
     });
 
     it('rejects a token-resolved workspace whose recorded cell is ABSENT (empty string), same 421 WORKSPACE_CELL_ABSENT shape as the hostname path', async () => {
@@ -432,23 +461,25 @@ describe('DomainMiddleware', () => {
       expect(req.workspaceId).toBeUndefined();
       expect(written().statusCode).toBe(421);
       const body = JSON.parse(written().body ?? '{}');
-      expect(body.code).toBe('WORKSPACE_CELL_ABSENT');
-      expect(body.podCellId).toBe('eu1');
+      expect(body.errorCode).toBe('CELL_MISMATCH');
+      expect(body.details.cell).toBe('eu1');
     });
 
-    it('an ABSENT workspace row is not treated as a mismatch — no cell claim exists to compare, downstream still rejects', async () => {
+    it('an ABSENT workspace row is refused because the upgrade/request cannot assert its cell', async () => {
       const { middleware } = buildMiddleware({
         cloud: true,
         findById: undefined,
         cellId: 'eu1',
       });
       const req = makeReq('svc.internal', `Bearer ${accessToken()}`);
+      const { res, written } = makeRes();
       const next = jest.fn();
 
-      await middleware.use(req, {} as any, next);
+      await middleware.use(req, res, next);
 
-      expect(req.workspaceId).toBe(TENANT);
-      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.workspaceId).toBeUndefined();
+      expect(next).not.toHaveBeenCalled();
+      expect(written().statusCode).toBe(421);
     });
 
     it('makes no lookup when the token resolves no tenant (deny-by-default is unchanged)', async () => {
@@ -471,6 +502,8 @@ describe('DomainMiddleware', () => {
       const { middleware } = buildMiddleware({
         cloud: true,
         findByHostname: undefined,
+        findById: { id: TENANT, cellId: 'eu1' },
+        cellId: 'eu1',
       });
       const token = jwtService.sign(
         { sub: 'user-1', workspaceId: TENANT, type: 'access' },
@@ -489,7 +522,11 @@ describe('DomainMiddleware', () => {
     });
 
     it('resolves workspaceId from a verified API_KEY token', async () => {
-      const { middleware } = buildMiddleware({ cloud: true });
+      const { middleware } = buildMiddleware({
+        cloud: true,
+        findById: { id: TENANT, cellId: 'eu1' },
+        cellId: 'eu1',
+      });
       const token = jwtService.sign(
         { sub: 'user-1', workspaceId: TENANT, type: 'api_key', apiKeyId: 'k1' },
         { secret: APP_SECRET },

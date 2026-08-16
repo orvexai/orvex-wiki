@@ -85,6 +85,7 @@ import { EnvironmentService } from '../../integrations/environment/environment.s
 import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 import { currentTenantScope } from '@docmost/db/rls/tenant-scope.context';
 import { registerWorkspaceExemptPreHandler } from '../../orvex/http/orvex-workspace-exempt-paths';
+import { WorkspaceCellAssertionService } from '../cell-isolation/workspace-cell-assertion.service';
 import { DomainMiddleware } from './domain.middleware';
 
 /** The single seeded tenant this harness resolves for every request. */
@@ -155,6 +156,7 @@ class TenantScopeProbeController {
       provide: OrvexConfigService,
       useValue: new OrvexConfigService({} as NodeJS.ProcessEnv),
     },
+    WorkspaceCellAssertionService,
     DomainMiddleware,
   ],
 })

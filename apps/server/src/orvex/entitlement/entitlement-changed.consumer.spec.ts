@@ -19,6 +19,7 @@ import {
   BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
 } from './entitlement-changed.consumer';
 import { OrvexConfigService } from '../config/orvex-config.service';
+import { EnvironmentService } from '../../integrations/environment/environment.service';
 import {
   assertNoPaidPlanSellableWhileInterimFree,
   EntitlementCaps,
@@ -96,7 +97,9 @@ class StubBillingPort implements BillingEntitlementPort {
     this.catalog = catalog;
   }
 
-  async checkEntitlement(principal: Principal): Promise<EntitlementCheckResponse> {
+  async checkEntitlement(
+    principal: Principal,
+  ): Promise<EntitlementCheckResponse> {
     this.calls.push(principal);
     if (this.failWith) {
       throw this.failWith;
@@ -328,14 +331,17 @@ describe('TestEntitlementReaderEvictsOnBillingChange (ENG-2489 DoD gate)', () =>
 describe('C-cell — event-path cell guard on EntitlementChangedConsumer (fleet AD-4/AD-13)', () => {
   // The mirror of DomainMiddleware's HTTP-path guard, on the event path: an
   // absent/empty/foreign `orvexcell` extension must be DROPPED before any
-  // eviction is issued, never dispatched to the handler on trust. No-op
-  // under the `solo` sentinel or an unconfigured CELL_ID — matching every
-  // other cell check in this repo (`OrvexConfigService` built with an
+  // eviction is issued, never dispatched to the handler on trust. A CLOUD
+  // deployment fails closed when CELL_ID is `solo` or absent; only an
+  // explicitly self-hosted deployment is cell-agnostic. OrvexConfigService is built with an
   // EXPLICIT env bag, never ambient `process.env`, mirroring
   // domain.middleware.spec.ts's own convention).
   const WORKSPACE_ID = 'ws-entitlement-cell-guard';
 
-  function buildConsumer(cellId?: string): {
+  function buildConsumer(
+    cellId?: string,
+    cloud = true,
+  ): {
     consumer: EntitlementChangedConsumer;
     cache: InMemoryEntitlementCache;
   } {
@@ -346,7 +352,7 @@ describe('C-cell — event-path cell guard on EntitlementChangedConsumer (fleet 
     );
     const consumer = new EntitlementChangedConsumer(
       cache as EntitlementCache,
-      undefined,
+      { isCloud: () => cloud } as unknown as EnvironmentService,
       orvexConfig,
     );
     return { consumer, cache };
@@ -402,7 +408,7 @@ describe('C-cell — event-path cell guard on EntitlementChangedConsumer (fleet 
     }
   });
 
-  it('is a no-op under the `solo` sentinel — a foreign/absent orvexcell still evicts (enforcement off entirely)', async () => {
+  it('drops events under the `solo` sentinel in a fleet deployment', async () => {
     const { consumer } = buildConsumer('solo');
     for (const orvexcell of [undefined, '', 'us1'] as const) {
       const handled = await consumer.handleRawMessage(
@@ -412,18 +418,29 @@ describe('C-cell — event-path cell guard on EntitlementChangedConsumer (fleet 
           orvexcell,
         ),
       );
-      expect(handled).toBe(true);
+      expect(handled).toBe(false);
     }
   });
 
-  it('is a no-op with CELL_ID unset (null-on-unset semantics, matching DomainMiddleware)', async () => {
+  it('drops events with CELL_ID unset in a fleet deployment', async () => {
     const { consumer } = buildConsumer(undefined);
     const handled = await consumer.handleRawMessage(
       cloudEvent(
         BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE,
         { principal_type: 'org', principal_id: WORKSPACE_ID },
-        // absent orvexcell too — still passes, enforcement is off
+        // absent orvexcell too — fleet config is invalid and fails closed
       ),
+    );
+    expect(handled).toBe(false);
+  });
+
+  it('is explicitly cell-agnostic only for a self-hosted deployment', async () => {
+    const { consumer } = buildConsumer(undefined, false);
+    const handled = await consumer.handleRawMessage(
+      cloudEvent(BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE, {
+        principal_type: 'org',
+        principal_id: WORKSPACE_ID,
+      }),
     );
     expect(handled).toBe(true);
   });
@@ -451,7 +468,13 @@ describe('TestNoPlanNumberOutsideEntitlementReader (ENG-2489 AC5)', () => {
   // statuses etc.) plus the constant's own symbol name, anywhere outside
   // orvex/entitlement/ and non-spec code.
   const SRC_ROOT = join(__dirname, '..', '..');
-  const FORBIDDEN = [/1073741824/, /1_073_741_824/, /10485760/, /10_485_760/, /INTERIM_FREE_ENTITLEMENT/];
+  const FORBIDDEN = [
+    /1073741824/,
+    /1_073_741_824/,
+    /10485760/,
+    /10_485_760/,
+    /INTERIM_FREE_ENTITLEMENT/,
+  ];
 
   function walk(dir: string, hits: string[]): void {
     for (const entry of readdirSync(dir)) {

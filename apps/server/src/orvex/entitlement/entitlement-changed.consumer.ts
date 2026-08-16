@@ -186,18 +186,27 @@ export class EntitlementChangedConsumer
    * consumer's sibling API-BFF consumer checks, `orvex-studio-api`'s
    * `entitlement.ts`) must equal THIS deployment's own `CELL_ID`. An absent,
    * empty, or foreign `orvexcell` is DROPPED before any eviction is issued —
-   * never dispatched to the handler on trust. No-op under the `solo`
-   * sentinel or an unconfigured `CELL_ID` (mirrors
-   * `DomainMiddleware.cellEnforcementActive()` — enforcement is off entirely
-   * in dev/crew/self-hosted, matching every other cell check in this repo).
+   * never dispatched to the handler on trust. A self-hosted deployment is
+   * explicitly cell-agnostic. A CLOUD/fleet deployment with `CELL_ID` absent
+   * or set to `solo` fails closed instead of silently becoming self-hosted.
    */
   private assertEventCell(envelope: object): boolean {
     const podCellId = this.orvexConfig?.cellId ?? null;
     if (podCellId === null || podCellId === CELL_SOLO) {
-      return true;
+      if (!this.environmentService?.isCloud?.()) {
+        return true;
+      }
+      this.logger.warn(
+        `EntitlementChangedConsumer dropped a ${BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE} event: fleet deployment has no enforceable CELL_ID (podCellId=${JSON.stringify(podCellId)})`,
+      );
+      return false;
     }
     const eventCell = (envelope as { orvexcell?: unknown }).orvexcell;
-    if (typeof eventCell !== 'string' || eventCell.trim() === '' || eventCell !== podCellId) {
+    if (
+      typeof eventCell !== 'string' ||
+      eventCell.trim() === '' ||
+      eventCell !== podCellId
+    ) {
       this.logger.warn(
         `EntitlementChangedConsumer dropped a ${BILLING_ENTITLEMENT_CHANGED_EVENT_TYPE} event: orvexcell mismatch (eventCell=${JSON.stringify(eventCell ?? null)} podCellId=${podCellId})`,
       );
