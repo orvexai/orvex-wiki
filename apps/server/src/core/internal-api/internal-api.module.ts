@@ -16,7 +16,6 @@ import {
 } from './internal-api-auth';
 import { InternalApiAuthGuard } from './internal-api-auth.guard';
 import { OrvexConfigModule } from '../../orvex/config/orvex-config.module';
-import { CellIsolationModule } from '../../common/cell-isolation/cell-isolation.module';
 
 /**
  * InternalApiModule (ENG-1957) — mounts the `/internal/*` surface.
@@ -45,13 +44,7 @@ import { CellIsolationModule } from '../../common/cell-isolation/cell-isolation.
   // A-CELL — `OrvexConfigService` supplies the `CELL_ID` that
   // `PrincipalProvisioningService.materializeWorkspace` stamps onto every
   // identity-federated tenant it mints.
-  imports: [
-    ExportModule,
-    SpaceModule,
-    WorkspaceModule,
-    OrvexConfigModule,
-    CellIsolationModule,
-  ],
+  imports: [ExportModule, SpaceModule, WorkspaceModule, OrvexConfigModule],
   controllers: [InternalApiController],
   providers: [
     InternalApiService,

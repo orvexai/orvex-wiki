@@ -46,6 +46,7 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import {
   FastifyAdapter,
@@ -57,11 +58,11 @@ import { DomainMiddleware } from '../../src/common/middlewares/domain.middleware
 import { EnvironmentService } from '../../src/integrations/environment/environment.service';
 import { OrvexConfigService } from '../../src/orvex/config/orvex-config.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
-import { sign } from 'jsonwebtoken';
 import { startTestDatabase, TestDb } from './db-test-harness';
 import { WorkspaceCellAssertionService } from '../../src/common/cell-isolation/workspace-cell-assertion.service';
 
 const TEST_APP_SECRET = 'eng-2501-test-secret-at-least-32-characters-long';
+const TEST_JWT_SERVICE = new JwtService();
 
 const MANAGED_ENV_KEYS = [
   'CLOUD',
@@ -324,7 +325,10 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     // read that silently returned nothing would make this gate look present
     // and behave as absent.
     const accessTokenFor = (workspaceId: string) =>
-      sign({ sub: 'user-1', workspaceId, type: 'access' }, TEST_APP_SECRET);
+      TEST_JWT_SERVICE.sign(
+        { sub: 'user-1', workspaceId, type: 'access' },
+        { secret: TEST_APP_SECRET },
+      );
 
     it('rejects a token-resolved tenant RECORDED in another cell (421), on a host that resolves no workspace at all', async () => {
       const middleware = realMiddleware('eu1');

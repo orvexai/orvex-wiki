@@ -10,6 +10,7 @@ import { WebSocketCellGuard } from './websocket-cell.guard';
 import { WorkspaceCellAssertionService } from './workspace-cell-assertion.service';
 import { CollaborationCellExtension } from './collaboration-cell.extension';
 import { ShareSeoCellInterceptor } from './share-seo-cell.interceptor';
+import { SocketIoCellAdmissionInstaller } from './socket-io-cell-admission.installer';
 
 @Global()
 @Module({
@@ -19,6 +20,7 @@ import { ShareSeoCellInterceptor } from './share-seo-cell.interceptor';
     WebSocketCellGuard,
     CollaborationCellExtension,
     ShareSeoCellInterceptor,
+    SocketIoCellAdmissionInstaller,
     { provide: APP_INTERCEPTOR, useExisting: ShareSeoCellInterceptor },
   ],
   exports: [

@@ -71,6 +71,7 @@ import { AUDIT_SERVICE } from '../../integrations/audit/audit.service';
 import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { UserRole, SpaceRole } from '../../common/helpers/types/permission';
 import type { DB } from '@docmost/db/types/db';
+import { CellIsolationModule } from '../../common/cell-isolation/cell-isolation.module';
 
 /**
  * TestInternalACLExportResolveAISearchSurface (ENG-1957 AC6; ENG-1559
@@ -313,6 +314,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
 
     const built = await Test.createTestingModule({
       imports: [
+        CellIsolationModule,
         KyselyModule.forRoot({
           dialect: new PostgresJSDialect({ postgres: sqlClient }),
           plugins: [new CamelCasePlugin()],

@@ -21,6 +21,7 @@ import {
 import { CellIsolationModule } from '../common/cell-isolation/cell-isolation.module';
 import { CellAwareCollabWsAdapter } from '../common/cell-isolation/cell-aware-collab-ws.adapter';
 import { CollaborationCellExtension } from '../common/cell-isolation/collaboration-cell.extension';
+import { SocketIoCellAdmissionInstaller } from '../common/cell-isolation/socket-io-cell-admission.installer';
 
 const SECRET = 'websocket-cell-test-secret-at-least-32-characters';
 const WORKSPACE_ID = 'f799e55a-478a-4ca7-9b0e-6e1324b6c6a7';
@@ -79,6 +80,19 @@ async function refusedUpgrade(
   });
 }
 
+function installSocketIoAdmission(guard: WebSocketCellGuard) {
+  const opts: {
+    allowRequest?: SocketIoServer['engine']['opts']['allowRequest'];
+  } = {};
+  const gateway = { server: { engine: { opts } } };
+  const moduleRef = { get: () => gateway };
+  new SocketIoCellAdmissionInstaller(
+    moduleRef as any,
+    guard,
+  ).onApplicationBootstrap();
+  return opts.allowRequest;
+}
+
 describe('live WebSocket cell isolation', () => {
   it('refuses a foreign-cell Socket.IO WebSocket upgrade before connection', async () => {
     const { jwtService, guard } = buildGuard();
@@ -93,8 +107,7 @@ describe('live WebSocket cell isolation', () => {
     const httpServer = createServer();
     const io = new SocketIoServer(httpServer, {
       transports: ['websocket'],
-      allowRequest: (request, callback) =>
-        guard.allowSocketIoRequest(request, callback),
+      allowRequest: installSocketIoAdmission(guard),
     });
     const connected = jest.fn();
     io.on('connection', connected);
@@ -131,8 +144,7 @@ describe('live WebSocket cell isolation', () => {
     const httpServer = createServer();
     const io = new SocketIoServer(httpServer, {
       transports: ['websocket'],
-      allowRequest: (request, callback) =>
-        guard.allowSocketIoRequest(request, callback),
+      allowRequest: installSocketIoAdmission(guard),
     });
     const port = await listen(httpServer);
 
