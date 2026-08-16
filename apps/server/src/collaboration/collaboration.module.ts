@@ -23,6 +23,8 @@ import { TransclusionModule } from '../core/page/transclusion/transclusion.modul
 import { StorageModule } from '../integrations/storage/storage.module';
 import { EnvironmentModule } from '../integrations/environment/environment.module';
 import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-provenance.module';
+import { CellIsolationModule } from '../common/cell-isolation/cell-isolation.module';
+import { WebSocketCellGuard } from '../common/cell-isolation/websocket-cell.guard';
 
 @Module({
   providers: [
@@ -38,6 +40,7 @@ import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-pr
   exports: [CollaborationGateway],
   imports: [
     TokenModule,
+    CellIsolationModule,
     WatcherModule,
     StorageModule.forRootAsync({
       imports: [EnvironmentModule],
@@ -58,13 +61,19 @@ export class CollaborationModule implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly collaborationGateway: CollaborationGateway,
     private readonly httpAdapterHost: HttpAdapterHost,
+    private readonly webSocketCellGuard: WebSocketCellGuard,
   ) {}
 
   onModuleInit() {
     this.collabWsAdapter = new CollabWsAdapter();
     const httpServer = this.httpAdapterHost.httpAdapter.getHttpServer();
 
-    const wss = this.collabWsAdapter.handleUpgrade(this.path, httpServer);
+    const wss = this.collabWsAdapter.handleUpgrade(
+      this.path,
+      httpServer,
+      (request) =>
+        this.webSocketCellGuard.assertCollabUpgradeIfCredentialed(request),
+    );
 
     wss.on('connection', (client: WebSocket, request: IncomingMessage) => {
       this.collaborationGateway.handleConnection(client, request);

@@ -24,13 +24,12 @@
  *      exported `use()` contract with the booted app's REAL repo +
  *      environment service;
  *  (3) AC3 — a request resolving a workspace whose RECORDED `cell_id` is not
- *      this deployment's is rejected with the typed `WORKSPACE_CELL_MISMATCH`
+ *      this deployment's is rejected with the canonical `CELL_MISMATCH`
  *      marker (421 — one request, never a crash), proven end-to-end through
  *      the app's REAL mounted middleware against REAL rows in Postgres;
  *  (4) AC4 — no `ee/` dependency on the multi-tenant hot path beyond the
  *      single guarded require (grep-gate);
- *  (5) AC5 — under the `solo` sentinel (CELL_ID unset or `"solo"`) the cell
- *      assertion NO-OPS rather than rejecting;
+ *  (5) AC5 — a CLOUD deployment with CELL_ID unset or `"solo"` fails closed;
  *  plus the NFR honesty gate (the check states where cross-cell authority
  *  actually lives and does not overclaim).
  *
@@ -60,6 +59,7 @@ import { OrvexConfigService } from '../../src/orvex/config/orvex-config.service'
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { sign } from 'jsonwebtoken';
 import { startTestDatabase, TestDb } from './db-test-harness';
+import { WorkspaceCellAssertionService } from '../../src/common/cell-isolation/workspace-cell-assertion.service';
 
 const TEST_APP_SECRET = 'eng-2501-test-secret-at-least-32-characters-long';
 
@@ -124,11 +124,11 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     process.env.SUBDOMAIN_HOST = 'orvex.ai';
 
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    exitSpy = jest
-      .spyOn(process, 'exit')
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit(${code}) called during CLOUD boot`);
-      }) as never);
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation(((
+      code?: number,
+    ) => {
+      throw new Error(`process.exit(${code}) called during CLOUD boot`);
+    }) as never);
 
     // AC1 — load the REAL AppModule NOW (after env + spies are in place):
     // the module-scope `require('./ee/ee.module')` try/catch executes at
@@ -186,16 +186,26 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
 
   /** The booted app's REAL collaborators, with an EXPLICIT cell config bag. */
   function realMiddleware(cellId?: string): DomainMiddleware {
+    const workspaceRepo = app.get(WorkspaceRepo);
+    const environmentService = app.get(EnvironmentService);
+    const config = new OrvexConfigService(
+      (cellId === undefined ? {} : { CELL_ID: cellId }) as NodeJS.ProcessEnv,
+    );
     return new DomainMiddleware(
-      app.get(WorkspaceRepo),
-      app.get(EnvironmentService),
-      new OrvexConfigService(
-        (cellId === undefined ? {} : { CELL_ID: cellId }) as NodeJS.ProcessEnv,
+      workspaceRepo,
+      environmentService,
+      new WorkspaceCellAssertionService(
+        workspaceRepo,
+        environmentService,
+        config,
       ),
     );
   }
 
-  function makeRes(): { res: any; state: { statusCode?: number; body?: string } } {
+  function makeRes(): {
+    res: any;
+    state: { statusCode?: number; body?: string };
+  } {
     const state: { statusCode?: number; body?: string } = {};
     const res = {
       statusCode: undefined as number | undefined,
@@ -220,7 +230,7 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     ).toBe(true);
   });
 
-  it('AC2 — a {tenant}.wiki.{cell}.orvex.ai request resolves workspaceId via label-0 against the booted app\'s real repo', async () => {
+  it("AC2 — a {tenant}.wiki.{cell}.orvex.ai request resolves workspaceId via label-0 against the booted app's real repo", async () => {
     const middleware = realMiddleware('eu1');
     const req: any = { headers: { host: 'acme.wiki.eu1.orvex.ai' } };
     const next = jest.fn();
@@ -233,7 +243,7 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('AC3 — a request resolving a workspace RECORDED in another cell is rejected with the typed WORKSPACE_CELL_MISMATCH marker (421), never an unhandled crash', async () => {
+  it('AC3 — a request resolving a workspace RECORDED in another cell is rejected with canonical CELL_MISMATCH (421), never an unhandled crash', async () => {
     const middleware = realMiddleware('eu1');
     // Note the host: same shape as AC2's, and its label-2 is `eu1` — this pod's
     // OWN cell. Only the stored row says otherwise, which is exactly the case
@@ -247,13 +257,15 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     expect(next).not.toHaveBeenCalled();
     expect(state.statusCode).toBe(421);
     const body = JSON.parse(state.body ?? '{}');
-    expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
-    expect(body.workspaceCellId).toBe('us1');
-    expect(body.podCellId).toBe('eu1');
+    expect(body.errorCode).toBe('CELL_MISMATCH');
+    expect(body.details).toEqual({
+      cell: 'eu1',
+      reResolve: { action: 'rediscover' },
+    });
     expect(farawayWorkspaceId).toBeDefined();
   });
 
-  it('AC3 (end-to-end) — the assertion is LIVE on the booted app\'s mounted middleware: a wrong-cell HTTP request is rejected 421 at the front door', async () => {
+  it("AC3 (end-to-end) — the assertion is LIVE on the booted app's mounted middleware: a wrong-cell HTTP request is rejected 421 at the front door", async () => {
     // Explicit per-sub-case env injection: the mounted middleware's config
     // reader resolves CELL_ID from the value THIS case sets.
     process.env.CELL_ID = 'eu1';
@@ -266,9 +278,11 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
       });
       expect(rejected.statusCode).toBe(421);
       const body = rejected.json();
-      expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
-      expect(body.workspaceCellId).toBe('us1');
-      expect(body.podCellId).toBe('eu1');
+      expect(body.errorCode).toBe('CELL_MISMATCH');
+      expect(body.details).toEqual({
+        cell: 'eu1',
+        reResolve: { action: 'rediscover' },
+      });
 
       // Matching cell: the SAME request shape passes the assertion (any
       // downstream status is fine — the front door did not 421 it).
@@ -284,20 +298,19 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     }
   });
 
-  it('AC5 — under the solo sentinel (CELL_ID unset or "solo") a would-be mismatch NO-OPS: cell enforcement is off entirely', async () => {
+  it('AC5 — a CLOUD deployment with CELL_ID unset or "solo" fails closed', async () => {
     for (const cellId of [undefined, 'solo'] as const) {
       const middleware = realMiddleware(cellId);
-      // The `us1`-recorded workspace: a definite mismatch for any real cell,
-      // waved through here because the pod claims no cell of its own.
       const req: any = { headers: { host: 'faraway.wiki.eu1.orvex.ai' } };
-      const { res } = makeRes();
+      const { res, state } = makeRes();
       const next = jest.fn();
 
       await middleware.use(req, res, next);
 
-      expect(req.workspaceId).toBe(farawayWorkspaceId);
-      expect(next).toHaveBeenCalledTimes(1);
-      expect(res.end).not.toHaveBeenCalled();
+      expect(req.workspaceId).toBeUndefined();
+      expect(next).not.toHaveBeenCalled();
+      expect(state.statusCode).toBe(421);
+      expect(JSON.parse(state.body ?? '{}').errorCode).toBe('CELL_MISMATCH');
     }
   });
 
@@ -311,10 +324,7 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     // read that silently returned nothing would make this gate look present
     // and behave as absent.
     const accessTokenFor = (workspaceId: string) =>
-      sign(
-        { sub: 'user-1', workspaceId, type: 'access' },
-        TEST_APP_SECRET,
-      );
+      sign({ sub: 'user-1', workspaceId, type: 'access' }, TEST_APP_SECRET);
 
     it('rejects a token-resolved tenant RECORDED in another cell (421), on a host that resolves no workspace at all', async () => {
       const middleware = realMiddleware('eu1');
@@ -332,9 +342,8 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
       expect(next).not.toHaveBeenCalled();
       expect(state.statusCode).toBe(421);
       const body = JSON.parse(state.body ?? '{}');
-      expect(body.code).toBe('WORKSPACE_CELL_MISMATCH');
-      expect(body.workspaceCellId).toBe('us1');
-      expect(body.podCellId).toBe('eu1');
+      expect(body.errorCode).toBe('CELL_MISMATCH');
+      expect(body.details.cell).toBe('eu1');
     });
 
     it('passes a token-resolved tenant recorded in THIS cell, still without setting req.workspace', async () => {
@@ -393,7 +402,9 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     // Prose assertions run against a flattened copy: a doc comment's line
     // wrapping is not a semantic change, and a gate that a future re-wrap can
     // break is a gate that will be deleted rather than fixed.
-    const prose = middlewareSource.replace(/^\s*\*/gm, ' ').replace(/\s+/g, ' ');
+    const prose = middlewareSource
+      .replace(/^\s*\*/gm, ' ')
+      .replace(/\s+/g, ' ');
     // It must still not overclaim: identity's global registry, not this
     // middleware, is the cross-cell source of truth and its sole writer.
     expect(prose).toMatch(/source of truth/i);

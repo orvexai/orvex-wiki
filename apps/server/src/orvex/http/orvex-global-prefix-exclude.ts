@@ -15,8 +15,10 @@ export const UPSTREAM_GLOBAL_PREFIX_EXCLUDE: readonly string[] = [
   // 'internal/(.*)' — ENG-1957 AC5: the engine-internal ACL/export/
   // resolve/ai-search surface stays OUTSIDE the /api prefix (own
   // fail-closed bearer authz via InternalApiAuthGuard, never the
-  // public/tenant-facing session auth). Fixed, not env-overridable, same
-  // posture as 'metrics' above.
+  // public/tenant-facing session auth). Each handler invokes the shared
+  // WorkspaceCellAssertionService against its DTO/query tenant because Nest
+  // does not run DomainMiddleware on globally excluded paths. Fixed, not
+  // env-overridable, same posture as 'metrics' above.
   'internal/(.*)',
 ];
 
@@ -35,6 +37,9 @@ export function resolveGlobalPrefixExclude(
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const config = new OrvexConfigService(env);
-  const merged = [...UPSTREAM_GLOBAL_PREFIX_EXCLUDE, ...config.globalPrefixExclude];
+  const merged = [
+    ...UPSTREAM_GLOBAL_PREFIX_EXCLUDE,
+    ...config.globalPrefixExclude,
+  ];
   return [...new Set(merged)];
 }

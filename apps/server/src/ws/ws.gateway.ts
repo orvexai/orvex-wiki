@@ -8,14 +8,12 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { TokenService } from '../core/auth/services/token.service';
-import { JwtPayload, JwtType } from '../core/auth/dto/jwt-payload';
 import { OnModuleDestroy } from '@nestjs/common';
 import { SpaceMemberRepo } from '@docmost/db/repos/space/space-member.repo';
 import { WsService } from './ws.service';
 import { getSpaceRoomName, getUserRoomName } from './ws.utils';
 import { BaseRealtimeBridge } from './base-realtime.bridge';
-import * as cookie from 'cookie';
+import { WebSocketCellGuard } from '../common/cell-isolation/websocket-cell.guard';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -32,7 +30,7 @@ export class WsGateway
   server: Server;
 
   constructor(
-    private tokenService: TokenService,
+    private readonly webSocketCellGuard: WebSocketCellGuard,
     private spaceMemberRepo: SpaceMemberRepo,
     private wsService: WsService,
     private baseRealtime: BaseRealtimeBridge,
@@ -45,10 +43,11 @@ export class WsGateway
 
   async handleConnection(client: Socket, ...args: any[]): Promise<void> {
     try {
-      const cookies = cookie.parse(client.handshake.headers.cookie);
-      const token: JwtPayload = await this.tokenService.verifyJwt(
-        cookies['authToken'],
-        JwtType.ACCESS,
+      // Defense in depth for alternate adapters/tests: the production adapter
+      // performs this same check in Engine.IO's pre-101 allowRequest hook.
+      const token = await this.webSocketCellGuard.assertAccessRequest(
+        client.request,
+        'socket.io connection',
       );
 
       const userId = token.sub;

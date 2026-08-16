@@ -17,6 +17,7 @@ import { resolveFrameHeader } from './common/helpers';
 import { initOrvexTracing } from './orvex/obs/orvex-tracing.bootstrap';
 import { resolveGlobalPrefixExclude } from './orvex/http/orvex-global-prefix-exclude';
 import { registerWorkspaceExemptPreHandler } from './orvex/http/orvex-workspace-exempt-paths';
+import { WebSocketCellGuard } from './common/cell-isolation/websocket-cell.guard';
 
 async function bootstrap() {
   // ENG-1599: the OTel SDK MUST patch (http/fastify/ioredis instrumentation)
@@ -58,7 +59,7 @@ async function bootstrap() {
   });
 
   const reflector = app.get(Reflector);
-  const redisIoAdapter = new WsRedisIoAdapter(app);
+  const redisIoAdapter = new WsRedisIoAdapter(app, app.get(WebSocketCellGuard));
   await redisIoAdapter.connectToRedis();
 
   app.useWebSocketAdapter(redisIoAdapter);

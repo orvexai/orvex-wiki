@@ -111,6 +111,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
   let readerId: string;
   let outsiderId: string;
   let spaceId: string;
+  let cloudMode = false;
 
   const authHeaders = (bearer = BEARER_TOKEN) => ({
     authorization: `Bearer ${bearer}`,
@@ -196,7 +197,10 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         // unset: every registry call rejects with a typed NOT_CONFIGURED. This
         // spec's ACs never mint a hostname, so an attempted registry call here
         // must be a loud failure, never a fabricated reservation.
-        { provide: IDENTITY_REGISTRY_CLIENT, useClass: NotConfiguredRegistryClient },
+        {
+          provide: IDENTITY_REGISTRY_CLIENT,
+          useClass: NotConfiguredRegistryClient,
+        },
         // WorkspaceModule also declares WorkspaceInvitationService, whose
         // remaining unsatisfied deps are MailService (a true external — SMTP,
         // CS §5, so a no-op double) and EntitlementService (composed from the
@@ -245,8 +249,8 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
           useValue: {
             getAppSecret: () => 'eng-1957-test-secret-at-least-32-characters',
             getJwtTokenExpiresIn: () => '30d',
-            isCloud: () => false,
-            isSelfHosted: () => false,
+            isCloud: () => cloudMode,
+            isSelfHosted: () => !cloudMode,
             isHttps: () => false,
             getSubdomainHost: () => 'example.com',
             getAppUrl: () => 'http://localhost:3000',
@@ -565,6 +569,46 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       expect(JSON.parse(res.body).allowed).toEqual([]);
     });
 
+    it('refuses a foreign-cell tenant on the globally-unprefixed internal route', async () => {
+      const pageId = await seedPage({ title: 'foreign-cell route probe' });
+      const previousCellId = process.env.CELL_ID;
+      cloudMode = true;
+      process.env.CELL_ID = 'eu1';
+      await seedDb
+        .updateTable('workspaces')
+        .set({ cellId: 'us1' })
+        .where('id', '=', otherWorkspaceId)
+        .execute();
+
+      try {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/internal/acl/filter',
+          headers: authHeaders(),
+          payload: {
+            subject: SUBJECT_MEMBER,
+            tenant: otherWorkspaceId,
+            page_ids: [pageId],
+          },
+        });
+
+        expect(res.statusCode).toBe(421);
+        expect(JSON.parse(res.body)).toEqual({
+          errorCode: 'CELL_MISMATCH',
+          message:
+            'This host does not serve the requested workspace; re-discover.',
+          details: { cell: 'eu1', reResolve: { action: 'rediscover' } },
+        });
+      } finally {
+        cloudMode = false;
+        if (previousCellId === undefined) {
+          delete process.env.CELL_ID;
+        } else {
+          process.env.CELL_ID = previousCellId;
+        }
+      }
+    });
+
     it('excludes every page for a resolved user who is not a space member', async () => {
       const pageId = await seedPage({ title: 'AC1 non-member page' });
       const res = await app.inject({
@@ -847,7 +891,11 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         method: 'POST',
         url: '/internal/acl/filter',
         headers: authHeaders(),
-        payload: { subject: SUBJECT, tenant: workspaceId, page_ids: [readablePageId] },
+        payload: {
+          subject: SUBJECT,
+          tenant: workspaceId,
+          page_ids: [readablePageId],
+        },
       });
       expect(before.statusCode).toBe(200);
       expect(JSON.parse(before.body).allowed).toEqual([]);
@@ -856,7 +904,12 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         method: 'POST',
         url: '/internal/principals/provision',
         headers: authHeaders(),
-        payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL, name: 'Provisioned User' },
+        payload: {
+          subject: SUBJECT,
+          tenant: workspaceId,
+          email: EMAIL,
+          name: 'Provisioned User',
+        },
       });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
@@ -897,7 +950,11 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         method: 'POST',
         url: '/internal/acl/filter',
         headers: authHeaders(),
-        payload: { subject: SUBJECT, tenant: workspaceId, page_ids: [readablePageId] },
+        payload: {
+          subject: SUBJECT,
+          tenant: workspaceId,
+          page_ids: [readablePageId],
+        },
       });
       expect(after.statusCode).toBe(200);
       expect(JSON.parse(after.body).allowed).toEqual([readablePageId]);
@@ -991,7 +1048,11 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         method: 'POST',
         url: '/internal/principals/provision',
         headers: authHeaders(),
-        payload: { subject: 'idp-subject-x', tenant: workspaceId, email: 'not-an-email' },
+        payload: {
+          subject: 'idp-subject-x',
+          tenant: workspaceId,
+          email: 'not-an-email',
+        },
       });
       expect(badEmail.statusCode).toBe(400);
 

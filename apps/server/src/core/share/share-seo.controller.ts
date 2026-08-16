@@ -8,6 +8,7 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { Workspace } from '@docmost/db/types/entity.types';
 import { htmlEscape } from '../../common/helpers/html-escaper';
+import { WorkspaceCellAssertionService } from '../../common/cell-isolation/workspace-cell-assertion.service';
 
 @Controller('share')
 export class ShareSeoController {
@@ -15,6 +16,7 @@ export class ShareSeoController {
     private readonly shareService: ShareService,
     private workspaceRepo: WorkspaceRepo,
     private environmentService: EnvironmentService,
+    private readonly cellAssertion: WorkspaceCellAssertionService,
   ) {}
 
   /*
@@ -31,7 +33,8 @@ export class ShareSeoController {
     // https://github.com/nestjs/nest/issues/9124
     // https://github.com/nestjs/nest/issues/11572
     // https://github.com/nestjs/nest/issues/13401
-    // we have to duplicate the DomainMiddleware code here as a workaround
+    // Resolve the workspace here, then invoke the SAME shared cell assertion
+    // as DomainMiddleware; this route cannot rely on HTTP middleware.
 
     let workspace: Workspace = null;
     if (this.environmentService.isSelfHosted()) {
@@ -40,6 +43,14 @@ export class ShareSeoController {
       const header = req.raw.headers.host;
       const subdomain = header.split('.')[0];
       workspace = await this.workspaceRepo.findByHostname(subdomain);
+    }
+
+    if (workspace) {
+      this.cellAssertion.assertWorkspace(
+        workspace,
+        workspace.id,
+        'public share SEO request',
+      );
     }
 
     const clientDistPath = join(

@@ -1,6 +1,5 @@
 import {
   Injectable,
-  Logger,
   NestMiddleware,
   NotFoundException,
   Optional,
@@ -9,36 +8,18 @@ import { JwtService } from '@nestjs/jwt';
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
-import {
-  CELL_SOLO,
-  OrvexConfigService,
-} from '../../orvex/config/orvex-config.service';
 import { runInTenantScope } from '@docmost/db/rls/tenant-scope.context';
-
-/**
- * The typed rejection marker the cell assertion surfaces on a mismatch (never
- * a raw thrown `Error` with no code): a greppable operator signal, distinct
- * from a generic 500.
- *
- * Deliberately carries NO tenant identifier. The two cell ids are operational
- * facts about the DEPLOYMENT; the workspace id is the tenant's own, and is
- * logged server-side rather than echoed to a caller this pod has just decided
- * it should not be serving.
- */
-export interface WorkspaceCellMismatch {
-  code: 'WORKSPACE_CELL_MISMATCH' | 'WORKSPACE_CELL_ABSENT';
-  workspaceCellId: string;
-  podCellId: string;
-}
+import {
+  WorkspaceCellAssertionService,
+  WorkspaceCellMismatchException,
+} from '../cell-isolation/workspace-cell-assertion.service';
 
 @Injectable()
 export class DomainMiddleware implements NestMiddleware {
-  private readonly logger = new Logger(DomainMiddleware.name);
-
   constructor(
     private workspaceRepo: WorkspaceRepo,
     private environmentService: EnvironmentService,
-    private orvexConfigService: OrvexConfigService,
+    private readonly cellAssertion: WorkspaceCellAssertionService,
     @Optional() private jwtService: JwtService = new JwtService(),
   ) {}
   /**
@@ -92,12 +73,21 @@ export class DomainMiddleware implements NestMiddleware {
         : undefined;
 
       if (workspace) {
-        // The cell assertion runs immediately after resolution succeeds. On a
-        // definite mismatch the one request is rejected with a typed marker;
-        // the process never dies.
-        const mismatch = this.assertWorkspaceCell(workspace);
-        if (mismatch) {
-          return this.rejectCellMismatch(res, mismatch, workspace.id);
+        // Identity's global tenant-to-cell registry remains the cross-cell
+        // source of truth and sole writer; the workspace row is its local
+        // materialization, judged by the shared assertion used on every
+        // tenant-data transport.
+        try {
+          this.cellAssertion.assertWorkspace(
+            workspace,
+            workspace.id,
+            'HTTP hostname request',
+          );
+        } catch (error) {
+          if (error instanceof WorkspaceCellMismatchException) {
+            return this.rejectCellMismatch(res, error);
+          }
+          throw error;
         }
 
         (req as any).workspaceId = workspace.id;
@@ -130,17 +120,17 @@ export class DomainMiddleware implements NestMiddleware {
       // every real cell — which is precisely what the old label-count guess
       // was. So the assertion is made here too, against the same
       // authoritative record.
-      if (tokenWorkspaceId !== null && this.cellEnforcementActive()) {
-        const workspace = await this.workspaceRepo.findById(tokenWorkspaceId);
-        // An ABSENT row is not a mismatch — this pod has no cell claim to
-        // compare against, so it makes none (the check never guesses). The
-        // request keeps its existing fate: JwtStrategy re-validates the token
-        // against workspace existence and rejects it there.
-        if (workspace) {
-          const mismatch = this.assertWorkspaceCell(workspace);
-          if (mismatch) {
-            return this.rejectCellMismatch(res, mismatch, workspace.id);
+      if (tokenWorkspaceId !== null) {
+        try {
+          await this.cellAssertion.assertWorkspaceId(
+            tokenWorkspaceId,
+            'HTTP bearer request',
+          );
+        } catch (error) {
+          if (error instanceof WorkspaceCellMismatchException) {
+            return this.rejectCellMismatch(res, error);
           }
+          throw error;
         }
       }
 
@@ -151,115 +141,16 @@ export class DomainMiddleware implements NestMiddleware {
   }
 
   /**
-   * Is this pod in a cell that can meaningfully be enforced?
-   *
-   * No when it runs the `solo` sentinel (`CELL_ID` unset or the literal
-   * `"solo"`, mirroring the outbox relay's sentinel semantics): cell
-   * enforcement is off entirely in solo mode, so dev/crew/self-hosted pay
-   * neither the comparison nor the lookup it would require.
-   */
-  private cellEnforcementActive(): boolean {
-    const podCellId = this.orvexConfigService.cellId;
-    return podCellId !== null && podCellId !== CELL_SOLO;
-  }
-
-  /**
-   * (FR-W20, A-TENANCY) — the cell assertion.
-   *
-   * Compares the RESOLVED workspace's own recorded `cellId` against this
-   * pod's configured `CELL_ID`. This replaces an earlier check that inferred
-   * the cell from the `Host` header's label-2 segment, which was wrong in two
-   * ways that compounded: it could only fire on hosts with four or more
-   * labels (so it silently no-opped for custom domains, `*.localhost`, and
-   * every short host), and it sat behind a hostname→workspace lookup that
-   * never succeeds in the real deploy — so in production it was not a lenient
-   * gate, it was an absent one.
-   *
-   * Reading the stored assignment removes the guess entirely: a custom-domain
-   * tenant and a `wiki.<cell>.orvex.ai` tenant are now judged by the same
-   * authoritative fact, and the host's shape stops mattering at all.
-   *
-   * Identity's global tenant→cell registry stays the cross-cell source of
-   * truth and its sole writer; `workspaces.cell_id` is that truth
-   * materialized cell-locally so the request path can enforce it without a
-   * per-request network hop to identity.
-   *
-   * No-op (returns null) under the `solo` sentinel, or when the stored cell
-   * matches. A stored `solo` against a real pod cell IS a mismatch: it means
-   * a row this cell did not mint (a restore from another environment, a
-   * hand-inserted row) and refusing to serve it is the correct outcome. An
-   * absent/empty/whitespace-only stored cell is ALSO refused (never a silent
-   * no-op) — see the dedicated `WORKSPACE_CELL_ABSENT` branch below.
-   *
-   * Pure in-memory string comparison: no I/O, no wall-clock.
-   */
-  private assertWorkspaceCell(workspace: {
-    cellId?: string | null;
-  }): WorkspaceCellMismatch | null {
-    if (!this.cellEnforcementActive()) {
-      return null;
-    }
-    const podCellId = this.orvexConfigService.cellId as string;
-    const workspaceCellId = workspace.cellId;
-
-    if (workspaceCellId === podCellId) {
-      return null;
-    }
-
-    // Fleet C-cell (AD-4/AD-13): an absent, empty, or whitespace-only cell
-    // claim is REFUSED, never silently served. The column is NOT NULL and the
-    // repo's `baseFields` carries `cellId` precisely so this branch should
-    // never be reached in a healthy deploy — but "should never happen" is not
-    // a guard; a row read through a projection that omitted the column, or a
-    // legacy/corrupt row that never got one, carries the SAME risk as a wrong
-    // cell (this pod cannot show the tenant belongs here), so it gets the
-    // same fail-closed 421 outcome under its own typed code, distinct from a
-    // definite cross-cell mismatch.
-    if (
-      workspaceCellId === undefined ||
-      workspaceCellId === null ||
-      workspaceCellId.trim() === ''
-    ) {
-      return {
-        code: 'WORKSPACE_CELL_ABSENT',
-        workspaceCellId: workspaceCellId ?? '',
-        podCellId,
-      };
-    }
-
-    return {
-      code: 'WORKSPACE_CELL_MISMATCH',
-      workspaceCellId,
-      podCellId,
-    };
-  }
-
-  /**
-   * The one place a cell mismatch becomes a response: 421 Misdirected
-   * Request, a typed body, and a greppable operator log carrying the tenant
-   * id the body deliberately omits. Rejects the ONE request; the process
-   * never dies.
+   * HTTP middleware runs before Nest's exception layer, so serialize the same
+   * canonical `contracts.Error` envelope carried by the shared exception.
    */
   private rejectCellMismatch(
     res: FastifyReply['raw'],
-    mismatch: WorkspaceCellMismatch,
-    workspaceId: string,
+    error: WorkspaceCellMismatchException,
   ): void {
-    this.logger.warn(
-      `cell assertion rejected request: code=${mismatch.code} workspaceId=${workspaceId} workspaceCellId=${mismatch.workspaceCellId} podCellId=${mismatch.podCellId}`,
-    );
     res.statusCode = 421;
     res.setHeader('content-type', 'application/json');
-    const message =
-      mismatch.code === 'WORKSPACE_CELL_ABSENT'
-        ? 'Request reached a pod that cannot confirm the tenant’s cell (the workspace record carries no usable cell claim).'
-        : 'Request reached a pod outside the tenant’s cell (the workspace’s recorded cell does not match this deployment).';
-    res.end(
-      JSON.stringify({
-        ...mismatch,
-        message,
-      }),
-    );
+    res.end(JSON.stringify(error.getResponse()));
   }
 
   /**
