@@ -9,7 +9,6 @@ import { AuthenticationExtension } from './extensions/authentication.extension';
 import { PersistenceExtension } from './extensions/persistence.extension';
 import { CollaborationGateway } from './collaboration.gateway';
 import { HttpAdapterHost } from '@nestjs/core';
-import { CollabWsAdapter } from './adapter/collab-ws.adapter';
 import { IncomingMessage } from 'http';
 import { WebSocket } from 'ws';
 import { TokenModule } from '../core/auth/token.module';
@@ -25,6 +24,7 @@ import { EnvironmentModule } from '../integrations/environment/environment.modul
 import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-provenance.module';
 import { CellIsolationModule } from '../common/cell-isolation/cell-isolation.module';
 import { WebSocketCellGuard } from '../common/cell-isolation/websocket-cell.guard';
+import { CellAwareCollabWsAdapter } from '../common/cell-isolation/cell-aware-collab-ws.adapter';
 
 @Module({
   providers: [
@@ -55,7 +55,7 @@ import { WebSocketCellGuard } from '../common/cell-isolation/websocket-cell.guar
 })
 export class CollaborationModule implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CollaborationModule.name);
-  private collabWsAdapter: CollabWsAdapter;
+  private collabWsAdapter: CellAwareCollabWsAdapter;
   private path = '/collab';
 
   constructor(
@@ -65,15 +65,12 @@ export class CollaborationModule implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.collabWsAdapter = new CollabWsAdapter();
+    this.collabWsAdapter = new CellAwareCollabWsAdapter(
+      this.webSocketCellGuard,
+    );
     const httpServer = this.httpAdapterHost.httpAdapter.getHttpServer();
 
-    const wss = this.collabWsAdapter.handleUpgrade(
-      this.path,
-      httpServer,
-      (request) =>
-        this.webSocketCellGuard.assertCollabUpgradeIfCredentialed(request),
-    );
+    const wss = this.collabWsAdapter.handleUpgrade(this.path, httpServer);
 
     wss.on('connection', (client: WebSocket, request: IncomingMessage) => {
       this.collaborationGateway.handleConnection(client, request);

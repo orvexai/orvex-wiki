@@ -7,18 +7,10 @@ import {
   parseRedisUrl,
   RedisConfig,
 } from '../../common/helpers';
-import { WebSocketCellGuard } from '../../common/cell-isolation/websocket-cell.guard';
 
 export class WsRedisIoAdapter extends IoAdapter {
   private adapterConstructor: ReturnType<typeof createAdapter>;
   private redisConfig: RedisConfig;
-
-  constructor(
-    app: any,
-    private readonly webSocketCellGuard: WebSocketCellGuard,
-  ) {
-    super(app);
-  }
 
   async connectToRedis(): Promise<void> {
     this.redisConfig = parseRedisUrl(process.env.REDIS_URL);
@@ -38,11 +30,7 @@ export class WsRedisIoAdapter extends IoAdapter {
   }
 
   createIOServer(port: number, options?: ServerOptions): any {
-    const server = super.createIOServer(port, {
-      ...options,
-      allowRequest: (request, callback) =>
-        this.webSocketCellGuard.allowSocketIoRequest(request, callback),
-    });
+    const server = super.createIOServer(port, options);
     server.adapter(this.adapterConstructor);
     return server;
   }

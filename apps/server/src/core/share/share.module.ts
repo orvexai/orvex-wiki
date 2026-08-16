@@ -4,10 +4,9 @@ import { ShareService } from './share.service';
 import { TokenModule } from '../auth/token.module';
 import { ShareSeoController } from './share-seo.controller';
 import { TransclusionModule } from '../page/transclusion/transclusion.module';
-import { CellIsolationModule } from '../../common/cell-isolation/cell-isolation.module';
 
 @Module({
-  imports: [TokenModule, TransclusionModule, CellIsolationModule],
+  imports: [TokenModule, TransclusionModule],
   controllers: [ShareController, ShareSeoController],
   providers: [ShareService],
   exports: [ShareService],

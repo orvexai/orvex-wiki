@@ -18,9 +18,9 @@ import {
   WorkspaceCellAssertionService,
   WorkspaceCellMismatchException,
 } from '../common/cell-isolation/workspace-cell-assertion.service';
-import { CollabWsAdapter } from '../collaboration/adapter/collab-ws.adapter';
-import { AuthenticationExtension } from '../collaboration/extensions/authentication.extension';
 import { CellIsolationModule } from '../common/cell-isolation/cell-isolation.module';
+import { CellAwareCollabWsAdapter } from '../common/cell-isolation/cell-aware-collab-ws.adapter';
+import { CollaborationCellExtension } from '../common/cell-isolation/collaboration-cell.extension';
 
 const SECRET = 'websocket-cell-test-secret-at-least-32-characters';
 const WORKSPACE_ID = 'f799e55a-478a-4ca7-9b0e-6e1324b6c6a7';
@@ -172,10 +172,8 @@ describe('live WebSocket cell isolation', () => {
       { secret: SECRET },
     );
     const httpServer = createServer();
-    const adapter = new CollabWsAdapter();
-    adapter.handleUpgrade('/collab', httpServer, (request) =>
-      guard.assertCollabUpgradeIfCredentialed(request),
-    );
+    const adapter = new CellAwareCollabWsAdapter(guard);
+    adapter.handleUpgrade('/collab', httpServer);
     const port = await listen(httpServer);
 
     try {
@@ -200,15 +198,7 @@ describe('live WebSocket cell isolation', () => {
 
   it('rejects a foreign-cell collab token when the standalone host has no access cookie', async () => {
     const { jwtService, tokenService, assertion } = buildGuard();
-    const userRepo = { findById: jest.fn() };
-    const extension = new AuthenticationExtension(
-      tokenService,
-      userRepo as any,
-      { findById: jest.fn() } as any,
-      { getUserSpaceRoles: jest.fn() } as any,
-      { canUserEditPage: jest.fn() } as any,
-      assertion,
-    );
+    const extension = new CollaborationCellExtension(tokenService, assertion);
     const collabToken = jwtService.sign(
       {
         sub: 'user-1',
@@ -225,7 +215,6 @@ describe('live WebSocket cell isolation', () => {
         connectionConfig: {},
       } as any),
     ).rejects.toBeInstanceOf(WorkspaceCellMismatchException);
-    expect(userRepo.findById).not.toHaveBeenCalled();
   });
 
   it('composes the assertion module into the standalone collaboration binary', async () => {

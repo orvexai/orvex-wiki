@@ -15,7 +15,6 @@ import { SpaceRole } from '../../common/helpers/types/permission';
 import { isUserDisabled } from '../../common/helpers';
 import { getPageId } from '../collaboration.util';
 import { JwtCollabPayload, JwtType } from '../../core/auth/dto/jwt-payload';
-import { WorkspaceCellAssertionService } from '../../common/cell-isolation/workspace-cell-assertion.service';
 
 @Injectable()
 export class AuthenticationExtension implements Extension {
@@ -27,7 +26,6 @@ export class AuthenticationExtension implements Extension {
     private pageRepo: PageRepo,
     private readonly spaceMemberRepo: SpaceMemberRepo,
     private readonly pagePermissionRepo: PagePermissionRepo,
-    private readonly cellAssertion: WorkspaceCellAssertionService,
   ) {}
 
   async onAuthenticate(data: onAuthenticatePayload) {
@@ -44,11 +42,6 @@ export class AuthenticationExtension implements Extension {
 
     const userId = jwtPayload.sub;
     const workspaceId = jwtPayload.workspaceId;
-
-    await this.cellAssertion.assertWorkspaceId(
-      workspaceId,
-      'collaboration authentication',
-    );
 
     const user = await this.userRepo.findById(userId, workspaceId);
 

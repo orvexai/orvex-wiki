@@ -7,7 +7,7 @@ import {
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { TransformHttpResponseInterceptor } from './common/interceptors/http-response.interceptor';
-import { WsRedisIoAdapter } from './ws/adapter/ws-redis.adapter';
+import { CellAwareWsRedisIoAdapter } from './common/cell-isolation/cell-aware-ws-redis.adapter';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyCookie from '@fastify/cookie';
 import fastifyIp from 'fastify-ip';
@@ -59,7 +59,10 @@ async function bootstrap() {
   });
 
   const reflector = app.get(Reflector);
-  const redisIoAdapter = new WsRedisIoAdapter(app, app.get(WebSocketCellGuard));
+  const redisIoAdapter = new CellAwareWsRedisIoAdapter(
+    app,
+    app.get(WebSocketCellGuard),
+  );
   await redisIoAdapter.connectToRedis();
 
   app.useWebSocketAdapter(redisIoAdapter);

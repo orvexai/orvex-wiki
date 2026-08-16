@@ -13,6 +13,7 @@ import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 import { WorkspaceCellAssertionService } from '../../common/cell-isolation/workspace-cell-assertion.service';
 import { ShareSeoController } from './share-seo.controller';
 import { ShareService } from './share.service';
+import { ShareSeoCellInterceptor } from '../../common/cell-isolation/share-seo-cell.interceptor';
 
 describe('ShareSeoController excluded-route cell isolation', () => {
   let app: NestFastifyApplication;
@@ -40,6 +41,7 @@ describe('ShareSeoController excluded-route cell isolation', () => {
           useValue: new OrvexConfigService({ CELL_ID: 'eu1' }),
         },
         WorkspaceCellAssertionService,
+        ShareSeoCellInterceptor,
       ],
     }).compile();
 
@@ -51,6 +53,7 @@ describe('ShareSeoController excluded-route cell isolation', () => {
     app.setGlobalPrefix('api', {
       exclude: ['share/:shareId/p/:pageSlug'],
     });
+    app.useGlobalInterceptors(built.get(ShareSeoCellInterceptor));
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });
