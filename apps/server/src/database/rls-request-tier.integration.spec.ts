@@ -79,6 +79,7 @@ import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { EnvironmentService } from '../integrations/environment/environment.service';
 import { OrvexConfigService } from '../orvex/config/orvex-config.service';
 import { DomainMiddleware } from '../common/middlewares/domain.middleware';
+import { WorkspaceCellAssertionService } from '../common/cell-isolation/workspace-cell-assertion.service';
 import { currentTenantScope } from './rls/tenant-scope.context';
 import { executeTx } from './utils';
 import type { KyselyDB } from './types/kysely.types';
@@ -136,7 +137,11 @@ function buildProbeModule(db: KyselyDB) {
         // CLOUD mode with a cluster-internal Host resolves NO workspace by
         // hostname — the deployed cell's actual shape — so resolution falls
         // to the request's own verified bearer, exactly as in production.
-        useValue: { findFirst: async () => undefined, findByHostname: async () => undefined },
+        useValue: {
+          findFirst: async () => undefined,
+          findByHostname: async () => undefined,
+          findById: async (id: string) => ({ id, cellId: 'eu1' }),
+        },
       },
       {
         provide: EnvironmentService,
@@ -148,8 +153,9 @@ function buildProbeModule(db: KyselyDB) {
       },
       {
         provide: OrvexConfigService,
-        useValue: new OrvexConfigService({} as NodeJS.ProcessEnv),
+        useValue: new OrvexConfigService({ CELL_ID: 'eu1' }),
       },
+      WorkspaceCellAssertionService,
       DomainMiddleware,
     ],
   })
