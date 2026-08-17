@@ -2,24 +2,12 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { createLocalJWKSet } from 'jose';
-import type { JSONWebKeySet } from 'jose';
-
 import {
   EdgeAssertionKey,
   EdgeAssertionKeySource,
 } from './edge-assertion-key-source';
-
-/**
- * The one-argument shape {@link createLocalJWKSet}'s result is actually called
- * with — same narrowing as {@link StaticEdgeAssertionKeySource}: jose's public
- * `CompactVerifyGetKey` requires a second (`token`) argument, but
- * `LocalJWKSet#getKey` only reads `header`, so omitting it is runtime-safe.
- */
-type LocalGetKey = (header: {
-  alg: string;
-  kid?: string;
-}) => Promise<EdgeAssertionKey>;
+import { createLocalEs256Jwks, narrowEdgeJwks } from './local-es256-jwks';
+import type { LocalEs256KeyResolver } from './local-es256-jwks';
 
 /**
  * Minimal fetch surface (Node 18+ global `fetch`), narrowed for injection —
@@ -54,7 +42,7 @@ export interface RemoteEdgeAssertionKeySourceDeps {
  * {@link EdgeAssertionVerifier} keeps owning and proving the ADR-0049 invariant
  * "an unknown kid triggers EXACTLY ONE refresh, then reject — never a loop,
  * never a silent fall-through to accept" (rather than delegating that policy to
- * jose's opaque `createRemoteJWKSet` internal retry/cooldown). The verifier's
+ * a library's opaque internal retry/cooldown). The verifier's
  * flow against this source is: `resolve(kid)` → miss (cold cache) →
  * `refresh()` (ONE fetch) → `resolve(kid)` → hit-or-reject. The fetch is LAZY
  * (first verify), never at boot, so an identity JWKS blip never crash-loops the
@@ -69,7 +57,7 @@ export class RemoteEdgeAssertionKeySource implements EdgeAssertionKeySource {
   private readonly timeoutMs: number;
   private readonly fetch: JwksFetchLike;
   /** The current cached key set. `undefined` until the first successful refresh. */
-  private getKey: LocalGetKey | undefined;
+  private getKey: LocalEs256KeyResolver | undefined;
 
   constructor(deps: RemoteEdgeAssertionKeySourceDeps) {
     if (
@@ -96,13 +84,9 @@ export class RemoteEdgeAssertionKeySource implements EdgeAssertionKeySource {
       // its one explicit refresh(); never fetch from inside resolve().
       return undefined;
     }
-    try {
-      return await this.getKey({ alg: 'ES256', kid });
-    } catch {
-      // createLocalJWKSet throws JWKSNoMatchingKey / JWKSMultipleMatchingKeys
-      // on a miss/ambiguous match — both are "no key", never a thrown surprise.
-      return undefined;
-    }
+    // The resolver folds every "no usable key" outcome (absent kid, ambiguous
+    // kid, unimportable material) into `undefined` and never throws.
+    return this.getKey(kid);
   }
 
   async refresh(): Promise<void> {
@@ -123,26 +107,10 @@ export class RemoteEdgeAssertionKeySource implements EdgeAssertionKeySource {
       clearTimeout(timer);
     }
 
-    const jwks = narrowJwks(payload);
+    const jwks = narrowEdgeJwks(payload);
     // Rebuild the cached local set atomically; only replace the live cache once
     // the new set has been constructed (a parse failure above leaves the old
     // cache untouched rather than blanking it).
-    this.getKey = createLocalJWKSet(jwks) as unknown as LocalGetKey;
+    this.getKey = createLocalEs256Jwks(jwks);
   }
-}
-
-/**
- * Narrow an identity JWKS response to jose's `JSONWebKeySet`. A response that is
- * not `{ keys: [...] }` is a malformed/unusable key set — throw (fail closed),
- * never coerce it into an empty accept.
- */
-function narrowJwks(payload: unknown): JSONWebKeySet {
-  if (typeof payload !== 'object' || payload === null) {
-    throw new Error('edge JWKS response is not an object');
-  }
-  const keys = (payload as { keys?: unknown }).keys;
-  if (!Array.isArray(keys) || keys.length === 0) {
-    throw new Error('edge JWKS response has no keys');
-  }
-  return payload as JSONWebKeySet;
 }

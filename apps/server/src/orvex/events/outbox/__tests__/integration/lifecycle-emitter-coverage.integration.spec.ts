@@ -41,6 +41,7 @@ import type { Cache } from 'cache-manager';
 
 import { WorkspaceService } from '../../../../../core/workspace/services/workspace.service';
 import { NotConfiguredRegistryClient } from '../../../../http/identity-registry-client';
+import { OrvexConfigService } from '../../../../config/orvex-config.service';
 import { SpaceService } from '../../../../../core/space/services/space.service';
 import { SpaceMemberService } from '../../../../../core/space/services/space-member.service';
 import { CommentService } from '../../../../../core/comment/comment.service';
@@ -224,6 +225,9 @@ describe('LifecycleEmitterCoverageSpec', () => {
       // unset — a real production class, not a hand-rolled stub, so any future
       // registry call from this path reds loudly instead of silently passing.
       new NotConfiguredRegistryClient(),
+      // A-CELL — the real env reader on an explicit empty bag: this spec runs
+      // no cell, so `cellId` reads null and workspaces are stamped `solo`.
+      new OrvexConfigService({} as NodeJS.ProcessEnv),
     );
 
     const stubWsService = {

@@ -2,3 +2,155 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'packages/@orvex/*'
+
+# Migrated from package.json's "pnpm" key (ENG-3698): pnpm 10.4.0 warns that it
+# no longer reads pnpm.overrides / pnpm.patchedDependencies /
+# pnpm.neverBuiltDependencies from package.json ("[WARN] The "pnpm" field in
+# package.json is no longer read by pnpm") in favour of this file. Every entry
+# below used to live there.
+#
+# CORRECTED 2026-08-09 (PR #172 review, MF-2/O-1 — the previous wording here
+# overstated what was proven; do not restore it): this migration does NOT mean
+# every one of the ~48 entries had gone silently dead in this tree. The
+# **pre-fix** lockfile (`git show ce14fb70^:pnpm-lock.yaml`) carries the full
+# override block with resolved versions matching their override targets
+# (`dompurify` 3.4.11 = target, `nanoid@^3` 3.3.8 = its then-current target,
+# and so on) — the overrides were demonstrably applied at some point, most
+# plausibly whenever the lockfile was last freshly resolved (predating this
+# repo's move to 10.4.0, or a `--frozen-lockfile` install simply preserving a
+# prior resolution without re-reading any override at all). What IS proven,
+# narrowly: `js-yaml` and `nanoid` drifted onto newly-vulnerable resolutions
+# once new advisories were published against ranges no override was actively
+# re-pinning under 10.4.0. The migration is required regardless of how much of
+# the block was live at any given moment — pnpm-workspace.yaml is where the
+# CURRENT pnpm version reads these settings going forward, full stop.
+#
+# ALSO ENG-3698: package.json's packageManager was bumped 10.4.0 -> 10.34.5
+# (latest 10.x, same major, no config-breaking changes observed) because
+# 10.4.0 itself could not reliably apply even a *migrated, correctly-located*
+# override for a dependency pinned to an EXACT version by a third-party
+# package two levels deep (@excalidraw/excalidraw>nanoid,
+# @excalidraw/mermaid-to-excalidraw>nanoid below) — confirmed on repeated
+# from-scratch installs (rm -rf node_modules + fresh lockfile) that neither
+# a `nanoid@<exact-version>` selector nor a packageExtensions rewrite of the
+# dependent's own declared range took effect under 10.4.0, while the SAME
+# `parent>dep` override syntax converged cleanly under 10.34.5.
+#
+# `ignoredOptionalDependencies` below (added 2026-08-09, PR #172 review MF-1)
+# is what actually keeps `image-size` out of the resolved tree. pnpm does NOT
+# drop it on its own at any version tested: `pnpm install --frozen-lockfile`
+# under 10.34.5, against the tree as it stood immediately before this entry
+# was added, still installed both `less@4.2.0` and `image-size@0.5.5` despite
+# zero `.less` files anywhere in this repo. A prior draft of this comment
+# claimed 10.34.5 stopped resolving them on its own; that was false and has
+# been deleted — do not restore it. See reports/p1c/wiki-security-gate-impl.md
+# and reports/p1c/wiki-172-discharge.md for the full before/after.
+patchedDependencies:
+  scimmy@1.3.5: patches/scimmy@1.3.5.patch
+
+overrides:
+  prosemirror-changeset: 2.4.0
+  y-prosemirror: 1.3.7
+  glob: 13.0.6
+  ws: 8.21.0
+  # dompurify: GHSA-c2j3-45gr-mqc4 (low) fixed at 3.4.12; GHSA-55q2-fjhq-7xh7
+  # (medium, detached-subtree IN_PLACE XSS) fixed at 3.4.13. Same-major patch
+  # bump — ENG-3698 dependabot follow-up, ruling #25.
+  dompurify: 3.4.13
+  tmp: 0.2.7
+  hono: 4.12.25
+  # mermaid: 5 distinct GHSAs (GHSA-c4c3-pg64-4m4v, GHSA-rhh3-jpg6-66xh,
+  # GHSA-3rrr-jr9j-h3q3, GHSA-6x64-9x62-f2gx, GHSA-2v8p-3f2j-5mp7), all fixed
+  # at 11.16.1. Same-major patch bump — ENG-3698 dependabot follow-up, ruling
+  # #25.
+  mermaid: 11.16.1
+  # nanoid: GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (both HIGH). 3.x line
+  # fixed at 3.3.17; 4.x/5.x line fixed at 5.1.16. ^4 -> 5.1.16 crosses a major
+  # on purpose (nanoid has no 4.x patch release covering both advisories) —
+  # verified safe: nanoid's `nanoid()`/`customAlphabet()` exported signatures
+  # are unchanged from 3.x through 5.x, the only consumer here
+  # (@excalidraw/mermaid-to-excalidraw, pinned exactly "4.0.2") only calls
+  # `nanoid()` for id generation, and the shipping runtime artifact
+  # (Dockerfile:1, FROM node:22-slim) satisfies 5.x's engines requirement
+  # (^18 || >=20) — corrected 2026-08-09 (PR #172 review, O-2): an earlier
+  # draft of this comment cited CI's `node-version: '24'` instead, which is
+  # the build/test environment, not what actually ships.
+  nanoid@^3: 3.3.18
+  nanoid@^5.1.3: 5.1.16
+  # Exact-pin consumers: a bare `nanoid@<exact-version>` selector overlaps
+  # with `nanoid@^3` above (3.3.3 satisfies both selectors) and empirically
+  # did not get applied, nor did rewriting the declared range via
+  # packageExtensions — both tested and confirmed dead under the
+  # then-pinned pnpm@10.4.0 (`pnpm why -r nanoid` on a from-scratch install
+  # each time). Scoping by the exact parent package (pnpm's documented
+  # `parent>dep` override syntax) is unambiguous and DOES apply — but only
+  # once pnpm itself is current enough to honour it; see the packageManager
+  # bump note below (ENG-3698).
+  '@excalidraw/excalidraw>nanoid': 3.3.18
+  '@excalidraw/mermaid-to-excalidraw>nanoid': 5.1.16
+  socket.io-parser: 4.2.7
+  serialize-javascript: 7.0.3
+  lodash-es: 4.18.1
+  lodash: 4.18.1
+  '@hono/node-server': 1.19.13
+  undici: 7.29.0
+  ajv@^6: 6.14.0
+  ajv@^8: 8.18.0
+  underscore: 1.13.8
+  immutable: 4.3.9
+  express-rate-limit: 8.2.2
+  minimatch@^3: 3.1.5
+  minimatch@^5: 5.1.8
+  flatted: 3.4.2
+  picomatch@<2.3.2: 2.3.2
+  picomatch@>=4.0.0 <4.0.4: 4.0.4
+  fastify: 5.8.5
+  yaml@>=1.0.0 <1.10.3: 1.10.3
+  yaml@>=2.0.0 <2.8.3: 2.8.3
+  path-to-regexp@^8: 8.4.0
+  brace-expansion@^1: 1.1.18
+  brace-expansion@^2: 2.1.4
+  brace-expansion@^5: 5.0.9
+  '@xmldom/xmldom': 0.8.13
+  handlebars: 4.7.9
+  axios: 1.18.0
+  langsmith: 0.7.0
+  follow-redirects: 1.16.0
+  protobufjs: 7.6.5
+  ip-address: 10.1.1
+  fast-uri: 3.1.5
+  form-data@4: 4.0.6
+  '@babel/plugin-transform-modules-systemjs': 7.29.4
+  # js-yaml: GHSA-5p4m-2wfm-xmqj (HIGH, quadratic CPU consumption in !!omap
+  # resolution). Fixed at 3.15.1 (3.x line) / 4.3.1 (4.x line) — patch bumps,
+  # same majors as before.
+  js-yaml@^3: 3.15.1
+  js-yaml@^4: 4.3.1
+  postcss: 8.5.18
+  engine.io: 6.6.7
+  find-my-way: 9.7.0
+  shell-quote: 1.9.0
+
+neverBuiltDependencies: []
+
+# ENG-3698 (PR #172 review, MF-1): image-size@0.5.5 (GHSA-5p2g-fcmc-qvqq,
+# GHSA-w3rx-r6r6-pgpr, both HIGH, no upstream fix exists at any version) is an
+# OPTIONAL transitive dependency of vite's optional `less` peer, reached only
+# by apps/client's devDependency on vite — never by production code, and this
+# repo has zero `.less` files (see osv-scanner.toml's git history for the full
+# call-path trace that used to justify carrying it as a dated exception
+# instead). Excluding it here removes the vulnerable package from the resolved
+# tree entirely rather than merely excepting it: strictly better than a carried
+# exception on every axis this gate cares about — the vulnerable code is
+# ABSENT, not just proven-unreachable, and the exception ledger needs no entry
+# for it. Verified: `pnpm install --no-frozen-lockfile --lockfile-only` with
+# only this key added produces a lockfile that differs from the prior one by
+# exactly the image-size entries (its `packages:` stanza, its `snapshots:`
+# stanza, and the one line in `less@4.2.0`'s `optionalDependencies`) — zero
+# other packages moved, `@fastify/cookie` untouched. Trade-off, stated
+# honestly: if this repo ever adopts `.less` files AND uses less's
+# `image-size()`/`image-width()` builtins, those calls fail loudly instead of
+# resolving — the correct failure mode under this repo's no-fallbacks
+# doctrine, and moot today at zero `.less` files.
+ignoredOptionalDependencies:
+  - image-size

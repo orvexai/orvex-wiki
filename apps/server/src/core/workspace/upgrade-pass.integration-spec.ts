@@ -72,6 +72,7 @@ import {
   PrincipalProvisioningService,
 } from '../internal-api/principal-provisioning.service';
 import { WorkspaceUpgradeService } from './services/workspace-upgrade.service';
+import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 import {
   IdentityRegistryClient,
   RegistryClientError,
@@ -293,6 +294,9 @@ describe('TestPersonalToTeamsUpgradePassReKeysInPlace', () => {
       // (AC3 "seats start counting") must be the one production runs.
       entitlements,
       registry,
+      // A-CELL — the real env reader on an explicit empty bag: this spec runs
+      // no cell, so `cellId` reads null and workspaces are stamped `solo`.
+      new OrvexConfigService({} as NodeJS.ProcessEnv),
     );
     upgrade = new WorkspaceUpgradeService(kdb, workspaceRepo, registry);
   });

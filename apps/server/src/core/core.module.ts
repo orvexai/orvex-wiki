@@ -4,6 +4,8 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import type { StringValue } from 'ms';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { WorkspaceModule } from './workspace/workspace.module';
@@ -27,12 +29,27 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { UserExportModule } from './user-export/user-export.module';
 import { ClsMiddleware } from 'nestjs-cls';
 import { OrvexConfigModule } from '../orvex/config/orvex-config.module';
+import { EnvironmentService } from '../integrations/environment/environment.service';
+import { CellIsolationModule } from '../common/cell-isolation/cell-isolation.module';
 
 @Module({
   imports: [
-    // ENG-2501 — provides `OrvexConfigService` (the `CELL_ID` reader) to
-    // `DomainMiddleware`'s soft label-2 cell assertion.
+    // ENG-2501 — provides the CELL_ID reader and shared assertion used by
+    // DomainMiddleware and every tenant-data transport.
     OrvexConfigModule,
+    CellIsolationModule,
+    JwtModule.registerAsync({
+      useFactory: async (environmentService: EnvironmentService) => {
+        return {
+          secret: environmentService.getAppSecret(),
+          signOptions: {
+            expiresIn: environmentService.getJwtTokenExpiresIn() as StringValue,
+            issuer: 'Docmost',
+          },
+        };
+      },
+      inject: [EnvironmentService],
+    }),
     UserModule,
     AuthModule,
     WorkspaceModule,
