@@ -143,7 +143,7 @@ spec:
             - name: url
               value: https://github.com/orvexai/my-idp-apps.git
             - name: revision
-              value: v0.11.3
+              value: v0.11.4
             - name: pathInRepo
               value: tekton/orvex-shared-build-pipeline.yaml
             - name: gitToken
