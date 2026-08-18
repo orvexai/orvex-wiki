@@ -72,8 +72,13 @@ export interface TenantCellMoveResult {
  *     principal (`subject` prefixed `svc:`) may relocate a tenant's cell
  *     binding; without this an ordinary user session could move ANY
  *     tenant's cell (isolation break).
- *  2. MOVE — delegates to identity's real `POST /v1/registry/move`
- *     (registry is the SOLE writer, PO ruling 13). This one call already
+ *  2. MOVE — delegates to identity's real move core through the
+ *     origin-locked `POST /internal/registry/move` (ENG-3313; ENG-3427's
+ *     engine-facing entry point, reached with the shared engine seam bearer
+ *     because the `/v1/registry/*` writes are machine-only and this AGPL
+ *     engine holds no `svc:` grant — it delegates to the SAME
+ *     `doRegistryMove` core, so everything below is unchanged).
+ *     Registry remains the SOLE writer (PO ruling 13). This one call already
  *     satisfies: the registry cell-binding update, the `moveId`-keyed
  *     idempotency ledger, the atomic `identity.cell.moved` outbox audit
  *     event (identity `PutAndEnqueue`, ENG-1458 T5/AC6 — the SAME
@@ -184,6 +189,22 @@ export class OrvexTenantCellMoveService {
         case 'STALE_MOVE':
           return new ConflictException(
             'stale move: registry has moved on',
+          );
+        case 'AUTH_FAILED':
+          // ENG-3313 — identity refused THIS ENGINE's seam credential. That
+          // is a server-side misconfiguration (the two deployments hold
+          // different INTERNAL_API_BEARER_TOKEN values), so it is NOT a 401:
+          // the CALLER's bearer was already validated and accepted above, and
+          // answering 401 would falsely blame it and send an operator to
+          // debug the wrong credential entirely. It is also not the generic
+          // DEPENDENCY_ERROR 502 — the exact indistinguishability this
+          // ticket exists to remove — so it carries its own message and is
+          // logged loudly, because nothing retries its way out of it.
+          this.logger.error(
+            `tenant-move ${step} rejected by identity: the engine seam credential was refused (401). Reconcile INTERNAL_API_BEARER_TOKEN with identity's ENGINE_INTERNAL_API_TOKEN.`,
+          );
+          return new BadGatewayException(
+            `identity registry ${step} rejected this engine's seam credential (misconfigured INTERNAL_API_BEARER_TOKEN)`,
           );
         case 'DEPENDENCY_ERROR':
           return new BadGatewayException(

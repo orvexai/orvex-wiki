@@ -18,7 +18,10 @@
  * DESIGN-IT-TWICE (CS §3.7 — this crosses the §7 seam map, a call to
  * ANOTHER Studio service):
  *  A. CHOSEN — a direct synchronous HTTP port to identity's already-real
- *     `/v1/registry/move` + `/v1/registry/tenants/{id}/cell` (ENG-1507).
+ *     registry seam: the ORIGIN-LOCKED `/internal/registry/move` +
+ *     `/internal/registry/reserve` WRITES and the deliberately-open
+ *     `/v1/registry/tenants/{id}/cell` READ (ENG-1507; re-pointed off the
+ *     machine-only `/v1/registry/*` writes by ENG-3350 then ENG-3313).
  *     Mirrors the ALREADY-SHIPPED, already-reviewed `CallIdentityRehome`
  *     synchronous-caller shape identity's own `registryMove` doc comment
  *     names as its intended production consumer. The M14 gate needs a
@@ -100,12 +103,22 @@ export interface RegistryReserveResult {
  * mutation didn't happen). `TENANT_ALREADY_RESERVED` (ENG-2503) is the
  * cross-cell mint-collision rejection: the global registry refused a
  * second reservation of the same tenant/hostname.
+ *
+ * ENG-3313 — `AUTH_FAILED` is the engine↔identity SEAM-CREDENTIAL rejection
+ * (identity's `requireEngineInternal` answers a uniform
+ * `401 {"error":"unauthorized"}`, deliberately with no oracle distinguishing
+ * "wrong token" from "no token configured on that deployment"). It is its own
+ * code precisely so it never reads as a generic dependency blip: a 401 here
+ * means the two services disagree about the shared secret — an operator fixes
+ * that by reconciling `INTERNAL_API_BEARER_TOKEN`, which is a completely
+ * different action from "identity is unhealthy".
  */
 export type RegistryClientErrorCode =
   | 'NOT_FOUND'
   | 'STALE_MOVE'
   | 'DEPENDENCY_ERROR'
-  | 'TENANT_ALREADY_RESERVED';
+  | 'TENANT_ALREADY_RESERVED'
+  | 'AUTH_FAILED';
 
 export class RegistryClientError extends Error {
   constructor(
@@ -129,13 +142,13 @@ export class RegistryClientNotConfiguredError extends Error {
 
 export interface IdentityRegistryClient {
   /**
-   * Calls identity's `POST /internal/registry/move` (ENG-3427) — the REAL,
-   * atomic, `moveId`-keyed idempotent registry cell-binding relocation
-   * (ENG-1507 `Registry.Move`), reached via the engine-facing counterpart
-   * of the machine-only `/v1/registry/move` this engine holds no
-   * client-credentials grant for (see the implementation's own doc
-   * comment). Throws `RegistryClientError` with a typed `code` on a
-   * non-2xx identity response; never fabricates a success.
+   * Calls identity's `POST /internal/registry/move` — the REAL, atomic,
+   * `moveId`-keyed idempotent registry cell-binding relocation
+   * (ENG-1507 `Registry.Move`, reached through ENG-3427's engine-facing
+   * entry point rather than the machine-only `/v1/registry/move`; both
+   * delegate to identity's one `doRegistryMove` core). Throws
+   * `RegistryClientError` with a typed `code` on a non-2xx identity
+   * response — `'AUTH_FAILED'` on a 401 — and never fabricates a success.
    */
   moveTenantCell(req: RegistryMoveRequest): Promise<RegistryMoveResult>;
 
@@ -191,12 +204,13 @@ export interface HttpIdentityRegistryClientDeps {
   /** Request timeout (ms). Bounds a hung dependency into an honest failure. */
   readonly timeoutMs: number;
   /**
-   * ENG-3350 — the shared engine↔identity internal bearer
-   * (`INTERNAL_API_BEARER_TOKEN`), presented on the ORIGIN-LOCKED
-   * `POST /internal/registry/reserve` seam. It is the SAME secret identity
-   * already sends this engine on `/internal/principals/provision`; nothing new
-   * is provisioned for it. `null` when unset ⇒ `reserveTenant` refuses with a
-   * typed DEPENDENCY_ERROR rather than calling unauthenticated (fail closed).
+   * ENG-3350/ENG-3313 — the shared engine↔identity internal bearer
+   * (`INTERNAL_API_BEARER_TOKEN`), presented on BOTH ORIGIN-LOCKED write
+   * seams: `POST /internal/registry/reserve` and `POST /internal/registry/move`.
+   * It is the SAME secret identity already sends this engine on
+   * `/internal/principals/provision`; nothing new is provisioned for it.
+   * `null` when unset ⇒ both writes refuse with a typed DEPENDENCY_ERROR
+   * rather than calling unauthenticated (fail closed).
    */
   readonly internalToken: string | null;
   /** Injected fetch (ACCEPT-DON'T-CREATE); defaults to global `fetch`. */
@@ -258,6 +272,15 @@ function narrowTenantCell(payload: unknown): RegistryTenantCell | null {
  * `tenant_id`/`cell_id`/... on the resolve read). A non-2xx / transport /
  * parse failure is a thrown `RegistryClientError` (honest failure) — NEVER
  * a fabricated cell binding.
+ *
+ * CREDENTIAL SHAPE (ENG-3350 reserve, ENG-3313 move): the two WRITES cross
+ * identity's origin-locked `/internal/registry/*` seam carrying the shared
+ * `INTERNAL_API_BEARER_TOKEN`, and refuse to leave this process at all when
+ * it is unset. The discovery READ stays UNAUTHENTICATED on `/v1/registry/
+ * tenants/{id}/cell` — that is a deliberate, asserted scope boundary on
+ * identity's side (`TestRegistryResolve_StaysOpen`), a read of a PII-free
+ * routing row, and adding a header here would be a silent re-litigation of
+ * it, not a hardening.
  */
 export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   private readonly baseUrl: string;
@@ -273,26 +296,11 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   }
 
   async moveTenantCell(req: RegistryMoveRequest): Promise<RegistryMoveResult> {
-    // Fail closed on a missing credential (ENG-3427, mirrors reserveTenant's
-    // own ENG-3350 guard immediately below). THE DEFECT THIS CLOSES: this
-    // call used to POST /v1/registry/move with NO Authorization header at
-    // all. /v1/registry/move is machine-only (requireMachinePrincipal — it
-    // demands an identity-minted "svc:" client-credentials grant this engine
-    // does not hold in any cell, per reserveTenant's own comment below), so
-    // identity denied every call with a silent 401 (no-oracle by design,
-    // zero server-side log) that this client's own status switch collapsed
-    // into a generic DEPENDENCY_ERROR — surfaced by the controller as a 502
-    // "identity registry move failed" naming neither the real cause (wrong
-    // route/credential) nor even that auth, not the move, is what failed.
-    // Confirmed live: identity's own registryMove handler (which now logs
-    // every failure branch, ENG-3343) emitted ZERO lines for a run that hit
-    // this exact 502 — proof the request never reached it.
-    //
-    // Fix: identity now exposes POST /internal/registry/move (ENG-3427), the
-    // engine-facing counterpart of /v1/registry/move — the SAME placement
-    // reserveTenant's own /internal/registry/reserve already uses, admitting
-    // the SAME already-distributed mutual internalToken. Both /internal/
-    // registry/* routes now use one credential the engine already holds.
+    // Fail closed on a missing credential (ENG-3313, mirroring ENG-3350's
+    // identical guard on reserve). This is NOT the single-cell
+    // `NOT_CONFIGURED` skip — that one means "no identity to delegate to".
+    // This means "identity is configured but we hold no credential for it",
+    // which must never be waved through as an unauthenticated write attempt.
     if (this.internalToken === null) {
       throw new RegistryClientError(
         'DEPENDENCY_ERROR',
@@ -301,6 +309,15 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     }
     const { status, payload } = await this.request(
       'POST',
+      // ENG-3313 — the ORIGIN-LOCKED internal seam, not /v1/registry/*, for
+      // exactly the reason ENG-3350 re-pointed reserve. The /v1/registry
+      // write routes are machine-only (requireMachinePrincipal demands an
+      // identity-minted "svc:" client-credentials grant this AGPL engine
+      // holds in NO cell, and prod deliberately registers no machine client
+      // at all), so a move posted there 401s forever. Identity's ENG-3427
+      // counterparty `/internal/registry/move` admits the shared engine
+      // bearer instead and delegates to the SAME doRegistryMove core, so the
+      // body shape and the 200/404/409 mapping below are unchanged.
       '/internal/registry/move',
       {
         moveId: req.moveId,
@@ -330,6 +347,16 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       throw new RegistryClientError(
         'STALE_MOVE',
         'registry: stale move (registry has moved on)',
+      );
+    }
+    if (status === 401) {
+      // ENG-3313 — identity's requireEngineInternal refused the shared seam
+      // bearer. Typed separately so it never reads as a dependency blip; the
+      // 401 body is a uniform {"error":"unauthorized"} with no oracle, so the
+      // message says what an operator must actually check.
+      throw new RegistryClientError(
+        'AUTH_FAILED',
+        'identity rejected the engine seam credential on registry move (401) — INTERNAL_API_BEARER_TOKEN does not match identity ENGINE_INTERNAL_API_TOKEN',
       );
     }
     throw new RegistryClientError(
@@ -382,6 +409,10 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       // /v1/registry write routes are machine-only (they require an
       // identity-minted "svc:" client-credentials grant this engine does not
       // hold in any cell); this route admits the shared engine bearer instead.
+      // ENG-3313 — that reasoning was never reserve-specific: it is true of
+      // EVERY /v1/registry write, so moveTenantCell now crosses the same
+      // internal seam with the same bearer. Both writes are authenticated;
+      // only the discovery READ stays deliberately open.
       '/internal/registry/reserve',
       {
         tenantId: req.tenantId,
@@ -415,6 +446,15 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     }
     if (status === 404) {
       throw new RegistryClientError('NOT_FOUND', 'registry: tenant not found');
+    }
+    if (status === 401) {
+      // ENG-3313 — same typed refusal as move; both writes cross the same
+      // requireEngineInternal gate with the same secret, so a 401 on either
+      // has the same single cause and the same single operator remedy.
+      throw new RegistryClientError(
+        'AUTH_FAILED',
+        'identity rejected the engine seam credential on registry reserve (401) — INTERNAL_API_BEARER_TOKEN does not match identity ENGINE_INTERNAL_API_TOKEN',
+      );
     }
     throw new RegistryClientError(
       'DEPENDENCY_ERROR',
