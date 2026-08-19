@@ -311,10 +311,16 @@ replacements:
           - data.AWS_S3_ENDPOINT
 
   # ─── Cell contract: CELL_ID + CLUSTER_NAME (ConfigMap) ──────────────────
-  # A-CELL rule #4 — /healthz echoes both. Base = sentinel "solo"; a real cell
-  # sets cluster-config.cellId/clusterName. Both are plain-value replacements
-  # (no delimiter). components/crew leaves CELL_ID at "solo" (crew runs the
-  # sentinel cell) — it isolates the SPINE via EVENT_TOPIC_SUFFIX instead.
+  # A-CELL rule #4 — /healthz echoes both. Base = the promoted-env cell
+  # (cluster-config.cellId, ENG-3109/AD-36 — the literal lives ONLY in
+  # cluster-config.yaml, see the AC5 single-source guard in
+  # hostname_cutover_test.go), which prod AND the dev cell both take;
+  # components/crew patches cluster-config.cellId back to the
+  # "solo" sentinel for crew stacks, which isolate the SPINE via
+  # EVENT_TOPIC_SUFFIX instead. Both are plain-value replacements (no
+  # delimiter). NOTE the ordering that makes crew's patch work: this
+  # transformer runs AFTER component patches, so crew patches the SOURCE
+  # (cluster-config.cellId), never this target (orvex-wiki-env.CELL_ID).
   - source:
       kind: ConfigMap
       name: cluster-config
