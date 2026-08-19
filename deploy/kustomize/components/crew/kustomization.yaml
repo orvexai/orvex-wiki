@@ -37,9 +37,19 @@
 # cluster-config.branchSlug (already exactly "crew-{name}", computed by
 # idp-render's applyBranch — no derive step, no new idp-render code needed).
 #
-# CELL_ID stays "solo": dev and crew both run the sentinel cell (cell
-# enforcement no-ops). The base cluster-config cellId is already "solo" and the
-# root replacement propagates it, so no CELL_ID patch is needed here.
+# CELL_ID stays "solo" for CREW ONLY. ENG-3109/AD-36: the base cluster-config
+# cellId is now the real promoted-env cell id (the literal is typed ONLY in
+# cluster-config.yaml — see the AC5 cell-token single-source guard in
+# ../../hostname_cutover_test.go, which fails this file if it is re-typed
+# here). Dev is a real cell: it runs CLOUD=true, so cell enforcement is ACTIVE
+# there and the old "solo" base made every guarded call 421. Crew must
+# therefore EXPLICITLY patch cellId back down to "solo".
+#
+# Same replacement-source-not-target technique as the ENGINE_URL patch below:
+# a patch on the derived orvex-wiki-env ConfigMap's CELL_ID would be clobbered
+# by the root `replacements:` transformer, which runs AFTER component patches
+# and would re-source the promoted cell id from cluster-config. Patching its own
+# cellId is UPSTREAM of that transformer, so it survives.
 #
 # Data plane (crew-design.md §Data): platform-resources (Postgres/Redis) is
 # NOT excluded here — a Kustomize Component cannot delete base resources — so
@@ -56,6 +66,30 @@ labels:
     includeSelectors: false
 
 patches:
+  # ── CELL_ID → "solo" (ENG-3109/AD-36 — the one place solo stays legal) ───
+  # See the header comment: this patches cluster-config's OWN cellId field
+  # (the `replacements:` SOURCE), not the derived orvex-wiki-env ConfigMap's
+  # CELL_ID (a target-side patch would be overwritten by the transformer).
+  # Crew keeps the sentinel because it isolates the spine via
+  # EVENT_TOPIC_SUFFIX, not via a cell of its own.
+  #
+  # CAVEAT, recorded rather than silently assumed: the older comments in this
+  # file assert crew "runs cell-enforcement-free". That is NOT true as
+  # rendered — `EnvironmentService.isCloud()` reads CLOUD, and the crew build
+  # inherits the base CLOUD="true" (no crew patch overrides it), so
+  # `WorkspaceCellAssertionService` IS active on crew and a `solo` pod cell
+  # still trips DEPLOYMENT_CELL_ABSENT. This patch keeps crew byte-identical
+  # to its pre-ENG-3109 behaviour and deliberately changes nothing about that
+  # pre-existing posture; whether crew wants CLOUD=false or a real per-crew
+  # cell id is a separate decision, not one to smuggle in here.
+  - patch: |-
+      - op: replace
+        path: /data/cellId
+        value: solo
+    target:
+      kind: ConfigMap
+      name: cluster-config
+
   # ── ENG-3071 Phase-B / ENG-3063: this crew's FA chain-shell authn ref →
   # orvex-edge-authn-crew-{name} (base points at -prod; same base→component-
   # patch technique this file already uses below for every other crew-scoped
