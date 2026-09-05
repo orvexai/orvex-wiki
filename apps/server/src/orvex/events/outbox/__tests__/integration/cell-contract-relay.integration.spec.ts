@@ -29,7 +29,8 @@ import {
   OutboxRelayService,
   OutboxCellResolver,
 } from '../../outbox-relay.service';
-import { resolveWikiEventsTopic, CELL_SOLO } from '../../outbox-topic.resolver';
+import { CELL_SOLO } from '../../../../config/orvex-config.service';
+import { resolveWikiEventsTopic } from '../../outbox-topic.resolver';
 import { InMemoryKafkaPublisher } from '../in-memory-kafka-publisher';
 import { EVT_PAGE_CREATED } from '../../../constants/orvex-event-types';
 import type { DbInterface } from '../../../../../database/types/db.interface';
@@ -39,8 +40,8 @@ import { generateSlugId } from '../../../../../common/helpers/nanoid.utils';
 import { ORVEX_CORRELATION_CONTEXT_KEY } from '../../../../obs/orvex-correlation.hook';
 
 /**
- * ENG-2496 — cell-contract producer duties (E5-S3): per-cell single-
- * partition topics (`wiki-events.{cell}` / `wiki-events.solo`), the
+ * ENG-2496 — cell-contract producer duties (E5-S3): provisioned single-
+ * partition topics, the
  * `orvexcell` REQUIRED extension attribute, and end-to-end correlation-id
  * threading. Drives the REAL `OutboxRelayService.run()` against real
  * testcontainers Postgres with the existing `InMemoryKafkaPublisher` at the
@@ -178,13 +179,14 @@ describe('CellContractRelaySpec (ENG-2496)', () => {
     return pageId;
   }
 
-  it('TestProducedEventCarriesOrvexcellAndCorrelation — every published CloudEvent carries orvexcell (= CELL_ID or solo), targets the per-cell single-partition wiki-events.{cell} topic, and threads the ingress correlation id end-to-end into data.correlation_id', async () => {
+  it('TestProducedEventCarriesOrvexcellAndCorrelation — every published CloudEvent carries orvexcell (= CELL_ID or solo), targets the configured single-partition topic, and threads the ingress correlation id end-to-end into data.correlation_id', async () => {
     // ── Cell leg: CELL_ID configured ────────────────────────────────────
     const cellPageId = await writeRowFromIngress('corr-eng2496-gate');
     const cellPublisher = new InMemoryKafkaPublisher();
     const cellResolver: OutboxCellResolver = {
       cellId: 'eu-central-1a',
       kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.eu-central-1',
     };
     const cellRelay = new OutboxRelayService(db, cellPublisher, cellResolver);
 
@@ -197,10 +199,10 @@ describe('CellContractRelaySpec (ENG-2496)', () => {
     const cellRun = await cellRelay.run();
     expect(cellRun.failed).toBe(0);
 
-    // The publish call targeted the per-cell topic — never the retired
-    // flat global topic.
+    // The publish call targeted the configured provisioned topic — never the
+    // retired flat global topic.
     const cellMessages = cellPublisher.getDistinctMessages(
-      'wiki-events.eu-central-1a',
+      'wiki-events.eu-central-1',
     );
     const cellMessage = cellMessages.find(
       (m) =>
@@ -228,6 +230,7 @@ describe('CellContractRelaySpec (ENG-2496)', () => {
     const soloResolver: OutboxCellResolver = {
       cellId: null,
       kafkaBrokersConfigured: false,
+      kafkaOutboxTopic: 'wiki-events.solo',
     };
     const soloRelay = new OutboxRelayService(db, soloPublisher, soloResolver);
     const soloRun = await soloRelay.run();
@@ -248,13 +251,23 @@ describe('CellContractRelaySpec (ENG-2496)', () => {
     expect(soloEnvelope.data.correlation_id).toBe('corr-eng2496-solo');
   });
 
-  it('TestRelayPublishesToPerCellSingePartitionTopic — the boot-time shape assertion passes on a 1-partition topic and fails LOUDLY (without throwing) on a mis-partitioned or missing topic or a metadata error', async () => {
+  it('ENG-3790 AC2/AC3 — prod and dev use distinct configured topics even when CELL_ID is the same', () => {
+    const prodTopic = resolveWikiEventsTopic('wiki-events.eu-central-1');
+    const devTopic = resolveWikiEventsTopic('wiki-events.dev.eu-central-1');
+
+    expect(prodTopic).toBe('wiki-events.eu-central-1');
+    expect(devTopic).toBe('wiki-events.dev.eu-central-1');
+    expect(prodTopic).not.toBe(devTopic);
+  });
+
+  it('TestRelayPublishesToConfiguredSinglePartitionTopic — the boot-time shape assertion passes on a 1-partition topic and fails LOUDLY (without throwing) on a mis-partitioned or missing topic or a metadata error', async () => {
     const resolver: OutboxCellResolver = {
       cellId: 'eu-central-1a',
       kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.eu-central-1',
     };
-    const topic = resolveWikiEventsTopic(resolver.cellId);
-    expect(topic).toBe('wiki-events.eu-central-1a');
+    const topic = resolveWikiEventsTopic(resolver.kafkaOutboxTopic);
+    expect(topic).toBe('wiki-events.eu-central-1');
 
     // Correct shape: exactly 1 partition.
     const okPublisher = new InMemoryKafkaPublisher();
@@ -292,13 +305,16 @@ describe('CellContractRelaySpec (ENG-2496)', () => {
     ).resolves.toEqual({ ok: false, reason: 'broker metadata unavailable' });
   });
 
-  it('TestSoloSentinelSkipsCellRegistryTopicRequirement — with no CELL_ID and no brokers configured, cell enforcement no-ops to wiki-events.solo and the boot-time assertion skips without requiring an external registry', async () => {
-    expect(resolveWikiEventsTopic(null)).toBe(`wiki-events.${CELL_SOLO}`);
+  it('TestSoloSentinelSkipsCellRegistryTopicRequirement — with no CELL_ID and no brokers configured, cell enforcement no-ops to the explicitly configured solo topic and the boot-time assertion skips without requiring an external registry', async () => {
+    expect(resolveWikiEventsTopic('wiki-events.solo')).toBe(
+      `wiki-events.${CELL_SOLO}`,
+    );
 
     const publisher = new InMemoryKafkaPublisher();
     const relay = new OutboxRelayService(db, publisher, {
       cellId: null,
       kafkaBrokersConfigured: false,
+      kafkaOutboxTopic: 'wiki-events.solo',
     });
     // The no-op path: OK, explicitly skipped, and the metadata call was
     // never made (nothing external is required for a standalone boot).

@@ -72,12 +72,12 @@ import type {
 } from '../../orvex/entitlement/entitlement.types';
 
 const SERVER_ROOT = path.join(__dirname, '../../..');
-// ENG-2496 collapsed the separate topic resolver into the cell resolver:
-// the relay now derives its per-cell topic from `cellId` and gates the
+// ENG-3790: the relay reads the explicitly provisioned topic and gates the
 // boot-time shape assertion on `kafkaBrokersConfigured`.
 const STUB_CELL_RESOLVER: OutboxCellResolver = {
   cellId: 'solo',
   kafkaBrokersConfigured: false,
+  kafkaOutboxTopic: 'wiki-events.solo',
 };
 
 /** Generous-caps billing port (the remote-but-owned entitlement seam). */
@@ -385,11 +385,9 @@ describe('TestSeatSyncEmitsBillingEventNoStripe', () => {
     const result = await relay.run();
     expect(result.published).toBeGreaterThanOrEqual(1);
 
-    // ENG-2496 AC2 replaced the single studio-spine topic with a per-cell
-    // one derived from the cell resolver (`wiki-events.{cellId}`); this stub
-    // resolves cellId 'solo'.
+    // ENG-3790: use the same explicitly configured topic as the relay.
     const messages = publisher.getDistinctMessages(
-      resolveWikiEventsTopic(STUB_CELL_RESOLVER.cellId),
+      resolveWikiEventsTopic(STUB_CELL_RESOLVER.kafkaOutboxTopic),
     );
     const envelopes = messages.map((m) => JSON.parse(m.value as string));
     const seatEvents = envelopes.filter(

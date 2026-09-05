@@ -29,8 +29,9 @@ import { resolveWikiEventsTopic } from './outbox-topic.resolver';
  * - `cellId` — ENG-1559 M5 AC8: the CloudEvents `orvexcell` extension
  *   attribute (cell-contract rule #6), REQUIRED on every event over the
  *   real Kafka spine (pinned events/schemas/_envelope.json `required`).
- *   ENG-2496 AC2 additionally names the per-cell topic from it
- *   (`resolveWikiEventsTopic`).
+ * - `kafkaOutboxTopic` — ENG-3790: the provisioned, environment-specific
+ *   Kafka topic from `KAFKA_OUTBOX_TOPIC`. It must not be derived from
+ *   `CELL_ID`, which is not environment-discriminating on the shared broker.
  * - `kafkaBrokersConfigured` — ENG-2496 AC5: gates the boot-time
  *   topic-shape assertion so an unwired solo/dev/crew boot NO-OPs instead
  *   of requiring a broker that does not exist in that mode.
@@ -38,9 +39,10 @@ import { resolveWikiEventsTopic } from './outbox-topic.resolver';
 export interface OutboxCellResolver {
   cellId: string | null;
   kafkaBrokersConfigured: boolean;
+  kafkaOutboxTopic: string | null;
 }
 
-/** Result of the ENG-2496 AC2 boot-time topic-shape assertion. */
+/** Result of the boot-time provisioned-topic shape assertion. */
 export interface TopicShapeResult {
   ok: boolean;
   skipped?: boolean;
@@ -104,7 +106,8 @@ export class OutboxRelayService implements OnModuleInit {
   ) {}
 
   /**
-   * ENG-2496 AC2/AC5 — assert the per-cell single-partition topic shape
+   * ENG-2496 AC2/AC5 and ENG-3790 — assert the configured single-partition
+   * topic shape
    * once at boot. NEVER throws and NEVER blocks startup: an unwired boot
    * (no `KAFKA_BROKERS` — solo/dev/crew, AC5) no-ops, and any metadata
    * failure logs LOUDLY (an error, not a silent swallow) so a wrongly-
@@ -115,14 +118,24 @@ export class OutboxRelayService implements OnModuleInit {
   }
 
   async assertPerCellTopicShape(): Promise<TopicShapeResult> {
-    const topic = resolveWikiEventsTopic(this.configService.cellId);
     if (!this.configService.kafkaBrokersConfigured) {
       // AC5 — the solo/unwired sentinel no-op: standalone/dev/crew boots
       // must not require a cell registry or a live broker.
+      const topic = this.configService.kafkaOutboxTopic ?? '<unset>';
       this.logger.debug(
         `Kafka not configured — skipping boot-time topic-shape assertion for ${topic}`,
       );
       return { ok: true, skipped: true };
+    }
+    let topic: string;
+    try {
+      topic = resolveWikiEventsTopic(this.configService.kafkaOutboxTopic);
+    } catch (err) {
+      this.logger.error(`Outbox topic-shape assertion FAILED: ${err}`);
+      return {
+        ok: false,
+        reason: err instanceof Error ? err.message : String(err),
+      };
     }
     if (!this.publisher.fetchTopicPartitionCount) {
       this.logger.error(
@@ -134,13 +147,13 @@ export class OutboxRelayService implements OnModuleInit {
       const partitions = await this.publisher.fetchTopicPartitionCount(topic);
       if (partitions === null) {
         this.logger.error(
-          `Outbox topic-shape assertion FAILED: topic ${topic} does not exist on the configured brokers (cell-contract rule #5 requires the per-cell topic ahead of publish)`,
+          `Outbox topic-shape assertion FAILED: topic ${topic} does not exist on the configured brokers (the provisioned outbox topic must exist ahead of publish)`,
         );
         return { ok: false, reason: 'topic-missing' };
       }
       if (partitions !== 1) {
         this.logger.error(
-          `Outbox topic-shape assertion FAILED: topic ${topic} has ${partitions} partitions — cell-contract rule #5 requires exactly 1 (single ordered writer)`,
+          `Outbox topic-shape assertion FAILED: topic ${topic} has ${partitions} partitions — the provisioned outbox topic requires exactly 1 (single ordered writer)`,
         );
         return { ok: false, reason: `partitions=${partitions}` };
       }
@@ -179,10 +192,8 @@ export class OutboxRelayService implements OnModuleInit {
    * unrelayed for the next run.
    */
   async run(batchSize = 100): Promise<{ published: number; failed: number }> {
-    // ENG-2496 AC2 — the per-cell single-partition topic
-    // (`wiki-events.{cell}` / `wiki-events.solo`), replacing the flat
-    // KAFKA_OUTBOX_TOPIC every domain and cell previously shared.
-    const topic = resolveWikiEventsTopic(this.configService.cellId);
+    // ENG-3790 — use the provisioned environment-specific topic verbatim.
+    const topic = resolveWikiEventsTopic(this.configService.kafkaOutboxTopic);
 
     const rows = await this.db
       .selectFrom('orvexEventOutbox')

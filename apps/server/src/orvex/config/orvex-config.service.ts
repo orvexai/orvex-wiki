@@ -22,7 +22,8 @@ export const CELL_SOLO = 'solo';
  *   - gitSha / sourceRepo   -> OrvexSourceController (FR-W19 source offer)
  *   - identityUrl           -> SessionMintModule composition (RS256/JWKS)
  * The rest of the A-PORTABLE env surface (ORVEX_KNOWLEDGE/AI/BILLING/MCP/
- * CONSOLE/WIKI_API_URL, CELL_ID, CLUSTER_NAME, EVENT_TOPIC_SUFFIX) is already
+ * CONSOLE/WIKI_API_URL, CELL_ID, CLUSTER_NAME, KAFKA_OUTBOX_TOPIC,
+ * EVENT_TOPIC_SUFFIX) is already
  * deploy-documented in deploy/kustomize/app-manifests/configmap-env.yaml; each
  * getter is added HERE together with its first consumer at delivery — never
  * speculatively. (ORVEX_MODULES_ENABLED is read directly by
@@ -148,6 +149,16 @@ export class OrvexConfigService {
    */
   get cellId(): string | null {
     return this.read('CELL_ID');
+  }
+
+  /**
+   * KAFKA_OUTBOX_TOPIC — the environment-specific, provisioned topic used by
+   * the wiki outbox relay. This is intentionally read from configuration
+   * rather than derived from CELL_ID: prod and dev share a broker but have
+   * distinct provisioned topic names.
+   */
+  get kafkaOutboxTopic(): string | null {
+    return this.read('KAFKA_OUTBOX_TOPIC');
   }
 
   /**

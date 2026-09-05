@@ -612,6 +612,7 @@ describe('LifecycleEmitterCoverageSpec', () => {
       const relay = new OutboxRelayService(db, publisher, {
         cellId: null,
         kafkaBrokersConfigured: false,
+        kafkaOutboxTopic: 'wiki-events.solo',
       });
       const run = await relay.run();
       expect(run.failed).toBe(0);
