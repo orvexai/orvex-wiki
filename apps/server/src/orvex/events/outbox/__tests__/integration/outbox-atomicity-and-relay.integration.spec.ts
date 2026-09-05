@@ -57,6 +57,7 @@ import { ORVEX_CORRELATION_CONTEXT_KEY } from '../../../../obs/orvex-correlation
 const STUB_CELL_RESOLVER: OutboxCellResolver = {
   cellId: 'solo',
   kafkaBrokersConfigured: false,
+  kafkaOutboxTopic: 'wiki-events.solo',
 };
 
 /** ENG-2496 AC2 — the per-cell topic the relay now publishes to (solo mode). */

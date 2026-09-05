@@ -134,6 +134,20 @@ describe('OrvexConfigService', () => {
     });
   });
 
+  describe('wiki outbox topic (ENG-3790)', () => {
+    it('reads the provisioned environment-specific KAFKA_OUTBOX_TOPIC', () => {
+      expect(
+        svc({ KAFKA_OUTBOX_TOPIC: '  wiki-events.dev.eu-central-1  ' })
+          .kafkaOutboxTopic,
+      ).toBe('wiki-events.dev.eu-central-1');
+    });
+
+    it('surfaces an unset or blank topic as null instead of deriving one from CELL_ID', () => {
+      expect(svc({ CELL_ID: 'eu1' }).kafkaOutboxTopic).toBeNull();
+      expect(svc({ KAFKA_OUTBOX_TOPIC: '  ' }).kafkaOutboxTopic).toBeNull();
+    });
+  });
+
   describe('ORVEX_GLOBAL_PREFIX_EXCLUDE (AC8.4)', () => {
     // The default is a PAIR: the bare route plus its wildcard. `health/orvex`
     // alone excludes only the exact aggregate path, so the per-role sub-probes

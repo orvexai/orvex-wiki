@@ -482,6 +482,7 @@ describe('TestPerRoleLivenessAndHealthEchoesCell (ENG-2510)', () => {
       const relay = new OutboxRelayService(db, new InMemoryKafkaPublisher(), {
         cellId: null,
         kafkaBrokersConfigured: false,
+        kafkaOutboxTopic: 'wiki-events.solo',
       });
       const run = await relay.run();
       expect(run.failed).toBe(0);

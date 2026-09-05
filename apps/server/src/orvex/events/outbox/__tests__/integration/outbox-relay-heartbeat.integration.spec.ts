@@ -164,6 +164,7 @@ describe('OutboxRelayHeartbeatSpec (ENG-2496 AC4)', () => {
     const relay = new OutboxRelayService(db, publisher, {
       cellId: null,
       kafkaBrokersConfigured: false,
+      kafkaOutboxTopic: 'wiki-events.solo',
     });
     const run = await relay.run();
     expect(run.failed).toBe(0);
@@ -235,6 +236,7 @@ describe('OutboxRelayHeartbeatSpec (ENG-2496 AC4)', () => {
     const relay = new OutboxRelayService(db, publisher, {
       cellId: null,
       kafkaBrokersConfigured: false,
+      kafkaOutboxTopic: 'wiki-events.solo',
     });
     await relay.run();
     const drainedBody = await healthService.relayHeartbeat();
