@@ -1,8 +1,8 @@
 # Orvex Wiki Engine — ADDITIVE primitive surface (the /api/orvex/* seam).
 #
-# This file TRACES the INTENDED orvex primitive surface from canon (PRD
-# FR-W1..W25 / Architecture A-THIN..A-MOVE) so delivery fills in LOGIC, not
-# STRUCTURE. It is deliberately NOT a re-description of the upstream Docmost API
+# This file declares the additive orvex primitive surface from canon (PRD
+# FR-W1..W25 / Architecture A-THIN..A-MOVE). Delivery fills missing logic, not
+# contract structure. It is deliberately NOT a re-description of the upstream API
 # (that surface is upstream's; the public programmatic front is `wiki-api` per
 # D-S16/D-S18). Only the additive orvex primitives live here.
 #
@@ -64,16 +64,15 @@ info:
     ## Produced events (CloudEvent catalog is the source of truth)
 
     The engine is the wiki source-adapter (publisher #1) via a transactional
-    outbox → Redis→Kafka bridge. The event names it will produce are FROZEN
+    Postgres outbox drained directly to Kafka studio-spine. The event names it will produce are FROZEN
     contract-side in `../orvex-studio-contracts/events/catalog.yaml` +
     `sources/wiki.yaml` — do NOT invent names here. The catalog DOES define wiki
     types today (`wiki.page.*`, `wiki.comment.*`, `wiki.attachment.*`,
     `wiki.space.*`, `wiki.permission.*`, `wiki.workspace.*`, `wiki.user.*`); the
     full enumerated list is in `x-produced-events`. Per-type payload data schemas
-    (`events/schemas/*.json`) are still TBD-at-contracts-seam. The bridge itself
-    is forward-authored (A-CATALOG): the engine emits Redis-stream events today
-    and the outbox→bridge does not exist yet, so the event surface is NOT part of
-    this REST contract — it is referenced, not defined here.
+    (`events/schemas/*.json`) are owned by the contracts seam. The relay is a
+    Kafka producer at the outbox seam; this REST artifact references the event
+    catalog and does not redefine its CloudEvent payloads.
   license:
     name: AGPL-3.0-only
     identifier: AGPL-3.0-only
@@ -86,10 +85,10 @@ info:
     WIRE NOTE — the engine's global TransformHttpResponseInterceptor wraps every
     2xx JSON response as {data, success, status} (verified live; /api/health is
     @SkipTransform'd, error responses bypass the interceptor). The REAL
-    orvexSourceOffer 200 is documented wire-true (enveloped). The intended 200s
-    documented on the noop-501 operations describe the `data` PAYLOAD; their
-    final enveloped wire shape is pinned when each operation goes live at
-    delivery.
+    orvexSourceOffer 200 is documented wire-true (enveloped). For operations
+    still marked noop-501, the documented 200s describe the intended `data`
+    PAYLOAD; their final enveloped wire shape is pinned when each operation goes
+    live at delivery.
   x-real-health-surface:
     note: >-
       Upstream Docmost health endpoints — genuinely real, not orvex primitives,
@@ -109,7 +108,7 @@ info:
     sourceOfTruth:
       catalog: ../orvex-studio-contracts/events/catalog.yaml
       sourceRegistry: ../orvex-studio-contracts/sources/wiki.yaml
-    transport: outbox → Redis→Kafka bridge → Knative Broker `studio-spine` (A-CATALOG, forward-authored — bridge not built yet)
+    transport: transactional Postgres `orvex_outbox` → Kafka `studio-spine` (direct; no intermediate broker or cache bridge)
     payloadSchemas: TBD-at-contracts-seam (events/schemas/*.json grow with the PRD/architecture pass)
     versionSemantics: persisted-write-commit-counter (the SAME counter apply-ops `ifVersion` reads — D-CON-5)
     types:
@@ -176,7 +175,7 @@ paths:
       operationId: orvexApplyOps
       summary: Apply a typed PM-JSON op batch to a page (atomic, CAS on ifVersion)
       x-status: draft
-      x-classification: noop-501
+      x-classification: real
       description: >-
         FR-W1 — the SINGLE atomic write primitive for the orvex surface. Takes a
         typed ProseMirror-JSON op batch plus `ifVersion` (optimistic-concurrency
@@ -191,8 +190,9 @@ paths:
         UNCHANGED, batch-atomic ⇒ the whole patch fails). See GET /api/orvex/quota.
 
 
-        TODAY: returns 501 NotImplemented (typed sentinel `ORVEX_NOT_IMPLEMENTED`).
-        The 200 / 402 / 409 shapes below are the INTENDED contract delivery fills in.
+        This operation is live when the Orvex modules are enabled. The 200 / 402 /
+        409 shapes below are the wire contract; modules-off remains the vanilla
+        deployment posture and is outside this additive route's availability.
       parameters:
         - $ref: '#/components/parameters/PageId'
       requestBody:
@@ -203,7 +203,7 @@ paths:
               $ref: '#/components/schemas/ApplyOpsRequest'
       responses:
         '200':
-          description: INTENDED — write receipt (the new persisted version). Delivery fills this in.
+          description: Wire-true write receipt containing the new persisted version.
           content:
             application/json:
               schema:
@@ -214,18 +214,6 @@ paths:
           $ref: '#/components/responses/VersionConflict'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '501':
-          description: >-
-            TODAY — not wired yet. Typed sentinel (NOT a mock write receipt).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedError'
-              example:
-                code: NOT_IMPLEMENTED
-                operationId: orvexApplyOps
-                marker: ORVEX_NOT_IMPLEMENTED
-
   # ══════════════════════════════════════════════════════════════════════════
   # FR-W15 — F-QUOTA usage-vs-caps readout
   # ══════════════════════════════════════════════════════════════════════════
@@ -235,7 +223,7 @@ paths:
       operationId: orvexGetQuota
       summary: Read the tenant's usage against its effective entitlement caps
       x-status: draft
-      x-classification: noop-501
+      x-classification: real
       description: >-
         FR-W15 — the F-QUOTA usage-vs-caps readout. Pairs each per-tenant usage
         figure with the effective entitlement CAP. The response field names mirror
@@ -255,28 +243,18 @@ paths:
         returns 200, not 402.
 
 
-        TODAY: returns 501 NotImplemented (typed sentinel). The 200 shape below is
-        the INTENDED contract — NOT fabricated zero readings.
+        This operation is live when the Orvex modules are enabled. A cold counter
+        miss is resolved from a store truth query or reported as UNKNOWN; it is
+        never represented as fabricated zero usage.
       responses:
         '200':
-          description: INTENDED — usage-vs-caps snapshot (entitlements-aligned). Delivery fills this in.
+          description: Wire-true usage-vs-caps snapshot (entitlements-aligned).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuotaStatus'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '501':
-          description: TODAY — not wired yet. Typed sentinel (NOT a fabricated zero-usage readout).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotImplementedError'
-              example:
-                code: NOT_IMPLEMENTED
-                operationId: orvexGetQuota
-                marker: ORVEX_NOT_IMPLEMENTED
-
   # ══════════════════════════════════════════════════════════════════════════
   # FR-W6 — exchange-token → engine-session mint
   # ══════════════════════════════════════════════════════════════════════════
