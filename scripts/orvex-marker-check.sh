@@ -31,12 +31,10 @@ MARKER='ORVEX_NOT_IMPLEMENTED: '
 
 # The deliberate REAL operations, committed here as the dependency-light
 # cross-check against the contract's `x-classification: real` set (comma-joined
-# in contract path order): the FR-W6 session-mint (`orvexSessionExchange`, wired
-# to the real introspect→resolve→mint path), the FR-W19 written-source offer
-# (`orvexSourceOffer`), and the ENG-1578 registry cross-cell tenant-MOVE
-# (`orvexTenantCellMove`, wired to identity's real `Registry.Move` — distinct
-# from the still-501 A-MOVE quiesce/export/import/activate bulk-content steps).
-REAL_SET_COMMITTED="orvexSessionExchange,orvexSourceOffer,orvexTenantCellMove"
+# in contract path order). The write primitive and quota read are now wired
+# services; session exchange, source offer, and registry cell move were already
+# real. The four bulk tenant-move steps remain typed 501 contracts.
+REAL_SET_COMMITTED="orvexApplyOps,orvexGetQuota,orvexSessionExchange,orvexSourceOffer,orvexTenantCellMove"
 
 MODE="${1:-check}"
 

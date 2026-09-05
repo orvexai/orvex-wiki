@@ -7,9 +7,6 @@ in the LOGIC. Regenerate with `scripts/orvex-marker-check.sh --checklist` — ne
 
 ## Not-yet-wired operations (noop-501)
 
-- [ ] `orvexApplyOps` — FR-W1 — Apply a typed PM-JSON op batch to a page (atomic, CAS on ifVersion)
-- [ ] `orvexGetQuota` — FR-W15 — Read the tenant's usage against its effective entitlement caps
-- [ ] `orvexSessionExchange` — FR-W6 — Consume an identity-minted exchange token, mint an engine session
 - [ ] `orvexTenantMoveQuiesce` — A-MOVE — Tenant-move step 1 — freeze writes for the tenant on the source cell
 - [ ] `orvexTenantMoveExport` — A-MOVE — Tenant-move step 2 — export the tenant's stores / S3 prefixes / cursors
 - [ ] `orvexTenantMoveImport` — A-MOVE — Tenant-move step 3 — load the tenant's stores into the destination cell
@@ -17,4 +14,8 @@ in the LOGIC. Regenerate with `scripts/orvex-marker-check.sh --checklist` — ne
 
 ## Real from day one (no 501)
 
+- [x] `orvexApplyOps` — FR-W1 — Apply a typed PM-JSON op batch to a page (atomic, CAS on ifVersion)
+- [x] `orvexGetQuota` — FR-W15 — Read the tenant's usage against its effective entitlement caps
+- [x] `orvexSessionExchange` — FR-W6 — Consume an identity-minted exchange token, mint an engine session
 - [x] `orvexSourceOffer` — FR-W19 — AGPL §13 written source offer (real {sha, sourceRepo} from env)
+- [x] `orvexTenantCellMove` — A-MOVE — Relocate a tenant's registry cell binding from a source cell to a target cell
