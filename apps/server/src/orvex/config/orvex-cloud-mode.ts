@@ -14,6 +14,26 @@
  * `@orvexai/contracts.loadConfig` remedy" reasoning already documented on
  * `env_read_paths`, applied to a pre-DI call site rather than a DI one.
  */
+import { CELL_SOLO } from './orvex-config.service';
+
 export function isCloudModeAtBoot(): boolean {
   return process.env.CLOUD === 'true';
+}
+
+/**
+ * The deployment shape that cannot safely run the workspace cell-id backfill.
+ *
+ * Keep this predicate beside the pre-DI CLOUD reader so the migration guard and
+ * the eventual process-level boot guard share exactly one interpretation of
+ * the cloud + solo/unset state. An explicit environment bag keeps the rule
+ * deterministic for migration tests and the later boot-sequencing gate.
+ */
+export function isCloudSoloCellAtBoot(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const cellId = env.CELL_ID?.trim();
+  return (
+    env.CLOUD === 'true' &&
+    (cellId === undefined || cellId === '' || cellId === CELL_SOLO)
+  );
 }
