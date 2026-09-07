@@ -62,6 +62,17 @@ jobs:
   # ---------------------------------------------------------------------------
   # Lint gates
   # ---------------------------------------------------------------------------
+  definition-pack:
+    # ENG-2103 — keep the repository-owned Definition Pack gate executable in
+    # CI. External contract-tag, wiki-draft, and reviewer gates remain
+    # orchestrator-owned and are intentionally not inferred here.
+    name: ENG-2103 Definition Pack (local)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate local Definition Pack evidence
+        run: bash scripts/eng-2103-pack-check.sh
+
   lint-client:
     name: Lint Client
     runs-on: public-runners
