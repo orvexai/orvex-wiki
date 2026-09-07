@@ -55,26 +55,25 @@ else
   fail_blocked "decision record does not choose one of the two approved postures"
 fi
 
-# This is a guard against a record-only close. The currently dangerous shape
-# is the inherited CLOUD=true plus the crew component's solo cell sentinel.
-# Once the owner records a decision, the same change must alter the relevant
-# source of truth so the two crew cells no longer remain on that shape.
-if rg -q '^\s*CLOUD:.*true' "$base_env" \
-  && rg -q '^\s*cellId:.*solo' "$cluster_config" \
-  && ! rg -q 'path:\s*/data/CLOUD' "$crew_component"; then
-  fail_blocked "the ratified decision has not yet been implemented; crew still renders CLOUD=true with CELL_ID=solo"
-fi
-
 case "$decision" in
   cloud-false)
+    # The source defaults remain CLOUD=true + CELL_ID=solo for prod and the
+    # standalone shape. The crew component must therefore override CLOUD for
+    # both rendered crew branches; a decision record alone is not enough.
     if ! rg -q 'path:\s*/data/CLOUD' "$crew_component" \
       || ! rg -q '^\s*value:.*false' "$crew_component"; then
       fail_blocked "the CLOUD=false decision is recorded but no crew CLOUD=false patch is present"
     fi
     ;;
   real-cell-ids)
-    if rg -q 'path:\s*/data/cellId' "$crew_component" \
-      && rg -q '^\s*value:\s*solo\s*$' "$crew_component"; then
+    # This posture intentionally leaves CLOUD=true. It changes the other
+    # input to the predicate, so do not require a CLOUD patch here. The patch
+    # may use a Kustomize replacement (for example branchSlug -> crew-daniel /
+    # crew-yafet), but it must not leave the inherited solo sentinel in place.
+    if ! rg -q 'path:\s*/data/cellId' "$crew_component"; then
+      fail_blocked "the real-CELL_ID decision is recorded but no crew CELL_ID patch is present"
+    fi
+    if rg -q '^\s*value:\s*solo\s*$' "$crew_component"; then
       fail_blocked "the real-CELL_ID decision is recorded but crew still patches CELL_ID to solo"
     fi
     ;;
