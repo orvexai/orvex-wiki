@@ -22,7 +22,12 @@ fi
 if [[ -z "$TAG" ]]; then
   fail_with "ORVEX_CONTRACT_TAG is unset; an untagged contract blocks dispatch"
 else
-  if ! git -C "$CONTRACTS_ROOT" rev-parse --verify "$TAG^{commit}" >/dev/null 2>&1; then
+  # Resolving a ref is not enough: a branch, raw commit, or local checkout can
+  # satisfy rev-parse while the contract remains untagged. Require the named
+  # ref to exist under refs/tags before inspecting its peeled commit.
+  if ! git -C "$CONTRACTS_ROOT" show-ref --verify --quiet "refs/tags/$TAG"; then
+    fail_with "contract tag is not present under refs/tags: $TAG"
+  elif ! git -C "$CONTRACTS_ROOT" rev-parse --verify "refs/tags/$TAG^{commit}" >/dev/null 2>&1; then
     fail_with "contract tag does not resolve to a commit: $TAG"
   fi
 fi
@@ -90,14 +95,29 @@ MANIFEST="$(git -C "$CONTRACTS_ROOT" show "$TAG:codegen.manifest.yaml" 2>/dev/nu
 if [[ -z "$MANIFEST" ]]; then
   fail_with "tag $TAG has no codegen.manifest.yaml"
 else
-  # The TS lane must explicitly own this source. A Go-only register entry is
-  # the exact AC4 gap this check is intended to keep visible.
-  if ! awk '
-    /TypeScript \(ADR-0035/ { ts=1 }
-    /Go \(ADR-0035/ { ts=0 }
-    ts && /engine-orvex\.yaml/ { found=1 }
-    END { exit(found ? 0 : 1) }
-  ' <<<"$MANIFEST"; then
+  # Inspect parsed data rather than matching prose/comments. The TS lane must
+  # explicitly register this source; a Go-only register entry is the exact
+  # AC4 gap this check is intended to keep visible.
+  if ! python3 - "$MANIFEST" <<'PY'
+import sys
+
+try:
+    import yaml
+except ImportError as exc:
+    raise SystemExit(f"PyYAML is required for contract evidence: {exc}")
+
+manifest = yaml.safe_load(sys.argv[1]) or {}
+ts_lane = ((manifest.get("lanes") or {}).get("ts") or {})
+register = ts_lane.get("register")
+if not isinstance(register, list):
+    raise SystemExit("TS lane has no parsed register")
+if not any(
+    isinstance(row, dict) and row.get("source") == "openapi/engine-orvex.yaml"
+    for row in register
+):
+    raise SystemExit("TS lane register does not include openapi/engine-orvex.yaml")
+PY
+  then
     fail_with "tagged codegen manifest registers engine-orvex.yaml outside the TS lane"
   else
     echo "PASS: tag $TAG registers engine-orvex.yaml in the TS codegen lane"
@@ -128,7 +148,6 @@ while IFS= read -r path; do
   case "$path" in
     openapi/*) continue ;;
     *fixture*|*golden*)
-      [[ "$path" == *engine* || "$path" == *orvex* ]] || continue
       if git -C "$CONTRACTS_ROOT" show "$TAG:$path" 2>/dev/null | grep -q 'orvexApplyOps'; then
         FIXTURE_PATH="$path"
         break

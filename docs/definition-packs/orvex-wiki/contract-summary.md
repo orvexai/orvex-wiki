@@ -55,4 +55,14 @@ preserves ordering for the per-cell topic contract.
 The local OpenAPI and marker gate are checked by
 `scripts/eng-2103-pack-check.sh`. The contracts repository tag, fixture
 round-trip, generated client package, and wiki-draft status are external
-evidence and remain **BLOCKED** until supplied by their owners.
+evidence and remain **BLOCKED** until supplied by their owners. The read-only
+`scripts/eng-2103-contract-evidence.sh` requires a real `refs/tags/<tag>` and
+checks the parsed TS-lane registration, not a comment or branch name.
+
+The contracts owner must close AC3/AC4 in `orvex-studio-contracts` by making the
+tagged `openapi/engine-orvex.yaml` classify the first three operations as
+`real`, registering that source in `lanes.ts.register`, checking in the
+generated TypeScript engine client, adding an engine golden fixture containing
+`orvexApplyOps`, and running contracts CI on the resulting tag. This pack does
+not copy or edit sibling-repository artifacts; certification stays blocked until
+the authoritative tag provides those facts.

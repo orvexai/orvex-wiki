@@ -37,6 +37,8 @@ Certification resolves `ORVEX_CONTRACT_TAG` in the read-only contracts checkout
 and inspects that tag's OpenAPI, codegen manifest, generated TypeScript surface,
 and engine fixture. A tag name or environment variable by itself is not
 evidence; use `ORVEX_CONTRACTS_ROOT` only to point at the authoritative checkout.
+The evidence gate requires the selector to be an actual `refs/tags/<tag>` ref;
+branches and raw commits cannot satisfy the tag requirement.
 
 The certification command intentionally fails until a reviewer other than the
 author records `PACK-REVIEW: PASS`, the contracts tag and CI result are
