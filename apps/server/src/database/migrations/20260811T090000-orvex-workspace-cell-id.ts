@@ -20,10 +20,10 @@ import { isCloudSoloCellAtBoot } from '../../orvex/config/orvex-cloud-mode';
  * any schema or data mutation and throws loudly so the migration cannot be
  * recorded as successful with a partial backfill.
  *
- * AC2 is intentionally not implemented here: the process-level fail-fast
- * requires ENG-3788's crew posture decision and deployment verification,
- * owned by the ENG-3788 crew/platform decision owner. That gate must land
- * after this migration guard and before adding the main-process hard-stop.
+ * AC2's process-level fail-fast is wired in `main.ts`, using the same
+ * predicate, and runs before Nest or boot-time migrations can start. Its
+ * deployment sequencing gate remains owned by ENG-3788's crew/platform
+ * decision owner.
  */
 function deploymentCellId(): string {
   const raw = process.env.CELL_ID?.trim();

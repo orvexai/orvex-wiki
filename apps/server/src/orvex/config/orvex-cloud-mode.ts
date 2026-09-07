@@ -37,3 +37,19 @@ export function isCloudSoloCellAtBoot(
     (cellId === undefined || cellId === '' || cellId === CELL_SOLO)
   );
 }
+
+/**
+ * Refuse to enter the application boot path when cloud cell isolation cannot
+ * identify a real cell. This is deliberately a synchronous assertion so the
+ * caller can run it before Nest, tracing, migrations, or the HTTP listener
+ * are initialized.
+ */
+export function assertCloudCellPostureAtBoot(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (isCloudSoloCellAtBoot(env)) {
+    throw new Error(
+      'ENG-3789 AC2: refusing to start: CLOUD=true requires a non-solo CELL_ID; correct the deployment posture before starting the wiki process',
+    );
+  }
+}

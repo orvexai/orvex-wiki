@@ -17,6 +17,7 @@ import { resolveFrameHeader } from './common/helpers';
 import { initOrvexTracing } from './orvex/obs/orvex-tracing.bootstrap';
 import { resolveGlobalPrefixExclude } from './orvex/http/orvex-global-prefix-exclude';
 import { registerWorkspaceExemptPreHandler } from './orvex/http/orvex-workspace-exempt-paths';
+import { assertCloudCellPostureAtBoot } from './orvex/config/orvex-cloud-mode';
 
 async function bootstrap() {
   // ENG-1599: the OTel SDK MUST patch (http/fastify/ioredis instrumentation)
@@ -162,4 +163,8 @@ async function bootstrap() {
   });
 }
 
+// ENG-3789 AC2 — reject the invalid cloud + solo/unset cell posture before
+// entering async bootstrap, so the process exits before any framework,
+// tracing, database migration, or listener initialization.
+assertCloudCellPostureAtBoot();
 bootstrap();
