@@ -509,6 +509,20 @@ jobs:
           "$(go env GOPATH)/bin/kustomize" build --load-restrictor LoadRestrictionsNone deploy/kustomize \
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
+  # ENG-3788 — the crew posture is a human-owned decision, not a default.
+  # Keep the existing decision gate in the required fan-in so an unresolved
+  # CLOUD=true + CELL_ID=solo crew render cannot reach deployment implicitly.
+  # The gate exits with a blocker until the named owner records and implements
+  # CLOUD=false or real per-cell CELL_IDs; this job intentionally does not pick
+  # either posture or claim live rollout evidence.
+  eng-3788-crew-posture:
+    name: ENG-3788 Crew Posture Decision
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ratified crew posture and source implementation
+        run: bash scripts/verify/eng3788-crew-cell-decision.sh .
+
   # ---------------------------------------------------------------------------
   # Deploy render gate. Renders base (prod) + base+components/staging (dev) with
   # the real kustomize binary and asserts on the RESULT — the manifest stream a
@@ -975,6 +989,7 @@ jobs:
       - smoke-module
       - gate-m6-e2e
       - k8s-validate
+      - eng-3788-crew-posture
       - deploy-render-gate
       - engine-license-guard
       - license-header-check
