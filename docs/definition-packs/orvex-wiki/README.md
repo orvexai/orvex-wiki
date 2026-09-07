@@ -33,6 +33,11 @@ external evidence:
 scripts/eng-2103-pack-check.sh --certify
 ```
 
+Certification resolves `ORVEX_CONTRACT_TAG` in the read-only contracts checkout
+and inspects that tag's OpenAPI, codegen manifest, generated TypeScript surface,
+and engine fixture. A tag name or environment variable by itself is not
+evidence; use `ORVEX_CONTRACTS_ROOT` only to point at the authoritative checkout.
+
 The certification command intentionally fails until a reviewer other than the
 author records `PACK-REVIEW: PASS`, the contracts tag and CI result are
 verified, all five wiki pages report `status=draft`, and the source-offer
