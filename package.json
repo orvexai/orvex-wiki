@@ -18,6 +18,7 @@
     "dev": "pnpm concurrently -n \"frontend,backend\" -c \"cyan,green\" \"pnpm run client:dev\" \"pnpm run server:dev\"",
     "lint:boundary": "eslint . --quiet",
     "lint:boundary:ratchet": "bash scripts/ci/lint-boundary-ratchet.sh",
+    "gate:eng-3788": "bash scripts/verify/eng3788-crew-cell-decision.sh",
     "gate:eng-3789-ac2": "bash scripts/ci/eng-3789-ac2-gate.sh",
     "check:patches": "node scripts/check-patches.mjs",
     "clean": "rm -rf apps/*/dist packages/*/dist apps/client/node_modules/.vite"
