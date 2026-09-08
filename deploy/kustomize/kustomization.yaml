@@ -313,8 +313,8 @@ replacements:
   # ─── Cell contract: CELL_ID + CLUSTER_NAME (ConfigMap) ──────────────────
   # A-CELL rule #4 — /healthz echoes both. Base = sentinel "solo"; a real cell
   # sets cluster-config.cellId/clusterName. Both are plain-value replacements
-  # (no delimiter). components/crew leaves CELL_ID at "solo" (crew runs the
-  # sentinel cell) — it isolates the SPINE via EVENT_TOPIC_SUFFIX instead.
+  # (no delimiter). components/crew leaves CELL_ID at "solo" and overrides
+  # CLOUD=false (ENG-3788); it isolates the SPINE via EVENT_TOPIC_SUFFIX.
   - source:
       kind: ConfigMap
       name: cluster-config

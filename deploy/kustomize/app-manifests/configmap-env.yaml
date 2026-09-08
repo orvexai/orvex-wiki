@@ -61,7 +61,8 @@ data:
 
   # Cell contract (A-CELL rule #4) — /healthz echoes CELL_ID + CLUSTER_NAME.
   # Filled by the root replacements from cluster-config.cellId / clusterName;
-  # base = the sentinel "solo" (dev/crew/standalone run cell-enforcement-free).
+  # base = the sentinel "solo" for standalone; components/staging makes dev a
+  # cloud cell and components/crew explicitly selects CLOUD=false.
   CELL_ID: "PLACEHOLDER_CELL_ID"
   CLUSTER_NAME: "PLACEHOLDER_CLUSTER_NAME"
 
