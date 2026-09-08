@@ -6,6 +6,8 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
+PYTHON ?= python3
+
 COMPOSE := docker compose --env-file .env.dev -f docker-compose.dev.yml
 
 # Load .env.dev into a recipe: $(call with-env, <command>)
@@ -85,9 +87,12 @@ supersede-chokepoint-guard: ## ENG-1434 AC12/§5c gate: supersedeAtomic is the s
 
 ci-substrate-conformance: ## CS §13 gate (ENG-1386): CI-config layer never builds images; Tekton build+rollout present
 	bash scripts/test/ci-substrate-conformance.spec.sh .
+	bash scripts/test/shared-build-conformance.spec.sh
 
 deploy-validate: ## AD-28 fleet seam: build-only deploy validation (kustomize + kubeconform; NEVER applies)
 	kustomize build --load-restrictor LoadRestrictionsNone deploy/kustomize | kubeconform -ignore-missing-schemas -summary
+	./shared-build-conform.sh .
+	PYTHON="$(PYTHON)" ./image-injection-conform.sh deploy/kustomize
 
 k8s-validate: deploy-validate ## Legacy name retained for existing local and CI callers
 
