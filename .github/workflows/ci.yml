@@ -658,6 +658,24 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  # Pre-claim reality probe (ENG-2817 / M2) — hermetic fixture-backed CLI and
+  # unit suite. The probe has no Linear/network dependency; keeping this gate
+  # on public-runners makes the dispatch safety check available to fork PRs.
+  # ---------------------------------------------------------------------------
+  reality-probe-check:
+    name: Pre-claim Reality Probe (M2)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: reality-probe.mjs --self-test
+        run: node scripts/reality-probe.mjs --self-test
+      - name: TestPreClaimRealityProbe (DoD suite)
+        run: node --test scripts/test/reality-probe.test.mjs
+
+  # ---------------------------------------------------------------------------
   # Hardening allow-list class coverage (ENG-2478) — validates the 15-item
   # A-HARDENING ledger (docs/runbooks/hardening-allowlist.json) on every push:
   # exactly 15 items, every anchor resolves against the tree. Catches anchor
@@ -1015,6 +1033,7 @@ jobs:
       - client-ai-thinness
       - ci-substrate-conformance
       - fr30-divergence-check
+      - reality-probe-check
       - security
       - sbom-generation
       - workflow-lint
