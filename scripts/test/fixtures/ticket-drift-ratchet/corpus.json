@@ -1,0 +1,7 @@
+{
+  "issues": [
+    { "identifier": "ENG-2818-F1", "status": "In Progress", "state_type": "started", "description": "[Source: `apps/server/src/target.ts`; canon kldiZu93EC; cells JGAUQRsw2g]" },
+    { "identifier": "ENG-2818-F2", "status": "In Progress", "state_type": "started", "description": "Existing code (HEAD): `apps/server/src/other.ts`" },
+    { "identifier": "ENG-2818-F3", "status": "Done", "state_type": "completed", "description": "[Source: `apps/server/src/target.ts`; canon kldiZu93EC]" }
+  ]
+}

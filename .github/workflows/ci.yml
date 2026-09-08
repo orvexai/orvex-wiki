@@ -686,6 +686,65 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  # Act-3 branch/WIP policy (ENG-2055) — pure admission and reaper checks.
+  # ---------------------------------------------------------------------------
+  act3-branch-budget-check:
+    name: ACT-3 Branch Budget Gate (ENG-2055)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: TestBranchBudgetEnforced
+        run: node --test scripts/test/act3-branch-budget.test.mjs
+
+  # ---------------------------------------------------------------------------
+  # Linear write budget and chokepoint (ENG-2810).
+  # ---------------------------------------------------------------------------
+  linear-write-budget-check:
+    name: Linear Write Budget + Shared Backoff (ENG-2810)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Linear write budget self-test
+        run: node scripts/lib/linear-write-budget.mjs --json-out linear-write-budget-report.json
+      - name: Linear write budget DoD suite
+        run: node --test scripts/test/linear-write-budget.test.mjs scripts/test/linear-write-gate.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linear-write-budget-report
+          path: linear-write-budget-report.json
+          if-no-files-found: error
+
+  linearis-chokepoint-guard:
+    name: Linear Write Chokepoint Guard (ENG-2810)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check sole Linear write path
+        run: bash scripts/ci/linearis-chokepoint-guard.sh
+
+  # ---------------------------------------------------------------------------
+  # Ticket drift ratchet (ENG-2818) — offline mapping/self-test only in CI.
+  # ---------------------------------------------------------------------------
+  ticket-drift-ratchet:
+    name: Ticket Drift Ratchet (ENG-2818)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: ticket-drift-ratchet self-test
+        run: node scripts/ticket-drift-ratchet.mjs --self-test
+      - name: ticket-drift-ratchet DoD suite
+        run: node --test scripts/test/ticket-drift-ratchet.test.mjs
+
+  # ---------------------------------------------------------------------------
   # Pre-claim reality probe (ENG-2817 / M2) — hermetic fixture-backed CLI and
   # unit suite. The probe has no Linear/network dependency; keeping this gate
   # on public-runners makes the dispatch safety check available to fork PRs.
@@ -1066,6 +1125,10 @@ jobs:
       - client-ai-thinness
       - ci-substrate-conformance
       - fr30-divergence-check
+      - act3-branch-budget-check
+      - linear-write-budget-check
+      - linearis-chokepoint-guard
+      - ticket-drift-ratchet
       - reality-probe-check
       - security
       - sbom-generation
