@@ -112,10 +112,16 @@ export interface RegistryReserveResult {
  * means the two services disagree about the shared secret — an operator fixes
  * that by reconciling `INTERNAL_API_BEARER_TOKEN`, which is a completely
  * different action from "identity is unhealthy".
+ *
+ * ENG-3343 — `UNKNOWN_CELL` is identity's typed caller refusal for a target
+ * cell that is not in the registry catalog. It is distinct from a dependency
+ * failure because the operator remedy is to correct the cell token, not to
+ * repair or retry identity.
  */
 export type RegistryClientErrorCode =
   | 'NOT_FOUND'
   | 'STALE_MOVE'
+  | 'UNKNOWN_CELL'
   | 'DEPENDENCY_ERROR'
   | 'TENANT_ALREADY_RESERVED'
   | 'AUTH_FAILED';
@@ -344,9 +350,19 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       throw new RegistryClientError('NOT_FOUND', 'registry: tenant not found');
     }
     if (status === 409) {
+      const reason = identityErrorText(payload);
       throw new RegistryClientError(
         'STALE_MOVE',
-        'registry: stale move (registry has moved on)',
+        `registry: stale move (registry has moved on)${reason ? `: ${reason}` : ''}`,
+      );
+    }
+    if (status === 400) {
+      const reason = identityErrorText(payload);
+      throw new RegistryClientError(
+        'UNKNOWN_CELL',
+        reason
+          ? `identity registry move refused: ${reason}`
+          : 'identity registry move refused with HTTP 400',
       );
     }
     if (status === 401) {
@@ -359,9 +375,10 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
         'identity rejected the engine seam credential on registry move (401) — INTERNAL_API_BEARER_TOKEN does not match identity ENGINE_INTERNAL_API_TOKEN',
       );
     }
+    const reason = identityErrorText(payload);
     throw new RegistryClientError(
       'DEPENDENCY_ERROR',
-      `identity registry move returned HTTP ${status}`,
+      `identity registry move returned HTTP ${status}${reason ? `: ${reason}` : ''}`,
     );
   }
 
@@ -525,6 +542,19 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
 function snippet(raw: string): string {
   const flat = raw.replace(/\s+/g, ' ').trim();
   return flat.length <= 120 ? flat : `${flat.slice(0, 120)}…`;
+}
+
+/** Extract identity's structured reason when it answers `{error}`. */
+function identityErrorText(payload: unknown): string {
+  if (
+    payload !== null &&
+    typeof payload === 'object' &&
+    !Array.isArray(payload) &&
+    typeof (payload as { error?: unknown }).error === 'string'
+  ) {
+    return (payload as { error: string }).error;
+  }
+  return '';
 }
 
 /** Message of an unknown thrown value, without assuming it is an Error. */

@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import {
+  BadRequestException,
   BadGatewayException,
   ConflictException,
   Inject,
@@ -13,9 +14,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
-import {
-  IdentityIntrospector,
-} from '../../core/session-mint/identity-introspector';
+import { IdentityIntrospector } from '../../core/session-mint/identity-introspector';
 import {
   IdentityRegistryClient,
   RegistryClientError,
@@ -93,6 +92,11 @@ export interface TenantCellMoveResult {
  *     `/internal/rehearsal/*` probes: a real observation, not a fabricated
  *     one). `sourceCellResidueBytes`/`targetCellHasData` are computed from
  *     this REAL read, never hardcoded.
+ *
+ *     Typed identity refusals remain typed at this boundary: an unknown
+ *     target cell is a caller 400 with identity's reason, stale moves remain
+ *     409s, and unexpected identity failures remain distinguishable 502s. A
+ *     knowable refusal must not become an opaque dependency error.
  *
  * NO LOCAL PERSISTENCE: this service does not write to the engine's own
  * Postgres. The M14 rehearsal tenant has no local `workspaces` row (the
@@ -187,8 +191,10 @@ export class OrvexTenantCellMoveService {
         case 'NOT_FOUND':
           return new NotFoundException('tenant not found in registry');
         case 'STALE_MOVE':
-          return new ConflictException(
-            'stale move: registry has moved on',
+          return new ConflictException(`stale move: ${err.message}`);
+        case 'UNKNOWN_CELL':
+          return new BadRequestException(
+            `identity registry ${step} rejected the target cell: ${err.message}`,
           );
         case 'AUTH_FAILED':
           // ENG-3313 — identity refused THIS ENGINE's seam credential. That
@@ -208,7 +214,7 @@ export class OrvexTenantCellMoveService {
           );
         case 'DEPENDENCY_ERROR':
           return new BadGatewayException(
-            `identity registry ${step} failed`,
+            `identity registry ${step} failed: ${err.message}`,
           );
       }
     }
