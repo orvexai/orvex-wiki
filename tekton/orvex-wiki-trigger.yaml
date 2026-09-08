@@ -31,9 +31,9 @@
 #     something else, so the cell could stop advancing with every dashboard
 #     reading Healthy.
 #
-# `orvex-wiki-build` is deliberately LEFT IN PLACE and unreferenced (ENG-3297
-# owns its retirement after a soak). Nothing routes to it; deleting it now
-# would remove the only rollback that does not need a new build.
+# ENG-3297 hard cut: the former `orvex-wiki-build` Pipeline was deleted after
+# the shared-build soak. Nothing routes to it; rollback now requires
+# re-authoring a pipeline.
 #
 # ── AD-31 identity: `orvex-studio` project, `orvex-wiki-engine` image ──────
 # RULING (2026-07-30, ENG-3327): the AGPL engine image moves to the
