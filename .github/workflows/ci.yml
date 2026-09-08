@@ -551,6 +551,17 @@ jobs:
       - name: Verify ratified crew posture and source implementation
         run: bash scripts/verify/eng3788-crew-cell-decision.sh .
 
+  # Hermetic regression coverage for the human-owned ENG-3788 gate. This is a
+  # separate required dependency so the gate's own fail-closed mechanics are
+  # tested even while the real decision/rollout evidence remains external.
+  eng-3788-decision-gate-test:
+    name: ENG-3788 Decision Gate Self-Test
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test ENG-3788 decision gate (hermetic)
+        run: bash scripts/test/eng3788-decision-gate.spec.sh
+
   # ENG-3789 AC2 is downstream of ENG-3788. Keep the sequencing hold wired into
   # the required fan-in: the repository variable is an owner-supplied claim
   # that must only be set after live rollout verification for both crew cells.
@@ -1115,6 +1126,7 @@ jobs:
       - k8s-validate
       - deploy-validate
       - eng-3788-crew-posture
+      - eng-3788-decision-gate-test
       - eng-3789-ac2-sequencing
       - deploy-render-gate
       - engine-license-guard
