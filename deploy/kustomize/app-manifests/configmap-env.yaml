@@ -17,6 +17,10 @@ metadata:
     argocd.argoproj.io/sync-wave: "5"
 data:
   APP_URL: "https://PLACEHOLDER_WIKI_HOST"
+  # The browser converts this https URL to wss://.../collab. The dedicated
+  # host is DNS-only at Cloudflare; its Gateway listener/certificate are
+  # owned by platform GitOps.
+  COLLAB_URL: "https://collab.CELLTOKEN.orvex.ai"
   PORT: "3000"
   NODE_ENV: "production"
   STORAGE_DRIVER: "s3"
