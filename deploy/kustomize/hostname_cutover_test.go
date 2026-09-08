@@ -23,9 +23,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// shortCellTokenHostname is the ONLY shape a public wiki hostname may take
-// post-cutover (AC1). Internal AZ ids (eu-central-1) are never public.
-var shortCellTokenHostname = regexp.MustCompile(`^wiki\.eu1\.orvex\.(ai|dev)$`)
+// publicHostnamePrefixes is the explicit public-host roster. Internal AZ ids
+// (eu-central-1) are never public, and adding a route must not silently widen
+// this gate to arbitrary hostnames.
+var publicHostnamePrefixes = []string{"wiki", "collab"}
+
+var shortCellTokenHostname = regexp.MustCompile(
+	`^(?:` + strings.Join(publicHostnamePrefixes, `|`) + `)\.eu1\.orvex\.(?:ai|dev)$`,
+)
 
 // kustomizeBin resolves the `kustomize` binary the same way CI's
 // k8s-validate job does (go install sigs.k8s.io/kustomize/kustomize/v5),
@@ -133,6 +138,64 @@ func publicHostnames(t *testing.T, rendered string) []string {
 	return hostnames
 }
 
+type renderedHTTPRoute struct {
+	Kind     string `yaml:"kind"`
+	Metadata struct {
+		Name        string            `yaml:"name"`
+		Annotations map[string]string `yaml:"annotations"`
+	} `yaml:"metadata"`
+	Spec struct {
+		Hostnames []string `yaml:"hostnames"`
+		Rules     []struct {
+			Matches []struct {
+				Path struct {
+					Value string `yaml:"value"`
+				} `yaml:"path"`
+			} `yaml:"matches"`
+		} `yaml:"rules"`
+	} `yaml:"spec"`
+}
+
+func renderedHTTPRoutes(t *testing.T, rendered string) map[string]renderedHTTPRoute {
+	t.Helper()
+	routes := make(map[string]renderedHTTPRoute)
+	dec := yaml.NewDecoder(strings.NewReader(rendered))
+	for {
+		var route renderedHTTPRoute
+		if err := dec.Decode(&route); err != nil {
+			break
+		}
+		if route.Kind == "HTTPRoute" {
+			routes[route.Metadata.Name] = route
+		}
+	}
+	return routes
+}
+
+func renderedConfigValue(t *testing.T, rendered, configMapName, key string) string {
+	t.Helper()
+	var configMap struct {
+		Kind     string `yaml:"kind"`
+		Metadata struct {
+			Name string `yaml:"name"`
+		} `yaml:"metadata"`
+		Data map[string]string `yaml:"data"`
+	}
+	dec := yaml.NewDecoder(strings.NewReader(rendered))
+	for {
+		if err := dec.Decode(&configMap); err != nil {
+			break
+		}
+		if configMap.Kind == "ConfigMap" && configMap.Metadata.Name == configMapName {
+			value, ok := configMap.Data[key]
+			require.Truef(t, ok, "ConfigMap %q is missing key %q", configMapName, key)
+			return value
+		}
+	}
+	t.Fatalf("ConfigMap %q not found in render", configMapName)
+	return ""
+}
+
 // TestHttpRouteHostnameShortCellToken is the named binary DoD gate
 // (ENG-1505). AC1/AC2/AC5 render assertions; AC4 boundary assertion reads
 // the build-time-only cluster-config.yaml source directly since it is
@@ -149,7 +212,43 @@ func TestHttpRouteHostnameShortCellToken(t *testing.T) {
 		require.NotEmpty(t, all, "no public hostnames found in rendered output — render gate is not exercising the HTTPRoute")
 		for _, h := range all {
 			require.Truef(t, shortCellTokenHostname.MatchString(h),
-				"public hostname %q does not match ^wiki\\.eu1\\.orvex\\.(ai|dev)$", h)
+				"public hostname %q does not match the explicit wiki/collab short-cell roster", h)
+		}
+	})
+
+	t.Run("AC3_collab_route_is_dns_only_and_path_scoped", func(t *testing.T) {
+		for environment, rendered := range map[string]string{
+			"prod": prodRendered,
+			"dev":  devRendered,
+		} {
+			routes := renderedHTTPRoutes(t, rendered)
+			wiki, ok := routes["orvex-wiki"]
+			require.Truef(t, ok, "%s render is missing the primary wiki HTTPRoute", environment)
+			collab, ok := routes["orvex-wiki-collab"]
+			require.Truef(t, ok, "%s render is missing the dedicated collab HTTPRoute", environment)
+
+			require.Equal(t, "true", wiki.Metadata.Annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"])
+			require.Equal(t, "false", collab.Metadata.Annotations["external-dns.alpha.kubernetes.io/cloudflare-proxied"])
+			domain := "ai"
+			if environment == "dev" {
+				domain = "dev"
+			}
+			require.Equal(t, []string{"collab.eu1.orvex." + domain}, collab.Spec.Hostnames)
+			require.Equal(t, "https://collab.eu1.orvex."+domain,
+				renderedConfigValue(t, rendered, "orvex-wiki-env", "COLLAB_URL"))
+
+			var collabMatches []string
+			for name, route := range routes {
+				for _, rule := range route.Spec.Rules {
+					for _, match := range rule.Matches {
+						if match.Path.Value == "/collab" {
+							collabMatches = append(collabMatches, name)
+						}
+					}
+				}
+			}
+			require.Equal(t, []string{"orvex-wiki-collab"}, collabMatches,
+				"only the dedicated collab route may carry an explicit /collab match")
 		}
 	})
 

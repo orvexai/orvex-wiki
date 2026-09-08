@@ -72,6 +72,23 @@ patches:
       kind: HTTPRoute
       name: orvex-wiki
 
+  # ── Dev collab hostname: collab.<cell-token>.orvex.dev ───────────────────
+  # The collab route has its own DNS-only listener and remains separate from
+  # the proxied wiki HTTPRoute. CELLTOKEN is filled by the replacement below.
+  - patch: |-
+      - op: replace
+        path: /spec/hostnames/0
+        value: collab.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute), not a peer
+      - op: replace
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
+        value: collab.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute), not a peer
+      - op: replace
+        path: /spec/parentRefs/0/sectionName
+        value: orvex-CELLTOKEN-dev-https
+    target:
+      kind: HTTPRoute
+      name: orvex-wiki-collab
+
   # ── Dev-only single-host fan-out: /mcp + /api/ai on the engine host ───────
   # seam3 fix (phase0/seam3). Cell-tenancy-contract JGAUQRsw2g Rule 9
   # (canonical 2026-07-12): "flat services expose no public HTTPRoute
@@ -140,6 +157,16 @@ patches:
       - op: replace
         path: /data/APP_URL
         value: https://wiki.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
+  # The client receives this URL through the same static window.CONFIG seam as
+  # production. The engine converts it to the WebSocket URL at runtime.
+  - patch: |-
+      - op: replace
+        path: /data/COLLAB_URL
+        value: https://collab.CELLTOKEN.orvex.dev  # cell-lint-allow: own public host (ConfigMap), not a peer
     target:
       kind: ConfigMap
       name: orvex-wiki-env
@@ -368,7 +395,24 @@ replacements:
           index: 1
       - select:
           kind: HTTPRoute
+          name: orvex-wiki-collab
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+          - spec.hostnames.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HTTPRoute
           name: orvex-wiki
+        fieldPaths:
+          - spec.parentRefs.0.sectionName
+        options:
+          delimiter: "-"
+          index: 1
+      - select:
+          kind: HTTPRoute
+          name: orvex-wiki-collab
         fieldPaths:
           - spec.parentRefs.0.sectionName
         options:
@@ -379,6 +423,14 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.APP_URL
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.COLLAB_URL
         options:
           delimiter: "."
           index: 1

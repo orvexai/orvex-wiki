@@ -358,6 +358,19 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.CELL_TOKEN
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellToken
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.COLLAB_URL
+        options:
+          delimiter: "."
+          index: 1
       - select:
           kind: HTTPRoute
           labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
