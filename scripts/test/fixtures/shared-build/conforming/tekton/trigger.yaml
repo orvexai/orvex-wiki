@@ -1,0 +1,42 @@
+---
+# Positive RED-first fixture for ENG-3356 AC1/AC5. `image-tag` is the
+# TriggerTemplate branch-slug carrier, not a parameter handed to the shared
+# PipelineRun.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: fixture-build-template
+spec:
+  params:
+    - name: git-url
+    - name: git-revision
+    - name: git-ref
+    - name: image-tag
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: fixture-build-$(tt.params.image-tag)-
+        labels:
+          orvex.ai/branch: $(tt.params.image-tag)
+      spec:
+        pipelineRef:
+          resolver: git
+          params:
+            - name: url
+              value: https://github.com/orvexai/my-idp-apps.git
+            - name: revision
+              value: v0.10.5
+            - name: pathInRepo
+              value: tekton/orvex-shared-build-pipeline.yaml
+            - name: gitToken
+              value: tekton-git-credentials
+            - name: gitTokenKey
+              value: password
+        params:
+          - name: repo-url
+            value: $(tt.params.git-url)
+          - name: revision
+            value: $(tt.params.git-revision)
+          - name: git-ref
+            value: $(tt.params.git-ref)

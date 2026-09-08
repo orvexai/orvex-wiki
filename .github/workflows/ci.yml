@@ -509,6 +509,31 @@ jobs:
           "$(go env GOPATH)/bin/kustomize" build --load-restrictor LoadRestrictionsNone deploy/kustomize \
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
+  # ---------------------------------------------------------------------------
+  # ENG-3356 — shared-build and image-injection conformance are real legs of
+  # the AD-28 deploy-validate seam. The scanners are committed standalone
+  # copies because this PUBLIC repo cannot call my-idp-apps' private workflow.
+  # ---------------------------------------------------------------------------
+  deploy-validate:
+    name: Deploy Conformance (ENG-3356)
+    runs-on: public-runners
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install kustomize + kubeconform + scanner parser dependency
+        run: |
+          go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
+          python -m pip install --disable-pip-version-check --quiet PyYAML
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: make deploy-validate
+        run: make deploy-validate PYTHON=python
+
   # ENG-3788 — the crew posture is a human-owned decision, not a default.
   # Keep the existing decision gate in the required fan-in so an unresolved
   # CLOUD=true + CELL_ID=solo crew render cannot reach deployment implicitly.
@@ -843,6 +868,8 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: ci-substrate-conformance.spec.sh
         run: bash scripts/test/ci-substrate-conformance.spec.sh .
+      - name: shared-build-conformance.spec.sh (ENG-3356 RED-first)
+        run: bash scripts/test/shared-build-conformance.spec.sh
 
   # ---------------------------------------------------------------------------
   # Security
@@ -1004,6 +1031,7 @@ jobs:
       - smoke-module
       - gate-m6-e2e
       - k8s-validate
+      - deploy-validate
       - eng-3788-crew-posture
       - eng-3789-ac2-sequencing
       - deploy-render-gate
