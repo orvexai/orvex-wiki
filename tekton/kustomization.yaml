@@ -10,13 +10,14 @@
 #   - tekton-studio-rollout SA + RBAC
 #   - tekton-smoke-test-builder SA, tekton-harbor-credentials, github-webhook-secret
 #
-# Also excluded (one-shot manual run via generateName, not GitOps-synced):
-#   - orvex-wiki-build-pipelinerun.yaml
+# ENG-3297 hard cut: this tree deliberately contains only the shared-build
+# trigger and this kustomization. The former per-repo Pipeline and its manual
+# PipelineRun were retired after the shared-build soak; rollback now requires
+# re-authoring a pipeline.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 namespace: tekton-pipelines
 
 resources:
-  - orvex-wiki-build-pipeline.yaml
   - orvex-wiki-trigger.yaml
