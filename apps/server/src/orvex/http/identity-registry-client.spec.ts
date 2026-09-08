@@ -454,6 +454,53 @@ describe('HttpIdentityRegistryClient — the move seam (ENG-3313)', () => {
     expect((stale as RegistryClientError).code).toBe('STALE_MOVE');
   });
 
+  it('maps identity unknown-cell 400 to UNKNOWN_CELL and preserves its reason', async () => {
+    const err = await captureError(
+      newClient(
+        respondWith(
+          400,
+          JSON.stringify({
+            error: 'unknown toCell: eu9 is not a registry cell',
+          }),
+        ),
+      ).moveTenantCell(MOVE),
+    );
+
+    expect(err).toBeInstanceOf(RegistryClientError);
+    expect((err as RegistryClientError).code).toBe('UNKNOWN_CELL');
+    expect((err as RegistryClientError).code).not.toBe('DEPENDENCY_ERROR');
+    expect((err as RegistryClientError).message).toContain('eu9');
+  });
+
+  it('preserves identity error text on generic move failures', async () => {
+    const err = await captureError(
+      newClient(
+        respondWith(500, JSON.stringify({ error: 'registry move failed' })),
+      ).moveTenantCell(MOVE),
+    );
+
+    expect(err).toBeInstanceOf(RegistryClientError);
+    expect((err as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
+    expect((err as RegistryClientError).message).toContain(
+      'registry move failed',
+    );
+  });
+
+  it('keeps empty and non-JSON 400 responses typed', async () => {
+    const empty = await captureError(
+      newClient(respondWith(400, '')).moveTenantCell(MOVE),
+    );
+    expect(empty).toBeInstanceOf(RegistryClientError);
+    expect((empty as RegistryClientError).code).toBe('UNKNOWN_CELL');
+
+    const text = await captureError(
+      newClient(respondWith(400, 'bad request')).moveTenantCell(MOVE),
+    );
+    expect(text).toBeInstanceOf(RegistryClientError);
+    expect(text).not.toBeInstanceOf(SyntaxError);
+    expect((text as RegistryClientError).code).toBe('DEPENDENCY_ERROR');
+  });
+
   it('leaves the DISCOVERY READ unauthenticated — the deliberately-open route', async () => {
     // Guards an ASSERTED scope boundary, not an oversight: identity pins it
     // with TestRegistryResolve_StaysOpen. If a header ever appears here it

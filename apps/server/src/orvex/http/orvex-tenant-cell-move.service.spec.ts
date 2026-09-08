@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import {
+  BadRequestException,
   BadGatewayException,
   ConflictException,
   NotFoundException,
@@ -27,9 +28,7 @@ import { IdentityIntrospector } from '../../core/session-mint/identity-introspec
 class FakeIntrospector implements IdentityIntrospector {
   public lastToken: string | undefined;
   constructor(
-    private readonly result:
-      | { subject: string; workspaceId: string }
-      | null,
+    private readonly result: { subject: string; workspaceId: string } | null,
   ) {}
   introspect(
     token: string,
@@ -43,12 +42,8 @@ class FakeRegistryClient implements IdentityRegistryClient {
   public moveCalls: RegistryMoveRequest[] = [];
   public resolveCalls: string[] = [];
   constructor(
-    private readonly moveResult:
-      | RegistryMoveResult
-      | (() => Promise<never>),
-    private readonly resolveResult:
-      | RegistryTenantCell
-      | (() => Promise<never>),
+    private readonly moveResult: RegistryMoveResult | (() => Promise<never>),
+    private readonly resolveResult: RegistryTenantCell | (() => Promise<never>),
   ) {}
 
   moveTenantCell(req: RegistryMoveRequest): Promise<RegistryMoveResult> {
@@ -115,9 +110,9 @@ function makeService(opts: {
 describe('OrvexTenantCellMoveService', () => {
   it('DENY — no bearer -> 401, no registry call made', async () => {
     const t = makeService({ principal: MACHINE_PRINCIPAL });
-    await expect(
-      t.service.moveCell(null, DTO, null),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(t.service.moveCell(null, DTO, null)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
     expect(t.registryClient.moveCalls).toHaveLength(0);
   });
 
@@ -238,6 +233,52 @@ describe('OrvexTenantCellMoveService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('MOVE unknown target cell is a distinct 400 with identity reason (ENG-3343)', async () => {
+    const unknownCell = makeService({
+      principal: MACHINE_PRINCIPAL,
+      moveResult: () =>
+        Promise.reject(
+          new RegistryClientError(
+            'UNKNOWN_CELL',
+            'identity registry move refused: unknown toCell: eu9 is not a registry cell',
+          ),
+        ),
+    });
+    const unknownErr = await unknownCell.service
+      .moveCell('svc-token', DTO, null)
+      .then(
+        () => {
+          throw new Error('expected a rejection, got a resolved value');
+        },
+        (e: unknown) => e,
+      );
+
+    const dependency = makeService({
+      principal: MACHINE_PRINCIPAL,
+      moveResult: () =>
+        Promise.reject(
+          new RegistryClientError('DEPENDENCY_ERROR', 'registry move failed'),
+        ),
+    });
+    const dependencyErr = await dependency.service
+      .moveCell('svc-token', DTO, null)
+      .then(
+        () => {
+          throw new Error('expected a rejection, got a resolved value');
+        },
+        (e: unknown) => e,
+      );
+
+    expect(unknownErr).toBeInstanceOf(BadRequestException);
+    expect(unknownErr).not.toBeInstanceOf(BadGatewayException);
+    expect((unknownErr as Error).message).toContain('eu9');
+    expect((unknownErr as Error).message).not.toBe(
+      (dependencyErr as Error).message,
+    );
+    expect((dependencyErr as Error).message).toContain('registry move failed');
+    expect(unknownCell.registryClient.resolveCalls).toHaveLength(0);
+  });
+
   it('MOVE dependency: a transport/5xx failure maps to 502 (never a fabricated success)', async () => {
     const t = makeService({
       principal: MACHINE_PRINCIPAL,
@@ -275,21 +316,21 @@ describe('OrvexTenantCellMoveService', () => {
       moveResult: () =>
         Promise.reject(new RegistryClientError('DEPENDENCY_ERROR', 'down')),
     });
-    const depErr = await depFailed.service.moveCell('svc-token', DTO, null).then(
-      () => {
-        throw new Error('expected a rejection, got a resolved value');
-      },
-      (e: unknown) => e,
-    );
+    const depErr = await depFailed.service
+      .moveCell('svc-token', DTO, null)
+      .then(
+        () => {
+          throw new Error('expected a rejection, got a resolved value');
+        },
+        (e: unknown) => e,
+      );
 
     // It must NOT be a 401: the CALLER's bearer was already introspected and
     // accepted, so answering 401 would blame the wrong credential entirely.
     expect(authErr).not.toBeInstanceOf(UnauthorizedException);
     // The two must not be the same opaque answer.
     expect((authErr as Error).message).not.toBe((depErr as Error).message);
-    expect((authErr as Error).message).toContain(
-      'INTERNAL_API_BEARER_TOKEN',
-    );
+    expect((authErr as Error).message).toContain('INTERNAL_API_BEARER_TOKEN');
   });
 
   it('VERIFY dependency failure (post-move read-back) maps to 502, not a fabricated targetCellHasData', async () => {
