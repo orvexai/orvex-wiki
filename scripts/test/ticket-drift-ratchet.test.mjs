@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { buildIndex, affectedByPaths, affectedBySlugs, extractPathCites } from '../lib/cite-index.mjs';
+import { computeRatchet } from '../ticket-drift-ratchet.mjs';
+const corpus = [{ identifier: 'ENG-F1', state_type: 'started', description: '[Source: `apps/server/src/target.ts`; canon kldiZu93EC]' }, { identifier: 'ENG-F2', state_type: 'completed', description: '`apps/server/src/target.ts`' }];
+test('path and slug indexes only include open citing stories', () => { const index = buildIndex(corpus); assert.deepEqual(affectedByPaths(index, ['apps/server/src/target.ts']).matched.map((hit) => hit.id), ['ENG-F1']); assert.deepEqual(affectedBySlugs(index, ['kldiZu93EC']).matched.map((hit) => hit.id), ['ENG-F1']); assert.deepEqual(extractPathCites('Existing code (HEAD): apps/server/src/other.ts'), ['apps/server/src/other.ts']); });
+test('dry-run maps exactly one story and live mode is idempotent', () => { const dir = mkdtempSync(path.join(tmpdir(), 'ticket-drift-')); const ledger = path.join(dir, 'ledger.json'); const posted = []; const runner = (_command, args) => { if (args[1] === 'discuss') posted.push(args); return '{}'; }; const options = { corpus, paths: ['apps/server/src/target.ts'], eventId: 'merge-1', ledgerFile: ledger, budgetLimit: 100, dryRun: false, runner, quotaReader: () => ({ requestsRemaining: 100 }) }; const first = computeRatchet(options); const second = computeRatchet(options); assert.equal(first.stories.length, 1); assert.equal(second.stories.length, 0); assert.equal(posted.length, 1); assert.match(readFileSync(ledger, 'utf8'), /applied/); rmSync(dir, { recursive: true, force: true }); });

@@ -65,11 +65,15 @@ const HUB = '/home/daniel/repos/orvex-wiki'
 const DECISIONS = HUB + '/tools/act3/po-decisions-2026-07-07.md'
 const WORKTREES = '/tmp/worktrees'
 const MAX_SYNCS = (args && args.maxTicks) || 120         // cap on frontier re-syncs (was maxTicks; a sync is ~5 API calls + one sonnet agent — far cheaper than an old tick)
-const TARGET_INFLIGHT = 16   // per-workflow agent cap is min(16, cores-2); refill to this the moment a slot frees (rolling — no tick barrier)
+const TARGET_INFLIGHT = 16   // per-workflow agent cap is min(16, cores-2); unrelated to branch/WIP admission
 const REFRESH_EVERY = 3      // recompute the frontier after this many completions even if the queue is non-empty (newly-Done issues unblock successors; the recompute is LOCAL — zero API — so cadence is cheap)
 const BOUNCE_CAP = 3
 const REBASELINE_DISPOSITION = 'rebaseline'
 const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if ready work is narrower than this, fill the spare slots with useful non-claiming pre-work.
+// ENG-2055: these are delivery branch/WIP budgets, distinct from TARGET_INFLIGHT.
+const { MAX_BUILD_INFLIGHT, MAX_PENDING_MERGE, admit, workBranchName, planReaper, formatBudgetSurface } = await import(process.cwd() + '/scripts/lib/act3-branch-budget.mjs')
+const REAPER_MODE = (args && args.reaperMode) || 'dry-run'
+const REAPER_CONFIRM = !!(args && args.reaperConfirm)
 // PARTITION (scale-out to the PO-ratified 32-agent ceiling, §3.28): two engines run
 // concurrently with DISJOINT project sets — each issue lives in exactly one project and
 // each repo in exactly one partition, so claims can never collide and per-repo merge
@@ -110,7 +114,7 @@ const LNR = [
   'CACHE-FIRST Linear model (PO directive 2026-07-09: sync all tickets once; read ONLY from cache; after any write, re-sync JUST that ticket — we are the sole writer, so refresh-on-write keeps the cache authoritative): ALL state/graph reads come from ' + HUB + '/.cache/linear/initiative.json and ticket bodies+comments from ' + HUB + '/.cache/linear/issues/<ENG-N>.yaml.',
   'Live linearis calls are permitted ONLY for: (a) WRITES; (b) the single-ticket refresh AFTER your writes — run: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N> — which is ALSO your write-verification (confirm the refreshed cache file shows your change; it updates initiative.json state under a lock so both engines see it); (c) ONE full-body read immediately before a full-body replace (see below). NEVER bulk-list, never live-read for state, never re-read what the cache already holds.',
   'issues update --description is a FULL-BODY REPLACE: live-read the full body IMMEDIATELY before (clobber safety) -> edit -> write the whole body back via temp file -> refresh the ticket cache (linear-sync.sh issue <ENG-N>) and confirm intact. Never blind-write, never blanket-tick.',
-  'On rate_limited (should now be rare — usage is writes-only): your WRITE payload goes to a file under ' + RDIR + ' with the exact command, report it as escalate (transient-quota), never spin retrying.',
+  'ALL Linear writes MUST use ' + HUB + '/tools/act3/linear-write.sh --issue <ENG-N> --stage <stage> --payload-file <file> -- linearis ... . Batch one progress comment per meaningful stage, never one comment per tool call. On rate_limited preserve the payload in the shared ledger and let every writer honor the shared Retry-After gate.',
   'Never auto-close, never advance status except as your task explicitly says.',
 ].join('\n')
 
@@ -148,7 +152,7 @@ const P2_CENSUS = 'P2-census (FULL-BODY BOX CENSUS — binding, refuse-Done gate
 // here. Confirmed victims ENG-1405/ENG-1395; precedent ENG-1375. Done in this engine is
 // GATE-OWNED: only the deterministic Done gate's boxes-clean-gated status-flip may set Done.
 // Any Done we did not make ourselves is the integration's auto-close and must be reverted.
-const P1_GUARD = 'P1-guard (anti-auto-close, pattern P1 — Linear\'s GitHub integration auto-flips a linked ticket to Done seconds after its branch/PR merges via branch-name identifier linking, e.g. eng-<n>-work; UI-only toggle; confirmed victims ENG-1405/ENG-1395, precedent ENG-1375): immediately after ANY merge (and after opening/pushing the identifier-named branch/PR) re-read this ticket\'s LIVE status — linearis issues read ' + '<ENG-N>' + ' then refresh cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N>. If the status is now Done and THIS engine\'s Done-gate did NOT perform that transition (in the build/review/fix stages the gate has NOT run yet, so ANY Done here is the auto-close; in the gate stage a Done appearing BEFORE your own boxes-clean-gated (c) status-flip is the auto-close), revert it to In Progress via linearis with the one-line comment "reverting Linear GitHub auto-close (pattern P1); Done is gate-owned", refresh the ticket cache again, and CONTINUE the normal cycle — the legitimate Done happens only later at the gate\'s boxes-clean-gated flip. Never leave an engine-unauthored Done standing.'
+const P1_GUARD = 'P1-guard (anti-auto-close, pattern P1 — Linear\'s GitHub integration auto-flips a linked ticket to Done seconds after its branch/PR merges via branch-name identifier linking, e.g. eng-<n>-work; UI-only toggle; confirmed victims ENG-1405/ENG-1395, precedent ENG-1375): immediately after ANY merge (and after opening/pushing the identifier-named branch/PR) re-read this ticket\'s LIVE status — linearis issues read ' + '<ENG-N>' + ' then refresh cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N>. If the status is now Done and THIS engine\'s Done-gate did NOT perform that transition, revert it to In Progress through ' + HUB + '/tools/act3/linear-write.sh with the one-line comment "reverting Linear GitHub auto-close (pattern P1); Done is gate-owned", refresh the ticket cache again, and CONTINUE the normal cycle. Never leave an engine-unauthored Done standing.'
 
 // ---- Schemas ---------------------------------------------------------------
 const FRONTIER_SCHEMA = {
@@ -212,6 +216,22 @@ const PROBE_SCHEMA = {
     exitCode: { type: 'integer' },
   },
 }
+const BRANCH_BUDGET_SCHEMA = {
+  type: 'object', required: ['readComplete', 'pendingMergeCount', 'reaperCandidates'],
+  properties: {
+    readComplete: { type: 'boolean' }, pendingMergeCount: { type: 'integer', minimum: 0 },
+    pendingMergeBranches: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 160 } },
+    reaperCandidates: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 160 } },
+    reaperDeleted: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 160 } },
+  },
+}
+const HYGIENE_SCHEMA = {
+  type: 'object', required: ['ok', 'projectedWritesPerHour', 'quotaUtilisation', 'verdict', 'ledgerDepth'],
+  properties: {
+    ok: { type: 'boolean' }, projectedWritesPerHour: { type: 'number' }, quotaUtilisation: { type: 'number' },
+    verdict: { type: 'string', enum: ['PASS', 'FAIL'] }, ledgerDepth: { type: 'integer', minimum: 0 },
+  },
+}
 
 // ---- Per-repo merge lock ---------------------------------------------------
 const repoLocks = {}
@@ -226,6 +246,12 @@ function withRepoLock(repo, fn) {
 const escalated = []
 const doneThisRun = []
 const bounces = {}
+const pendingMergeReservations = new Set()
+let pendingMergeCount = null
+let pendingMergeBranches = []
+let reaperCandidates = []
+let reaperCycle = 0
+let lastBudgetSurface = null
 let complete = false
 let residueReport = null
 
@@ -242,6 +268,48 @@ function makeTopup(m, i) {
   ].join('\n'), { model: 'sonnet', effort: 'low', label: 'fill' + i + ':' + m, phase: 'Deliver', schema: NOTE_SCHEMA }).then(() => ({ out: 'topup' }))
 }
 
+// ENG-2055: inventory is recomputed live through the existing agent boundary;
+// an incomplete inventory fails closed for claiming but never idles pre-work.
+async function refreshBranchBudget(surface, buildCount = 0) {
+  const previous = [...reaperCandidates]
+  const mode = reaperCycle === 0 || !(REAPER_MODE === 'live' && REAPER_CONFIRM) ? 'dry-run' : 'live'
+  const authorized = mode === 'live' ? previous : []
+  let snapshot
+  try {
+    snapshot = await agent([
+    'ACT-3 BRANCH/WIP BUDGET OBSERVATION (' + surface + ', ENG-2055). Work from ' + HUB + '; do not infer counts from prior observations.',
+    'Enumerate every repository in ' + JSON.stringify(PROJECT_REPO) + ' except CROSS_REPO. Count open PRs from `gh pr list --state open --json headRefName,url` whose head branch matches eng-*-work; return the live count and branch list.',
+    'Read ' + HUB + '/.cache/linear/initiative.json (cache-first). Enumerate local eng-* branches with git for-each-ref. A stale candidate has no open PR and no corresponding In Progress/In Review issue. Missing/incomplete cache means readComplete=false and no deletion.',
+    'Mode=' + mode + '. Always record the observation in ' + RDIR + '/reaper-' + surface + '-' + (reaperCycle + 1) + '.md. Dry-run never deletes. Live may delete only candidates in this prior-cycle list: ' + JSON.stringify(authorized) + ', using merge-checked git branch -d, never branch -D, and never active worktrees.',
+    RETDISC,
+    ].join('\n'), { model: 'sonnet', effort: 'low', label: 'branch-budget:' + surface, phase: 'Deliver', schema: BRANCH_BUDGET_SCHEMA })
+  } catch (error) {
+    reaperCycle++
+    pendingMergeCount = null
+    pendingMergeBranches = []
+    log('Branch budget observation failed at ' + surface + ' — claims held: ' + String(error).slice(0, 180))
+    return false
+  }
+  reaperCycle++
+  if (!snapshot || snapshot.readComplete !== true || !Number.isInteger(snapshot.pendingMergeCount)) { pendingMergeCount = null; pendingMergeBranches = []; log('Branch budget unavailable at ' + surface + ' — claims held; pre-work remains eligible'); return false }
+  pendingMergeCount = snapshot.pendingMergeCount
+  pendingMergeBranches = Array.isArray(snapshot.pendingMergeBranches) ? snapshot.pendingMergeBranches : []
+  const plan = planReaper({ mode, candidates: snapshot.reaperCandidates || [], priorCandidates: previous })
+  reaperCandidates = plan.candidates
+  pendingMergeReservations.clear()
+  lastBudgetSurface = { buildCount, pendingMergeCount, pendingMergeBranches: [...pendingMergeBranches], reaperCandidates: [...reaperCandidates], reaperDeleted: snapshot.reaperDeleted || [] }
+  log('Budget [' + surface + ']: ' + formatBudgetSurface({ buildCount, pendingMergeCount, reaperCandidates }))
+  return true
+}
+
+async function cleanupWorktree(repo, wt, item, seq, reason, pr = '') {
+  await agent([
+    'MANDATORY WORKTREE CLEANUP for ' + item.eng + ' (' + reason + ') in ' + repo + '.',
+    'Archive the current branch tip under refs/archive/inflight/' + item.eng.toLowerCase() + ' before removing ' + wt + '. Remove the worktree, then run merge-checked `git branch -d ' + workBranchName(item.eng) + '`; NEVER use git branch -D. Do not remove an active worktree. Close a dead open PR if needed. Record commands/results in ' + RDIR + '/' + item.eng + '-cleanup-' + seq + '.md. Known PR: ' + pr,
+    LNR, RETDISC,
+  ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':cleanup:' + item.eng, phase: 'Deliver', schema: NOTE_SCHEMA })
+}
+
 // ---- Startup reclaim (§3.20c / §3.31) --------------------------------------
 // A prior engine death can leave issues stranded In Progress (claimed, no live
 // agent) — invisible to the Todo/Backlog frontier and silently clogging capacity
@@ -252,7 +320,7 @@ await agent([
   'STARTUP RECLAIM (single claimer; the engine just launched, so any In-Progress issue is a STALE claim from a dead prior run — nothing this run claimed yet). Work from ' + HUB + '. Launch nonce: ' + ((args && args.nonce) || 'none') + ' (ignore; it only prevents stale cache replay).',
   '1. If ' + HUB + '/.cache/linear/.last-initiative-sync is < 10 minutes old AND initiative.json has .complete==true, SKIP the bulk sync (the launcher already synced — cache-first). Otherwise run: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh sync-initiative (ONE bulk fetch; config-driven scope from _bmad/lnr/config.yaml linear_initiative — no allowlist arg needed; no per-issue reads).',
   '2. Read ' + HUB + '/.cache/linear/initiative.json and list every issue with state "In Progress" OR "In Review"' + (PARTITION ? ' whose project is one of ' + JSON.stringify(PARTITION) + ' (a sibling engine reclaims the rest)' : '') + ' (jq over .issues). For each, check gh for an open PR in its repo (repo map: ' + JSON.stringify(PROJECT_REPO) + ').',
-  '3. Reset EVERY such stranded issue to Todo via linearis so the frontier re-picks it (In Progress AND In Review issues are invisible to the Todo/Backlog frontier — leaving them strands the work; a prior run leaked done-but-unmerged work exactly this way). After EACH reset (and after any comment you post), refresh that ticket: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N> — the frontier reads only the cache, so an unrefreshed reset stays invisible.',
+  '3. Reset EVERY such stranded issue to Todo through ' + HUB + '/tools/act3/linear-write.sh so the frontier re-picks it (In Progress AND In Review issues are invisible to the Todo/Backlog frontier — leaving them strands the work). After EACH reset (and after any comment you post), refresh that ticket: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue <ENG-N>.',
   '4. For issues that HAVE an open PR with substantive work: BEFORE resetting, post a comment "Prior work exists: PR <url> (<branch>)' + '" plus, if a review verdict/report is already on the issue, "review PASS on record — just merge + gate" — the instruction is FINISH it (rebase onto the integration branch, complete remaining ACs on top); do NOT rebuild from scratch. Archive dangling branch refs for no-PR issues; remove stale worktrees.',
   'Return ok + a one-line reset count (with-PR vs no-PR). ' + RETDISC,
 ].join('\n'), { model: 'sonnet', effort: 'medium', label: 'startup-reclaim', phase: 'Startup reclaim', schema: NOTE_SCHEMA })
@@ -272,6 +340,18 @@ if (!qg || !qg.ok) {
   log('Linear quota still exhausted after 65 min — checkpointing, NOT complete')
   return { complete: false, delivered: [], deliveredCount: 0, escalated: [], residue: null, reportDir: RDIR, stopReason: 'quota-exhausted', partition: PART_TAG }
 }
+
+// ENG-2810: every run proves the local write projection before claiming work.
+const hygiene = await agent([
+  'LINEAR WRITE HYGIENE (ENG-2810, local-only). From ' + HUB + ', replay pending entries with `node scripts/lib/linear-write-gate.mjs replay-run`, then run `node scripts/lib/linear-write-budget.mjs --json-out ' + RDIR + '/linear-write-budget.json` with LINEAR_WRITE_AGENTS=' + ((args && args.writeAgents) || 15) + ' and LINEAR_STORIES_PER_AGENT_HOUR=' + ((args && args.storiesPerAgentPerHour) || 20) + '. Return the exact projectedWritesPerHour, quotaUtilisation, PASS/FAIL verdict, and remaining ledgerDepth. Do not probe Linear here.',
+  'ok=true only when verdict=PASS. Deferred writes are never described as applied.',
+  RETDISC,
+].join('\n'), { model: 'sonnet', effort: 'low', label: 'write-hygiene:' + PART_TAG, phase: 'Frontier', schema: HYGIENE_SCHEMA })
+if (!hygiene || hygiene.verdict !== 'PASS' || hygiene.ok !== true) {
+  log('Linear write budget failed — checkpointing, NOT complete')
+  return { complete: false, delivered: [], deliveredCount: 0, escalated: [], residue: null, reportDir: RDIR, stopReason: 'write-budget-failed', partition: PART_TAG, hygiene: hygiene || { verdict: 'FAIL', projectedWritesPerHour: 0, quotaUtilisation: 0, ledgerDepth: 0 } }
+}
+await refreshBranchBudget('startup')
 
 // ---- Frontier sync (cheap + repeatable: ~5 API calls, local readiness) -------
 async function syncFrontier(n) {
@@ -345,7 +425,7 @@ async function deliverItem(item, seq) {
       // as the run-local skip invariant if deliverItem is ever called directly.
       claimedIds.add(item.eng)
       await agent([
-        'ESCALATION BOOKKEEPING for ' + item.eng + ': before any claim/build, add this exact pre-claim probe result as a Linear comment: ' + JSON.stringify(why) + '. Disposition is ' + probe.disposition.toUpperCase() + '. For REBASELINE, leave the issue in Todo (this workspace has no provisioned REBASELINE state); for ESCALATE, leave status as-is. Then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). Do not claim, build, or override the disposition.',
+        'ESCALATION BOOKKEEPING for ' + item.eng + ': add the exact pre-claim probe result as a Linear comment through ' + HUB + '/tools/act3/linear-write.sh. Disposition is ' + probe.disposition.toUpperCase() + '. For REBASELINE, leave the issue in Todo; for ESCALATE, leave status as-is. Then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ').',
         LNR, RETDISC,
       ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
       return { eng: item.eng, out: probe.disposition === REBASELINE_DISPOSITION ? 'rebaselined' : 'probe-escalated' }
@@ -353,6 +433,7 @@ async function deliverItem(item, seq) {
 
     // --- build (verify for gate issues with an existing harness; author for gates without
     // one; plain build otherwise) ---
+    const branchName = workBranchName(item.eng)
     const wt = WORKTREES + '/' + PART_TAG + '-d' + seq + '-' + item.eng.toLowerCase()
     const build = await agent([
       item.isGate && !gateAuthoring
@@ -361,13 +442,13 @@ async function deliverItem(item, seq) {
         ? 'GATE ISSUE ' + item.eng + ' (' + (item.title || '') + '): AUTHORING build — the pre-dispatch check found its named DoD harness ABSENT from the repo, so this closes as a coding task, not a verification pass (an unauthored gate must never bounce a verifier). Write the missing gate harness EXACTLY as the ticket names it (test file + test names) plus the minimal real implementation to make it pass; apply any spec-drift correction comments already posted instead of re-deriving from a body section they supersede.'
         : 'BUILD ISSUE ' + item.eng + ' (' + (item.title || '') + ') in repo ' + repo + '.',
       (item.isGate && !gateAuthoring) ? '' : [
-        '1. CLAIM: advance ' + item.eng + ' to In Progress via linearis (explicit; you are the single claimer), then refresh its cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows In Progress (this is the write-verify) and note it now also carries the full comment thread.',
+        '1. CLAIM: advance ' + item.eng + ' to In Progress through ' + HUB + '/tools/act3/linear-write.sh (explicit; you are the single claimer), then refresh its cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows In Progress (this is the write-verify).',
         '1b. REPO OVERRIDE: if the issue dev-context §4 names a DIFFERENT target repo than the project map gave ("' + repo + '"), USE THE DEV-CONTEXT REPO (it is authoritative — e.g. platform tickets live in orvex-omk). If the map gave CROSS_REPO, resolve the real repo from the dev-context and proceed; only escalate if the dev-context truly names no repo.',
       '2. Read the issue body + comments IN FULL from the CACHE file ' + HUB + '/.cache/linear/issues/' + item.eng + '.yaml (fresh as of your claim refresh — includes any "Prior work exists: PR..." finish-not-rebuild note; honor it). The cached body is your spec; cite it as you work. Do NOT live-read the issue.',
-        '3. Isolate in a PRIVATE worktree (never shared): cd ' + repo + '; git fetch origin; determine the integration branch (the repo default; orvex-wiki uses dev); mkdir -p ' + WORKTREES + '; git worktree add ' + wt + ' -b ' + item.eng.toLowerCase() + '-work origin/<integration-branch>. Work ONLY inside ' + wt + '. If that path somehow exists, add a numeric suffix — never reuse another agent\'s tree.',
+        '3. Isolate in a PRIVATE worktree (never shared): cd ' + repo + '; git fetch origin; determine the integration branch (the repo default; orvex-wiki uses dev); mkdir -p ' + WORKTREES + '. The lifecycle branch is FIXED at ' + branchName + '. If it already exists, attach a fresh worktree with git worktree add ' + wt + ' ' + branchName + '; never create eng-<n>-work-2. A numeric suffix is allowed only for the worktree PATH. Verify exactly one local branch named ' + branchName + '.',
         '4. TDD-build the issue to its ACs' + (item.isGate ? ' (here: the named gate harness + its minimal impl)' : '') + '. Run the repo CI gates (make ci-local if present, else the targeted equivalents incl. gofmt -l separately for Go).',
         '5. BASELINE-DIFF every gate failure (CRITICAL — do not attribute pre-existing breakage to your change): before treating any gate as red, re-run that SAME gate on a clean checkout of origin/<integration-branch> (git stash or a scratch clone). If it fails IDENTICALLY without your changes, it is PRE-EXISTING repo noise (e.g. make context-check CS-pin drift, lint:boundary parse errors) — record it in notes[], do NOT let it set green=false or blocked=true, and proceed. Only failures your diff actually introduced count against you.',
-        '6. Commit green work only (trailer per doctrine). Push the branch (SSH url if HTTPS push is rejected: git push git@github.com:orvexai/<repo-name>.git <branch>). Open a PR to the integration branch via gh (title "' + item.eng + ': <short>", body references Part of ' + item.eng + ' — NEVER a closing keyword — and ends with the generated-with-Claude-Code footer).',
+        '6. Commit green work only (trailer per doctrine). Push branch ' + branchName + '. Immediately before opening a PR, re-check the live eng-*-work PR count; if it is already ' + MAX_PENDING_MERGE + ', do not open a PR and return blocked=true with the exact count. Otherwise open the PR to the integration branch via gh (body references Part of ' + item.eng + ' — NEVER a closing keyword).',
         '7. SEMANTICS (load-bearing — an earlier run wrongly parked green PRs by conflating these): green=true means your work is committed + pushed + PR opened + your own gates pass (pre-existing noise ignored per step 5)' + (item.isGate ? ' AND the named gate test(s) now exist and pass' : '') + '. blocked=true means you genuinely could NOT finish (missing infra/credential the run cannot self-provide, or the ticket premise assumes code that does not exist in this repo) — set escalate to the exact ask then. A non-blocking observation is NEVER a blocker: put it in notes[], leave blocked=false. If green=true and blocked=false the engine sends you to review — do not put "None"/"non-blocking" text in escalate, leave escalate empty.',
         '8. ' + P1_GUARD.replace(/<ENG-N>/g, item.eng),
       ].join('\n'),
@@ -375,11 +456,11 @@ async function deliverItem(item, seq) {
       'Full build log -> ' + RDIR + '/' + item.eng + '-build.md.',
     ].join('\n'), { model: (item.isGate && !gateAuthoring) ? 'opus' : 'sonnet', effort: (item.isGate && !gateAuthoring) ? 'high' : 'medium', label: '#' + seq + ':build:' + item.eng, phase: T, schema: BUILD_SCHEMA })
 
-    if (!build) { escalated.push({ eng: item.eng, why: 'build agent died' }); return { eng: item.eng, out: 'agent-died' } }
+    if (!build) { await cleanupWorktree(repo, wt, item, seq, 'build agent died'); escalated.push({ eng: item.eng, why: 'build agent died' }); return { eng: item.eng, out: 'agent-died' } }
     if (!build.green || build.blocked) {
       escalated.push({ eng: item.eng, why: (build.escalate || 'build not green').slice(0, 200) })
       await agent([
-        'ESCALATION BOOKKEEPING for ' + item.eng + ': add a Linear comment (linearis) stating exactly what blocks it: ' + JSON.stringify(build.escalate || 'build not green') + ' — include the command/error from ' + RDIR + '/' + item.eng + '-build.md if present, then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). If a work branch exists, archive it (git update-ref refs/archive/inflight/' + item.eng.toLowerCase() + ' <sha>) then remove the worktree ' + wt + ' (git worktree remove --force) and delete the local branch only after archiving. Leave status as-is.',
+        'ESCALATION BOOKKEEPING for ' + item.eng + ': add a Linear comment through ' + HUB + '/tools/act3/linear-write.sh stating exactly what blocks it: ' + JSON.stringify(build.escalate || 'build not green') + ' — include the command/error from ' + RDIR + '/' + item.eng + '-build.md if present, then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). If a work branch exists, archive it and remove the worktree with merge-checked cleanup. Leave status as-is.',
         LNR, RETDISC,
       ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
       return { eng: item.eng, out: 'escalated' }
@@ -397,12 +478,12 @@ async function deliverItem(item, seq) {
         'Full review -> ' + RDIR + '/' + item.eng + '-review' + (bounces[item.eng] + 1) + '.md.',
       ].join('\n'), { model: 'opus', effort: 'high', label: '#' + seq + ':review:' + item.eng, phase: T, schema: REVIEW_SCHEMA })
 
-      if (!review) { escalated.push({ eng: item.eng, why: 'review agent died' }); return { eng: item.eng, out: 'agent-died' } }
+      if (!review) { await cleanupWorktree(repo, wt, item, seq, 'review agent died', build.pr); escalated.push({ eng: item.eng, why: 'review agent died' }); return { eng: item.eng, out: 'agent-died' } }
       if (review.verdict === 'PASS') break
       if (review.verdict === 'ESCALATE' || bounces[item.eng] >= BOUNCE_CAP - 1) {
         escalated.push({ eng: item.eng, why: (review.escalate || ('review findings unresolved after ' + BOUNCE_CAP + ' rounds')).slice(0, 200) })
         await agent([
-          'ESCALATION BOOKKEEPING for ' + item.eng + ' (post-review): comment on the issue via linearis with the blocking findings ' + JSON.stringify((review.findings || []).slice(0, 5)) + ' or the escalation ask ' + JSON.stringify(review.escalate || '') + ', then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). Archive the branch ref (refs/archive/inflight/) and remove the worktree as in the standard escalation step. Leave status In Progress.',
+          'ESCALATION BOOKKEEPING for ' + item.eng + ' (post-review): comment on the issue through ' + HUB + '/tools/act3/linear-write.sh with the blocking findings ' + JSON.stringify((review.findings || []).slice(0, 5)) + ' or the escalation ask ' + JSON.stringify(review.escalate || '') + ', then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). Archive the branch ref and remove the worktree as in the standard escalation step. Leave status In Progress.',
           LNR, RETDISC,
         ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
         return { eng: item.eng, out: 'escalated' }
@@ -420,7 +501,7 @@ async function deliverItem(item, seq) {
     const gate = await withRepoLock(repo, () => agent([
       'DETERMINISTIC DONE GATE for ' + item.eng + ' (repo ' + repo + '; review PASS on record: ' + (review.reportPath || '') + '; verified ACs: ' + JSON.stringify(review.verifiedAcs || []) + ').',
       (item.isGate && !gateAuthoring)
-        ? 'Gate ISSUE: no PR to merge. Steps: (a) confirm from ' + HUB + '/.cache/linear/initiative.json that every blockedBy constituent is Done/Canceled/Duplicate (cache-first; refresh-on-write keeps it current); (b) tick the DoD boxes for the checks the review VERIFIED (LIVE full-body read immediately before the replace — clobber safety — -> flip only those "- [ ]" -> temp-file write); (b2) ' + BOXES_CLEAN + ' (b3) ' + P2_CENSUS + ' (c) advance ' + item.eng + ' to Done via linearis (explicit) ONLY if the boxes-clean check AND the P2-census both passed; (d) refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + the ticked boxes (this is the write-verify AND what unblocks successors in both engines\' frontiers).'
+        ? 'Gate ISSUE: no PR to merge. Steps: (a) confirm from ' + HUB + '/.cache/linear/initiative.json that every blockedBy constituent is Done/Canceled/Duplicate (cache-first; refresh-on-write keeps it current); (b) tick the DoD boxes for the checks the review VERIFIED (LIVE full-body read immediately before the replace — clobber safety — -> flip only those "- [ ]" -> temp-file write); (b2) ' + BOXES_CLEAN + ' (b3) ' + P2_CENSUS + ' (c) advance ' + item.eng + ' to Done through ' + HUB + '/tools/act3/linear-write.sh ONLY if the boxes-clean check AND the P2-census both passed; (d) refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '. '
         : [
           'Steps IN ORDER — abort (done=false + escalate) if any hard step fails:',
           '(a) Merge the PR via gh (respect branch protection; if checks are pending, wait up to 10 minutes polling gh pr checks; if a conflict: rebase the branch once, re-push, retry merge once).',
@@ -428,7 +509,7 @@ async function deliverItem(item, seq) {
           '(b) Tick the DoD checkboxes on ' + item.eng + ' ONLY for the ACs the review verified (' + JSON.stringify(review.verifiedAcs || []) + '): LIVE full-body read immediately before the replace (clobber safety — the ONLY sanctioned pre-write live read) -> flip exactly those boxes -> temp-file write. NEVER blanket-tick.',
           '(b2) ' + BOXES_CLEAN,
           '(b3) ' + P2_CENSUS,
-          '(c) Advance ' + item.eng + ' to Done via linearis (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked AND boxes-clean check passed AND P2-census boxesUnticked==0 (modulo dated-exempt boxes)).',
+          '(c) Advance ' + item.eng + ' to Done through ' + HUB + '/tools/act3/linear-write.sh (explicit — the gate is: build green AND review PASS AND PR merged AND boxes ticked AND boxes-clean check passed AND P2-census boxesUnticked==0 (modulo dated-exempt boxes)).',
           '(d) Refresh the ticket cache ONCE: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + ' — confirm the refreshed YAML shows Done + intact body + ticked boxes (write-verify; also what unblocks successors in both engines\' frontiers with zero API).',
           '(e) Cleanup (eager, mandatory): git worktree remove ' + wt + '; git branch -d (merge-checked, NEVER -D) the local branch; delete the remote branch via gh/git push --delete.',
         ].join('\n'),
@@ -449,12 +530,14 @@ async function deliverItem(item, seq) {
       // BLOCKING unticked box in uncheckedBoxes[] — refuse the transition regardless of the claim.
       escalated.push({ eng: item.eng, why: ('Done-gate guard: ' + (gate.dodClean !== true ? 'dodClean!=true' : 'uncheckedBoxes non-empty (' + gateBlockingBoxes + ')') + ' despite done=true — refusing (census ' + (gate.boxesTicked ?? '?') + '/' + (gate.boxesTotal ?? '?') + ' ticked; ' + JSON.stringify((gate.uncheckedBoxes || []).slice(0, 5)) + ' ' + (gate.escalate || '')).slice(0, 190) + ')' })
       await agent([
-        'DONE-GATE GUARD CORRECTION for ' + item.eng + ' (repo ' + repo + '): the finalize step reported done=true but did not confirm its boxes-clean check (dodClean). Do NOT trust that Done write. LIVE full-body read the issue now; if its status currently shows Done, move it BACK to In Review via linearis and comment listing every unticked required box (DoD line + AC boxes lacking a dated moved/deferred/sanctioned-TBD annotation): ' + JSON.stringify(gate.uncheckedBoxes || []) + '. Then refresh the ticket cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '.',
+        'DONE-GATE GUARD CORRECTION for ' + item.eng + ' (repo ' + repo + '): the finalize step reported done=true but did not confirm its boxes-clean check (dodClean). Do NOT trust that Done write. LIVE full-body read the issue now; if its status currently shows Done, move it BACK to In Review through ' + HUB + '/tools/act3/linear-write.sh and comment listing every unticked required box: ' + JSON.stringify(gate.uncheckedBoxes || []) + '. Then refresh the ticket cache: cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '.',
         LNR, RETDISC,
       ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':gateguard:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+      await cleanupWorktree(repo, wt, item, seq, 'gate blocked by unticked boxes', build.pr)
       return { eng: item.eng, out: 'gate-blocked-unticked' }
     }
     if (gate && gate.done) {
+      await cleanupWorktree(repo, wt, item, seq, 'done gate passed', build.pr)
       doneThisRun.push(item.eng)
       if (item.isGate) {
         log('MILESTONE COMPLETE: ' + item.milestone + ' (gate ' + item.eng + ' Done)')
@@ -466,6 +549,7 @@ async function deliverItem(item, seq) {
       }
       return { eng: item.eng, out: 'done' }
     }
+    await cleanupWorktree(repo, wt, item, seq, 'done gate failed', build.pr)
     escalated.push({ eng: item.eng, why: ((gate && gate.escalate) || 'done-gate failed').slice(0, 200) })
     return { eng: item.eng, out: 'gate-failed' }
 }
@@ -477,6 +561,7 @@ async function deliverItem(item, seq) {
 // re-syncs as completions unlock successors.
 phase('Deliver')
 const inFlight = new Set()
+const deliveryInFlight = new Set()
 const claimedIds = new Set()   // dispatched this run — never re-dispatch off a stale cache
 let queued = []
 let syncs = 0
@@ -488,14 +573,16 @@ let stopReason = 'max-syncs'
 
 function launch(item) {
   claimedIds.add(item.eng)
+  pendingMergeReservations.add(item.eng)
   seq++
   const mySeq = seq
   let p
   p = deliverItem(item, mySeq).then(
-    r => { inFlight.delete(p); doneSinceSync++; log('#' + mySeq + ' ' + item.eng + ' -> ' + ((r && r.out) || 'null') + '  [inflight ' + inFlight.size + ' | queued ' + queued.length + ' | done ' + doneThisRun.length + ' | escalated ' + escalated.length + ']'); return r },
-    () => { inFlight.delete(p); doneSinceSync++; escalated.push({ eng: item.eng, why: 'delivery chain threw' }); return { eng: item.eng, out: 'error' } }
+    r => { inFlight.delete(p); deliveryInFlight.delete(p); doneSinceSync++; log('#' + mySeq + ' ' + item.eng + ' -> ' + ((r && r.out) || 'null') + '  [' + formatBudgetSurface({ buildCount: deliveryInFlight.size, pendingMergeCount, reaperCandidates }) + ' | queued ' + queued.length + ' | done ' + doneThisRun.length + ' | escalated ' + escalated.length + ']'); return r },
+    () => { inFlight.delete(p); deliveryInFlight.delete(p); doneSinceSync++; escalated.push({ eng: item.eng, why: 'delivery chain threw' }); return { eng: item.eng, out: 'error' } }
   )
   inFlight.add(p)
+  deliveryInFlight.add(p)
 }
 
 function launchTopup() {
@@ -520,6 +607,7 @@ while (true) {
       log('Frontier unreadable — keeping ' + inFlight.size + ' in-flight deliveries; will retry after the next completion')
     } else {
       residueReport = frontier
+      await refreshBranchBudget('sync-' + syncs, deliveryInFlight.size)
       const fresh = (frontier.ready || []).filter(it => it && it.eng && !claimedIds.has(it.eng))
       queued = fresh
       if (fresh.length === 0 && inFlight.size === 0) {
@@ -534,11 +622,18 @@ while (true) {
       log('Sync ' + syncs + ' [' + PART_TAG + ']: +' + fresh.length + ' ready (' + fresh.slice(0, 12).map(b => b.eng).join(', ') + (fresh.length > 12 ? ', …' : '') + ') | inflight ' + inFlight.size + ' | done ' + doneThisRun.length)
     }
   }
-  // Refill every free slot immediately (the runtime queues above its own cap anyway).
-  while (queued.length > 0 && inFlight.size < TARGET_INFLIGHT) launch(queued.shift())
+  // Refill runtime slots, but admit claiming builds only under the separate
+  // 10-build and 10-pending-merge budgets. Held work is intentionally routed
+  // to capacity-fill pre-work below instead of silently stalling.
+  while (queued.length > 0 && inFlight.size < TARGET_INFLIGHT) {
+    const decision = admit({ queued: queued.length, inFlightCount: deliveryInFlight.size, pendingMergeCount, pendingMergeReservations: pendingMergeReservations.size })
+    if (!decision.admit) { log('Holding ' + queued.length + ' claim(s): ' + decision.reason + ' — routing capacity to non-claiming pre-work'); break }
+    launch(queued.shift())
+  }
   // §3.31 capacity floor: real deliveries first; top up the remainder with non-claiming
   // pre-work (bounded so top-ups never starve the loop or spam Linear).
-  while (queued.length === 0 && inFlight.size > 0 && inFlight.size < CAPACITY_FLOOR && topupSeq < syncs * 2) launchTopup()
+  while (inFlight.size > 0 && inFlight.size < CAPACITY_FLOOR && topupSeq < syncs * 2
+    && (queued.length === 0 || deliveryInFlight.size >= MAX_BUILD_INFLIGHT || pendingMergeCount === null || pendingMergeCount + pendingMergeReservations.size >= MAX_PENDING_MERGE)) launchTopup()
   if (inFlight.size === 0 && queued.length === 0) {
     if (syncs >= MAX_SYNCS) { log('Max frontier syncs (' + MAX_SYNCS + ') reached — checkpointing'); break }
     continue
@@ -556,4 +651,6 @@ return {
   residue: residueReport,
   syncs: syncs,
   reportDir: RDIR,
+  hygiene: { projectedWritesPerHour: hygiene.projectedWritesPerHour, quotaUtilisation: hygiene.quotaUtilisation, verdict: hygiene.verdict, ledgerDepth: hygiene.ledgerDepth },
+  branchBudget: { buildCount: deliveryInFlight.size, pendingMergeCount, pendingMergeBranches, reaperCandidates, lastBudgetSurface },
 }

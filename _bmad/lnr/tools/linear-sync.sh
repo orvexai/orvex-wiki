@@ -433,7 +433,13 @@ cmd_update() {
   fi
 
   echo "Updating $issue_id to status '$status' in Linear..."
-  linearis issues update "$issue_id" --status "$status"
+  local write_wrapper="$PROJECT_ROOT/tools/act3/linear-write.sh"
+  local payload_file
+  payload_file="$(mktemp "$CACHE_DIR/write-payload.XXXXXX")"
+  trap 'rm -f "$payload_file"' RETURN
+  printf 'issues update %s --status %s\n' "$issue_id" "$status" > "$payload_file"
+  "$write_wrapper" --issue "$issue_id" --stage status-update --payload-file "$payload_file" \
+    --operation status-update --status "$status"
   cmd_issue "$issue_id"
 }
 
