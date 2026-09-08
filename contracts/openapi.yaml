@@ -263,29 +263,42 @@ paths:
       tags: [session]
       operationId: orvexSessionExchange
       summary: Consume an identity-minted exchange token, mint an engine session
-      x-status: draft
+      x-status: pinned
       x-classification: real
       # Deliberately public: this is the entry that ESTABLISHES the session, so it
       # cannot itself require an engine session.
       security: []
+      parameters:
+        - name: X-Orvex-Assertion
+          in: header
+          required: false
+          description: >-
+            Optional ADR-0049 delegated ES256 edge assertion for this engine,
+            carrying exactly `aud[0] = orvex-wiki`. It is verified locally
+            against identity's internal JWKS before its `sub` and `tenant` are
+            used to resolve and mint the session.
+          schema:
+            type: string
       description: >-
-        FR-W6 / A-AUTH — consume an orvex-studio-identity-minted EXCHANGE TOKEN and
-        mint an engine session scoped to `sub` + `workspaceId`. Identity owns
-        mint/policy and fronts the dual-IdP spine (Clerk + Keycloak); native login
-        is removed (D-S3). REAL (no longer a 501 stub): the endpoint verifies the
-        token, resolves the already-provisioned principal, and mints the engine
-        session, delivered as the upstream Docmost `authToken` session cookie.
+        FR-W6 / A-AUTH / ADR-0049 — dual-accept session exchange. The preferred
+        credential is the optional `X-Orvex-Assertion` delegated ES256 edge
+        assertion with `aud[0] = orvex-wiki`; it is verified locally against
+        identity's internal JWKS, then its verified `sub` + `tenant` scope is
+        resolved to an already-provisioned principal before the engine session
+        is minted. Identity owns mint/policy and fronts the dual-IdP spine
+        (Clerk + Keycloak); native login is removed (D-S3). REAL (no longer a
+        501 stub): the endpoint mints the upstream Docmost `authToken` session
+        cookie and returns the verified principal scope.
 
 
-        VERIFY VIA INTROSPECTION (not local RS256/JWKS). Identity's `/v1/exchange`
-        mints a SHORT-LIVED OPAQUE token (a random grant-store token id, see
-        orvex-studio-identity `internal/token/token.go`), NOT a self-describing
-        JWT. So the engine resolves it against identity's `POST /v1/introspect`
-        (the SAME seam every sister satellite — e.g. orvex-studio-knowledge — uses
-        for the opaque exchange/api-key bearer), returning the verified
-        `{subject, tenant}` principal. (The local `ExchangeTokenVerifier`
-        RS256/JWKS primitive verifies the DIFFERENT session-JWT shape and is not on
-        this endpoint's live path.)
+        The legacy `exchangeToken` body field remains a TRANSIENT migration
+        credential. It is an opaque token from identity's `/v1/exchange` and is
+        verified by `POST /v1/introspect`; it is retained only until all
+        first-party callers send assertions. When both credentials are present,
+        the assertion wins and the introspection leg is not consulted. This
+        endpoint's `security: []` is intentional because it establishes the
+        engine session; presenting neither credential is an authentication
+        failure (401), not a schema validation error.
 
 
         THREE DENY-BY-DEFAULT GATES: (1) an inactive/unknown/malformed token yields
@@ -315,9 +328,12 @@ paths:
                 $ref: '#/components/schemas/SessionExchangeResult'
         '401':
           description: >-
-            Exchange token rejected — token not active/verifiable, or its principal
-            is not provisioned in the tenant, or the resolved user is disabled.
-            Framework Nest shape (no token bytes or reason oracle leaked).
+            Credential rejected — the edge assertion failed verification (for
+            example bad signature, foreign audience, or expired assertion), the
+            exchange token was not active/verifiable, or its principal is not
+            provisioned in the tenant / the resolved user is disabled. Framework
+            Nest shape; no token bytes, claims, stable verification code, or
+            reason oracle is leaked.
           content:
             application/json:
               schema:
@@ -325,7 +341,7 @@ paths:
               example:
                 statusCode: 401
                 error: Unauthorized
-                message: 'exchange token rejected'
+                message: 'credential rejected'
 
   # ══════════════════════════════════════════════════════════════════════════
   # FR-W19 — AGPL §13 written source offer  (REAL — no 501)
@@ -949,8 +965,11 @@ components:
     SessionExchangeRequest:
       type: object
       additionalProperties: false
-      required: [exchangeToken]
-      description: The identity-minted exchange token to consume.
+      description: >-
+        Optional legacy identity-minted exchange token for the transient
+        introspection path. Assertion callers send an empty object and the
+        `X-Orvex-Assertion` header instead. Presenting neither credential is a
+        401 authentication failure, not a 400 schema error.
       properties:
         exchangeToken:
           type: string
