@@ -52,6 +52,11 @@ export const meta = {
 // best-effort, non-blocking (the freeze gate is fail-open by design, ENG-2034 R3, and a missed
 // dispatch here is still covered by the next nightly run), so a `gh` auth/network hiccup here
 // can never fail milestone-completion bookkeeping itself.
+// v11.5 (2026-09-08): ENG-2817 pre-claim reality probe (M2). Before any build agent can
+// claim a story, run the deterministic scripts/reality-probe.mjs CLI against the target repo's
+// HEAD. A stale wired Existing-code premise is REBASELINE (comment + run-local skip, status
+// remains Todo because this workspace has no REBASELINE state); probe errors and unparseable
+// premise formats escalate fail-closed. The wrapper is deliberately no-Linear-write.
 
 // ---- Constants -------------------------------------------------------------
 const SESSION_SCRATCH = '/tmp/claude-1000/-home-daniel-repos-orvex-wiki/77ba52f2-3d57-4198-8c37-ac219579b139/scratchpad'
@@ -63,6 +68,7 @@ const MAX_SYNCS = (args && args.maxTicks) || 120         // cap on frontier re-s
 const TARGET_INFLIGHT = 16   // per-workflow agent cap is min(16, cores-2); refill to this the moment a slot frees (rolling — no tick barrier)
 const REFRESH_EVERY = 3      // recompute the frontier after this many completions even if the queue is non-empty (newly-Done issues unblock successors; the recompute is LOCAL — zero API — so cadence is cheap)
 const BOUNCE_CAP = 3
+const REBASELINE_DISPOSITION = 'rebaseline'
 const CAPACITY_FLOOR = 15  // §3.31: never let the box idle — if ready work is narrower than this, fill the spare slots with useful non-claiming pre-work.
 // PARTITION (scale-out to the PO-ratified 32-agent ceiling, §3.28): two engines run
 // concurrently with DISJOINT project sets — each issue lives in exactly one project and
@@ -197,6 +203,15 @@ const HARNESS_SCHEMA = {
     testName: { type: 'string', maxLength: 120 }, repo: { type: 'string', maxLength: 80 },
   },
 }
+const PROBE_SCHEMA = {
+  type: 'object', required: ['eng', 'disposition', 'comment'],
+  properties: {
+    eng: { type: 'string', maxLength: 12 },
+    disposition: { type: 'string', enum: ['dispatch', 'rebaseline', 'escalate'] },
+    comment: { type: 'string', maxLength: 600 },
+    exitCode: { type: 'integer' },
+  },
+}
 
 // ---- Per-repo merge lock ---------------------------------------------------
 const repoLocks = {}
@@ -298,6 +313,42 @@ async function deliverItem(item, seq) {
         RETDISC,
       ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':harness:' + item.eng, phase: T, schema: HARNESS_SCHEMA })
       gateAuthoring = !!(harness && harness.exists === false)
+    }
+
+    // --- pre-claim reality probe (ENG-2817 / M2): deterministic child CLI before
+    // the build prompt can claim the issue. The Workflow DSL has no child-process
+    // primitive, so the shell command is delegated through a schema-constrained
+    // agent wrapper. The wrapper is forbidden from invoking Linear; the CLI itself
+    // reads only the cached body and the target repo's Git HEAD.
+    const probe = await agent([
+      'PRE-CLAIM REALITY PROBE for ' + item.eng + ' (' + (item.title || '') + '). This MUST happen before any build/claim instruction is dispatched.',
+      'Run exactly: cd ' + HUB + ' && node scripts/reality-probe.mjs --issue ' + item.eng + ' --repo ' + repo + ' --json',
+      'The CLI is deterministic and owns the premise parse + git grep evidence. Return its JSON disposition/comment verbatim. disposition=dispatch only for exit 0; disposition=rebaseline for exit 1; disposition=escalate for exit 2, missing output, malformed JSON, unparseable premises, or any command error.',
+      'NO Linear calls of any kind: do not claim, comment, refresh, change status, or run linearis. This wrapper is read-only. If the CLI cannot run, return disposition=escalate and the exact command/error in comment.',
+      'Target repo: ' + repo + '. Issue body source: ' + HUB + '/.cache/linear/issues/' + item.eng + '.yaml. Do not substitute live issue text for the cache.',
+      RETDISC,
+    ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':probe:' + item.eng, phase: T, schema: PROBE_SCHEMA })
+
+    if (!probe || !['dispatch', REBASELINE_DISPOSITION, 'escalate'].includes(probe.disposition)) {
+      const why = 'pre-claim reality probe returned no valid disposition (fail closed)'
+      escalated.push({ eng: item.eng, why })
+      await agent([
+        'ESCALATION BOOKKEEPING for ' + item.eng + ': the pre-claim reality probe failed closed before claim/build. Add a Linear comment stating ' + JSON.stringify(why) + ' and the probe wrapper result ' + JSON.stringify(probe || null) + ', then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). Leave status as-is; do not build.',
+        LNR, RETDISC,
+      ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+      return { eng: item.eng, out: 'probe-escalated' }
+    }
+    if (probe.disposition === REBASELINE_DISPOSITION || probe.disposition === 'escalate') {
+      const why = (probe.comment || ('pre-claim reality probe disposition=' + probe.disposition)).slice(0, 500)
+      escalated.push({ eng: item.eng, why })
+      // launch() already records this ID in claimedIds; keep the explicit add here
+      // as the run-local skip invariant if deliverItem is ever called directly.
+      claimedIds.add(item.eng)
+      await agent([
+        'ESCALATION BOOKKEEPING for ' + item.eng + ': before any claim/build, add this exact pre-claim probe result as a Linear comment: ' + JSON.stringify(why) + '. Disposition is ' + probe.disposition.toUpperCase() + '. For REBASELINE, leave the issue in Todo (this workspace has no provisioned REBASELINE state); for ESCALATE, leave status as-is. Then refresh the ticket cache (cd ' + HUB + ' && _bmad/lnr/tools/linear-sync.sh issue ' + item.eng + '). Do not claim, build, or override the disposition.',
+        LNR, RETDISC,
+      ].join('\n'), { model: 'sonnet', effort: 'low', label: '#' + seq + ':esc:' + item.eng, phase: T, schema: NOTE_SCHEMA })
+      return { eng: item.eng, out: probe.disposition === REBASELINE_DISPOSITION ? 'rebaselined' : 'probe-escalated' }
     }
 
     // --- build (verify for gate issues with an existing harness; author for gates without
