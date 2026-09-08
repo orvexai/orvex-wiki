@@ -285,10 +285,9 @@ patches:
       name: orvex-wiki-env
 
   # ── Dev studio-spine producer: point the relay at the DEV-scoped topic ────
-  # Cross-cell Kafka isolation (knowledge-isolation). Base leaves
-  # KAFKA_OUTBOX_TOPIC unset, so EnvironmentService.getKafkaOutboxTopic() falls
-  # back to its "orvex.studio-spine.events" sentinel — a topic nothing reads.
-  # This dev overlay MUST produce onto a DEV-scoped topic, NOT the prod
+  # Cross-cell Kafka isolation (knowledge-isolation). Base carries the
+  # production KAFKA_OUTBOX_TOPIC, so this dev overlay replaces it with the
+  # DEV-scoped topic. This dev overlay MUST produce onto a DEV-scoped topic, NOT the prod
   # `wiki-events.eu-central-1`: the dev + prod cells previously produced+
   # consumed that one topic under a single consumer group, so the group
   # coordinator handed prod's only partition to the DEV indexer, which
@@ -300,9 +299,9 @@ patches:
   # `wiki-events.dev.eu-central-1` KafkaTopic CR is declared in my-idp-apps
   # studio-events (auto.create.topics.enable=false). Direct-consumer transport
   # (no Knative Broker/KafkaSink dependency — PD-4d ruling). NOT a replacement
-  # target; `op: add` because base carries no KAFKA_OUTBOX_TOPIC key.
+  # target; the base key is replaced explicitly for dev.
   - patch: |-
-      - op: add
+      - op: replace
         path: /data/KAFKA_OUTBOX_TOPIC
         value: wiki-events.dev.eu-central-1
     target:

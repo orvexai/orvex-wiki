@@ -8,8 +8,8 @@
 #
 # Crew links to crew: a crew is a full parallel copy of the platform and it
 # talks ONLY to itself — every sibling URL resolves to that sibling's OWN crew
-# instance (crew → crew), never shared dev. The event-topic suffix is isolated
-# the same way, so a crew's Kafka spine is its own. (The single-service slot-in —
+# instance (crew → crew), never shared dev. The outbox topic is explicitly
+# configured to the crew's own Kafka spine as well. (The single-service slot-in —
 # routing shared dev at ONE crew service — is the deliberate exception and is
 # applied by orvex-scripts crew-slot.sh against the CONSUMERS' ConfigMaps, never
 # here.)
@@ -142,16 +142,19 @@ patches:
       name: cluster-config
 
   # ── Siblings → this crew's own instances (crew → crew) + spine isolation ─
-  # ORVEX_<SVC>_URL and EVENT_TOPIC_SUFFIX are NOT replacement targets, so these
-  # patches survive the build. Every sibling resolves to its crew host; the
-  # engine (the first studio-spine producer) suffixes its topics crew-{name}
-  # ({domain}-events.crew-{name}) so a crew's spine is its own (distinct from
-  # CELL_ID, which stays "solo" under the CLOUD=false posture). The engine
-  # runs no Temporal worker, so there is no TEMPORAL_NAMESPACE to isolate here.
+  # ORVEX_<SVC>_URL, EVENT_TOPIC_SUFFIX, and KAFKA_OUTBOX_TOPIC are not root
+  # replacement targets, so these patches survive the build. Every sibling
+  # resolves to its crew host, and the explicitly configured outbox topic below
+  # is `wiki-events.crew-{name}` — distinct from CELL_ID, which stays "solo"
+  # under the CLOUD=false posture. The engine runs no Temporal worker, so there
+  # is no TEMPORAL_NAMESPACE to isolate here.
   - patch: |-
       - op: replace
         path: /data/EVENT_TOPIC_SUFFIX
         value: PLACEHOLDER
+      - op: replace
+        path: /data/KAFKA_OUTBOX_TOPIC
+        value: wiki-events.PLACEHOLDER
       - op: replace
         path: /data/ORVEX_IDENTITY_URL
         value: https://identity.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
@@ -229,6 +232,14 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.EVENT_TOPIC_SUFFIX
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.KAFKA_OUTBOX_TOPIC
+        options:
+          delimiter: "."
+          index: 1
       - select:
           kind: ConfigMap
           name: orvex-wiki-env

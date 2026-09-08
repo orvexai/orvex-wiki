@@ -314,7 +314,8 @@ replacements:
   # A-CELL rule #4 — /healthz echoes both. Base = sentinel "solo"; a real cell
   # sets cluster-config.cellId/clusterName. Both are plain-value replacements
   # (no delimiter). components/crew leaves CELL_ID at "solo" and overrides
-  # CLOUD=false (ENG-3788); it isolates the SPINE via EVENT_TOPIC_SUFFIX.
+  # CLOUD=false (ENG-3788); the crew component explicitly configures its
+  # outbox topic from branchSlug, while CELL_ID remains the "solo" stamp.
   - source:
       kind: ConfigMap
       name: cluster-config
