@@ -101,6 +101,97 @@ if [[ -n "$manual_hits" ]]; then
   fail=1
 fi
 
+# --- R5/AC1: shared build must be a versioned git-resolver reference ---------
+# Keep this check scoped to the pipelineRef mapping itself. TriggerTemplate
+# params such as `image-tag` are branch slugs in this repository (AD-29), not
+# shared-pipeline pins; searching the whole YAML for a tag-shaped value would
+# reject a correct trigger for the wrong reason.
+pipeline_ref_files="$(grep -RIl --include='*.yaml' --include='*.yml' \
+  -E '^[[:space:]]*pipelineRef:[[:space:]]*$' "$TEKTON_DIR" 2>/dev/null || true)"
+pipeline_ref_count=0
+if [[ -n "$pipeline_ref_files" ]]; then
+  while IFS= read -r pipeline_file; do
+    [[ -n "$pipeline_file" ]] || continue
+    pipeline_ref_count=$((pipeline_ref_count + 1))
+
+    # Tekton's pipelineRef is a mapping. Capture it through the next
+    # same-or-less-indented YAML key so nested resolver params stay in scope
+    # while the following Trigger/Template object does not.
+    ref_block="$(awk '
+      function indent(line) {
+        match(line, /^[[:space:]]*/)
+        return RLENGTH
+      }
+      /^[[:space:]]*pipelineRef:[[:space:]]*$/ {
+        base = indent($0)
+        in_ref = 1
+        print
+        next
+      }
+      in_ref {
+        if ($0 !~ /^[[:space:]]*(#|$)/ && indent($0) <= base) exit
+        print
+      }
+    ' "$pipeline_file")"
+
+    if ! grep -qE '^[[:space:]]+resolver:[[:space:]]*git[[:space:]]*$' <<<"$ref_block"; then
+      echo "FAIL (R5/AC1): $pipeline_file pipelineRef must use resolver: git (not a mutable in-cluster name:)" >&2
+      fail=1
+    fi
+
+    if ! awk '
+      /^[[:space:]]*-[[:space:]]*name:[[:space:]]*url[[:space:]]*$/ { want_url = 1; next }
+      want_url && /^[[:space:]]*value:[[:space:]]*https:\/\/github\.com\/orvexai\/my-idp-apps\.git[[:space:]]*$/ { found_url = 1; exit }
+      want_url && /^[[:space:]]*-[[:space:]]*name:/ { exit }
+      END { exit(found_url ? 0 : 1) }
+    ' <<<"$ref_block"; then
+      echo "FAIL (R5/AC1): $pipeline_file pipelineRef must resolve https://github.com/orvexai/my-idp-apps.git" >&2
+      fail=1
+    fi
+
+    revision="$(awk '
+      /^[[:space:]]*-[[:space:]]*name:[[:space:]]*revision[[:space:]]*$/ { want_revision = 1; next }
+      want_revision && /^[[:space:]]*value:[[:space:]]*/ {
+        sub(/^[[:space:]]*value:[[:space:]]*/, "")
+        print
+        exit
+      }
+      want_revision && /^[[:space:]]*-[[:space:]]*name:/ { exit }
+    ' <<<"$ref_block")"
+    if [[ ! "$revision" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo "FAIL (R5/AC1): $pipeline_file pipelineRef revision must be a my-idp-apps release tag (got '${revision:-missing}')" >&2
+      fail=1
+    fi
+
+    if awk '
+      function indent(line) {
+        match(line, /^[[:space:]]*/)
+        return RLENGTH
+      }
+      /^[[:space:]]*pipelineRef:[[:space:]]*$/ { base = indent($0); in_ref = 1; next }
+      in_ref {
+        if ($0 !~ /^[[:space:]]*(#|$)/ && indent($0) <= base) exit
+        if (indent($0) == base + 2 && $0 ~ /^[[:space:]]+name:[[:space:]]*/) found_bare_name = 1
+      }
+      END { exit(found_bare_name ? 0 : 1) }
+    ' "$pipeline_file"; then
+      echo "FAIL (R5/AC1): $pipeline_file contains a bare pipelineRef name:; use the pinned git resolver" >&2
+      fail=1
+    fi
+  done <<<"$pipeline_ref_files"
+fi
+if [[ "$pipeline_ref_count" -eq 0 ]]; then
+  echo "FAIL (R5/AC1): no pipelineRef found under $TEKTON_DIR to pin to my-idp-apps" >&2
+  fail=1
+fi
+inline_bare_pipeline_refs="$(grep -RIn --include='*.yaml' --include='*.yml' \
+  -E '^[[:space:]]*pipelineRef:[[:space:]]+name:' "$TEKTON_DIR" 2>/dev/null || true)"
+if [[ -n "$inline_bare_pipeline_refs" ]]; then
+  echo "FAIL (R5/AC1): bare inline pipelineRef name: found under $TEKTON_DIR; use the pinned git resolver" >&2
+  echo "$inline_bare_pipeline_refs" >&2
+  fail=1
+fi
+
 # --- AC3: Tekton branch-aware build pipeline ---------------------------------
 if [[ -d "$TEKTON_DIR" ]]; then
   pipeline_file="$(grep -RlE 'kind:\s*Pipeline\s*$' "$TEKTON_DIR" | head -1 || true)"
