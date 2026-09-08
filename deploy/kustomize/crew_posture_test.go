@@ -35,6 +35,23 @@ func renderCrewOverlay(t *testing.T, bin, kustomizeDir string) string {
 	return renderKustomize(t, bin, overlayDir)
 }
 
+func TestCrewOutboxTopicIsCrewScoped(t *testing.T) {
+	bin := kustomizeBin(t)
+	kustomizeDir := thisDir(t)
+
+	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
+		t.Run(branchSlug, func(t *testing.T) {
+			rendered := renderCrewOverlay(t, bin, kustomizeDir)
+			data := crewWikiEnv(t, rendered)
+			topic := data["KAFKA_OUTBOX_TOPIC"]
+			require.True(t, strings.HasPrefix(topic, "wiki-events."), "crew outbox topic must use the wiki-events prefix")
+			require.NotEqual(t, prodWikiEventsTopic, topic, "crew must not publish to the production topic")
+			require.NotEqual(t, devWikiEventsTopic, topic, "crew must not publish to the development topic")
+			requireWikiConfigMapConsumed(t, rendered)
+		})
+	}
+}
+
 func crewWikiEnv(t *testing.T, rendered string) map[string]string {
 	t.Helper()
 	dec := yaml.NewDecoder(strings.NewReader(rendered))

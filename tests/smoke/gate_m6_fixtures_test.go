@@ -254,10 +254,8 @@ func gateM6Do(t *testing.T, client *http.Client, method, url, bearer string, bod
 }
 
 // gateM6ConsumeStudioSpine reads the REAL Kafka topic (`KAFKA_BROKERS`,
-// topic literal from `KAFKA_OUTBOX_TOPIC` or the `wiki-events.solo`
-// default per ENG-2496 AC2's per-cell topic resolver,
-// `outbox-topic.resolver.ts` `resolveWikiEventsTopic` — the engine no
-// longer reads KAFKA_OUTBOX_TOPIC) from the beginning of every partition, looking for
+// the required, explicitly provisioned `KAFKA_OUTBOX_TOPIC` selected by the
+// CI/deployment environment) from the beginning of every partition, looking for
 // a message whose CloudEvents 1.0 `subject` attribute matches
 // wantAggregateID. It
 // polls for up to opTimeout*2 (the relay ticks every 2s —

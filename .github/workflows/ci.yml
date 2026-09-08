@@ -414,6 +414,26 @@ jobs:
           pnpm --dir packages/@orvex/dfm build
       - name: Build server
         run: pnpm --dir apps/server run build
+      - name: Resolve the provisioned outbox topic from the rendered prod manifests
+        run: |
+          go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+          "$(go env GOPATH)/bin/kustomize" build --load-restrictor LoadRestrictionsNone deploy/kustomize > rendered-wiki.yaml
+          rendered_topic="$(awk '
+            /^---$/ {
+              if (target) { print topic; exit }
+              in_configmap=0; target=0; topic=""; next
+            }
+            /^kind: ConfigMap$/ { in_configmap=1; next }
+            /^kind:/ { in_configmap=0; next }
+            in_configmap && /^  name: orvex-wiki-env$/ { target=1; next }
+            /^  KAFKA_OUTBOX_TOPIC:/ {
+              sub(/^  KAFKA_OUTBOX_TOPIC:[[:space:]]*/, "")
+              gsub(/"/, "")
+              topic=$0
+            }
+          ' rendered-wiki.yaml)"
+          test "$rendered_topic" = "wiki-events.eu-central-1"
+          echo "KAFKA_OUTBOX_TOPIC=$rendered_topic" >> "$GITHUB_ENV"
       - name: Start Postgres + Redis + MinIO (this repo's docker-compose.dev.yml)
         run: make env-up
       - name: Start a real single-node Kafka broker (KRaft, no ZooKeeper)
@@ -426,16 +446,26 @@ jobs:
             -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
             -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093 \
             -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+            -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=false \
             -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
             -e CLUSTER_ID=Nk018hRAQFytWskYqtQduw \
             apache/kafka:3.8.0
           for _ in $(seq 1 30); do
-            docker logs gate-m6-kafka 2>&1 | grep -q "Kafka Server started" && exit 0
+            if docker logs gate-m6-kafka 2>&1 | grep -q "Kafka Server started"; then
+              break
+            fi
             sleep 1
           done
-          echo "Kafka did not report ready within 30s" >&2
-          docker logs gate-m6-kafka
-          exit 1
+          if ! docker logs gate-m6-kafka 2>&1 | grep -q "Kafka Server started"; then
+            echo "Kafka did not report ready within 30s" >&2
+            docker logs gate-m6-kafka
+            exit 1
+          fi
+          docker exec gate-m6-kafka /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server localhost:9092 \
+            --create --if-not-exists \
+            --topic "$KAFKA_OUTBOX_TOPIC" \
+            --partitions 1 --replication-factor 1
       - name: Run migrations
         run: make db-migrate
       - name: Start the billing entitlement seam fixture (sanctioned contracts-seam stub, see tests/smoke/fixtures/gate-m6-billing-stub.mjs)
@@ -448,12 +478,40 @@ jobs:
           echo "billing entitlement stub did not become reachable within 15s" >&2
           cat billing-stub.log
           exit 1
+      - name: Verify a missing outbox topic is reported against the real broker
+        run: |
+          set -a && . ./.env.dev && set +a
+          export ORVEX_MODULES_ENABLED=true
+          export KAFKA_BROKERS=127.0.0.1:19092
+          missing_topic=wiki-events.ci-unprovisioned
+          export KAFKA_OUTBOX_TOPIC="$missing_topic"
+          export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
+          nohup node apps/server/dist/main.js > missing-topic-server.log 2>&1 &
+          missing_pid=$!
+          for _ in $(seq 1 120); do
+            if grep -Fq "topic $missing_topic does not exist on the configured brokers" missing-topic-server.log; then
+              kill "$missing_pid" 2>/dev/null || true
+              wait "$missing_pid" 2>/dev/null || true
+              exit 0
+            fi
+            if ! kill -0 "$missing_pid" 2>/dev/null; then
+              echo "Missing-topic engine exited before reporting the broker guard" >&2
+              cat missing-topic-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "Missing-topic engine did not report the expected broker guard" >&2
+          cat missing-topic-server.log
+          kill "$missing_pid" 2>/dev/null || true
+          wait "$missing_pid" 2>/dev/null || true
+          exit 1
       - name: Boot the engine (ORVEX_MODULES_ENABLED=true, pointed at the real Kafka broker + the billing seam fixture)
         run: |
           set -a && . ./.env.dev && set +a
           export ORVEX_MODULES_ENABLED=true
           export KAFKA_BROKERS=127.0.0.1:19092
-          export KAFKA_OUTBOX_TOPIC=wiki-events.solo
+          export KAFKA_OUTBOX_TOPIC="${KAFKA_OUTBOX_TOPIC:?rendered prod topic was not exported}"
           export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
           nohup node apps/server/dist/main.js > server.log 2>&1 &
           # 120s, not 30s. The success condition is UNCHANGED — this only stops
@@ -479,7 +537,7 @@ jobs:
           set -a && . ./.env.dev && set +a
           export APP_URL=http://localhost:3000
           export KAFKA_BROKERS=127.0.0.1:19092
-          export KAFKA_OUTBOX_TOPIC=wiki-events.solo
+          export KAFKA_OUTBOX_TOPIC="${KAFKA_OUTBOX_TOPIC:?rendered prod topic was not exported}"
           export ORVEX_MODULES_ENABLED=true
           cd tests/smoke && go test -run TestGateM6E2E -v ./...
       - name: Engine log (always, for post-mortem)
@@ -488,6 +546,9 @@ jobs:
       - name: Billing entitlement stub log (always, for post-mortem)
         if: always()
         run: cat billing-stub.log || true
+      - name: Missing-topic engine log (always, for post-mortem)
+        if: always()
+        run: cat missing-topic-server.log || true
 
   # ---------------------------------------------------------------------------
   # Deploy-tree validation (BUILD-ONLY — never applies; CS §13)
