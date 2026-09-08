@@ -924,8 +924,8 @@ components:
           type: object
           additionalProperties: false
           description: >-
-            Per-quota usage-vs-cap. Keys mirror entitlements.schema.json
-            #/properties/quotas exactly.
+            Per-quota usage-vs-cap. The `quotas.*` keys mirror
+            billing/plan.schema.json#/properties/quotas exactly.
           properties:
             pages: { $ref: '#/components/schemas/QuotaUsage' }
             storageBytes: { $ref: '#/components/schemas/QuotaUsage' }
@@ -934,12 +934,27 @@ components:
             members: { $ref: '#/components/schemas/QuotaUsage' }
             historyVersions: { $ref: '#/components/schemas/QuotaUsage' }
             historyDays: { $ref: '#/components/schemas/QuotaUsage' }
-            aiTrialActions: { $ref: '#/components/schemas/QuotaUsage' }
+            aiTrialActions:
+              $ref: '#/components/schemas/QuotaUsage'
+              description: >-
+                Compatibility AI-action quota slot retained for the existing
+                catalog wire shape. It is not the superseded Free-only trial
+                mechanic; the ratified D-B13/D-AI12 pricing doctrine (ENG-2036)
+                defines Free as zero-cost AI forever.
             aiSpendCap: { $ref: '#/components/schemas/QuotaUsage' }
         trial:
           type: [object, 'null']
           additionalProperties: false
-          description: Present during a card-required trial; on lapse, normal over-quota rules apply.
+          description: >-
+            The card-free standard free-month sub-state (FR-B5), retained under
+            ENG-3403 Option 2B and ADR-0064. The superseded card-required
+            framing is replaced by the ratified D-B13/D-AI12 pricing doctrine
+            (ENG-2036), under which no card is required; `active` represents the
+            standard free month, `ended` represents the downgrade to Free at
+            expiry, and `endsAt` is the downgrade date. Consumers must not infer
+            a card requirement from this object. ADR-0064 records an upstream
+            engineering compatibility decision; PO ratification and adversarial
+            review remain pending.
           properties:
             endsAt:
               type: string
