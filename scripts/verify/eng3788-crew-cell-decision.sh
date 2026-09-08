@@ -25,7 +25,7 @@ fail_blocked() {
   echo "ENG-3788: BLOCKED — $1" >&2
   echo "Decision required: choose CLOUD=false or real per-cell CELL_IDs for crew/daniel and crew/yafet." >&2
   echo "Decision owner: the named Linear assignee / Orvex Wiki product-platform owner; no owner is recorded in the authoritative issue cache." >&2
-  echo "Record the choice and rationale in $decision_file before changing crew manifests." >&2
+  echo "Record and ratify the choice and rationale in $decision_file before deploying crew manifests." >&2
   exit 2
 }
 

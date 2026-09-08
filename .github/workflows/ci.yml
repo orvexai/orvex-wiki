@@ -523,6 +523,21 @@ jobs:
       - name: Verify ratified crew posture and source implementation
         run: bash scripts/verify/eng3788-crew-cell-decision.sh .
 
+  # ENG-3789 AC2 is downstream of ENG-3788. Keep the sequencing hold wired into
+  # the required fan-in: the repository variable is an owner-supplied claim
+  # that must only be set after live rollout verification for both crew cells.
+  # An unset variable fails closed; this job does not manufacture deployment
+  # evidence from a source render.
+  eng-3789-ac2-sequencing:
+    name: ENG-3789 AC2 Sequencing Hold
+    runs-on: public-runners
+    env:
+      ENG_3788_CREW_POSTURE_VERIFIED: ${{ vars.ENG_3788_CREW_POSTURE_VERIFIED }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require owner deployment verification before ENG-3789 AC2
+        run: bash scripts/ci/eng-3789-ac2-gate.sh
+
   # ---------------------------------------------------------------------------
   # Deploy render gate. Renders base (prod) + base+components/staging (dev) with
   # the real kustomize binary and asserts on the RESULT — the manifest stream a
@@ -990,6 +1005,7 @@ jobs:
       - gate-m6-e2e
       - k8s-validate
       - eng-3788-crew-posture
+      - eng-3789-ac2-sequencing
       - deploy-render-gate
       - engine-license-guard
       - license-header-check

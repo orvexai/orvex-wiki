@@ -37,9 +37,10 @@
 # cluster-config.branchSlug (already exactly "crew-{name}", computed by
 # idp-render's applyBranch — no derive step, no new idp-render code needed).
 #
-# CELL_ID stays "solo": dev and crew both run the sentinel cell (cell
-# enforcement no-ops). The base cluster-config cellId is already "solo" and the
-# root replacement propagates it, so no CELL_ID patch is needed here.
+# ENG-3788 posture selection: crew keeps the intentional `CELL_ID=solo`
+# sentinel, but explicitly runs in self-hosted mode. The component must patch
+# CLOUD because the base value is true for promoted cells; otherwise ENG-3789's
+# cloud-plus-solo boot assertion rejects both crew cells.
 #
 # Data plane (crew-design.md §Data): platform-resources (Postgres/Redis) is
 # NOT excluded here — a Kustomize Component cannot delete base resources — so
@@ -56,6 +57,19 @@ labels:
     includeSelectors: false
 
 patches:
+  # ── ENG-3788: crew is self-hosted, not a promoted cloud cell ─────────────
+  # This component is applied independently to every crew branch, so the same
+  # explicit posture reaches crew/daniel and crew/yafet. The decision record is
+  # pending human ratification; the ENG-3788 CI gate keeps it from deployment
+  # until the owner confirms it.
+  - patch: |-
+      - op: replace
+        path: /data/CLOUD
+        value: "false"
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── ENG-3071 Phase-B / ENG-3063: this crew's FA chain-shell authn ref →
   # orvex-edge-authn-crew-{name} (base points at -prod; same base→component-
   # patch technique this file already uses below for every other crew-scoped
@@ -132,8 +146,8 @@ patches:
   # patches survive the build. Every sibling resolves to its crew host; the
   # engine (the first studio-spine producer) suffixes its topics crew-{name}
   # ({domain}-events.crew-{name}) so a crew's spine is its own (distinct from
-  # CELL_ID, which stays "solo"). The engine runs no Temporal worker, so there
-  # is no TEMPORAL_NAMESPACE to isolate here.
+  # CELL_ID, which stays "solo" under the CLOUD=false posture). The engine
+  # runs no Temporal worker, so there is no TEMPORAL_NAMESPACE to isolate here.
   - patch: |-
       - op: replace
         path: /data/EVENT_TOPIC_SUFFIX
