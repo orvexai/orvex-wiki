@@ -183,6 +183,15 @@ describe("TestClientCollabProviderTargetsEngineDirectly (ENG-2506 AC3)", () => {
     expect(captured.sockets[0].config.url).toBe(getCollaborationUrl());
   });
 
+  test("the collab websocket honors the explicit off-origin COLLAB_URL seam", () => {
+    process.env.COLLAB_URL = "https://collab.eu1.orvex.ai";
+    try {
+      expect(getCollaborationUrl()).toBe("wss://collab.eu1.orvex.ai/collab");
+    } finally {
+      delete process.env.COLLAB_URL;
+    }
+  });
+
   test("the Hocuspocus provider binds the engine document name page.<pageId> with the engine-minted token, and the real tiptap editor rides THAT provider", async () => {
     renderPageEditor();
 
@@ -196,7 +205,9 @@ describe("TestClientCollabProviderTargetsEngineDirectly (ENG-2506 AC3)", () => {
 
     // The collab extensions (and through them the editor's Yjs binding)
     // are wired to the SAME engine-backed provider instance.
-    await waitFor(() => expect(captured.collabExtensionCalls.length).toBeGreaterThan(0));
+    await waitFor(() =>
+      expect(captured.collabExtensionCalls.length).toBeGreaterThan(0),
+    );
     expect(captured.collabExtensionCalls[0].provider).toBe(provider);
     expect(captured.collabExtensionCalls[0].user?.id).toBe("user-1");
   });
