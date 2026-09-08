@@ -510,9 +510,12 @@ jobs:
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
   # ---------------------------------------------------------------------------
-  # ENG-3356 — shared-build and image-injection conformance are real legs of
-  # the AD-28 deploy-validate seam. The scanners are committed standalone
-  # copies because this PUBLIC repo cannot call my-idp-apps' private workflow.
+  # ENG-3356 / ENG-3385 — shared-build and image-injection conformance are real
+  # legs of the AD-28 deploy-validate seam. The scanners are byte-identical
+  # standalone copies of my-idp-apps@v0.11.1 (see .shared-build-conform-pin)
+  # because this PUBLIC repo cannot call my-idp-apps' private workflow/action
+  # through a fork PR's read-only GITHUB_TOKEN. Repin by re-copying both owner
+  # scripts at the same release tag and updating the pin together.
   # ---------------------------------------------------------------------------
   deploy-validate:
     name: Deploy Conformance (ENG-3356)
@@ -888,6 +891,8 @@ jobs:
         run: bash scripts/test/ci-substrate-conformance.spec.sh .
       - name: shared-build-conformance.spec.sh (ENG-3356 RED-first)
         run: bash scripts/test/shared-build-conformance.spec.sh
+      - name: conform-seam.spec.sh (ENG-3385 RED-first)
+        run: bash scripts/test/conform-seam.spec.sh
 
   # ---------------------------------------------------------------------------
   # Security

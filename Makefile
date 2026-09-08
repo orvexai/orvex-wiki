@@ -88,8 +88,9 @@ supersede-chokepoint-guard: ## ENG-1434 AC12/§5c gate: supersedeAtomic is the s
 ci-substrate-conformance: ## CS §13 gate (ENG-1386): CI-config layer never builds images; Tekton build+rollout present
 	bash scripts/test/ci-substrate-conformance.spec.sh .
 	bash scripts/test/shared-build-conformance.spec.sh
+	bash scripts/test/conform-seam.spec.sh
 
-deploy-validate: ## AD-28 fleet seam: build-only deploy validation (kustomize + kubeconform; NEVER applies)
+deploy-validate: ## AD-28/ENG-3385: build-only deploy validation plus pinned shared conformance (NEVER applies)
 	kustomize build --load-restrictor LoadRestrictionsNone deploy/kustomize | kubeconform -ignore-missing-schemas -summary
 	./shared-build-conform.sh .
 	PYTHON="$(PYTHON)" ./image-injection-conform.sh deploy/kustomize
