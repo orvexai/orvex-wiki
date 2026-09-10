@@ -8,207 +8,47 @@ import {
   Req,
   Res,
   UseGuards,
-  Logger,
 } from '@nestjs/common';
 import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   AI_CHAT_THROTTLER,
   AUTH_THROTTLER,
 } from '../../orvex/orvex-throttler-names';
-import { LoginDto } from './dto/login.dto';
 import { AuthService } from './services/auth.service';
 import { SessionService } from '../session/session.service';
-import { SetupGuard } from './guards/setup.guard';
-import { EnvironmentService } from '../../integrations/environment/environment.service';
-import { CreateAdminUserDto } from './dto/create-admin-user.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthUser } from '../../common/decorators/auth-user.decorator';
-import { User, Workspace } from '@docmost/db/types/entity.types';
+import { User } from '@docmost/db/types/entity.types';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { PasswordResetDto } from './dto/password-reset.dto';
 import { VerifyUserTokenDto } from './dto/verify-user-token.dto';
-import { FastifyReply, FastifyRequest } from 'fastify';
-import { validateSsoEnforcement } from './auth.util';
-import { setAuthCookie } from './auth-cookie.helper';
-import { ModuleRef } from '@nestjs/core';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 import {
   AUDIT_SERVICE,
   IAuditService,
 } from '../../integrations/audit/audit.service';
-import { OrvexEnforceSsoCheckService } from '../../orvex/enforce-sso/orvex-enforce-sso-check.service';
-import { OrvexNativeLoginGuard } from '../../orvex/http/orvex-native-login.guard';
 
+/**
+ * AuthController owns the identity-backed auth survivors. Native email /
+ * password handlers live in NativeAuthController and are registered only for
+ * vanilla deployments; the hosted route table therefore contains no native
+ * login fallback.
+ */
 @SkipThrottle({ [AI_CHAT_THROTTLER]: true })
 @UseGuards(ThrottlerGuard)
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
   constructor(
     private authService: AuthService,
     private sessionService: SessionService,
-    private environmentService: EnvironmentService,
-    private moduleRef: ModuleRef,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
-    private readonly enforceSso: OrvexEnforceSsoCheckService,
   ) {}
-
-  // ENG-1490 AC1 — fail-closed BEFORE the ENG-1409 per-member enforce-SSO
-  // check (which still runs below for flag-off/vanilla deployments and
-  // preserves that path's owner/admin exemption). ENG-2499 AC3 tightened the
-  // guard: whenever the orvex module tree is active it fires UNCONDITIONALLY
-  // (native login removed fully — no enforceSso condition, no break-glass).
-  @UseGuards(OrvexNativeLoginGuard)
-  @HttpCode(HttpStatus.OK)
-  @Post('login')
-  async login(
-    @AuthWorkspace() workspace: Workspace,
-    @Res({ passthrough: true }) res: FastifyReply,
-    @Body() loginInput: LoginDto,
-    @Req() req: FastifyRequest,
-  ) {
-    // ENG-1409 AC2/AC3/AC4 — enforce-SSO gate runs BEFORE credential
-    // verification. Member-block + admin/owner-exempt + defensive
-    // null-role handling all live in OrvexEnforceSsoCheckService.checkOrThrow;
-    // the controller stays a thin sequencer (CS handler-thinness).
-    await this.enforceSso.checkOrThrow(workspace, loginInput.email, {
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'] as string | undefined,
-    });
-
-    let MfaModule: any;
-    let isMfaModuleReady = false;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      MfaModule = require('./../../ee/mfa/services/mfa.service');
-      isMfaModuleReady = true;
-    } catch (err) {
-      this.logger.debug(
-        'MFA module requested but EE module not bundled in this build',
-      );
-      isMfaModuleReady = false;
-    }
-    if (isMfaModuleReady) {
-      const mfaService = this.moduleRef.get(MfaModule.MfaService, {
-        strict: false,
-      });
-
-      const mfaResult = await mfaService.checkMfaRequirements(
-        loginInput,
-        workspace,
-        res,
-      );
-
-      if (mfaResult) {
-        // If user has MFA enabled OR workspace enforces MFA, require MFA verification
-        if (mfaResult.userHasMfa || mfaResult.requiresMfaSetup) {
-          return {
-            userHasMfa: mfaResult.userHasMfa,
-            requiresMfaSetup: mfaResult.requiresMfaSetup,
-            isMfaEnforced: mfaResult.isMfaEnforced,
-          };
-        } else if (mfaResult.authToken) {
-          // User doesn't have MFA and workspace doesn't require it
-          setAuthCookie(res, mfaResult.authToken, this.environmentService);
-          return;
-        }
-      }
-    }
-
-    const authToken = await this.authService.login(loginInput, workspace.id);
-    setAuthCookie(res, authToken, this.environmentService);
-  }
-
-  @UseGuards(SetupGuard)
-  @HttpCode(HttpStatus.OK)
-  @Post('setup')
-  async setupWorkspace(
-    @Res({ passthrough: true }) res: FastifyReply,
-    @Body() createAdminUserDto: CreateAdminUserDto,
-  ) {
-    const { workspace, authToken } =
-      await this.authService.setup(createAdminUserDto);
-
-    setAuthCookie(res, authToken, this.environmentService);
-    return workspace;
-  }
-
-  @SkipThrottle({ [AUTH_THROTTLER]: true })
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  @Post('change-password')
-  async changePassword(
-    @Body() dto: ChangePasswordDto,
-    @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
-    @Req() req: FastifyRequest,
-  ) {
-    const currentSessionId = (req.raw as any).sessionId;
-    return this.authService.changePassword(
-      dto,
-      user.id,
-      workspace.id,
-      currentSessionId,
-    );
-  }
-
-  // ENG-1490 AC3 — fail-closed BEFORE `validateSsoEnforcement` (which stays
-  // as the unconditional 400 path for flag-off deployments — untouched).
-  @UseGuards(OrvexNativeLoginGuard)
-  @HttpCode(HttpStatus.OK)
-  @Post('forgot-password')
-  async forgotPassword(
-    @Body() forgotPasswordDto: ForgotPasswordDto,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
-    validateSsoEnforcement(workspace);
-    return this.authService.forgotPassword(forgotPasswordDto, workspace);
-  }
-
-  // ENG-2499 AC3 — the reset sibling of the native-login surface: under the
-  // fold-in (flag ON) a pre-existing reset token must not remain a native
-  // session-minting break-glass, so the same unconditional guard applies.
-  // Flag-off vanilla deployments are untouched (the guard passes through),
-  // where `validateSsoEnforcement` below stays the unconditional 400 path.
-  @UseGuards(OrvexNativeLoginGuard)
-  @HttpCode(HttpStatus.OK)
-  @Post('password-reset')
-  async passwordReset(
-    @Res({ passthrough: true }) res: FastifyReply,
-    @Body() passwordResetDto: PasswordResetDto,
-    @AuthWorkspace() workspace: Workspace,
-  ) {
-    // ENG-1409 AC5 — a pre-SSO reset token must not be usable to mint a
-    // real session once the workspace enforces SSO; gate BEFORE the token
-    // is consumed, mirroring forgot-password's enforcement above.
-    validateSsoEnforcement(workspace);
-
-    const result = await this.authService.passwordReset(
-      passwordResetDto,
-      workspace,
-    );
-
-    if (result.requiresLogin) {
-      return {
-        requiresLogin: true,
-      };
-    }
-
-    // Set auth cookie if no MFA is required
-    setAuthCookie(res, result.authToken, this.environmentService);
-    return {
-      requiresLogin: false,
-    };
-  }
 
   @HttpCode(HttpStatus.OK)
   @Post('verify-token')
   async verifyResetToken(
     @Body() verifyUserTokenDto: VerifyUserTokenDto,
-    @AuthWorkspace() workspace: Workspace,
+    @AuthWorkspace() workspace: { id: string },
   ) {
     return this.authService.verifyUserToken(verifyUserTokenDto, workspace.id);
   }
@@ -219,7 +59,7 @@ export class AuthController {
   @Post('collab-token')
   async collabToken(
     @AuthUser() user: User,
-    @AuthWorkspace() workspace: Workspace,
+    @AuthWorkspace() workspace: { id: string },
   ) {
     return this.authService.getCollabToken(user, workspace.id);
   }
@@ -244,11 +84,12 @@ export class AuthController {
 
     res.clearCookie('authToken');
 
-    await this.auditService.log({
-      event: AuditEvent.USER_LOGOUT,
-      resourceType: AuditResource.USER,
-      resourceId: user.id,
-    },
+    await this.auditService.log(
+      {
+        event: AuditEvent.USER_LOGOUT,
+        resourceType: AuditResource.USER,
+        resourceId: user.id,
+      },
       { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
     );
   }
