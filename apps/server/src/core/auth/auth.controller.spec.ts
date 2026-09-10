@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { AuthController } from './auth.controller';
+import { NativeAuthController } from './native-auth.controller';
 import { LoginDto } from './dto/login.dto';
 import { PasswordResetDto } from './dto/password-reset.dto';
 import {
@@ -60,14 +60,11 @@ function buildController(opts: {
     getCookieExpiresIn: jest.fn().mockReturnValue(new Date('2030-01-01')),
     isHttps: jest.fn().mockReturnValue(true),
   };
-  const sessionService = {};
   const moduleRef = { get: jest.fn() };
-  const controller = new AuthController(
+  const controller = new NativeAuthController(
     authService as any,
-    sessionService as any,
     environmentService as any,
     moduleRef as any,
-    audit,
     enforceSso,
   );
   return { controller, audit, authService };

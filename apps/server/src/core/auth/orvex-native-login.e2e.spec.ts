@@ -9,7 +9,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ModuleRef } from '@nestjs/core';
 import fastifyCookie from '@fastify/cookie';
 
-import { AuthController } from './auth.controller';
+import { NativeAuthController } from './native-auth.controller';
 import { AuthService } from './services/auth.service';
 import { SessionService } from '../session/session.service';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
@@ -97,7 +97,7 @@ class FakeEnvironmentService {
 }
 
 @Module({
-  controllers: [AuthController],
+  controllers: [NativeAuthController],
   providers: [
     { provide: AuthService, useClass: FakeAuthService },
     { provide: SessionService, useValue: {} },

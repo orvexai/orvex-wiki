@@ -14,15 +14,13 @@ import {
  * ENG-2499 (FR-W6 AC3: native login removed FULLY, no break-glass).
  *
  * Fail-closed gate on the engine's native Docmost email/password
- * login/registration/reset routes. Fires whenever the orvex module tree is
- * active (`ORVEX_MODULES_ENABLED==='true'`, the exact same literal check
- * {@link OrvexRootModule.register} uses — CS §3 one-adapter rule: a single
- * source of truth for the flag). Under the fold-in, identity owns
- * authentication end-to-end (`POST /api/orvex/session/exchange` is the sole
- * session-establishment entry), so native password login is removed in EVERY
- * flag-on mode — the former `workspace.enforceSso` condition (which left
- * native login reachable for any workspace that had not explicitly turned
- * SSO enforcement on, the default state for a fresh workspace) is gone.
+ * login/registration/reset routes when those legacy routes are registered.
+ * It fires whenever the orvex module tree is active
+ * (`ORVEX_MODULES_ENABLED==='true'`, the exact same literal check
+ * {@link OrvexRootModule.register} uses). The separate
+ * `NATIVE_LOGIN_REMOVED` registration flag removes these routes entirely;
+ * this guard preserves the existing flag-on/flag-off behavior while the
+ * reversible removal rollout is held.
  *
  * Vanilla/flag-off deployments (standalone Docmost) pass through unchanged,
  * so native login continues to work byte-for-byte when the orvex module tree

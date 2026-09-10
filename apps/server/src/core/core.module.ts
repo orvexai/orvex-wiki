@@ -34,7 +34,7 @@ import { OrvexConfigModule } from '../orvex/config/orvex-config.module';
     // `DomainMiddleware`'s soft label-2 cell assertion.
     OrvexConfigModule,
     UserModule,
-    AuthModule,
+    AuthModule.register(),
     WorkspaceModule,
     PageModule,
     AttachmentModule,
