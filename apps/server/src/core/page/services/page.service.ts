@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -1809,6 +1810,45 @@ export class PageService {
       const { content: stamped } = stampBlockIds(prosemirrorJson);
       return stamped;
     } catch (err) {
+      // ENG-3275 — this catch must map ONLY the schema-validity class.
+      //
+      // Catching EVERY error and rewriting it to a 400 tells the caller their
+      // input was malformed even when the real fault was internal (an OOM, a
+      // TypeError from a refactor inside `stampBlockIds`, a failing
+      // dependency). That is a false accusation against the client AND it
+      // hides a real server bug behind a 4xx that never pages anyone.
+      //
+      // Two narrowing rules:
+      //  1. An error that is ALREADY an HttpException carries its own decided
+      //     status/body (e.g. a typed 400 raised deeper in the parse path).
+      //     Re-throw it untouched rather than relabelling it as
+      //     INVALID_CONTENT_FORMAT.
+      //  2. Otherwise map only the schema-validity family. ProseMirror's
+      //     `Node.fromJSON` signals every validity failure as a `RangeError`
+      //     ("Unknown node type: x", "Invalid input for Node.fromJSON",
+      //     "Invalid text node in JSON", "There is no mark type x in this
+      //     schema" — all verified against this schema). `SyntaxError` and
+      //     `TypeError` are included as the adjacent malformed-input family
+      //     (a non-object/unstructured payload reaching the parser), and
+      //     `TransformError` is ProseMirror's content-model violation, which
+      //     is a plain `Error` subclass identifiable only by `name`.
+      //
+      // Anything else is a genuine internal fault: let it propagate as a 500
+      // so it is reported honestly instead of being laundered into a 400.
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      const isSchemaValidityError =
+        err instanceof RangeError ||
+        err instanceof SyntaxError ||
+        err instanceof TypeError ||
+        (err as { name?: string })?.name === 'TransformError';
+
+      if (!isSchemaValidityError) {
+        throw err;
+      }
+
       // AC7
       throw new BadRequestException({
         code: 'INVALID_CONTENT_FORMAT',

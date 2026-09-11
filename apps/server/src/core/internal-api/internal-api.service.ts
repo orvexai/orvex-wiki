@@ -16,6 +16,12 @@ import {
 import { ExportService } from '../../integrations/export/export.service';
 import { ExportFormat } from '../../integrations/export/dto/export-dto';
 import { Page, User } from '@docmost/db/types/entity.types';
+import { Inject } from '@nestjs/common';
+import {
+  AUDIT_SERVICE,
+  IAuditService,
+} from '../../integrations/audit/audit.service';
+import { AuditEvent, AuditResource } from '../../common/events/audit-events';
 
 export interface ResolvedPage {
   title: string | null;
@@ -74,6 +80,12 @@ export class InternalApiService {
     private readonly workspaceRepo: WorkspaceRepo,
     private readonly userRepo: UserRepo,
     private readonly exportService: ExportService,
+    // ENG-2483 AC3 — the export primitive's audit leg. An export is a bulk
+    // read of tenant content across the indexer plane; leaving it unrecorded
+    // meant the one operation that copies a page OUT of the workspace was the
+    // one operation with no trace. R25: this stages an outbox row for
+    // orvex-studio-audit, it does not make wiki an audit store.
+    @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
 
   private principal(userId: string): User {
@@ -190,6 +202,27 @@ export class InternalApiService {
       const space = await this.spaceRepo.findById(page.spaceId, tenant);
       spaceSlug = space?.slug ?? null;
     }
+
+    // ENG-2483 AC3 — record the export AFTER it succeeds, never before. The
+    // ordering is the whole point: a cross-tenant or missing-page request
+    // throws out of `loadPageInWorkspace` above and reaches this line never,
+    // so a refusal can not leave a success-shaped row behind (AC2's zero-bytes
+    // guarantee has to hold in the audit trail too, not just in the response).
+    //
+    // `actorType: 'system'` is the honest classification: this is the indexer
+    // plane, authenticated by the internal-API guard rather than by a user
+    // session, so there is no user to attribute. Naming a user here would be
+    // a fabricated actor in a record whose whole value is that it does not lie.
+    await this.auditService.log(
+      {
+        event: AuditEvent.PAGE_EXPORTED,
+        resourceType: AuditResource.PAGE,
+        resourceId: pageId,
+        spaceId: page.spaceId ?? undefined,
+        outcome: 'success',
+      },
+      { workspaceId: tenant, actorType: 'system' },
+    );
 
     return {
       textRepr: result.content as string,
