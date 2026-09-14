@@ -474,9 +474,12 @@ describe('TestExchangeTokenMintsSessionViaIntrospection (ENG-2499 DoD gate)', ()
 
     // And the guard is BOUND to the native login/register/reset routes (the
     // route-reachability closure is the guard, per the Issue's §4a note that
-    // the routes themselves are not deleted).
+    // the routes themselves are not deleted). ENG-2420 moved those three
+    // native routes out of AuthController into NativeAuthController (which
+    // AuthModule.register() mounts unless NATIVE_LOGIN_REMOVED=true), so the
+    // bindings are asserted where the routes now live.
     const authControllerSource = await fs.readFile(
-      path.join(__dirname, '../../src/core/auth/auth.controller.ts'),
+      path.join(__dirname, '../../src/core/auth/native-auth.controller.ts'),
       'utf-8',
     );
     const bindings = authControllerSource.match(
