@@ -1,0 +1,53 @@
+---
+# One-shot manual PipelineRun for the first orvex-wiki image build.
+# Trigger manually: kubectl create -f tekton/orvex-wiki-build-pipelinerun.yaml
+#
+# Builds the repo-root Dockerfile and pushes to
+# repos-direct.eu-central-1.myidp.cloud/orvex-wiki/orvex-wiki:dev
+#
+# EXCLUDED from kustomization.yaml (not GitOps-synced) — this is a manual,
+# one-shot run via generateName, mirroring orvex-studio-identity's
+# identity-build-pipelinerun.yaml.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: orvex-wiki-build-
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/name: orvex-wiki-build
+    app.kubernetes.io/component: ci-cd
+    tekton.dev/pipeline: orvex-wiki-build
+spec:
+  pipelineRef:
+    name: orvex-wiki-build
+  params:
+    - name: repo-url
+      value: https://github.com/orvexai/orvex-wiki.git
+    - name: revision
+      value: dev
+    - name: image-registry
+      value: repos-direct.eu-central-1.myidp.cloud
+    - name: image-namespace
+      value: orvex-wiki
+    - name: image-name
+      value: orvex-wiki
+    - name: image-tag
+      value: dev
+  taskRunTemplate:
+    serviceAccountName: tekton-smoke-test-builder
+  taskRunSpecs:
+    - pipelineTaskName: rollout-restart
+      serviceAccountName: tekton-studio-rollout
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+          storageClassName: rook-cephfs
+    - name: dockerconfig
+      secret:
+        secretName: tekton-harbor-credentials

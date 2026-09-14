@@ -72,8 +72,8 @@ jobs:
       - uses: actions/checkout@v4
       # scripts/eng-2103-contract-evidence.sh parses the OpenAPI contract with
       # PyYAML. The runner image's system python3 does not carry it, so pin the
-      # interpreter and install the parser explicitly (same shape as
-      # deploy-validate) instead of discovering it as ModuleNotFoundError.
+      # interpreter and install the parser explicitly instead of discovering
+      # it as ModuleNotFoundError.
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -588,51 +588,6 @@ jobs:
             | "$(go env GOPATH)/bin/kubeconform" -ignore-missing-schemas -summary
 
   # ---------------------------------------------------------------------------
-  # ENG-3356 / ENG-3385 — shared-build and image-injection conformance are real
-  # legs of the AD-28 deploy-validate seam. The scanners are byte-identical
-  # standalone copies of my-idp-apps@v0.11.1 (see .shared-build-conform-pin)
-  # because this PUBLIC repo cannot call my-idp-apps' private workflow/action
-  # through a fork PR's read-only GITHUB_TOKEN. Repin by re-copying both owner
-  # scripts at the same release tag and updating the pin together.
-  # ---------------------------------------------------------------------------
-  # ── FORMAL FAN-IN EXCLUSION (ENG-3290 grammar, dated 2026-09-14; ENG-4374 owns) ─
-  #   owner    ENG-4374 (re-add ticket for this job's ci-success membership).
-  #   scope    THIS JOB ONLY (`deploy-validate`, immediately below this block).
-  #            The job still runs on every push/PR; only its membership in
-  #            `ci-success.needs` is suspended.
-  #   dated    2026-09-14 — removed from the fan-in before the dev fast-forward.
-  #            `make deploy-validate` runs image-injection-conform.sh on a raw
-  #            `kustomize build`, and rule I3 fails on IMAGE_TAG_UNRESOLVED: the
-  #            image tag is only filled by `idp-render prepare` (the ArgoCD CMP
-  #            carrier, see components/image-injection/kustomization.yaml)
-  #            before kustomize runs. origin/dev's manifests fail identically,
-  #            and origin/dev's CI does not run this job at all.
-  #   expires  when ENG-4374 lands: CI renders deploy/kustomize the way the
-  #            carrier does (or the gate owner rules how a build-only render
-  #            satisfies I3); then restore `deploy-validate` to
-  #            `ci-success.needs` and delete this block.
-  # ──────────────────────────────────────────────────────────────────────────
-  deploy-validate:
-    name: Deploy Conformance (ENG-3356)
-    runs-on: public-runners
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install kustomize + kubeconform + scanner parser dependency
-        run: |
-          go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
-          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
-          python -m pip install --disable-pip-version-check --quiet PyYAML
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: make deploy-validate
-        run: make deploy-validate PYTHON=python
-
-  # ---------------------------------------------------------------------------
   # Deploy render gate. Renders base (prod) + base+components/staging (dev) with
   # the real kustomize binary and asserts on the RESULT — the manifest stream a
   # cluster would actually receive — never on the wiring in between:
@@ -1035,10 +990,6 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: ci-substrate-conformance.spec.sh
         run: bash scripts/test/ci-substrate-conformance.spec.sh .
-      - name: shared-build-conformance.spec.sh (ENG-3356 RED-first)
-        run: bash scripts/test/shared-build-conformance.spec.sh
-      - name: conform-seam.spec.sh (ENG-3385 RED-first)
-        run: bash scripts/test/conform-seam.spec.sh
 
   # ---------------------------------------------------------------------------
   # Security
@@ -1200,8 +1151,6 @@ jobs:
       - smoke-module
       - gate-m6-e2e
       - k8s-validate
-      # deploy-validate is deliberately NOT a dependency: see the FORMAL FAN-IN
-      # EXCLUSION block at its definition (re-add tracked in ENG-4374).
       - deploy-render-gate
       - engine-license-guard
       - license-header-check

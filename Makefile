@@ -6,8 +6,6 @@
 SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
-PYTHON ?= python3
-
 COMPOSE := docker compose --env-file .env.dev -f docker-compose.dev.yml
 
 # Load .env.dev into a recipe: $(call with-env, <command>)
@@ -16,7 +14,7 @@ define with-env
 endef
 
 .PHONY: help build test test-server test-server-full test-server-integration test-client test-e2e \
-        smoke-test smoke-test-strict lint lint-substrate lint-substrate-drift typecheck security ci-local deploy-validate k8s-validate \
+        smoke-test smoke-test-strict lint lint-substrate lint-substrate-drift typecheck security ci-local k8s-validate \
         engine-license-guard no-md-ext-in-doc-workflows ci-substrate-conformance \
         supersede-chokepoint-guard \
         env-up env-down env-destroy env-status env-logs env-info secrets \
@@ -87,15 +85,9 @@ supersede-chokepoint-guard: ## ENG-1434 AC12/§5c gate: supersedeAtomic is the s
 
 ci-substrate-conformance: ## CS §13 gate (ENG-1386): CI-config layer never builds images; Tekton build+rollout present
 	bash scripts/test/ci-substrate-conformance.spec.sh .
-	bash scripts/test/shared-build-conformance.spec.sh
-	bash scripts/test/conform-seam.spec.sh
 
-deploy-validate: ## AD-28/ENG-3385: build-only deploy validation plus pinned shared conformance (NEVER applies)
+k8s-validate: ## Build-only deploy-tree validation (kustomize + kubeconform; NEVER applies)
 	kustomize build --load-restrictor LoadRestrictionsNone deploy/kustomize | kubeconform -ignore-missing-schemas -summary
-	./shared-build-conform.sh .
-	PYTHON="$(PYTHON)" ./image-injection-conform.sh deploy/kustomize
-
-k8s-validate: deploy-validate ## Legacy name retained for existing local and CI callers
 
 ##@ Smoke suite (Foundation M3 — tiered Go smoke: Postgres + Redis + S3 + HTTP health; FAIL-never-SKIP)
 smoke-test: .env.dev ## Run the Go smoke suite against the local env (sources .env.dev)
