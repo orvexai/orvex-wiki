@@ -37,11 +37,6 @@
 # cluster-config.branchSlug (already exactly "crew-{name}", computed by
 # idp-render's applyBranch — no derive step, no new idp-render code needed).
 #
-# ENG-3788 posture selection: crew keeps the intentional `CELL_ID=solo`
-# sentinel, but explicitly runs in self-hosted mode. The component must patch
-# CLOUD because the base value is true for promoted cells; otherwise ENG-3789's
-# cloud-plus-solo boot assertion rejects both crew cells.
-#
 # CELL_ID stays "solo" for CREW ONLY. ENG-3109/AD-36: the base cluster-config
 # cellId is now the real promoted-env cell id (the literal is typed ONLY in
 # cluster-config.yaml — see the AC5 cell-token single-source guard in
@@ -78,11 +73,15 @@ patches:
   # Crew keeps the sentinel because it isolates the spine via
   # EVENT_TOPIC_SUFFIX, not via a cell of its own.
   #
-  # CAVEAT, recorded rather than silently assumed: crew deliberately retains
-  # the sentinel cell but the ENG-3788 patch below also sets CLOUD=false, so
-  # `EnvironmentService.isCloud()` leaves cell enforcement inactive there.
-  # Without that explicit posture, the cloud-plus-solo boot guard would reject
-  # the crew deployment; a real per-crew cloud cell remains a separate decision.
+  # CAVEAT, recorded rather than silently assumed: the older comments in this
+  # file assert crew "runs cell-enforcement-free". That is NOT true as
+  # rendered — `EnvironmentService.isCloud()` reads CLOUD, and the crew build
+  # inherits the base CLOUD="true" (no crew patch overrides it), so
+  # `WorkspaceCellAssertionService` IS active on crew and a `solo` pod cell
+  # still trips DEPLOYMENT_CELL_ABSENT. This patch keeps crew byte-identical
+  # to its pre-ENG-3109 behaviour and deliberately changes nothing about that
+  # pre-existing posture; whether crew wants CLOUD=false or a real per-crew
+  # cell id is a separate decision, not one to smuggle in here.
   - patch: |-
       - op: replace
         path: /data/cellId
@@ -90,19 +89,6 @@ patches:
     target:
       kind: ConfigMap
       name: cluster-config
-
-  # ── ENG-3788: crew is self-hosted, not a promoted cloud cell ─────────────
-  # This component is applied independently to every crew branch, so the same
-  # explicit posture reaches crew/daniel and crew/yafet. The decision record is
-  # pending human ratification; the ENG-3788 CI gate keeps it from deployment
-  # until the owner confirms it.
-  - patch: |-
-      - op: replace
-        path: /data/CLOUD
-        value: "false"
-    target:
-      kind: ConfigMap
-      name: orvex-wiki-env
 
   # ── ENG-3071 Phase-B / ENG-3063: this crew's FA chain-shell authn ref →
   # orvex-edge-authn-crew-{name} (base points at -prod; same base→component-
@@ -179,8 +165,8 @@ patches:
   # ORVEX_<SVC>_URL, EVENT_TOPIC_SUFFIX, and KAFKA_OUTBOX_TOPIC are not root
   # replacement targets, so these patches survive the build. Every sibling
   # resolves to its crew host, and the explicitly configured outbox topic below
-  # is `wiki-events.crew-{name}` — distinct from CELL_ID, which stays "solo"
-  # under the CLOUD=false posture. The engine runs no Temporal worker, so there
+  # is `wiki-events.crew-{name}` — distinct from CELL_ID, which stays "solo".
+  # The engine runs no Temporal worker, so there
   # is no TEMPORAL_NAMESPACE to isolate here.
   - patch: |-
       - op: replace

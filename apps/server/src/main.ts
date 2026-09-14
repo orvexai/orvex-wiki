@@ -1,4 +1,5 @@
 import { NestFactory, Reflector } from '@nestjs/core';
+import { AppModule } from './app.module';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -16,15 +17,8 @@ import { resolveFrameHeader } from './common/helpers';
 import { initOrvexTracing } from './orvex/obs/orvex-tracing.bootstrap';
 import { resolveGlobalPrefixExclude } from './orvex/http/orvex-global-prefix-exclude';
 import { registerWorkspaceExemptPreHandler } from './orvex/http/orvex-workspace-exempt-paths';
-import { assertCloudCellPostureAtBoot } from './orvex/config/orvex-cloud-mode';
 
 async function bootstrap() {
-  // Keep AppModule out of the static import graph. Its EnvironmentModule
-  // invokes ConfigModule.forRoot() while the module is evaluated, which
-  // would otherwise run generic environment validation before the
-  // ENG-3789 posture assertion at the bottom of this file.
-  const { AppModule } = await import('./app.module');
-
   // ENG-1599: the OTel SDK MUST patch (http/fastify/ioredis instrumentation)
   // BEFORE the instrumented modules' real usage begins — flag+endpoint gated
   // (VANILLA BYTE-PARITY DOCTRINE, AC5); a no-op when either is unset/off, so
@@ -168,8 +162,4 @@ async function bootstrap() {
   });
 }
 
-// ENG-3789 AC2 — reject the invalid cloud + solo/unset cell posture before
-// entering async bootstrap, so the process exits before any framework,
-// tracing, database migration, or listener initialization.
-assertCloudCellPostureAtBoot();
 bootstrap();

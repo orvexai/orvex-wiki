@@ -1,7 +1,6 @@
 import { type Kysely, sql } from 'kysely';
 
 import { CELL_SOLO } from '../../orvex/config/orvex-config.service';
-import { isCloudSoloCellAtBoot } from '../../orvex/config/orvex-cloud-mode';
 
 /**
  * A-TENANCY / A-CELL — the per-workspace cell assignment.
@@ -41,21 +40,20 @@ import { isCloudSoloCellAtBoot } from '../../orvex/config/orvex-cloud-mode';
  * moments later, in the same process. The backfilled value cannot disagree
  * with the enforcing pod's cell, because they are one variable.
  *
- * SAFETY GUARD (ENG-3789 AC1) — `CLOUD=true` together with an unset, blank, or
- * `solo` `CELL_ID` is an invalid deployment state. In that state, the request
- * path already rejects traffic with 421, so using `solo` to backfill every
- * workspace would turn a configuration error into persistent data corruption.
- * The guard is possible because CLOUD distinguishes a legitimate self-hosted
- * solo deployment (`CLOUD=false`) from the invalid cloud shape. It runs before
- * any schema or data mutation and throws loudly so the migration cannot be
- * recorded as successful with a partial backfill. The process-level boot guard
- * in `main.ts` uses the same predicate and runs before Nest or migrations.
+ * OPERATOR HAZARD (deliberately NOT guarded in code — it cannot be): run this
+ * migration from anywhere that does NOT share the app's environment — a
+ * separate Job/initContainer without the app's `envFrom`, or a manual
+ * `pnpm migration:latest` from a shell — with `CELL_ID` unset, and every
+ * tenant is backfilled `solo` while the pods keep enforcing `eu1`. The result
+ * is a total outage wearing the costume of a correctly fail-closed gate.
  *
- * OPERATOR HAZARD — a separately-run migration Job or manual command that does
- * not share the app's environment can still backfill `solo` when CLOUD is not
- * set. Such a command is indistinguishable from a legitimate self-hosted
- * upgrade, so the migration remains intentionally in-process and deployment
- * manifests must provide the same env to migration and request paths.
+ * There is no check that can catch this from inside `up()`: a misconfigured
+ * Job and a legitimate solo/self-hosted upgrade are indistinguishable here —
+ * both are "unset CELL_ID, non-empty workspaces" — and the solo case is
+ * entirely benign (unset CELL_ID also disables enforcement, in this same
+ * process, so `solo` rows and a `solo` pod agree). Refusing on that shape
+ * would break every self-hosted upgrade to catch a deploy mistake it cannot
+ * actually identify. Keep migrations in-process, and this cannot arise.
  *
  * NOT the cross-cell source of truth: identity's global tenant→cell registry
  * (`IdentityRegistryClient`) remains the sole authority and sole writer. This
@@ -68,12 +66,6 @@ function deploymentCellId(): string {
 }
 
 export async function up(db: Kysely<any>): Promise<void> {
-  if (isCloudSoloCellAtBoot()) {
-    throw new Error(
-      'ENG-3789 AC1: refusing workspace cell_id migration: CLOUD=true requires a non-solo CELL_ID; refusing to mutate workspaces until the deployment posture is corrected',
-    );
-  }
-
   await db.schema
     .alterTable('workspaces')
     .addColumn('cell_id', 'varchar', (col) => col.defaultTo(CELL_SOLO))
