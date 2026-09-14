@@ -9,7 +9,6 @@ import { AuthenticationExtension } from './extensions/authentication.extension';
 import { PersistenceExtension } from './extensions/persistence.extension';
 import { CollaborationGateway } from './collaboration.gateway';
 import { HttpAdapterHost } from '@nestjs/core';
-import { CollabWsAdapter } from './adapter/collab-ws.adapter';
 import { IncomingMessage } from 'http';
 import { WebSocket } from 'ws';
 import { TokenModule } from '../core/auth/token.module';
@@ -23,6 +22,9 @@ import { TransclusionModule } from '../core/page/transclusion/transclusion.modul
 import { StorageModule } from '../integrations/storage/storage.module';
 import { EnvironmentModule } from '../integrations/environment/environment.module';
 import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-provenance.module';
+import { CellIsolationModule } from '../common/cell-isolation/cell-isolation.module';
+import { WebSocketCellGuard } from '../common/cell-isolation/websocket-cell.guard';
+import { CellAwareCollabWsAdapter } from '../common/cell-isolation/cell-aware-collab-ws.adapter';
 
 @Module({
   providers: [
@@ -38,6 +40,7 @@ import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-pr
   exports: [CollaborationGateway],
   imports: [
     TokenModule,
+    CellIsolationModule,
     WatcherModule,
     StorageModule.forRootAsync({
       imports: [EnvironmentModule],
@@ -52,16 +55,19 @@ import { OrvexPageProvenanceModule } from '../core/page-provenance/orvex-page-pr
 })
 export class CollaborationModule implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CollaborationModule.name);
-  private collabWsAdapter: CollabWsAdapter;
+  private collabWsAdapter: CellAwareCollabWsAdapter;
   private path = '/collab';
 
   constructor(
     private readonly collaborationGateway: CollaborationGateway,
     private readonly httpAdapterHost: HttpAdapterHost,
+    private readonly webSocketCellGuard: WebSocketCellGuard,
   ) {}
 
   onModuleInit() {
-    this.collabWsAdapter = new CollabWsAdapter();
+    this.collabWsAdapter = new CellAwareCollabWsAdapter(
+      this.webSocketCellGuard,
+    );
     const httpServer = this.httpAdapterHost.httpAdapter.getHttpServer();
 
     const wss = this.collabWsAdapter.handleUpgrade(this.path, httpServer);

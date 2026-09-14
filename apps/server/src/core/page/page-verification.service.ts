@@ -5,6 +5,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB } from '@docmost/db/types/kysely.types';
+import { executeTx } from '@docmost/db/utils';
 import { PageVerificationRepo } from './page-verification.repo';
 import {
   CreateVerificationDto,
@@ -175,7 +176,14 @@ export class PageVerificationService {
 
     const status: VerificationStatus = type === 'qms' ? 'draft' : 'verified';
 
-    const created = await this.db.transaction().execute(async (trx) => {
+    // ENG-3569 — `executeTx` (the shared transaction chokepoint), NOT a bare
+    // `this.db.transaction()`. A transaction opened outside the chokepoint never
+    // runs `set_config('app.workspace_id', …, true)`, so under the deployed RLS
+    // posture (`relforcerowsecurity=t`, engine role NOBYPASSRLS) every statement
+    // inside it — including the ones nested `executeTx(db, cb, trx)` calls run on
+    // the passed-down `trx` — is evaluated with NO tenant GUC and is denied.
+    // `executeTx(db, cb)` opens the same transaction and additionally scopes it.
+    const created = await executeTx(this.db, async (trx) => {
       const inserted = await this.verificationRepo.insertVerification(
         {
           pageId: dto.pageId,
@@ -234,7 +242,14 @@ export class PageVerificationService {
             existing.verifiedAt ? new Date(existing.verifiedAt) : new Date(),
           );
 
-    await this.db.transaction().execute(async (trx) => {
+    // ENG-3569 — `executeTx` (the shared transaction chokepoint), NOT a bare
+    // `this.db.transaction()`. A transaction opened outside the chokepoint never
+    // runs `set_config('app.workspace_id', …, true)`, so under the deployed RLS
+    // posture (`relforcerowsecurity=t`, engine role NOBYPASSRLS) every statement
+    // inside it — including the ones nested `executeTx(db, cb, trx)` calls run on
+    // the passed-down `trx` — is evaluated with NO tenant GUC and is denied.
+    // `executeTx(db, cb)` opens the same transaction and additionally scopes it.
+    await executeTx(this.db, async (trx) => {
       await this.verificationRepo.updateVerification(
         existing.id,
         workspaceId,

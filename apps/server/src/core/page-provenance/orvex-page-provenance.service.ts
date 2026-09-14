@@ -15,6 +15,7 @@ import {
   stripAiAuthoredMarks,
 } from './provenance-content.util';
 import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
+import { executeTx } from '@docmost/db/utils';
 import { EVT_PAGE_STATUS_CHANGED } from '../../orvex/events/constants/orvex-event-types';
 
 /**
@@ -352,7 +353,14 @@ export class OrvexPageProvenanceService {
     if (trx) {
       await run(trx);
     } else {
-      await this.db.transaction().execute(run);
+      // ENG-3569 — `executeTx` (the shared transaction chokepoint), NOT a bare
+      // `this.db.transaction()`. A transaction opened outside the chokepoint never
+      // runs `set_config('app.workspace_id', …, true)`, so under the deployed RLS
+      // posture (`relforcerowsecurity=t`, engine role NOBYPASSRLS) every statement
+      // inside it — including the ones nested `executeTx(db, cb, trx)` calls run on
+      // the passed-down `trx` — is evaluated with NO tenant GUC and is denied.
+      // `executeTx(db, cb)` opens the same transaction and additionally scopes it.
+      await executeTx(this.db, run);
     }
   }
 }

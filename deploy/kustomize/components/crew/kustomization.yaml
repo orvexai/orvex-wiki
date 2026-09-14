@@ -42,6 +42,20 @@
 # CLOUD because the base value is true for promoted cells; otherwise ENG-3789's
 # cloud-plus-solo boot assertion rejects both crew cells.
 #
+# CELL_ID stays "solo" for CREW ONLY. ENG-3109/AD-36: the base cluster-config
+# cellId is now the real promoted-env cell id (the literal is typed ONLY in
+# cluster-config.yaml — see the AC5 cell-token single-source guard in
+# ../../hostname_cutover_test.go, which fails this file if it is re-typed
+# here). Dev is a real cell: it runs CLOUD=true, so cell enforcement is ACTIVE
+# there and the old "solo" base made every guarded call 421. Crew must
+# therefore EXPLICITLY patch cellId back down to "solo".
+#
+# Same replacement-source-not-target technique as the ENGINE_URL patch below:
+# a patch on the derived orvex-wiki-env ConfigMap's CELL_ID would be clobbered
+# by the root `replacements:` transformer, which runs AFTER component patches
+# and would re-source the promoted cell id from cluster-config. Patching its own
+# cellId is UPSTREAM of that transformer, so it survives.
+#
 # Data plane (crew-design.md §Data): platform-resources (Postgres/Redis) is
 # NOT excluded here — a Kustomize Component cannot delete base resources — so
 # today every crew env provisions its OWN Postgres/Redis via the base
@@ -57,6 +71,26 @@ labels:
     includeSelectors: false
 
 patches:
+  # ── CELL_ID → "solo" (ENG-3109/AD-36 — the one place solo stays legal) ───
+  # See the header comment: this patches cluster-config's OWN cellId field
+  # (the `replacements:` SOURCE), not the derived orvex-wiki-env ConfigMap's
+  # CELL_ID (a target-side patch would be overwritten by the transformer).
+  # Crew keeps the sentinel because it isolates the spine via
+  # EVENT_TOPIC_SUFFIX, not via a cell of its own.
+  #
+  # CAVEAT, recorded rather than silently assumed: crew deliberately retains
+  # the sentinel cell but the ENG-3788 patch below also sets CLOUD=false, so
+  # `EnvironmentService.isCloud()` leaves cell enforcement inactive there.
+  # Without that explicit posture, the cloud-plus-solo boot guard would reject
+  # the crew deployment; a real per-crew cloud cell remains a separate decision.
+  - patch: |-
+      - op: replace
+        path: /data/cellId
+        value: solo
+    target:
+      kind: ConfigMap
+      name: cluster-config
+
   # ── ENG-3788: crew is self-hosted, not a promoted cloud cell ─────────────
   # This component is applied independently to every crew branch, so the same
   # explicit posture reaches crew/daniel and crew/yafet. The decision record is

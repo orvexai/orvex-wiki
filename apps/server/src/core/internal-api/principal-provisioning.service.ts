@@ -50,6 +50,10 @@ import {
 } from '../../orvex/http/identity-registry-client';
 import { IDENTITY_REGISTRY_CLIENT } from '../../orvex/http/orvex-identity-registry.module';
 import { TenantPrincipalKind } from '../workspace/tenant-principal.types';
+import {
+  CELL_SOLO,
+  OrvexConfigService,
+} from '../../orvex/config/orvex-config.service';
 import { EntitlementService } from '../../orvex/entitlement/entitlement.service';
 import { JIT_MEMBER_OVERAGE_MULTIPLIER } from '../../orvex/entitlement/entitlement.types';
 
@@ -171,6 +175,12 @@ export class PrincipalProvisioningService {
      */
     @Inject(IDENTITY_REGISTRY_CLIENT)
     private readonly registryClient: IdentityRegistryClient,
+    /**
+     * A-CELL — the deployment's own `CELL_ID`. This is the path that mints
+     * every identity-federated tenant, so it is the path that must record
+     * which cell that tenant now lives in.
+     */
+    private readonly orvexConfigService: OrvexConfigService,
   ) {}
 
   async provision(
@@ -509,6 +519,11 @@ export class PrincipalProvisioningService {
         // on the identity-vouched Clerk-org id.
         principalKind: principal.principalKind,
         principalId: principal.principalId,
+        // A-CELL — the cell that materialized this tenant owns it. This is
+        // the ONLY cell record the request path can consult without making
+        // identity's global registry a per-request dependency; identity
+        // remains the cross-cell source of truth and its sole writer.
+        cellId: this.orvexConfigService.cellId ?? CELL_SOLO,
         // Deterministic, non-secret placeholder label (❌#9 — no rand/time);
         // identity owns the human-facing org name, the engine only needs a row.
         name: `Workspace ${workspaceId.slice(0, 8)}`,

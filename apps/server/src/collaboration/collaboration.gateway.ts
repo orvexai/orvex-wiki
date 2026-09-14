@@ -20,11 +20,15 @@ import RedisClient from 'ioredis';
 import { pack, unpack } from 'msgpackr';
 import { nanoid } from 'nanoid';
 import * as os from 'node:os';
-import { CollabWsAdapter } from './adapter/collab-ws.adapter';
 import {
   CollaborationHandler,
   CollabEventHandlers,
 } from './collaboration.handler';
+import { CollaborationCellExtension } from '../common/cell-isolation/collaboration-cell.extension';
+
+interface CollabWsLifecycle {
+  close(): void;
+}
 
 @Injectable()
 export class CollaborationGateway {
@@ -43,6 +47,7 @@ export class CollaborationGateway {
   private readonly withRedis: boolean;
 
   constructor(
+    private collaborationCellExtension: CollaborationCellExtension,
     private authenticationExtension: AuthenticationExtension,
     private persistenceExtension: PersistenceExtension,
     private loggerExtension: LoggerExtension,
@@ -57,6 +62,7 @@ export class CollaborationGateway {
       maxDebounce: 45000,
       unloadImmediately: false,
       extensions: [
+        this.collaborationCellExtension,
         this.authenticationExtension,
         this.persistenceExtension,
         this.loggerExtension,
@@ -125,7 +131,11 @@ export class CollaborationGateway {
 
       // Forward close events
       client.on('close', (code: number, reason: Buffer) => {
-        this.redisSync!.onSocketClose(socketId, code, reason.buffer as ArrayBuffer);
+        this.redisSync!.onSocketClose(
+          socketId,
+          code,
+          reason.buffer as ArrayBuffer,
+        );
       });
 
       // Forward pong events for keepalive
@@ -172,7 +182,7 @@ export class CollaborationGateway {
     return this.redisSync.releaseLock(documentName);
   }
 
-  async destroy(collabWsAdapter: CollabWsAdapter): Promise<void> {
+  async destroy(collabWsAdapter: CollabWsLifecycle): Promise<void> {
     // eslint-disable-next-line no-async-promise-executor
     await new Promise(async (resolve) => {
       try {

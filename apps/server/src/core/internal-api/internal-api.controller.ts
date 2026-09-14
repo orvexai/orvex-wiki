@@ -24,6 +24,7 @@ import {
 } from './dto/internal-api.dto';
 import { WorkspaceUpgradeService } from '../workspace/services/workspace-upgrade.service';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
+import { WorkspaceCellAssertionService } from '../../common/cell-isolation/workspace-cell-assertion.service';
 
 /**
  * InternalApiController (ENG-1957; ENG-1559 principal-resolution) — the
@@ -36,7 +37,9 @@ import { SkipTransform } from '../../common/decorators/skip-transform.decorator'
  * public/tenant-facing `JwtAuthGuard` session auth. This controller never
  * applies `JwtAuthGuard`, so the route is reached purely by
  * `InternalApiAuthGuard`; it is NOT reachable without a valid
- * `INTERNAL_API_BEARER_TOKEN` bearer (AC1/AC5).
+ * `INTERNAL_API_BEARER_TOKEN` bearer (AC1/AC5). Because Nest skips
+ * DomainMiddleware for global-prefix exclusions, each handler also asserts
+ * the cell of its DTO/query tenant before touching tenant data.
  *
  * RULED CONTRACT (ENG-1559, 2026-07-12, fork (a)): the wire surface is the
  * IdP-agnostic PRINCIPAL the consumer sends — `{subject, tenant}` on
@@ -68,6 +71,7 @@ export class InternalApiController {
     // one) because the actor is identity's provisioning/billing worker, the
     // same actor that already drives `principals/provision`.
     private readonly workspaceUpgradeService: WorkspaceUpgradeService,
+    private readonly cellAssertion: WorkspaceCellAssertionService,
   ) {}
 
   /**
@@ -85,6 +89,14 @@ export class InternalApiController {
   @HttpCode(HttpStatus.OK)
   @Post('principals/provision')
   async provisionPrincipal(@Body() dto: ProvisionPrincipalDto) {
+    // A missing row is legitimate only for the explicit JIT-provisioning
+    // command. The assertion still requires a real deployment CELL_ID first;
+    // materialization stamps that same value on the new workspace.
+    await this.cellAssertion.assertWorkspaceId(
+      dto.tenant,
+      'internal principals/provision',
+      { allowMissingWorkspace: dto.provision_workspace === true },
+    );
     const { userId, created, workspaceCreated } =
       await this.principalProvisioningService.provision({
         subject: dto.subject,
@@ -117,6 +129,10 @@ export class InternalApiController {
   @HttpCode(HttpStatus.OK)
   @Post('tenants/upgrade-to-team')
   async upgradeTenantToTeam(@Body() dto: UpgradeTenantToTeamDto) {
+    await this.cellAssertion.assertWorkspaceId(
+      dto.tenant,
+      'internal tenants/upgrade-to-team',
+    );
     const { workspaceId, principalKind, orgId, upgraded } =
       await this.workspaceUpgradeService.upgradeToTeam({
         workspaceId: dto.tenant,
@@ -134,6 +150,10 @@ export class InternalApiController {
   @HttpCode(HttpStatus.OK)
   @Post('acl/filter')
   async aclFilter(@Body() dto: AclFilterDto) {
+    await this.cellAssertion.assertWorkspaceId(
+      dto.tenant,
+      'internal acl/filter',
+    );
     const allowed = await this.internalApiService.filterAccessiblePages(
       dto.tenant,
       dto.subject,
@@ -152,7 +172,14 @@ export class InternalApiController {
   @SkipTransform()
   @HttpCode(HttpStatus.OK)
   @Get('pages/:id/export')
-  async exportPage(@Param('id') pageId: string, @Query() query: TenantQueryDto) {
+  async exportPage(
+    @Param('id') pageId: string,
+    @Query() query: TenantQueryDto,
+  ) {
+    await this.cellAssertion.assertWorkspaceId(
+      query.tenant,
+      'internal pages/export',
+    );
     const { textRepr, title, space, slugId } =
       await this.internalApiService.exportPage(query.tenant, pageId);
     return { text_repr: textRepr, title, space, slug_id: slugId };
@@ -166,6 +193,10 @@ export class InternalApiController {
     @Param('id') pageId: string,
     @Query() query: TenantQueryDto,
   ) {
+    await this.cellAssertion.assertWorkspaceId(
+      query.tenant,
+      'internal pages/resolve',
+    );
     return this.internalApiService.resolvePage(query.tenant, pageId);
   }
 
@@ -174,6 +205,10 @@ export class InternalApiController {
   @HttpCode(HttpStatus.OK)
   @Get('settings/ai-search')
   async aiSearchSettings(@Query() query: TenantQueryDto) {
+    await this.cellAssertion.assertWorkspaceId(
+      query.tenant,
+      'internal settings/ai-search',
+    );
     const enabled = await this.internalApiService.getAiSearchEnabled(
       query.tenant,
     );

@@ -1,38 +1,26 @@
 import {
   Injectable,
-  Logger,
   NestMiddleware,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { verify } from 'jsonwebtoken';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
-import {
-  CELL_SOLO,
-  OrvexConfigService,
-} from '../../orvex/config/orvex-config.service';
 import { runInTenantScope } from '@docmost/db/rls/tenant-scope.context';
-
-/**
- * ENG-2501 AC3/AC5 — the typed SOFT rejection marker the label-2 cell
- * assertion surfaces on a mismatch (never a raw thrown `Error` with no code):
- * a greppable operator signal, distinct from a generic 500.
- */
-export interface CellLabelMismatch {
-  code: 'CELL_LABEL_MISMATCH';
-  hostLabel2: string;
-  podCellId: string;
-}
+import {
+  WorkspaceCellAssertionService,
+  WorkspaceCellMismatchException,
+} from '../cell-isolation/workspace-cell-assertion.service';
 
 @Injectable()
 export class DomainMiddleware implements NestMiddleware {
-  private readonly logger = new Logger(DomainMiddleware.name);
-
   constructor(
     private workspaceRepo: WorkspaceRepo,
     private environmentService: EnvironmentService,
-    private orvexConfigService: OrvexConfigService,
+    private readonly cellAssertion: WorkspaceCellAssertionService,
+    @Optional() private jwtService: JwtService = new JwtService(),
   ) {}
   /**
    * ENG-2502 (FR-W8, AC1) — the request-lifecycle half of the RLS wiring.
@@ -85,27 +73,21 @@ export class DomainMiddleware implements NestMiddleware {
         : undefined;
 
       if (workspace) {
-        // ENG-2501 AC3 — the SOFT label-2 cell assertion runs immediately
-        // after label-0 resolution succeeds. On a definite mismatch the one
-        // request is rejected with a typed marker; the process never dies.
-        const mismatch = this.assertLabel2CellSoft(
-          header,
-          this.orvexConfigService.cellId,
-        );
-        if (mismatch) {
-          this.logger.warn(
-            `soft cell assertion rejected request: code=${mismatch.code} hostLabel2=${mismatch.hostLabel2} podCellId=${mismatch.podCellId}`,
+        // Identity's global tenant-to-cell registry remains the cross-cell
+        // source of truth and sole writer; the workspace row is its local
+        // materialization, judged by the shared assertion used on every
+        // tenant-data transport.
+        try {
+          this.cellAssertion.assertWorkspace(
+            workspace,
+            workspace.id,
+            'HTTP hostname request',
           );
-          res.statusCode = 421;
-          res.setHeader('content-type', 'application/json');
-          res.end(
-            JSON.stringify({
-              ...mismatch,
-              message:
-                'Request reached a pod outside its cell (defence-in-depth soft check; the edge routing layer remains authoritative).',
-            }),
-          );
-          return;
+        } catch (error) {
+          if (error instanceof WorkspaceCellMismatchException) {
+            return this.rejectCellMismatch(res, error);
+          }
+          throw error;
         }
 
         (req as any).workspaceId = workspace.id;
@@ -127,50 +109,48 @@ export class DomainMiddleware implements NestMiddleware {
       // guarded handler runs, so a forged/expired token resolves nothing here
       // (verify throws) and is rejected downstream — no auth is bypassed and no
       // cross-tenant context is possible (a token can only carry its own tenant).
-      (req as any).workspaceId = this.resolveWorkspaceIdFromToken(req) ?? null;
+      const tokenWorkspaceId = this.resolveWorkspaceIdFromToken(req);
+
+      // THE PATH THAT ACTUALLY CARRIES PRODUCTION TRAFFIC. The hostname
+      // branch above cannot gate a federated tenant, because
+      // `PrincipalProvisioningService.materializeWorkspace` mints those
+      // deliberately WITHOUT a hostname ("reached by its tenant-claim UUID,
+      // not by hostname") and the deployed HTTPRoute serves exactly one fixed
+      // host. A cell check that lived only up there would be dead code in
+      // every real cell — which is precisely what the old label-count guess
+      // was. So the assertion is made here too, against the same
+      // authoritative record.
+      if (tokenWorkspaceId !== null) {
+        try {
+          await this.cellAssertion.assertWorkspaceId(
+            tokenWorkspaceId,
+            'HTTP bearer request',
+          );
+        } catch (error) {
+          if (error instanceof WorkspaceCellMismatchException) {
+            return this.rejectCellMismatch(res, error);
+          }
+          throw error;
+        }
+      }
+
+      (req as any).workspaceId = tokenWorkspaceId ?? null;
     }
 
     next();
   }
 
   /**
-   * ENG-2501 (FR-W20, A-TENANCY) — the SOFT label-2 cell assertion.
-   *
-   * Compares the `Host` header's label-2 segment (the cell segment, e.g.
-   * `eu1` in `acme.wiki.eu1.orvex.ai`) against this pod's own configured
-   * `CELL_ID`. This is EXPLICITLY a soft, defence-in-depth SECOND layer —
-   * the edge/principal-vs-`CELL_ID` check (cell-lint rule 3, an
-   * ingress-level control outside this middleware) remains the
-   * claim-superior, authoritative tenant-isolation gate. This check only
-   * flags a request the edge should never have routed here.
-   *
-   * No-op (returns null) when:
-   *  - the pod runs under the `solo` sentinel (`CELL_ID` unset or the
-   *    literal `"solo"`, mirroring the outbox relay's sentinel semantics) —
-   *    cell enforcement is off entirely in solo mode (AC5);
-   *  - the host does not carry a cell-shaped label-2 (fewer than four
-   *    labels) — a soft check never guesses on an ambiguous host;
-   *  - the label-2 matches the pod's cell.
-   *
-   * Pure in-memory string comparison: no I/O, no store call, no wall-clock.
+   * HTTP middleware runs before Nest's exception layer, so serialize the same
+   * canonical `contracts.Error` envelope carried by the shared exception.
    */
-  private assertLabel2CellSoft(
-    host: string | undefined,
-    podCellId: string | null,
-  ): CellLabelMismatch | null {
-    if (podCellId === null || podCellId === CELL_SOLO) {
-      return null;
-    }
-
-    const hostname = host?.split(':')[0];
-    const labels = hostname?.split('.') ?? [];
-    const hostLabel2 = labels.length >= 4 ? labels[2] : undefined;
-
-    if (!hostLabel2 || hostLabel2 === podCellId) {
-      return null;
-    }
-
-    return { code: 'CELL_LABEL_MISMATCH', hostLabel2, podCellId };
+  private rejectCellMismatch(
+    res: FastifyReply['raw'],
+    error: WorkspaceCellMismatchException,
+  ): void {
+    res.statusCode = 421;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(error.getResponse()));
   }
 
   /**
@@ -191,7 +171,9 @@ export class DomainMiddleware implements NestMiddleware {
     }
 
     try {
-      const payload = verify(token, this.environmentService.getAppSecret()) as {
+      const payload = this.jwtService.verify(token, {
+        secret: this.environmentService.getAppSecret(),
+      }) as {
         workspaceId?: string;
         type?: string;
       };

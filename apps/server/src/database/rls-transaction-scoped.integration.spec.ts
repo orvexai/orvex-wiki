@@ -83,6 +83,7 @@ describe('TestRlsTransactionScopedNoLeakUnderPooling', () => {
   let pageB: { id: string };
   let spaceA: { id: string };
   let userA: { id: string };
+  let userB: { id: string };
 
   async function seedTenant(name: string) {
     const ws = await adminDb
@@ -193,6 +194,7 @@ describe('TestRlsTransactionScopedNoLeakUnderPooling', () => {
     pageB = seededB.page;
     spaceA = seededA.space;
     userA = seededA.user;
+    userB = seededB.user;
 
     // Real pgBouncer in transaction pool mode, on the same Docker network.
     pgbContainer = await new GenericContainer(PGBOUNCER_IMAGE)
@@ -351,6 +353,93 @@ describe('TestRlsTransactionScopedNoLeakUnderPooling', () => {
         expect(spaces).toHaveLength(1);
       }),
     );
+  });
+
+  // ── AC4, tenant-axis discriminator (ENG-3525) ────────────────────────
+  //
+  // AC4 above proves a cross-tenant page read is 0 rows. On its own that is
+  // ALSO what the app-layer space ACL would produce, because tenant B's user
+  // is not a member of tenant A's space — so the assertion cannot distinguish
+  // "the tenant boundary held" from "the space ACL held". The distinction is
+  // load-bearing: `space_members` carries NO `workspace_id` column, so a row
+  // granting a user from ANOTHER tenant a role on this tenant's space is
+  // insertable, and a live HTTP-tier probe (ENG-3525, 2026-08-05) confirmed
+  // that with such a row present the engine's own page-read route returns 200
+  // with the other tenant's full page body — i.e. the app ACL is, by itself,
+  // the ONLY thing standing between two tenants on that path.
+  //
+  // This test removes the space-ACL explanation and asserts what the RLS
+  // BACKSTOP must independently guarantee (the migration's own "both controls
+  // must independently deny"): with the cross-tenant grant in place, a read
+  // performed under tenant B's scope still sees ZERO of tenant A's rows, and
+  // the bytes it does see contain none of A's content — the same bytes=0
+  // discipline the HTTP-tier isolation tests apply.
+  it('TestCrossTenantSpaceMemberGrantCannotWidenTenantScope — an app-ACL grant across tenants never widens the RLS boundary (bytes=0)', async () => {
+    const marker = 'eng3525-cross-tenant-marker';
+    await adminDb
+      .updateTable('pages')
+      .set({ title: marker })
+      .where('id', '=', pageA.id)
+      .execute();
+
+    // The mis-grant: tenant B's user gets ADMIN on tenant A's space. This is
+    // exactly the row shape the schema permits today (no workspace_id on
+    // space_members), inserted through the RLS-exempt harness role so the
+    // hostile/buggy state genuinely exists in the table.
+    await adminDb
+      .insertInto('spaceMembers')
+      .values({ userId: userB.id, spaceId: spaceA.id, role: 'admin' })
+      .execute();
+    const grant = await adminDb
+      .selectFrom('spaceMembers')
+      .select('role')
+      .where('userId', '=', userB.id)
+      .where('spaceId', '=', spaceA.id)
+      .execute();
+    expect(grant).toHaveLength(1); // the confound really is present
+
+    await runInTenantScope(wsB.id, async () => {
+      const byId = await executeTx(appDb, (trx) =>
+        trx
+          .selectFrom('pages')
+          .select(['id', 'title'])
+          .where('id', '=', pageA.id)
+          .execute(),
+      );
+      expect(byId).toHaveLength(0);
+      expect(JSON.stringify(byId)).not.toContain(marker);
+
+      // Not just "by id": nothing tenant A owns becomes visible, on either
+      // the page or the space the grant nominally covers.
+      const allPages = await executeTx(appDb, (trx) =>
+        trx.selectFrom('pages').select(['id', 'title']).execute(),
+      );
+      expect(allPages.map((p) => p.id)).toEqual([pageB.id]);
+      expect(JSON.stringify(allPages)).not.toContain(marker);
+
+      const grantedSpace = await executeTx(appDb, (trx) =>
+        trx
+          .selectFrom('spaces')
+          .select('id')
+          .where('id', '=', spaceA.id)
+          .execute(),
+      );
+      expect(grantedSpace).toHaveLength(0);
+    });
+
+    // Positive control: the grant did not break tenant A's own access, so the
+    // zero above is a real tenant deny and not a broken fixture.
+    await runInTenantScope(wsA.id, async () => {
+      const own = await executeTx(appDb, (trx) =>
+        trx
+          .selectFrom('pages')
+          .select(['id', 'title'])
+          .where('id', '=', pageA.id)
+          .execute(),
+      );
+      expect(own).toHaveLength(1);
+      expect(own[0].title).toBe(marker);
+    });
   });
 
   // ── AC5 ──────────────────────────────────────────────────────────────

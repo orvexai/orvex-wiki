@@ -59,10 +59,38 @@ data:
   s3Endpoint: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
 
   # ── Cell contract (A-CELL). Injected into the ConfigMap CELL_ID/CLUSTER_NAME
-  # by the root replacements; /healthz echoes both. Base = sentinel "solo"
-  # (dev/crew/standalone run cell-enforcement-free — same as the sibling
-  # studio services' cluster-config). ─────────────────────────────────────
-  cellId: "solo"
+  # by the root replacements; /healthz echoes both.
+  #
+  # ENG-3109/AD-36 (applied here to catch orvex-wiki up with the sibling
+  # studio services, whose cluster-config already carries "eu1a"): the base
+  # is the PROMOTED-ENV value, NOT the sentinel. `solo` survives in exactly
+  # one place — components/crew, which patches this field back down.
+  #
+  # WHY the old base default of "solo" was a live defect, not a harmless
+  # placeholder: components/staging sets CLOUD=true for the dev cell, and
+  # `WorkspaceCellAssertionService.enforcementActive()` keys on `isCloud()`.
+  # Its `evaluateDeploymentCell()` treats a `solo` pod cell as an INVALID
+  # fleet deployment and fails closed — so a CLOUD=true pod carrying
+  # CELL_ID=solo returned 421 CELL_MISMATCH / DEPLOYMENT_CELL_ABSENT on
+  # EVERY guarded call, including identity's `principal-provision` (which
+  # then 500s `POST /clerk/exchange` and leaves the SPA stuck on "Loading
+  # your session…"). `eu1a` is also what identity's cross-cell registry
+  # (`registry_tenant_cells`, the declared source of truth) already records
+  # for every dev tenant, and what every sibling `*-dev` ConfigMap declares.
+  #
+  # It is ALSO the studio-spine topic suffix: `resolveWikiEventsTopic()`
+  # builds `wiki-events.{CELL_ID}`, so the sentinel had this engine
+  # publishing to `wiki-events.solo` while eu1a-cell consumers subscribed to
+  # `wiki-events.eu1a`.
+  #
+  # NOTE for whoever promotes this to `main`: the in-process boot migration
+  # `20260811T090000-orvex-workspace-cell-id` backfills `workspaces.cell_id`
+  # from `process.env.CELL_ID`. Prod has never run it (its engine image
+  # predates the column), so prod's FIRST boot on a current image backfills
+  # from whatever this value renders to — which is exactly why it must be
+  # `eu1a` here BEFORE that happens. Cells that already migrated under the
+  # old sentinel need a one-off UPDATE of the `solo` rows. ────────────────
+  cellId: "eu1a"
   clusterName: "eu-central-1"
 
   # ── Git (for Tekton image builds + image tags) ──────────────────────────

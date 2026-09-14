@@ -23,25 +23,30 @@
  *      `workspaceRepo.findByHostname`), driven through `DomainMiddleware`'s
  *      exported `use()` contract with the booted app's REAL repo +
  *      environment service;
- *  (3) AC3 — a wrong-cell label-2 request is SOFT-rejected with the typed
- *      `CELL_LABEL_MISMATCH` marker (421 — one request, never a crash),
- *      proven end-to-end through the app's REAL mounted middleware, while
- *      the edge/principal-vs-CELL_ID check (cell-lint rule 3) remains the
- *      claim-superior control this test does not touch;
+ *  (3) AC3 — a request resolving a workspace whose RECORDED `cell_id` is not
+ *      this deployment's is rejected with the canonical `CELL_MISMATCH`
+ *      marker (421 — one request, never a crash), proven end-to-end through
+ *      the app's REAL mounted middleware against REAL rows in Postgres;
  *  (4) AC4 — no `ee/` dependency on the multi-tenant hot path beyond the
  *      single guarded require (grep-gate);
- *  (5) AC5 — under the `solo` sentinel (CELL_ID unset or `"solo"`) the
- *      label-2 assertion NO-OPS rather than rejecting;
- *  plus the NFR honesty gate (the new check documents itself as
- *  soft/defence-in-depth, never claims authority).
+ *  (5) AC5 — a CLOUD deployment with CELL_ID unset or `"solo"` fails closed;
+ *  plus the NFR honesty gate (the check states where cross-cell authority
+ *  actually lives and does not overclaim).
+ *
+ * The assertion originally compared the Host header's label-2 segment against
+ * `CELL_ID`. Both fixtures below now differ by their STORED cell rather than
+ * by hostname shape, because that guess has been replaced: the two workspaces
+ * are reached on identically-shaped hosts and are judged solely on the cell
+ * their own row records.
  *
  * Determinism: `CLOUD`/`CELL_ID` are set as explicit values per sub-case in
- * this spec's own setup (never inherited ambiently); the label-2 comparison
+ * this spec's own setup (never inherited ambiently); the cell comparison
  * involves no wall-clock or randomness.
  */
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import {
   FastifyAdapter,
@@ -54,8 +59,10 @@ import { EnvironmentService } from '../../src/integrations/environment/environme
 import { OrvexConfigService } from '../../src/orvex/config/orvex-config.service';
 import { WorkspaceRepo } from '@docmost/db/repos/workspace/workspace.repo';
 import { startTestDatabase, TestDb } from './db-test-harness';
+import { WorkspaceCellAssertionService } from '../../src/common/cell-isolation/workspace-cell-assertion.service';
 
 const TEST_APP_SECRET = 'eng-2501-test-secret-at-least-32-characters-long';
+const TEST_JWT_SERVICE = new JwtService();
 
 const MANAGED_ENV_KEYS = [
   'CLOUD',
@@ -94,6 +101,8 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
   let exitSpy: jest.SpyInstance;
 
   let acmeWorkspaceId: string;
+  /** A REAL row recorded in a DIFFERENT cell (`us1`) than the pod under test. */
+  let farawayWorkspaceId: string;
 
   beforeAll(async () => {
     testDb = await startTestDatabase();
@@ -116,11 +125,11 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     process.env.SUBDOMAIN_HOST = 'orvex.ai';
 
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    exitSpy = jest
-      .spyOn(process, 'exit')
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit(${code}) called during CLOUD boot`);
-      }) as never);
+    exitSpy = jest.spyOn(process, 'exit').mockImplementation(((
+      code?: number,
+    ) => {
+      throw new Error(`process.exit(${code}) called during CLOUD boot`);
+    }) as never);
 
     // AC1 — load the REAL AppModule NOW (after env + spies are in place):
     // the module-scope `require('./ee/ee.module')` try/catch executes at
@@ -139,12 +148,22 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
+    // Two REAL rows differing ONLY by their recorded cell — the fixture the
+    // record-based assertion is actually judged on. Both are reached on
+    // identically-shaped hosts, so nothing here can pass by hostname shape.
     const acme = await testDb.db
       .insertInto('workspaces')
-      .values({ name: 'ENG-2501 acme', hostname: 'acme' })
+      .values({ name: 'ENG-2501 acme', hostname: 'acme', cellId: 'eu1' })
       .returning('id')
       .executeTakeFirstOrThrow();
     acmeWorkspaceId = acme.id;
+
+    const faraway = await testDb.db
+      .insertInto('workspaces')
+      .values({ name: 'ENG-2501 faraway', hostname: 'faraway', cellId: 'us1' })
+      .returning('id')
+      .executeTakeFirstOrThrow();
+    farawayWorkspaceId = faraway.id;
   });
 
   afterAll(async () => {
@@ -168,16 +187,26 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
 
   /** The booted app's REAL collaborators, with an EXPLICIT cell config bag. */
   function realMiddleware(cellId?: string): DomainMiddleware {
+    const workspaceRepo = app.get(WorkspaceRepo);
+    const environmentService = app.get(EnvironmentService);
+    const config = new OrvexConfigService(
+      (cellId === undefined ? {} : { CELL_ID: cellId }) as NodeJS.ProcessEnv,
+    );
     return new DomainMiddleware(
-      app.get(WorkspaceRepo),
-      app.get(EnvironmentService),
-      new OrvexConfigService(
-        (cellId === undefined ? {} : { CELL_ID: cellId }) as NodeJS.ProcessEnv,
+      workspaceRepo,
+      environmentService,
+      new WorkspaceCellAssertionService(
+        workspaceRepo,
+        environmentService,
+        config,
       ),
     );
   }
 
-  function makeRes(): { res: any; state: { statusCode?: number; body?: string } } {
+  function makeRes(): {
+    res: any;
+    state: { statusCode?: number; body?: string };
+  } {
     const state: { statusCode?: number; body?: string } = {};
     const res = {
       statusCode: undefined as number | undefined,
@@ -202,7 +231,7 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     ).toBe(true);
   });
 
-  it('AC2 — a {tenant}.wiki.{cell}.orvex.ai request resolves workspaceId via label-0 against the booted app\'s real repo', async () => {
+  it("AC2 — a {tenant}.wiki.{cell}.orvex.ai request resolves workspaceId via label-0 against the booted app's real repo", async () => {
     const middleware = realMiddleware('eu1');
     const req: any = { headers: { host: 'acme.wiki.eu1.orvex.ai' } };
     const next = jest.fn();
@@ -215,9 +244,12 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('AC3 — a wrong-cell label-2 request is SOFT-rejected with the typed CELL_LABEL_MISMATCH marker (421), never an unhandled crash', async () => {
+  it('AC3 — a request resolving a workspace RECORDED in another cell is rejected with canonical CELL_MISMATCH (421), never an unhandled crash', async () => {
     const middleware = realMiddleware('eu1');
-    const req: any = { headers: { host: 'acme.wiki.us1.orvex.ai' } };
+    // Note the host: same shape as AC2's, and its label-2 is `eu1` — this pod's
+    // OWN cell. Only the stored row says otherwise, which is exactly the case
+    // the retired hostname-shape check was structurally unable to catch.
+    const req: any = { headers: { host: 'faraway.wiki.eu1.orvex.ai' } };
     const { res, state } = makeRes();
     const next = jest.fn();
 
@@ -226,12 +258,15 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     expect(next).not.toHaveBeenCalled();
     expect(state.statusCode).toBe(421);
     const body = JSON.parse(state.body ?? '{}');
-    expect(body.code).toBe('CELL_LABEL_MISMATCH');
-    expect(body.hostLabel2).toBe('us1');
-    expect(body.podCellId).toBe('eu1');
+    expect(body.errorCode).toBe('CELL_MISMATCH');
+    expect(body.details).toEqual({
+      cell: 'eu1',
+      reResolve: { action: 'rediscover' },
+    });
+    expect(farawayWorkspaceId).toBeDefined();
   });
 
-  it('AC3 (end-to-end) — the assertion is LIVE on the booted app\'s mounted middleware: a wrong-cell HTTP request is rejected 421 at the front door', async () => {
+  it("AC3 (end-to-end) — the assertion is LIVE on the booted app's mounted middleware: a wrong-cell HTTP request is rejected 421 at the front door", async () => {
     // Explicit per-sub-case env injection: the mounted middleware's config
     // reader resolves CELL_ID from the value THIS case sets.
     process.env.CELL_ID = 'eu1';
@@ -239,14 +274,16 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
       const rejected = await app.inject({
         method: 'POST',
         url: '/api/auth/login',
-        headers: { host: 'acme.wiki.us1.orvex.ai' },
+        headers: { host: 'faraway.wiki.eu1.orvex.ai' },
         payload: { email: 'nobody@example.com', password: 'irrelevant-pw' },
       });
       expect(rejected.statusCode).toBe(421);
       const body = rejected.json();
-      expect(body.code).toBe('CELL_LABEL_MISMATCH');
-      expect(body.hostLabel2).toBe('us1');
-      expect(body.podCellId).toBe('eu1');
+      expect(body.errorCode).toBe('CELL_MISMATCH');
+      expect(body.details).toEqual({
+        cell: 'eu1',
+        reResolve: { action: 'rediscover' },
+      });
 
       // Matching cell: the SAME request shape passes the assertion (any
       // downstream status is fine — the front door did not 421 it).
@@ -262,19 +299,75 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     }
   });
 
-  it('AC5 — under the solo sentinel (CELL_ID unset or "solo") a would-be mismatch NO-OPS: cell enforcement is off entirely', async () => {
+  it('AC5 — a CLOUD deployment with CELL_ID unset or "solo" fails closed', async () => {
     for (const cellId of [undefined, 'solo'] as const) {
       const middleware = realMiddleware(cellId);
-      const req: any = { headers: { host: 'acme.wiki.us1.orvex.ai' } };
-      const { res } = makeRes();
+      const req: any = { headers: { host: 'faraway.wiki.eu1.orvex.ai' } };
+      const { res, state } = makeRes();
       const next = jest.fn();
 
       await middleware.use(req, res, next);
 
-      expect(req.workspaceId).toBe(acmeWorkspaceId);
-      expect(next).toHaveBeenCalledTimes(1);
-      expect(res.end).not.toHaveBeenCalled();
+      expect(req.workspaceId).toBeUndefined();
+      expect(next).not.toHaveBeenCalled();
+      expect(state.statusCode).toBe(421);
+      expect(JSON.parse(state.body ?? '{}').errorCode).toBe('CELL_MISMATCH');
     }
+  });
+
+  describe('the TOKEN-fallback path — the one production traffic actually takes', () => {
+    // `materializeWorkspace` mints federated tenants with NO hostname, and the
+    // deployed HTTPRoute serves one fixed host, so a real request resolves its
+    // tenant from its bearer token, not from `findByHostname`. Proving the
+    // gate there needs a REAL repo read against a REAL row: `workspaces`
+    // carries no RLS policy, so the middleware's pre-transaction `findById`
+    // genuinely returns the row — asserted here rather than assumed, since a
+    // read that silently returned nothing would make this gate look present
+    // and behave as absent.
+    const accessTokenFor = (workspaceId: string) =>
+      TEST_JWT_SERVICE.sign(
+        { sub: 'user-1', workspaceId, type: 'access' },
+        { secret: TEST_APP_SECRET },
+      );
+
+    it('rejects a token-resolved tenant RECORDED in another cell (421), on a host that resolves no workspace at all', async () => {
+      const middleware = realMiddleware('eu1');
+      const req: any = {
+        headers: {
+          host: 'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+          authorization: `Bearer ${accessTokenFor(farawayWorkspaceId)}`,
+        },
+      };
+      const { res, state } = makeRes();
+      const next = jest.fn();
+
+      await middleware.use(req, res, next);
+
+      expect(next).not.toHaveBeenCalled();
+      expect(state.statusCode).toBe(421);
+      const body = JSON.parse(state.body ?? '{}');
+      expect(body.errorCode).toBe('CELL_MISMATCH');
+      expect(body.details.cell).toBe('eu1');
+    });
+
+    it('passes a token-resolved tenant recorded in THIS cell, still without setting req.workspace', async () => {
+      const middleware = realMiddleware('eu1');
+      const req: any = {
+        headers: {
+          host: 'orvex-wiki.orvex-wiki-dev.svc.cluster.local',
+          authorization: `Bearer ${accessTokenFor(acmeWorkspaceId)}`,
+        },
+      };
+      const next = jest.fn();
+
+      await middleware.use(req, makeRes().res, next);
+
+      expect(req.workspaceId).toBe(acmeWorkspaceId);
+      // JwtStrategy owns req.workspace — the cell lookup must not leak a
+      // middleware-trusted workspace object into the request.
+      expect(req.workspace).toBeUndefined();
+      expect(next).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('AC4 (grep-gate) — no ee/ dependency on the multi-tenant hot path beyond the single guarded require in app.module.ts', async () => {
@@ -305,13 +398,25 @@ describe('TestCloudBootCleanWithoutEeModule (ENG-2501 DoD gate)', () => {
     ).rejects.toThrow();
   });
 
-  it('NFR honesty — the label-2 check documents itself as SOFT/defence-in-depth and carries no unfinished-work marker', async () => {
+  it('NFR honesty — the cell check names where cross-cell authority really lives, keeps no trace of the retired hostname guess, and carries no unfinished-work marker', async () => {
     const middlewareSource = await fs.readFile(
       path.join(__dirname, '../../src/common/middlewares/domain.middleware.ts'),
       'utf-8',
     );
-    expect(middlewareSource).toMatch(/soft/i);
-    expect(middlewareSource).toMatch(/defence-in-depth/i);
+    // Prose assertions run against a flattened copy: a doc comment's line
+    // wrapping is not a semantic change, and a gate that a future re-wrap can
+    // break is a gate that will be deleted rather than fixed.
+    const prose = middlewareSource
+      .replace(/^\s*\*/gm, ' ')
+      .replace(/\s+/g, ' ');
+    // It must still not overclaim: identity's global registry, not this
+    // middleware, is the cross-cell source of truth and its sole writer.
+    expect(prose).toMatch(/source of truth/i);
+    expect(prose).toMatch(/registry/i);
+    // The retired label-count heuristic is GONE, not left beside its
+    // replacement — two cell checks would be two answers to one question.
+    expect(middlewareSource).not.toMatch(/assertLabel2CellSoft/);
+    expect(middlewareSource).not.toMatch(/labels\.length/);
     expect(middlewareSource).not.toMatch(/TODO|FIXME/);
     // No wall-clock / randomness in the middleware's decision logic (❌#9).
     expect(middlewareSource).not.toMatch(/Date\.now\(\)|Math\.random/);

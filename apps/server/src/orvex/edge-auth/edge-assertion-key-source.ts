@@ -2,11 +2,21 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { createLocalJWKSet } from 'jose';
-import type { CompactVerifyGetKey, JSONWebKeySet } from 'jose';
+import type { webcrypto } from 'node:crypto';
 
-/** The key type {@link EdgeAssertionVerifier} resolves and verifies with. */
-export type EdgeAssertionKey = Awaited<ReturnType<CompactVerifyGetKey>>;
+import { createLocalEs256Jwks } from './local-es256-jwks';
+import type { EdgeJwks, LocalEs256KeyResolver } from './local-es256-jwks';
+
+export type { EdgeJwks } from './local-es256-jwks';
+
+/**
+ * The key type {@link EdgeAssertionVerifier} resolves and verifies with — a
+ * Web Crypto `CryptoKey`, which is exactly what the verifier's
+ * `SubtleCrypto.verify` call needs (ENG-3495: previously `jose`'s
+ * `Awaited<ReturnType<CompactVerifyGetKey>>`, a union that had to be cast at
+ * the verify site).
+ */
+export type EdgeAssertionKey = webcrypto.CryptoKey;
 
 /**
  * Key-resolution port for {@link EdgeAssertionVerifier} (ADR-0049 §"Keys").
@@ -29,40 +39,26 @@ export interface EdgeAssertionKeySource {
 }
 
 /**
- * The one-argument shape this class actually calls `createLocalJWKSet`'s
- * result with. jose's public `CompactVerifyGetKey` type requires a second
- * (`token`) argument, but `LocalJWKSet#getKey`'s real implementation only
- * ever reads an optional `token.header` off it (verified against
- * `jose/dist/*\/jwks/local.js`) — omitting it is runtime-safe. Narrowing the
- * local type this way avoids fabricating a fake `FlattenedJWSInput`.
- */
-type LocalGetKey = (header: { alg: string; kid?: string }) => Promise<EdgeAssertionKey>;
-
-/**
  * A static, non-refreshing {@link EdgeAssertionKeySource} over an in-memory
  * JWKS. Used by tests (built from the committed real-shaped corpus fixture,
- * `jose.createLocalJWKSet`, never a hand-authored key — CS §5) and by any
- * caller that legitimately has the full key set up front. `refresh()` is a
- * genuine no-op here (there is no further source to consult), which is why
- * the ADR-0049 "unknown kid" case against this source is expected to still
- * reject after the verifier's one refresh attempt.
+ * never a hand-authored key — CS §5) and by any caller that legitimately has
+ * the full key set up front. `refresh()` is a genuine no-op here (there is no
+ * further source to consult), which is why the ADR-0049 "unknown kid" case
+ * against this source is expected to still reject after the verifier's one
+ * refresh attempt.
  */
 export class StaticEdgeAssertionKeySource implements EdgeAssertionKeySource {
-  private readonly getKey: LocalGetKey;
+  private readonly getKey: LocalEs256KeyResolver;
 
-  constructor(jwks: JSONWebKeySet) {
-    this.getKey = createLocalJWKSet(jwks) as unknown as LocalGetKey;
+  constructor(jwks: EdgeJwks) {
+    this.getKey = createLocalEs256Jwks(jwks);
   }
 
   async resolve(kid: string): Promise<EdgeAssertionKey | undefined> {
-    try {
-      return await this.getKey({ alg: 'ES256', kid });
-    } catch {
-      // createLocalJWKSet throws JWKSNoMatchingKey / JWKSMultipleMatchingKeys
-      // on a miss/ambiguous match — both are "no key", never a thrown
-      // surprise the caller has to special-case.
-      return undefined;
-    }
+    // `createLocalEs256Jwks` already folds every "no usable key" outcome
+    // (absent kid, ambiguous kid, unimportable material) into `undefined`
+    // and never throws — same contract this method has always presented.
+    return this.getKey(kid);
   }
 
   async refresh(): Promise<void> {

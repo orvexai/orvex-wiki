@@ -25,6 +25,12 @@ export class WorkspaceRepo {
     'logo',
     'hostname',
     'customDomain',
+    // A-TENANCY / A-CELL — the authoritative per-workspace cell assignment
+    // `DomainMiddleware` compares against this pod's own `CELL_ID`. It MUST
+    // be selected here: the middleware reads it off rows returned by
+    // `findByHostname`/`findById`, and a silently-absent column would read as
+    // `undefined` and turn the gate into a no-op.
+    'cellId',
     'settings',
     'defaultRole',
     'emailDomains',

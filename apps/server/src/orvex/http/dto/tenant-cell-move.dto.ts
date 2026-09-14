@@ -5,19 +5,27 @@
 import { IsUUID, Matches } from 'class-validator';
 
 /**
- * `shortCellId` — the canonical registry cell alias: two lowercase region
- * letters, one or more digits, then an optional single lowercase AZ letter
- * (for example, `eu1a`, `us1a`, or the legacy bare-ordinal `eu9`). The
- * authority is orvex-studio-identity's exported `registry.IsShortCellID`
- * (`internal/registry/registry.go:73`); this public engine keeps a hand-copy
- * because it cannot import the private Go substrate. ENG-3268 documents why
- * this duplicate must be kept in conformance: the old copy silently stayed
- * pre-AZ and rejected the live registry's `eu1a` assignment.
+ * `shortCellId` — the canonical registry cell alias: `<region><ordinal><az>`,
+ * two lowercase letters, one or more digits, then an OPTIONAL single lowercase
+ * availability-zone letter (substrate-arch AD-13 / B3). `eu1a` and the legacy
+ * bare-ordinal `eu9` both conform; `eu1-a`, `EU1A` and the long-form AWS-mirror
+ * `eu-central-1a` do not. Enforced HERE too so a malformed cell token 400s at
+ * this seam rather than surfacing as an opaque identity 400/422.
  *
- * Enforced HERE too so a malformed cell token 400s at this seam rather than
- * surfacing as an opaque identity 400/422. The conformance table in
- * `tenant-cell-move.dto.spec.ts` pins accepted and rejected shapes so this
- * copy cannot narrow or widen silently.
+ * The AUTHORITY is orvex-studio-identity's exported `registry.IsShortCellID`
+ * (`internal/registry/registry.go`), and this is a hand-copy — orvex-wiki is
+ * the public AGPL engine and cannot import the private Go substrate, so the
+ * pattern cannot be shared at the source. That makes this copy the exact
+ * duplicate identity's own comment warns about, and it went stale once
+ * already: it kept the pre-AZ `^[a-z]{2}[0-9]+$` across the eu1 -> eu1a
+ * catalog migration (ENG-3268) and began rejecting the very cell the registry
+ * now assigns, 400-ing lib's M14 tenant-move rehearsal at this seam.
+ *
+ * Do not re-quote identity's regex in prose here — a snapshot of the pattern
+ * is what rotted last time: the comment and the code agreed with each other
+ * while both disagreed with the authority. `tenant-cell-move.dto.spec.ts`
+ * pins the conformance table instead, mirroring identity's own
+ * TestShortCellID_AZSuffixConformance.
  */
 const SHORT_CELL_ID = /^[a-z]{2}[0-9]+[a-z]?$/;
 

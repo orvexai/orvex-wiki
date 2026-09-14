@@ -6,7 +6,7 @@
     "ghcr.io/devcontainers/features/go:1": { "version": "1.26" },
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.4.0 --activate && pnpm install --frozen-lockfile",
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.34.5 --activate && pnpm install --frozen-lockfile",
   "customizations": {
     "vscode": {
       "extensions": [
