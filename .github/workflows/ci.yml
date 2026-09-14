@@ -70,6 +70,15 @@ jobs:
     runs-on: public-runners
     steps:
       - uses: actions/checkout@v4
+      # scripts/eng-2103-contract-evidence.sh parses the OpenAPI contract with
+      # PyYAML. The runner image's system python3 does not carry it, so pin the
+      # interpreter and install the parser explicitly (same shape as
+      # deploy-validate) instead of discovering it as ModuleNotFoundError.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the pack check's YAML parser dependency
+        run: python -m pip install --disable-pip-version-check --quiet PyYAML
       - name: Validate local Definition Pack evidence
         run: bash scripts/eng-2103-pack-check.sh
 
