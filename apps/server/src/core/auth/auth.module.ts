@@ -8,14 +8,14 @@ import { SignupService } from './services/signup.service';
 import { TokenModule } from './token.module';
 import { ApiKeyModule } from '../api-key/api-key.module';
 import { OrvexEnforceSsoModule } from '../../orvex/enforce-sso/orvex-enforce-sso.module';
+import { isNativeLoginRemoved } from '../../orvex/config/orvex-boot-flags';
 
 @Module({})
 export class AuthModule {
   static register(): DynamicModule {
-    const nativeControllers =
-      process.env.NATIVE_LOGIN_REMOVED === 'true'
-        ? []
-        : [NativeAuthController];
+    const nativeControllers = isNativeLoginRemoved()
+      ? []
+      : [NativeAuthController];
 
     return {
       module: AuthModule,

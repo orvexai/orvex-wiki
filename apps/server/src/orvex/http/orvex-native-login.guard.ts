@@ -9,6 +9,8 @@ import {
   Injectable,
 } from '@nestjs/common';
 
+import { isOrvexModulesEnabled } from '../config/orvex-boot-flags';
+
 /**
  * OrvexNativeLoginGuard — ENG-1490 (native-login removal leg), tightened by
  * ENG-2499 (FR-W6 AC3: native login removed FULLY, no break-glass).
@@ -16,7 +18,8 @@ import {
  * Fail-closed gate on the engine's native Docmost email/password
  * login/registration/reset routes when those legacy routes are registered.
  * It fires whenever the orvex module tree is active
- * (`ORVEX_MODULES_ENABLED==='true'`, the exact same literal check
+ * (`ORVEX_MODULES_ENABLED==='true'`, read through `isOrvexModulesEnabled()`
+ * in the declared config owner — the exact same literal check
  * {@link OrvexRootModule.register} uses). The separate
  * `NATIVE_LOGIN_REMOVED` registration flag removes these routes entirely;
  * this guard preserves the existing flag-on/flag-off behavior while the
@@ -36,7 +39,7 @@ import {
 @Injectable()
 export class OrvexNativeLoginGuard implements CanActivate {
   canActivate(_context: ExecutionContext): boolean {
-    if (process.env.ORVEX_MODULES_ENABLED !== 'true') {
+    if (!isOrvexModulesEnabled()) {
       return true;
     }
 
