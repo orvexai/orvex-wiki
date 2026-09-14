@@ -62,7 +62,7 @@ func TestCrewOutboxTopicIsCrewScoped(t *testing.T) {
 
 	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
 		t.Run(branchSlug, func(t *testing.T) {
-			rendered := renderCrewOverlay(t, bin, kustomizeDir)
+			rendered := renderCrewOverlay(t, bin, kustomizeDir, branchSlug)
 			data := crewWikiEnv(t, rendered)
 			topic := data["KAFKA_OUTBOX_TOPIC"]
 			require.True(t, strings.HasPrefix(topic, "wiki-events."), "crew outbox topic must use the wiki-events prefix")
