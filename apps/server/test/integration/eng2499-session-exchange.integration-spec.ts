@@ -86,7 +86,10 @@ const VALID_OPAQUE_TOKEN = 'opaque-exchange-token-fixture-1';
  * `gates/eslint/restrictions.yaml` — this restriction, unlike the
  * neighbouring `process-env` ban, carries no `test_exempt_ref`).
  */
-function verifyHs256Jwt(token: string, secret: string): Record<string, unknown> {
+function verifyHs256Jwt(
+  token: string,
+  secret: string,
+): Record<string, unknown> {
   const parts = token.split('.');
   if (parts.length !== 3) {
     throw new Error('verifyHs256Jwt: not a 3-part compact JWT');
@@ -96,13 +99,15 @@ function verifyHs256Jwt(token: string, secret: string): Record<string, unknown> 
     .update(`${headerB64}.${payloadB64}`)
     .digest();
   const actualSig = Buffer.from(signatureB64, 'base64url');
-  if (expectedSig.length !== actualSig.length || !timingSafeEqual(expectedSig, actualSig)) {
+  if (
+    expectedSig.length !== actualSig.length ||
+    !timingSafeEqual(expectedSig, actualSig)
+  ) {
     throw new Error('verifyHs256Jwt: signature mismatch');
   }
-  return JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as Record<
-    string,
-    unknown
-  >;
+  return JSON.parse(
+    Buffer.from(payloadB64, 'base64url').toString('utf8'),
+  ) as Record<string, unknown>;
 }
 
 /** One recorded introspect call at the fixture identity server. */
@@ -254,10 +259,9 @@ describe('TestExchangeTokenMintsSessionViaIntrospection (ENG-2499 DoD gate)', ()
     testDb = await startTestDatabase();
     const host = testDb.container.getHost();
     const port = testDb.container.getMappedPort(5432);
-    sqlClient = postgres(
-      `postgres://orvex:orvex@${host}:${port}/orvex_test`,
-      { onnotice: () => undefined },
-    );
+    sqlClient = postgres(`postgres://orvex:orvex@${host}:${port}/orvex_test`, {
+      onnotice: () => undefined,
+    });
 
     fakeIdentity = new FakeIdentityServer();
     await fakeIdentity.start();
@@ -399,7 +403,10 @@ describe('TestExchangeTokenMintsSessionViaIntrospection (ENG-2499 DoD gate)', ()
   it('AC4 — an ACTIVE token for an UNPROVISIONED subject is denied (no create-on-resolve)', async () => {
     fakeIdentity.nextResponse = {
       active: true,
-      principal: { subject: 'idp-subject-never-provisioned', tenant: workspaceId },
+      principal: {
+        subject: 'idp-subject-never-provisioned',
+        tenant: workspaceId,
+      },
     };
 
     const res = await app.inject({
@@ -428,10 +435,7 @@ describe('TestExchangeTokenMintsSessionViaIntrospection (ENG-2499 DoD gate)', ()
   });
 
   it('AC2 (grep-gate) — the exchange path carries no symmetric APP_SECRET jwt.verify: introspection is the only verification call', async () => {
-    const sessionMintDir = path.join(
-      __dirname,
-      '../../src/core/session-mint',
-    );
+    const sessionMintDir = path.join(__dirname, '../../src/core/session-mint');
     for (const file of [
       'orvex-session-exchange.controller.ts',
       'orvex-session-mint.service.ts',
@@ -499,9 +503,7 @@ describe('TestExchangeTokenMintsSessionViaIntrospection (ENG-2499 DoD gate)', ()
         payload: { exchangeToken: VALID_OPAQUE_TOKEN },
       });
       expect(res.statusCode).toBe(500);
-      expect(
-        res.cookies.find((c) => c.name === 'authToken'),
-      ).toBeUndefined();
+      expect(res.cookies.find((c) => c.name === 'authToken')).toBeUndefined();
     } finally {
       await unconfiguredApp?.close();
       process.env.ORVEX_IDENTITY_URL = fakeIdentity.baseUrl;
