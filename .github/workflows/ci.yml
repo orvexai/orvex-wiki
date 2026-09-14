@@ -479,7 +479,7 @@ jobs:
             exit 1
           fi
           docker exec gate-m6-kafka /opt/kafka/bin/kafka-topics.sh \
-            --bootstrap-server localhost:9092 \
+            --bootstrap-server localhost:9094 \
             --create --if-not-exists \
             --topic "$KAFKA_OUTBOX_TOPIC" \
             --partitions 1 --replication-factor 1
