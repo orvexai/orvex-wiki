@@ -1182,6 +1182,11 @@ jobs:
       # reopening the exact hole the comment above was written to close — a
       # red rls-unscoped-read-ratchet left ci-success green. Fixed before merge.
       - rls-unscoped-read-ratchet
+      # ENG-2103 Definition Pack (local): the same hole again — a repository-
+      # owned gate running on every push/PR that could not block a merge
+      # (contracts' fanin-structure gate: silent-orphan). Fanned in once it was
+      # proven reliably green after the PyYAML install (9b9d031c).
+      - definition-pack
     runs-on: public-runners
     if: always()
     steps:
