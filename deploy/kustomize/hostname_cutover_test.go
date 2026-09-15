@@ -145,8 +145,11 @@ type renderedHTTPRoute struct {
 		Annotations map[string]string `yaml:"annotations"`
 	} `yaml:"metadata"`
 	Spec struct {
-		Hostnames []string `yaml:"hostnames"`
-		Rules     []struct {
+		Hostnames  []string `yaml:"hostnames"`
+		ParentRefs []struct {
+			SectionName string `yaml:"sectionName"`
+		} `yaml:"parentRefs"`
+		Rules []struct {
 			Matches []struct {
 				Path struct {
 					Value string `yaml:"value"`

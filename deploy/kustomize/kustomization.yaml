@@ -370,9 +370,12 @@ replacements:
       name: cluster-config
       fieldPath: data.cellToken
     targets:
+      # components/crew owns crew's COLLAB_URL (collab.<branchSlug>.orvex.dev),
+      # so crew is skipped here exactly as for the HTTPRoutes below.
       - select:
           kind: ConfigMap
           name: orvex-wiki-env
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
         fieldPaths:
           - data.COLLAB_URL
         options:

@@ -14,7 +14,8 @@
 # applied by orvex-scripts crew-slot.sh against the CONSUMERS' ConfigMaps, never
 # here.)
 #
-# Host scheme: {service}.crew-{name}.orvex.dev = wiki.crew-{name}.orvex.dev.
+# Host scheme: {service}.crew-{name}.orvex.dev = wiki.crew-{name}.orvex.dev,
+# plus collab.crew-{name}.orvex.dev for the dedicated DNS-only Yjs route.
 # The host is keyed by the DOMAIN/service name `wiki` (matching the
 # ORVEX_WIKI_* endpoint siblings consumers use).
 #
@@ -146,6 +147,41 @@ patches:
       kind: HTTPRoute
       name: orvex-wiki
 
+  # ── Crew collab host: → collab.crew-{name}.orvex.dev ─────────────────────
+  # Same treatment as the wiki route above, and REQUIRED: the root cellToken
+  # replacement skips every HTTPRoute labelled resource-profile=crew, so
+  # without this patch the base route keeps its literal CELLTOKEN host and
+  # sectionName and the API server rejects it. It stays DNS-only (the base
+  # cloudflare-proxied annotation is untouched), like the dev collab route.
+  - patch: |-
+      - op: replace
+        path: /spec/hostnames/0
+        value: collab.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute), not a peer
+      - op: replace
+        path: /metadata/annotations/external-dns.alpha.kubernetes.io~1hostname
+        value: collab.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute), not a peer
+      - op: replace
+        path: /spec/parentRefs/0/sectionName
+        value: orvex-dev-https
+    target:
+      kind: HTTPRoute
+      name: orvex-wiki-collab
+
+  # ── Crew COLLAB_URL → https://collab.crew-{name}.orvex.dev ───────────────
+  # The browser opens its Yjs socket here, so it must be this crew's own
+  # collab route, not the prod cell host the base derives from cellToken. The
+  # root replacement that fills COLLAB_URL's cell-token segment skips
+  # crew-labelled resources (the same resource-profile!=crew selector it uses
+  # for the routes), so this patch plus the branchSlug replacement below owns
+  # the value.
+  - patch: |-
+      - op: replace
+        path: /data/COLLAB_URL
+        value: https://collab.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (ConfigMap), not a peer
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+
   # ── Crew APP_URL → https://wiki.crew-{name}.orvex.dev ────────────────────
   # APP_URL is a REPLACEMENT target (root kustomization sources its host from
   # cluster-config.wikiHost, delimiter "/" index 2). A component patch on the
@@ -240,6 +276,15 @@ replacements:
           delimiter: "."
           index: 1
       - select:
+          kind: HTTPRoute
+          name: orvex-wiki-collab
+        fieldPaths:
+          - spec.hostnames.0
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+        options:
+          delimiter: "."
+          index: 1
+      - select:
           kind: ConfigMap
           name: cluster-config
         fieldPaths:
@@ -264,6 +309,7 @@ replacements:
           kind: ConfigMap
           name: orvex-wiki-env
         fieldPaths:
+          - data.COLLAB_URL
           - data.ORVEX_IDENTITY_URL
           - data.ORVEX_KNOWLEDGE_URL
           - data.ORVEX_AI_URL
