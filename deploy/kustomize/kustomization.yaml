@@ -317,7 +317,8 @@ replacements:
   # hostname_cutover_test.go), which prod AND the dev cell both take;
   # components/crew patches cluster-config.cellId back to the
   # "solo" sentinel for crew stacks, which isolate the SPINE via
-  # EVENT_TOPIC_SUFFIX instead. Both are plain-value replacements (no
+  # EVENT_TOPIC_SUFFIX and an explicitly configured outbox topic instead.
+  # Both are plain-value replacements (no
   # delimiter). NOTE the ordering that makes crew's patch work: this
   # transformer runs AFTER component patches, so crew patches the SOURCE
   # (cluster-config.cellId), never this target (orvex-wiki-env.CELL_ID).
@@ -364,6 +365,22 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.CELL_TOKEN
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellToken
+    targets:
+      # components/crew owns crew's COLLAB_URL (collab.<branchSlug>.orvex.dev),
+      # so crew is skipped here exactly as for the HTTPRoutes below.
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
+        fieldPaths:
+          - data.COLLAB_URL
+        options:
+          delimiter: "."
+          index: 1
       - select:
           kind: HTTPRoute
           labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
