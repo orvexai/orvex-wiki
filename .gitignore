@@ -77,3 +77,17 @@ apps/client/e2e/.*-auth-state.json
 !/_bmad/custom/*.toml
 !/_bmad/custom/*.yaml
 /_bmad/render/
+
+# Houston-backed beads: .beads/ is local machine state (a pointer at the
+# central Dolt gateway plus this clone's credential), never repository content.
+# Added by `houston beads init`.
+.beads/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
+.cache/
+.cache/docmost/

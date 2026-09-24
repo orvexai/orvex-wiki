@@ -11,3 +11,4 @@ project_name: orvex-wiki
 communication_language: English
 document_output_language: English
 output_folder: "{project-root}/_bmad-output"
+docmost_space: orvexcli

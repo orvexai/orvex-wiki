@@ -1,22 +1,25 @@
 {
   "schema": "houston-lock/v1",
-  "generated": "2026-09-11T09:10:28Z",
+  "generated": "2026-09-23T13:44:51Z",
   "installer": "dev",
   "project": "orvex-wiki",
-  "agents": null,
+  "agents": [
+    "claude",
+    "codex"
+  ],
   "sources": {
     "beads": {
       "kind": "github-release",
       "authority": "authoritative",
       "pin": "1.2.2",
-      "resolved": "1.2.2+8c884f56e",
+      "resolved": "",
       "observed": "1.2.2+8c884f56e",
       "floor": "1.2.2",
       "provenance": "adopted",
       "dependents": [
         "beads"
       ],
-      "repo": "orvexai/beads",
+      "repo": "gastownhall/beads",
       "source": "internal/phases/beads/tested-build-manifest.json"
     },
     "bmad-method": {
@@ -37,8 +40,8 @@
     "houston-modules": {
       "kind": "git-commit",
       "authority": "authoritative",
-      "pin": "v0.3.0",
-      "resolved": "538888d4846cb5cb76452617d6fee8fe4854fb68",
+      "pin": "v0.3.14",
+      "resolved": "0be387460e1f18716c227d4009cccc436024ee6c",
       "observed": "8e4e3d1d21d5ee380980ab7c313c8e3cc229c853",
       "provenance": "adopted",
       "dependents": [
