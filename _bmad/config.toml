@@ -83,3 +83,10 @@ name = "Murat"
 title = "Master Test Architect and Quality Advisor"
 icon = "🧪"
 description = "Risk-based testing strategy, fixture architecture, ATDD, API and UI automation (Playwright, Cypress, pytest, JUnit, Go test, xUnit, RSpec), mobile native automation (Maestro), consumer-driven contract testing (Pact), and performance/load/chaos testing (k6). Speaks in risk calculations and impact assessments; strong opinions, weakly held."
+
+[houston.lin]
+linear_initiative = "ddeb5b07-d9a9-4053-91e2-cf70e59d3ae4"
+linear_project = "Orvex Wiki"
+story_title_pattern = "."
+team_key = "ENG"
+tracking_system = "linear"
