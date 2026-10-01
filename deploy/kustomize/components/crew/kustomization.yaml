@@ -206,6 +206,9 @@ patches:
   # SOURCE — cluster-config.wikiHost — and the crew host propagates into
   # APP_URL correctly.
   - patch: |-
+      - op: add
+        path: /data/crewIdentityNamespace
+        value: orvex-studio-identity-PLACEHOLDER
       - op: replace
         path: /data/wikiHost
         value: wiki.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
@@ -227,9 +230,15 @@ patches:
       - op: replace
         path: /data/KAFKA_OUTBOX_TOPIC
         value: wiki-events.PLACEHOLDER
+      # ORVEX_IDENTITY_URL is NOT on the public ingress: every consumer
+      # (registry client /internal/registry/*, session-mint + tenant-move
+      # /v1/introspect) is server-to-server, and identity's public HTTPRoute
+      # deliberately 404s /internal/*. It points at the crew identity's
+      # in-cluster Service (port 80) — the namespace segment is filled by the
+      # two-step crewIdentityNamespace replacement below.
       - op: replace
         path: /data/ORVEX_IDENTITY_URL
-        value: https://identity.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
+        value: http://orvex-studio-identity.IDENTITYNS.svc.cluster.local:80
       - op: replace
         path: /data/ORVEX_KNOWLEDGE_URL
         value: https://knowledge.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
@@ -326,7 +335,6 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.COLLAB_URL
-          - data.ORVEX_IDENTITY_URL
           - data.ORVEX_KNOWLEDGE_URL
           - data.ORVEX_AI_URL
           - data.ORVEX_BILLING_API_URL
@@ -352,3 +360,30 @@ replacements:
         options:
           delimiter: "-"
           index: 3
+      # Step 1 of the crew identity in-cluster URL: branchSlug into the
+      # build-only cluster-config.crewIdentityNamespace
+      # ("orvex-studio-identity-PLACEHOLDER" split by "-", index 3) ->
+      # "orvex-studio-identity-crew-{name}".
+      - select:
+          kind: ConfigMap
+          name: cluster-config
+        fieldPaths:
+          - data.crewIdentityNamespace
+        options:
+          delimiter: "-"
+          index: 3
+  # Step 2: that namespace into ORVEX_IDENTITY_URL's host (split by ".",
+  # index 1) -> http://orvex-studio-identity.orvex-studio-identity-crew-{name}.svc.cluster.local:80
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.crewIdentityNamespace
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.ORVEX_IDENTITY_URL
+        options:
+          delimiter: "."
+          index: 1
