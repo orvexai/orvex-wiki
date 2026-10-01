@@ -25,7 +25,10 @@ command -v curl >/dev/null || fail "curl is required for the readiness check"
 
 build_sha="$(git rev-parse HEAD)"
 printf 'Building orvex-wiki at %s\n' "$build_sha"
-corepack pnpm build
+corepack_bin="/run/user/$(id -u)/orvex-wiki-corepack"
+install -d -m 0755 "$corepack_bin"
+corepack enable --install-directory "$corepack_bin" pnpm
+PATH="$corepack_bin:$PATH" corepack pnpm build
 
 sudo -n install -o root -g root -m 0644 "$unit_source" "$unit_target"
 sudo -n install -d -o root -g root -m 0755 /run/crew
