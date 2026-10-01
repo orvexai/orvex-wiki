@@ -1,6 +1,6 @@
 # orvex-wiki — Foundation Makefile (M2). Self-documenting: run `make` / `make help`.
 # Local prod-parity doctrine: same engine families as the deploy claims
-# (Postgres 17 CNPG-family, Redis 8, S3/MinIO — no Mongo, D-S12). CI substrate
+# (Postgres 17 CNPG-family, Redis 8, S3/RustFS (service `minio`) — no Mongo, D-S12). CI substrate
 # doctrine (CS §13): CI validates only; images are Tekton-built, never local.
 
 SHELL := /usr/bin/env bash
@@ -115,7 +115,7 @@ ci-local: ## Mirror the CI gates exactly (no live-infra suites — those are smo
 	$(MAKE) ci-substrate-conformance
 	@echo "ci-local: ALL GATES GREEN"
 
-##@ Local prod-parity environment (Postgres 17 CNPG-family + Redis 8 + MinIO S3)
+##@ Local prod-parity environment (Postgres 17 CNPG-family + Redis 8 + RustFS S3, service `minio`)
 env-up: .env.dev ## Start engines, create the bucket, wait until healthy
 	$(COMPOSE) up -d --wait postgres redis minio
 	$(COMPOSE) up minio-init
@@ -137,7 +137,7 @@ env-info: .env.dev ## Print every local endpoint + credential source
 	@echo "Local prod-parity environment (creds in .env.dev, never committed):"
 	@echo "  Postgres   postgresql://orvex-wiki:<DEV_POSTGRES_PASSWORD>@localhost:55432/orvex-wiki"
 	@echo "  Redis      redis://:<DEV_REDIS_PASSWORD>@localhost:56379"
-	@echo "  MinIO S3   http://localhost:59000  (console http://localhost:59001, bucket orvex-wiki-bucket)"
+	@echo "  S3 (RustFS) http://localhost:59000  (console http://localhost:59001, bucket orvex-wiki-bucket)"
 	@echo "  App        http://localhost:3000   (make run-local; health: /api/health, /api/health/live)"
 	@grep -E '^(DEV_|APP_URL|DATABASE_URL|REDIS_URL|AWS_S3_ENDPOINT|AWS_S3_BUCKET)' .env.dev | sed 's/=.*PASSWORD.*/=<redacted>/; s/\(PASSWORD=\).*/\1<redacted>/; s#\(://[^:]*:\)[^@]*@#\1<redacted>@#'
 
