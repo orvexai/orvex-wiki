@@ -67,6 +67,9 @@ data:
   # Filled by the root replacements from cluster-config.cellId / clusterName;
   # base = the sentinel "solo" (dev/crew/standalone run cell-enforcement-free).
   CELL_ID: "PLACEHOLDER_CELL_ID"
+  # AD-36 fail-closed default: CELL_ID=solo is legal ONLY when this names
+  # crew/preview (components/crew patches it to "crew"). Never "crew" here.
+  ORVEX_ENVIRONMENT: "prod"
   CLUSTER_NAME: "PLACEHOLDER_CLUSTER_NAME"
 
   # Public short cell token (ENG-1505 fix-pass single source: cluster-config
