@@ -93,7 +93,7 @@ overrides:
   lodash-es: 4.18.1
   lodash: 4.18.1
   '@hono/node-server': 1.19.13
-  undici: 7.29.0
+  undici: 7.29.1
   ajv@^6: 6.14.0
   ajv@^8: 8.18.0
   underscore: 1.13.8
@@ -104,27 +104,27 @@ overrides:
   flatted: 3.4.2
   picomatch@<2.3.2: 2.3.2
   picomatch@>=4.0.0 <4.0.4: 4.0.4
-  fastify: 5.8.5
+  fastify: 5.12.5
   yaml@>=1.0.0 <1.10.3: 1.10.3
   yaml@>=2.0.0 <2.8.3: 2.8.3
   path-to-regexp@^8: 8.4.0
-  brace-expansion@^1: 1.1.18
-  brace-expansion@^2: 2.1.4
-  brace-expansion@^5: 5.0.9
+  brace-expansion@^1: 1.1.20
+  brace-expansion@^2: 2.1.6
+  brace-expansion@^5: 5.0.11
   # @xmldom/xmldom: 8 HIGH GHSAs published 2026-09-08 (GHSA-27p8-2357-5qqv,
   # GHSA-4w3w-2rp5-g8jm, GHSA-8344-3jmq-59r6, GHSA-93r5-fhx6-vmg9,
   # GHSA-965w-775f-mr7g, GHSA-c7q8-3ch8-vqpv, GHSA-w2rr-34g9-rvrj,
   # GHSA-x4fp-j954-r2f4), all fixed on the 0.8.x line at 0.8.15. Patch bump.
   '@xmldom/xmldom': 0.8.15
   handlebars: 4.7.9
-  axios: 1.18.0
+  axios: 1.20.0
   langsmith: 0.7.0
   follow-redirects: 1.16.0
   protobufjs: 7.6.5
   ip-address: 10.1.1
   # fast-uri: GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc, GHSA-fph4-wmhf-6fwf,
   # GHSA-jqff-g426-hqxp (HIGH, published 2026-09-02), fixed at 3.1.6. Patch bump.
-  fast-uri: 3.1.6
+  fast-uri: 3.1.7
   form-data@4: 4.0.6
   '@babel/plugin-transform-modules-systemjs': 7.29.4
   # js-yaml: GHSA-5p4m-2wfm-xmqj (HIGH, quadratic CPU consumption in !!omap
@@ -141,9 +141,11 @@ overrides:
   # 1.7.1 — reached only via nx (devDependency), same-major minor bump.
   smol-toml@^1: 1.7.1
   postcss: 8.5.18
-  engine.io: 6.6.7
+  engine.io: 6.6.10
   find-my-way: 9.7.0
   shell-quote: 1.9.0
+  # @grpc/grpc-js: GHSA-m9gg-hp2v-232j (high) fixed at 1.14.5.
+  '@grpc/grpc-js': 1.14.5
 
 neverBuiltDependencies: []
 

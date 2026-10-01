@@ -64,39 +64,46 @@ services:
     environment:
       REDIS_HEALTH_PASSWORD: ${DEV_REDIS_PASSWORD}
 
+  # S3-compatible object store. MinIO stopped publishing public images
+  # (quay.io/minio/* and Docker Hub minio/* now return 401), so this is RustFS
+  # (Apache-2.0, S3 API), pinned by tag + digest. Service name stays `minio`
+  # so AWS_S3_ENDPOINT / app config keep working unchanged.
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
-    command: ["server", "/data", "--console-address", ":9001"]
+    image: rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
     environment:
-      MINIO_ROOT_USER: ${DEV_MINIO_ROOT_USER:?generate .env.dev with scripts/dev-secrets.sh}
-      MINIO_ROOT_PASSWORD: ${DEV_MINIO_ROOT_PASSWORD:?generate .env.dev with scripts/dev-secrets.sh}
+      RUSTFS_ACCESS_KEY: ${DEV_MINIO_ROOT_USER:?generate .env.dev with scripts/dev-secrets.sh}
+      RUSTFS_SECRET_KEY: ${DEV_MINIO_ROOT_PASSWORD:?generate .env.dev with scripts/dev-secrets.sh}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
     ports:
       - "127.0.0.1:59000:9000"
       - "127.0.0.1:59001:9001"
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/health"]
       interval: 3s
       timeout: 3s
       retries: 20
 
   # One-shot: create the bucket (parity with the ObjectStorageClaim's
-  # <app>-bucket naming), then exit 0.
+  # <app>-bucket naming), then exit 0. Idempotent (head-bucket first).
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: amazon/aws-cli:2.37.7@sha256:95f8d1e6d31aaa16997d1406eb532b0ca6a9830fe8a859c37a0fd223f10959e5
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 \"$${DEV_MINIO_ROOT_USER}\" \"$${DEV_MINIO_ROOT_PASSWORD}\" &&
-      mc mb --ignore-existing local/orvex-wiki-bucket &&
+      aws --endpoint-url http://minio:9000 s3api head-bucket --bucket orvex-wiki-bucket 2>/dev/null ||
+      aws --endpoint-url http://minio:9000 s3 mb s3://orvex-wiki-bucket &&
       echo 'bucket orvex-wiki-bucket ready'
       "
     environment:
-      DEV_MINIO_ROOT_USER: ${DEV_MINIO_ROOT_USER}
-      DEV_MINIO_ROOT_PASSWORD: ${DEV_MINIO_ROOT_PASSWORD}
+      AWS_ACCESS_KEY_ID: ${DEV_MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${DEV_MINIO_ROOT_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
     restart: "no"
 
 volumes:
