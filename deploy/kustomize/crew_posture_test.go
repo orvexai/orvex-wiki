@@ -157,3 +157,21 @@ func TestCrewSoloCellIsAuthorisedByEnvironment(t *testing.T) {
 	staging := renderStagingOverlay(t, bin, kustomizeDir)
 	require.Equal(t, "prod", renderedConfigValue(t, staging, "orvex-wiki-env", "ORVEX_ENVIRONMENT"))
 }
+
+// The registry client calls identity's /internal/registry/* routes, which
+// identity's PUBLIC HTTPRoute deliberately does not expose (gateway 404 →
+// 503 REGISTRY_UNAVAILABLE on /clerk/exchange). Crew must therefore point
+// ORVEX_IDENTITY_URL at the crew identity's in-cluster Service.
+func TestCrewIdentityURLIsInClusterService(t *testing.T) {
+	bin := kustomizeBin(t)
+	kustomizeDir := thisDir(t)
+
+	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
+		t.Run(branchSlug, func(t *testing.T) {
+			data := crewWikiEnv(t, renderCrewApplication(t, bin, kustomizeDir, branchSlug))
+			require.Equal(t,
+				"http://orvex-studio-identity.orvex-studio-identity-"+branchSlug+".svc.cluster.local:80",
+				data["ORVEX_IDENTITY_URL"])
+		})
+	}
+}
