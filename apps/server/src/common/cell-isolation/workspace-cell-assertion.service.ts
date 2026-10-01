@@ -10,6 +10,12 @@ import {
   OrvexConfigService,
 } from '../../orvex/config/orvex-config.service';
 
+/** AD-36: the only environments in which CELL_ID=solo is a legal posture. */
+const SOLO_LEGAL_ENVIRONMENTS: ReadonlySet<string> = new Set([
+  'crew',
+  'preview',
+]);
+
 export type WorkspaceCellMismatchReason =
   | 'WORKSPACE_CELL_MISMATCH'
   | 'WORKSPACE_CELL_ABSENT'
@@ -169,6 +175,15 @@ export class WorkspaceCellAssertionService {
   private evaluateDeploymentCell(): WorkspaceCellMismatch | null {
     const podCellId = this.orvexConfigService.cellId;
     if (podCellId !== null && podCellId !== CELL_SOLO) {
+      return null;
+    }
+    // AD-36 soloLegal(): the Solo sentinel is authorised ONLY by the
+    // platform-injected environment (crew/preview), never by discipline.
+    // Prod/staging/absent keep failing closed.
+    if (
+      podCellId === CELL_SOLO &&
+      SOLO_LEGAL_ENVIRONMENTS.has(this.orvexConfigService.environment ?? '')
+    ) {
       return null;
     }
     return {

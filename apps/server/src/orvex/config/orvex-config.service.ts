@@ -53,6 +53,15 @@ export class OrvexConfigService {
     return trimmed.length === 0 ? null : trimmed;
   }
 
+  /**
+   * ORVEX_ENVIRONMENT — the platform-injected deployment environment (AD-36).
+   * Consumed by WorkspaceCellAssertionService: the Solo sentinel cell is legal
+   * ONLY when this is exactly `crew` or `preview`. Absent -> null (fail closed).
+   */
+  get environment(): string | null {
+    return this.read('ORVEX_ENVIRONMENT');
+  }
+
   /** ORVEX_IDENTITY_URL — the identity service (RS256/JWKS issuer) base URL. */
   get identityUrl(): string | null {
     return this.read('ORVEX_IDENTITY_URL');
