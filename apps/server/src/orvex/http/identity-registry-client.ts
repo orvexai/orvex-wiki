@@ -464,6 +464,15 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     if (status === 404) {
       throw new RegistryClientError('NOT_FOUND', 'registry: tenant not found');
     }
+    if (status === 400) {
+      const reason = identityErrorText(payload);
+      throw new RegistryClientError(
+        'UNKNOWN_CELL',
+        reason
+          ? `identity registry reserve refused: ${reason}`
+          : 'identity registry reserve refused with HTTP 400',
+      );
+    }
     if (status === 401) {
       // ENG-3313 — same typed refusal as move; both writes cross the same
       // requireEngineInternal gate with the same secret, so a 401 on either

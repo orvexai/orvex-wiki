@@ -96,6 +96,8 @@ const PERSONAL_TENANT = '00000000-0000-4000-8000-00000000e501';
 const COLLIDING_TENANT = '00000000-0000-4000-8000-00000000e502';
 /** ENG-3350 — the tenant whose reserve answer is deliberately not JSON. */
 const NON_JSON_TENANT = '00000000-0000-4000-8000-00000000e503';
+const AUTH_FAILED_TENANT = '00000000-0000-4000-8000-00000000e504';
+const UNKNOWN_CELL_TENANT = '00000000-0000-4000-8000-00000000e505';
 const MINTED_ORG_ID = 'org_2wiring_minted_1';
 
 function provisionHeaders(subject: string, tenant: string) {
@@ -556,6 +558,56 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
       .selectFrom('workspaces')
       .select(['id'])
       .where('id', '=', NON_JSON_TENANT)
+      .executeTakeFirst();
+    expect(local).toBeUndefined();
+  });
+
+  it('preserves a registry AUTH_FAILED instead of reporting REGISTRY_UNAVAILABLE', async () => {
+    registryServer.statusFor.set(AUTH_FAILED_TENANT, 401);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/principals/provision',
+      headers: { authorization: `Bearer ${BEARER}` },
+      payload: {
+        subject: 'sub_wiring_auth_failed',
+        tenant: AUTH_FAILED_TENANT,
+        email: 'auth-failed.wiring@example.com',
+        provision_workspace: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(502);
+    expect(JSON.parse(res.body)).toMatchObject({ code: 'AUTH_FAILED' });
+    const local = await testDb.db
+      .selectFrom('workspaces')
+      .select(['id'])
+      .where('id', '=', AUTH_FAILED_TENANT)
+      .executeTakeFirst();
+    expect(local).toBeUndefined();
+  });
+
+  it('preserves a registry UNKNOWN_CELL instead of reporting REGISTRY_UNAVAILABLE', async () => {
+    registryServer.statusFor.set(UNKNOWN_CELL_TENANT, 400);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/internal/principals/provision',
+      headers: { authorization: `Bearer ${BEARER}` },
+      payload: {
+        subject: 'sub_wiring_unknown_cell',
+        tenant: UNKNOWN_CELL_TENANT,
+        email: 'unknown-cell.wiring@example.com',
+        provision_workspace: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body)).toMatchObject({ code: 'UNKNOWN_CELL' });
+    const local = await testDb.db
+      .selectFrom('workspaces')
+      .select(['id'])
+      .where('id', '=', UNKNOWN_CELL_TENANT)
       .executeTakeFirst();
     expect(local).toBeUndefined();
   });

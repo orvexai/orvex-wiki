@@ -4,6 +4,7 @@
 
 import { randomBytes } from 'crypto';
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   Inject,
@@ -438,6 +439,12 @@ export class PrincipalProvisioningService {
    *  - `NOT_FOUND` (the global registry has never homed this tenant): a typed
    *    409 carrying `TENANT_NOT_REGISTERED`. Deny-by-default — the engine does
    *    not materialize a workspace for a tenant the routing core disowns.
+   *  - `UNKNOWN_CELL` (identity rejected an unrecognized cell token): a typed
+   *    400 carrying `UNKNOWN_CELL`. This is a configuration correction, not a
+   *    retryable identity outage.
+   *  - `AUTH_FAILED` (identity refused this engine's shared seam credential):
+   *    a typed 502 carrying `AUTH_FAILED`. The caller's own credentials were
+   *    accepted; operators must reconcile the engine/identity shared secret.
    *  - `DEPENDENCY_ERROR` (unreachable / malformed / uncredentialled): a typed
    *    503 carrying `REGISTRY_UNAVAILABLE`. RETRYABLE, and distinguishable —
    *    which is the ENG-3350 fix: every one of these used to leave as a raw
@@ -486,6 +493,19 @@ export class PrincipalProvisioningService {
             throw new ConflictException({
               code: 'TENANT_NOT_REGISTERED',
               message: `tenant ${tenant} has no cell binding in the global registry`,
+            });
+          case 'UNKNOWN_CELL':
+            throw new BadRequestException({
+              code: 'UNKNOWN_CELL',
+              message: err.message,
+            });
+          case 'AUTH_FAILED':
+            this.logger.error(
+              'identity registry refused the engine seam credential; reconcile INTERNAL_API_BEARER_TOKEN with identity ENGINE_INTERNAL_API_TOKEN',
+            );
+            throw new BadGatewayException({
+              code: 'AUTH_FAILED',
+              message: 'identity registry refused the engine seam credential',
             });
           default:
             throw new ServiceUnavailableException({
