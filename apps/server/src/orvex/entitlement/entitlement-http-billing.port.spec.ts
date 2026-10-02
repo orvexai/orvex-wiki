@@ -182,17 +182,38 @@ describe('HttpBillingEntitlementPort', () => {
     ).rejects.toThrow();
   });
 
-  it('requires the verified inbound assertion when billing is configured', async () => {
-    const fetchMock = mockFetchSequence();
+  it('preserves unauthenticated Billing calls when no inbound assertion is supplied', async () => {
+    const fetchMock = mockFetchSequence(response(200, fixtureBody()));
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      configServiceStub(),
+    );
+
+    await expect(port.checkEntitlement(principal)).resolves.toMatchObject({
+      plan: 'free',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://billing.internal.test/v1/entitlements/org/ws-1',
+    );
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty(
+      'X-Orvex-Assertion',
+    );
+  });
+
+  it('does not hide Billing authorization failures when no inbound assertion is supplied', async () => {
+    const fetchMock = mockFetchSequence(
+      response(401, { error: 'unauthorized' }),
+    );
     const port = new HttpBillingEntitlementPort(
       environmentServiceStub(),
       configServiceStub(),
     );
 
     await expect(port.checkEntitlement(principal)).rejects.toThrow(
-      'Wiki edge assertion is required',
+      'billing entitlement check failed with status 401',
     );
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not call billing when identity refuses the edge delegation', async () => {
