@@ -75,6 +75,7 @@ import { PrincipalProvisioningService } from '../../src/core/internal-api/princi
 import { WorkspaceUpgradeService } from '../../src/core/workspace/services/workspace-upgrade.service';
 import { WorkspaceService } from '../../src/core/workspace/services/workspace.service';
 import { INTERNAL_API_AUTH_CONFIG } from '../../src/core/internal-api/internal-api-auth';
+import { EDGE_ASSERTION_VERIFIER } from '../../src/orvex/edge-auth/edge-auth.module';
 import { EntitlementService } from '../../src/orvex/entitlement/entitlement.service';
 import { EnvironmentService } from '../../src/integrations/environment/environment.service';
 import { LicenseCheckService } from '../../src/integrations/environment/license-check.service';
@@ -96,6 +97,17 @@ const COLLIDING_TENANT = '00000000-0000-4000-8000-00000000e502';
 /** ENG-3350 — the tenant whose reserve answer is deliberately not JSON. */
 const NON_JSON_TENANT = '00000000-0000-4000-8000-00000000e503';
 const MINTED_ORG_ID = 'org_2wiring_minted_1';
+
+function provisionHeaders(subject: string, tenant: string) {
+  return {
+    authorization: `Bearer ${BEARER}`,
+    'x-orvex-assertion': JSON.stringify({
+      sub: subject,
+      tenant,
+      scope: 'billing:read',
+    }),
+  };
+}
 
 interface RecordedReserve {
   readonly url: string;
@@ -391,6 +403,8 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     })
       .overrideProvider(INTERNAL_API_AUTH_CONFIG)
       .useValue({ bearerToken: BEARER })
+      .overrideProvider(EDGE_ASSERTION_VERIFIER)
+      .useValue({ verify: async (token: string) => JSON.parse(token) })
       .overrideProvider(EntitlementService)
       .useValue(seatRecorder)
       .compile();
@@ -449,7 +463,7 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     const res = await app.inject({
       method: 'POST',
       url: '/internal/principals/provision',
-      headers: { authorization: `Bearer ${BEARER}` },
+      headers: provisionHeaders('sub_wiring_ada', PERSONAL_TENANT),
       payload: {
         subject: 'sub_wiring_ada',
         tenant: PERSONAL_TENANT,
@@ -488,7 +502,7 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     const res = await app.inject({
       method: 'POST',
       url: '/internal/principals/provision',
-      headers: { authorization: `Bearer ${BEARER}` },
+      headers: provisionHeaders('sub_wiring_collide', COLLIDING_TENANT),
       payload: {
         subject: 'sub_wiring_collide',
         tenant: COLLIDING_TENANT,
@@ -523,7 +537,7 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     const res = await app.inject({
       method: 'POST',
       url: '/internal/principals/provision',
-      headers: { authorization: `Bearer ${BEARER}` },
+      headers: provisionHeaders('sub_wiring_nonjson', NON_JSON_TENANT),
       payload: {
         subject: 'sub_wiring_nonjson',
         tenant: NON_JSON_TENANT,
@@ -638,7 +652,7 @@ describe('TestUpgradePassAndRegistryDelegationAreWiredInTheComposedApp (ENG-2503
     const res = await app.inject({
       method: 'POST',
       url: '/internal/principals/provision',
-      headers: { authorization: `Bearer ${BEARER}` },
+      headers: provisionHeaders('sub_wiring_seat_2', PERSONAL_TENANT),
       payload: {
         subject: 'sub_wiring_seat_2',
         tenant: PERSONAL_TENANT,
