@@ -175,3 +175,19 @@ func TestCrewIdentityURLIsInClusterService(t *testing.T) {
 		})
 	}
 }
+
+
+// TestCrewBillingURLIsInClusterService keeps crew entitlement reads on the internal Billing Service.
+func TestCrewBillingURLIsInClusterService(t *testing.T) {
+	bin := kustomizeBin(t)
+	kustomizeDir := thisDir(t)
+
+	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
+		t.Run(branchSlug, func(t *testing.T) {
+			data := crewWikiEnv(t, renderCrewApplication(t, bin, kustomizeDir, branchSlug))
+			require.Equal(t,
+				"http://orvex-studio-billing.orvex-studio-billing-"+branchSlug+".svc.cluster.local",
+				data["ORVEX_BILLING_API_URL"])
+		})
+	}
+}
