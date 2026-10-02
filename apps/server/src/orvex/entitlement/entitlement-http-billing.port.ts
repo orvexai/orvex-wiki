@@ -109,63 +109,63 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
       );
     }
 
-    let delegatedAssertion: string | undefined;
-    if (edgeAssertion) {
-      const identityUrl = this.orvexConfig.identityUrl;
-      if (!identityUrl) {
-        throw new Error(
-          'Identity URL is required to delegate billing entitlement access',
-        );
-      }
+    if (!edgeAssertion) {
+      throw new Error(
+        'ENG-1382: Wiki edge assertion is required for billing entitlement reads',
+      );
+    }
+    const identityUrl = this.orvexConfig.identityUrl;
+    if (!identityUrl) {
+      throw new Error(
+        'ADR-0049: ORVEX_IDENTITY_URL is required to delegate billing entitlement access',
+      );
+    }
 
-      let delegatedResponse: Response;
-      try {
-        delegatedResponse = await fetch(
-          `${identityUrl.replace(/\/+$/, '')}/internal/edge-delegate`,
-          {
-            method: 'POST',
-            headers: {
-              'X-Orvex-Assertion': edgeAssertion,
-              'X-Orvex-Target-Service': 'orvex-studio-billing',
-            },
+    let delegatedResponse: Response;
+    try {
+      delegatedResponse = await fetch(
+        `${identityUrl.replace(/\/+$/, '')}/internal/edge-delegate`,
+        {
+          method: 'POST',
+          headers: {
+            'X-Orvex-Assertion': edgeAssertion,
+            'X-Orvex-Target-Service': 'orvex-studio-billing',
           },
-        );
-      } catch (err) {
-        this.logger.warn(`identity edge delegation failed: ${err}`);
-        throw err;
-      }
-      if (!delegatedResponse.ok) {
-        throw new Error(
-          `Identity edge delegation failed with status ${delegatedResponse.status}`,
-        );
-      }
-      const delegatedBody: unknown = await delegatedResponse.json();
-      delegatedAssertion =
-        typeof delegatedBody === 'object' &&
-        delegatedBody !== null &&
-        'assertion' in delegatedBody &&
-        typeof delegatedBody.assertion === 'string'
-          ? delegatedBody.assertion
-          : undefined;
-      if (!delegatedAssertion) {
-        throw new Error('Identity returned no delegated assertion');
-      }
+        },
+      );
+    } catch (err) {
+      this.logger.warn(`identity edge delegation failed: ${err}`);
+      throw err;
+    }
+    if (!delegatedResponse.ok) {
+      throw new Error(
+        `ADR-0049: identity edge delegation failed with status ${delegatedResponse.status}`,
+      );
+    }
+    const delegatedBody: unknown = await delegatedResponse.json();
+    const delegatedAssertion =
+      typeof delegatedBody === 'object' &&
+      delegatedBody !== null &&
+      'assertion' in delegatedBody &&
+      typeof delegatedBody.assertion === 'string'
+        ? delegatedBody.assertion
+        : undefined;
+    if (!delegatedAssertion) {
+      throw new Error('ADR-0049: identity returned no delegated assertion');
     }
 
     const url = `${baseUrl.replace(/\/+$/, '')}/v1/entitlements/${encodeURIComponent(
       principal.principal_type,
     )}/${encodeURIComponent(principal.principal_id)}`;
 
-    const headers: Record<string, string> = { accept: 'application/json' };
-    if (delegatedAssertion) {
-      headers['X-Orvex-Assertion'] = delegatedAssertion;
-    }
-
     let response: Response;
     try {
       response = await fetch(url, {
         method: 'GET',
-        headers,
+        headers: {
+          accept: 'application/json',
+          'X-Orvex-Assertion': delegatedAssertion,
+        },
       });
     } catch (err) {
       this.logger.warn(`billing entitlement fetch failed: ${err}`);
