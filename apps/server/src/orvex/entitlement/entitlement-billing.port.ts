@@ -34,5 +34,8 @@ export interface BillingEntitlementPort {
    * failure — the caller (EntitlementService) owns the fail-closed/cached
    * fallback decision (AC7), not this port.
    */
-  checkEntitlement(principal: Principal): Promise<EntitlementCheckResponse>;
+  checkEntitlement(
+    principal: Principal,
+    edgeAssertion?: string,
+  ): Promise<EntitlementCheckResponse>;
 }

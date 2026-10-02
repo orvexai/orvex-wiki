@@ -72,6 +72,7 @@ import { OrvexAuditService } from '../audit/orvex-audit.service';
 import { UserRole, SpaceRole } from '../../common/helpers/types/permission';
 import type { DB } from '@docmost/db/types/db';
 import { CellIsolationModule } from '../../common/cell-isolation/cell-isolation.module';
+import { EDGE_ASSERTION_VERIFIER } from '../../orvex/edge-auth/edge-auth.module';
 
 /**
  * TestInternalACLExportResolveAISearchSurface (ENG-1957 AC6; ENG-1559
@@ -113,9 +114,23 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
   let outsiderId: string;
   let spaceId: string;
   let cloudMode = false;
+  let lastBillingAssertion: string | undefined;
 
   const authHeaders = (bearer = BEARER_TOKEN) => ({
     authorization: `Bearer ${bearer}`,
+  });
+  const provisionHeaders = (
+    subject: string,
+    tenant: string,
+    bearer = BEARER_TOKEN,
+    scope = 'billing:read',
+  ) => ({
+    ...authHeaders(bearer),
+    'x-orvex-assertion': JSON.stringify({
+      sub: subject,
+      tenant,
+      scope,
+    }),
   });
 
   beforeAll(async () => {
@@ -219,7 +234,11 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         {
           provide: BILLING_ENTITLEMENT_PORT,
           useValue: {
-            checkEntitlement: async () => {
+            checkEntitlement: async (
+              _principal: unknown,
+              edgeAssertion?: string,
+            ) => {
+              lastBillingAssertion = edgeAssertion;
               throw new BillingUnconfiguredError(
                 'billing SoR is not configured in this spec harness',
               );
@@ -323,7 +342,12 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         TestSupportModule,
         InternalApiModule,
       ],
-    }).compile();
+    })
+      .overrideProvider(EDGE_ASSERTION_VERIFIER)
+      .useValue({
+        verify: async (token: string) => JSON.parse(token),
+      })
+      .compile();
 
     app = built.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
@@ -868,7 +892,11 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const resBad = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders('wrong-token'),
+        headers: provisionHeaders(
+          'idp-subject-401',
+          workspaceId,
+          'wrong-token',
+        ),
         payload: {
           subject: 'idp-subject-401',
           tenant: workspaceId,
@@ -876,6 +904,43 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         },
       });
       expect(resBad.statusCode).toBe(401);
+    });
+
+    it('requires a verified assertion bound to the provisioned subject and tenant with billing:read', async () => {
+      const payload = {
+        subject: 'asserted-subject',
+        tenant: workspaceId,
+        email: 'asserted@example.com',
+      };
+      const missing = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload,
+      });
+      expect(missing.statusCode).toBe(401);
+
+      for (const headers of [
+        provisionHeaders('different-subject', workspaceId),
+        provisionHeaders(
+          payload.subject,
+          '00000000-0000-4000-8000-000000000001',
+        ),
+        provisionHeaders(
+          payload.subject,
+          workspaceId,
+          BEARER_TOKEN,
+          'profile:read',
+        ),
+      ]) {
+        const rejected = await app.inject({
+          method: 'POST',
+          url: '/internal/principals/provision',
+          headers,
+          payload,
+        });
+        expect(rejected.statusCode).toBe(401);
+      }
     });
 
     it('JIT-creates a workspace member + auth_accounts linkage, and the AC1 read seam then RESOLVES the once-unknown subject end-to-end', async () => {
@@ -905,7 +970,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders(SUBJECT, workspaceId),
         payload: {
           subject: SUBJECT,
           tenant: workspaceId,
@@ -914,6 +979,9 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         },
       });
       expect(res.statusCode).toBe(200);
+      expect(lastBillingAssertion).toBe(
+        provisionHeaders(SUBJECT, workspaceId)['x-orvex-assertion'],
+      );
       const body = JSON.parse(res.body);
       expect(body.created).toBe(true);
       expect(typeof body.user_id).toBe('string');
@@ -969,7 +1037,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const first = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders(SUBJECT, workspaceId),
         payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
       });
       expect(first.statusCode).toBe(200);
@@ -979,7 +1047,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const second = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders(SUBJECT, workspaceId),
         payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
       });
       expect(second.statusCode).toBe(200);
@@ -1004,7 +1072,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders(SUBJECT, workspaceId),
         payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
       });
       expect(res.statusCode).toBe(200);
@@ -1021,7 +1089,10 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders(
+          'idp-subject-ghost',
+          '00000000-0000-4000-8000-0000000000ff',
+        ),
         payload: {
           subject: 'idp-subject-ghost',
           tenant: '00000000-0000-4000-8000-0000000000ff',
@@ -1035,7 +1106,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders('idp-subject-badtenant', 'not-a-uuid'),
         payload: {
           subject: 'idp-subject-badtenant',
           tenant: 'not-a-uuid',
@@ -1049,7 +1120,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const badEmail = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders('idp-subject-x', workspaceId),
         payload: {
           subject: 'idp-subject-x',
           tenant: workspaceId,
@@ -1061,7 +1132,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const emptySubject = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders('', workspaceId),
         payload: { subject: '', tenant: workspaceId, email: 'ok@example.com' },
       });
       expect(emptySubject.statusCode).toBe(400);
@@ -1102,7 +1173,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders('r6-deny', W_DENY),
         payload: {
           subject: 'r6-deny',
           tenant: W_DENY,
@@ -1126,7 +1197,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const res = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders(SUBJECT, W_MAT),
         payload: {
           subject: SUBJECT,
           tenant: W_MAT,
@@ -1181,7 +1252,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const repeat = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders('r6-owner', W_MAT),
         payload: {
           subject: 'r6-owner',
           tenant: W_MAT,
@@ -1200,7 +1271,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       const second = await app.inject({
         method: 'POST',
         url: '/internal/principals/provision',
-        headers: authHeaders(),
+        headers: provisionHeaders('r6-member', W_MAT),
         payload: {
           subject: 'r6-member',
           tenant: W_MAT,

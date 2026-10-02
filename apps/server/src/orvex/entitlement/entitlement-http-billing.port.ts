@@ -4,6 +4,7 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { OrvexConfigService } from '../config/orvex-config.service';
 import {
   BillingEntitlementPort,
   BillingUnconfiguredError,
@@ -80,18 +81,22 @@ function assertValidEntitlementCheckResponse(
  * (ENG-1431). No Stripe client, no cap VALUES here (❌#8, ❌#10) — a plain
  * typed HTTP read of billing's projection.
  *
- * The base URL is injected via `ORVEX_BILLING_API_URL` (CS ❌#8 — no inline
- * credentialed client; there are no credentials on this read, but the
- * endpoint itself is still env-configured, never hard-coded).
+ * The base URL is injected via `ORVEX_BILLING_API_URL`. Billing's internal
+ * route requires an identity-minted edge assertion, so this adapter exchanges
+ * the caller's verified Wiki assertion for a billing-audience assertion first.
  */
 @Injectable()
 export class HttpBillingEntitlementPort implements BillingEntitlementPort {
   private readonly logger = new Logger(HttpBillingEntitlementPort.name);
 
-  constructor(private readonly environmentService: EnvironmentService) {}
+  constructor(
+    private readonly environmentService: EnvironmentService,
+    private readonly orvexConfig: OrvexConfigService,
+  ) {}
 
   async checkEntitlement(
     principal: Principal,
+    edgeAssertion?: string,
   ): Promise<EntitlementCheckResponse> {
     const baseUrl = this.environmentService.getBillingApiUrl();
     if (!baseUrl) {
@@ -104,6 +109,51 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
       );
     }
 
+    if (!edgeAssertion) {
+      throw new Error(
+        'ENG-1382: Wiki edge assertion is required for billing entitlement reads',
+      );
+    }
+    const identityUrl = this.orvexConfig.identityUrl;
+    if (!identityUrl) {
+      throw new Error(
+        'ADR-0049: ORVEX_IDENTITY_URL is required to delegate billing entitlement access',
+      );
+    }
+
+    let delegatedResponse: Response;
+    try {
+      delegatedResponse = await fetch(
+        `${identityUrl.replace(/\/+$/, '')}/internal/edge-delegate`,
+        {
+          method: 'POST',
+          headers: {
+            'X-Orvex-Assertion': edgeAssertion,
+            'X-Orvex-Target-Service': 'orvex-studio-billing',
+          },
+        },
+      );
+    } catch (err) {
+      this.logger.warn(`identity edge delegation failed: ${err}`);
+      throw err;
+    }
+    if (!delegatedResponse.ok) {
+      throw new Error(
+        `ADR-0049: identity edge delegation failed with status ${delegatedResponse.status}`,
+      );
+    }
+    const delegatedBody: unknown = await delegatedResponse.json();
+    const delegatedAssertion =
+      typeof delegatedBody === 'object' &&
+      delegatedBody !== null &&
+      'assertion' in delegatedBody &&
+      typeof delegatedBody.assertion === 'string'
+        ? delegatedBody.assertion
+        : undefined;
+    if (!delegatedAssertion) {
+      throw new Error('ADR-0049: identity returned no delegated assertion');
+    }
+
     const url = `${baseUrl.replace(/\/+$/, '')}/v1/entitlements/${encodeURIComponent(
       principal.principal_type,
     )}/${encodeURIComponent(principal.principal_id)}`;
@@ -112,7 +162,10 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
     try {
       response = await fetch(url, {
         method: 'GET',
-        headers: { accept: 'application/json' },
+        headers: {
+          accept: 'application/json',
+          'X-Orvex-Assertion': delegatedAssertion,
+        },
       });
     } catch (err) {
       this.logger.warn(`billing entitlement fetch failed: ${err}`);
