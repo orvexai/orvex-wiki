@@ -209,6 +209,9 @@ patches:
       - op: add
         path: /data/crewIdentityNamespace
         value: orvex-studio-identity-PLACEHOLDER
+      - op: add
+        path: /data/crewBillingNamespace
+        value: orvex-studio-billing-PLACEHOLDER
       - op: replace
         path: /data/wikiHost
         value: wiki.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
@@ -247,7 +250,8 @@ patches:
         value: https://ai.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_BILLING_API_URL
-        value: https://billing.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
+        # TL decision 2026-10-02 (n60): Billing entitlement reads are crew-internal; reverses the 2026-07-06 ruling for crew only. Production and other overlays remain unchanged.
+        value: http://orvex-studio-billing.PLACEHOLDER.svc.cluster.local
       - op: replace
         path: /data/ORVEX_MCP_URL
         value: https://mcp.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
@@ -369,6 +373,7 @@ replacements:
           name: cluster-config
         fieldPaths:
           - data.crewIdentityNamespace
+          - data.crewBillingNamespace
         options:
           delimiter: "-"
           index: 3
@@ -384,6 +389,19 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.ORVEX_IDENTITY_URL
+        options:
+          delimiter: "."
+          index: 1
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.crewBillingNamespace
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.ORVEX_BILLING_API_URL
         options:
           delimiter: "."
           index: 1
