@@ -16,7 +16,6 @@ import {
 } from './internal-api-auth';
 import { InternalApiAuthGuard } from './internal-api-auth.guard';
 import { OrvexConfigModule } from '../../orvex/config/orvex-config.module';
-import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 import { OrvexSessionMintModule } from '../session-mint/orvex-session-mint.module';
 
 /**
@@ -60,12 +59,8 @@ import { OrvexSessionMintModule } from '../session-mint/orvex-session-mint.modul
     InternalApiAuthGuard,
     {
       provide: INTERNAL_API_AUTH_CONFIG,
-      useFactory: (orvexConfig: OrvexConfigService): InternalApiAuthConfig =>
-        readInternalApiAuthConfig({
-          INTERNAL_API_BEARER_TOKEN:
-            orvexConfig.internalApiBearerToken ?? undefined,
-        }),
-      inject: [OrvexConfigService],
+      useFactory: (): InternalApiAuthConfig =>
+        readInternalApiAuthConfig(process.env),
     },
   ],
 })
