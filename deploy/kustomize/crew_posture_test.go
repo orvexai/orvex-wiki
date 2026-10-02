@@ -176,7 +176,6 @@ func TestCrewIdentityURLIsInClusterService(t *testing.T) {
 	}
 }
 
-
 // TestCrewBillingURLIsDisabledForInterim verifies crew uses the ratified free-only path until delegated auth lands.
 func TestCrewBillingURLIsDisabledForInterim(t *testing.T) {
 	bin := kustomizeBin(t)
