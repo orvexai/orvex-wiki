@@ -94,7 +94,6 @@ export class EntitlementService {
   private async resolve(
     workspaceId: string,
     actingForPrincipal?: Principal,
-    edgeAssertion?: string,
   ): Promise<EntitlementCheckResponse> {
     const principal = actingForPrincipal ?? this.toPrincipal(workspaceId);
 
@@ -104,10 +103,7 @@ export class EntitlementService {
     }
 
     try {
-      const fresh = await this.billingPort.checkEntitlement(
-        principal,
-        edgeAssertion,
-      );
+      const fresh = await this.billingPort.checkEntitlement(principal);
       await this.cache.set(principal, fresh);
       return fresh;
     } catch (err) {
@@ -423,13 +419,8 @@ export class EntitlementService {
     resource: QuotaResource,
     currentUsage: number,
     overageMultiplier: number,
-    edgeAssertion?: string,
   ): Promise<void> {
-    const entitlement = await this.resolve(
-      workspaceId,
-      undefined,
-      edgeAssertion,
-    );
+    const entitlement = await this.resolve(workspaceId);
     const limit = capValueForResource(entitlement.caps, resource);
 
     if (limit === 0) {

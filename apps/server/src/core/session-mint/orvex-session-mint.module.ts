@@ -157,6 +157,5 @@ function composeIntrospector(config: OrvexConfigService): IdentityIntrospector {
       inject: [OrvexConfigService],
     } satisfies Provider,
   ],
-  exports: [EDGE_ASSERTION_VERIFIER],
 })
 export class OrvexSessionMintModule {}

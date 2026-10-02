@@ -89,8 +89,6 @@ export interface ProvisionPrincipalInput {
    * tenant. Required when `principalKind === 'org'`.
    */
   orgId?: string;
-  /** Verified identity assertion used for the delegated billing entitlement read. */
-  edgeAssertion?: string;
 }
 
 export interface ProvisionPrincipalResult {
@@ -287,7 +285,6 @@ export class PrincipalProvisioningService {
             'members',
             currentMemberCount,
             JIT_MEMBER_OVERAGE_MULTIPLIER,
-            input.edgeAssertion,
           );
 
           user = await this.userRepo.insertUser(
