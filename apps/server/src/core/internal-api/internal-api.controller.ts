@@ -6,14 +6,11 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
-  Inject,
   Param,
   Post,
   Query,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { InternalApiAuthGuard } from './internal-api-auth.guard';
@@ -28,10 +25,6 @@ import {
 import { WorkspaceUpgradeService } from '../workspace/services/workspace-upgrade.service';
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 import { WorkspaceCellAssertionService } from '../../common/cell-isolation/workspace-cell-assertion.service';
-import { EDGE_ASSERTION_VERIFIER } from '../../orvex/edge-auth/edge-auth.module';
-import { EdgeAssertionVerificationError } from '../../orvex/edge-auth/edge-assertion.types';
-import type { EdgeAssertionClaims } from '../../orvex/edge-auth/edge-assertion.types';
-import type { EdgeAssertionVerifierPort } from '../session-mint/orvex-session-mint.service';
 
 /**
  * InternalApiController (ENG-1957; ENG-1559 principal-resolution) — the
@@ -79,8 +72,6 @@ export class InternalApiController {
     // same actor that already drives `principals/provision`.
     private readonly workspaceUpgradeService: WorkspaceUpgradeService,
     private readonly cellAssertion: WorkspaceCellAssertionService,
-    @Inject(EDGE_ASSERTION_VERIFIER)
-    private readonly edgeAssertionVerifier: EdgeAssertionVerifierPort,
   ) {}
 
   /**
@@ -97,36 +88,7 @@ export class InternalApiController {
   @SkipTransform()
   @HttpCode(HttpStatus.OK)
   @Post('principals/provision')
-  async provisionPrincipal(
-    @Body() dto: ProvisionPrincipalDto,
-    @Headers('x-orvex-assertion') assertionHeader?: string,
-  ) {
-    const assertion = assertionHeader?.trim();
-    if (!assertion) {
-      throw new UnauthorizedException('edge assertion required');
-    }
-
-    let claims: EdgeAssertionClaims;
-    try {
-      claims = await this.edgeAssertionVerifier.verify(assertion);
-    } catch (error: unknown) {
-      if (error instanceof EdgeAssertionVerificationError) {
-        throw new UnauthorizedException('edge assertion rejected');
-      }
-      // JWKS/configuration failures are infrastructure errors, not invalid
-      // caller credentials. Let Nest return an honest 5xx.
-      throw error;
-    }
-    if (
-      claims.sub !== dto.subject ||
-      claims.tenant !== dto.tenant ||
-      !claims.scope.split(/\s+/).includes('billing:read')
-    ) {
-      throw new UnauthorizedException(
-        'edge assertion does not authorize provisioning',
-      );
-    }
-
+  async provisionPrincipal(@Body() dto: ProvisionPrincipalDto) {
     // A missing row is legitimate only for the explicit JIT-provisioning
     // command. The assertion still requires a real deployment CELL_ID first;
     // materialization stamps that same value on the new workspace.
@@ -146,7 +108,6 @@ export class InternalApiController {
         // wire. Absent ⇒ 'user' (personal, no Clerk org anywhere).
         principalKind: dto.principal_kind,
         orgId: dto.org_id,
-        edgeAssertion: assertion,
       });
     return { user_id: userId, created, workspace_created: workspaceCreated };
   }
