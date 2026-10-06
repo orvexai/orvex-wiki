@@ -864,6 +864,10 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         },
       });
       expect(res.statusCode).toBe(401);
+      expect(JSON.parse(res.body)).toEqual({
+        statusCode: 401,
+        message: 'Unauthorized',
+      });
 
       const resBad = await app.inject({
         method: 'POST',
@@ -915,6 +919,14 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       });
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
+      expect(Object.keys(body).sort()).toEqual([
+        'created',
+        'user_id',
+        'workspace_created',
+      ]);
+      expect(body).not.toHaveProperty('data');
+      expect(body).not.toHaveProperty('success');
+      expect(body).not.toHaveProperty('status');
       expect(body.created).toBe(true);
       expect(typeof body.user_id).toBe('string');
       const provisionedUserId = body.user_id as string;
@@ -1029,6 +1041,10 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         },
       });
       expect(res.statusCode).toBe(404);
+      const error = JSON.parse(res.body);
+      expect(error.statusCode).toBe(404);
+      expect(typeof error.message).toBe('string');
+      expect(error).not.toHaveProperty('data');
     });
 
     it('rejects a non-UUID tenant (400)', async () => {
