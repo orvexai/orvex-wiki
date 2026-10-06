@@ -176,6 +176,24 @@ func TestCrewIdentityURLIsInClusterService(t *testing.T) {
 	}
 }
 
+// TestCrewEdgeJWKSURLStaysInItsCrewIdentityNamespace is the render guard for
+// edge assertion verification: /internal/jwks is not exposed on identity's
+// public route, and a crew render must never fall back to prod or dev identity.
+func TestCrewEdgeJWKSURLStaysInItsCrewIdentityNamespace(t *testing.T) {
+	bin := kustomizeBin(t)
+	kustomizeDir := thisDir(t)
+
+	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
+		t.Run(branchSlug, func(t *testing.T) {
+			data := crewWikiEnv(t, renderCrewApplication(t, bin, kustomizeDir, branchSlug))
+			require.Equal(t,
+				"http://orvex-studio-identity.orvex-studio-identity-"+branchSlug+".svc.cluster.local/internal/jwks",
+				data["ORVEX_EDGE_JWKS_URL"],
+				"crew edge assertions must use the same crew's internal identity Service")
+		})
+	}
+}
+
 // TestCrewBillingURLIsDisabledForInterim verifies crew uses the ratified free-only path until delegated auth lands.
 func TestCrewBillingURLIsDisabledForInterim(t *testing.T) {
 	bin := kustomizeBin(t)
