@@ -11,6 +11,7 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
@@ -66,7 +67,7 @@ export { TenantPrincipalKind };
 export interface ProvisionPrincipalInput {
   subject: string;
   tenant: string;
-  email: string;
+  email?: string;
   name?: string;
   /**
    * Registry vouch (ENG-1559 R6): when true, the engine get-or-creates the
@@ -229,6 +230,31 @@ export class PrincipalProvisioningService {
         });
         let workspaceCreated = false;
 
+        // Returning Clerk principals do not need a Management API email
+        // lookup. Resolve their existing subject+tenant linkage before any
+        // email-dependent work; an omitted email never updates the stored one.
+        const existing = workspace
+          ? await this.userRepo.findUserIdByProviderUserId(subject, tenant, trx)
+          : undefined;
+        if (existing) {
+          return { userId: existing, created: false, workspaceCreated };
+        }
+
+        // Email is required only to create a missing principal (or materialize
+        // its first workspace). The typed response tells identity to resolve
+        // the verified Clerk email and retry. Throwing inside the transaction
+        // rolls back without workspace, user, linkage, or registry writes.
+        if (!email) {
+          if (!workspace && !provisionWorkspace) {
+            throw new NotFoundException('Workspace not found');
+          }
+          throw new UnprocessableEntityException({
+            code: 'email_required',
+            message:
+              'email is required to provision a principal not yet linked to this workspace',
+          });
+        }
+
         if (!workspace) {
           if (!provisionWorkspace) {
             throw new NotFoundException('Workspace not found');
@@ -250,15 +276,6 @@ export class PrincipalProvisioningService {
         // Idempotency: an existing live linkage short-circuits with ZERO further
         // writes, returning the already-resolved user id. The read seam is the
         // source of truth for "is this subject already provisioned here".
-        const existing = await this.userRepo.findUserIdByProviderUserId(
-          subject,
-          tenant,
-          trx,
-        );
-        if (existing) {
-          return { userId: existing, created: false, workspaceCreated };
-        }
-
         // Account-linking: an already workspace-invited engine user with this
         // email is LINKED (the invited-then-SSO case), never duplicated. The
         // `users_email_workspace_id_unique` constraint is the concurrency guard

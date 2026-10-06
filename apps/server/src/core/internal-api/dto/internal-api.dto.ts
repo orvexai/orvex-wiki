@@ -13,6 +13,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateIf,
   MaxLength,
 } from 'class-validator';
 
@@ -82,7 +83,10 @@ export class AclFilterDto {
  *                 workspaceId`). A tenant that is not a live workspace 404s
  *                 (fail-closed) UNLESS `provision_workspace` vouches for it; a
  *                 non-UUID tenant 400s.
- *  - `email`    — the principal's email; the account-linking key. An already
+ *  - `email`    — required for a new principal; optional for an already-linked
+ *                 subject. When omitted for an unknown subject, the endpoint
+ *                 returns HTTP 422 `{code: "email_required"}` without writes.
+ *                 For first provisioning this is the account-linking key. An already
  *                 workspace-invited user with this email is LINKED (not
  *                 duplicated); otherwise a member user is JIT-created.
  *  - `name`     — optional display name for a JIT-created user.
@@ -99,8 +103,9 @@ export class ProvisionPrincipalDto {
   @IsUUID()
   tenant: string;
 
+  @ValidateIf((_dto, value) => value !== undefined)
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsOptional()
   @IsString()
