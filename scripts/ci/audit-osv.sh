@@ -88,3 +88,9 @@ set -e
 # network scan.
 python3 "${REPO_ROOT}/scripts/ci/osv-gate.py" \
   "${REPORT}" "${EXCEPTIONS_FILE}" "${MAX_EXCEPTION_DAYS}"
+
+# This exception is approved only while braces remains confined to server dev
+# tooling. Fail closed if production reachability or its approved path changes.
+if grep -q 'id = "GHSA-vfj7-8cjw-p6xm"' "${EXCEPTIONS_FILE}"; then
+  node "${REPO_ROOT}/scripts/ci/check-osv-braces-scope.mjs" "${LOCKFILE}"
+fi

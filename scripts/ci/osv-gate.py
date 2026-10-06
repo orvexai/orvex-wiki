@@ -24,6 +24,8 @@ import sys
 import tomllib
 
 BLOCKING = {"HIGH", "CRITICAL"}
+BRACES_ADVISORY = "GHSA-vfj7-8cjw-p6xm"
+BRACES_PACKAGE = ("braces", "3.0.3")
 TICKET_RE = re.compile(r"\bENG-\d+\b")
 RANK = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
 
@@ -109,6 +111,16 @@ def main(argv):
         print("osv-scanner: no known vulnerabilities in the pnpm-resolved tree.")
 
     reported_ids = {f[1] for f in findings}
+
+    # This narrow exception is approved only for one resolved package version.
+    # An advisory ID must never suppress a different package/version.
+    if BRACES_ADVISORY in exceptions:
+        mismatched = [f for f in findings if f[1] == BRACES_ADVISORY
+                      and (f[2], f[3]) != BRACES_PACKAGE]
+        if mismatched:
+            ledger_errors.append(
+                f"{ledger_name} ({BRACES_ADVISORY}): exception is limited to "
+                "braces@3.0.3; it cannot cover another package or version")
 
     if exceptions:
         print(f"\nException ledger ({ledger_name}) — dated, expiring, per-advisory:")

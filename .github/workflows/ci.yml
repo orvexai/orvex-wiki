@@ -1025,6 +1025,8 @@ jobs:
       # entries all red), and validates the committed ledger itself (ENG-3274).
       - name: TestOsvExceptionLedger (DoD suite, hermetic)
         run: bash scripts/test/audit-osv-exceptions.spec.sh
+      - name: TestBracesOsvExceptionScope (production reachability guard)
+        run: node --test scripts/test/osv-braces-scope.test.mjs
       # Supply-chain audit of the npm dependency tree (high+). NOT `pnpm audit`:
       # pnpm's audit hits npm's /-/npm/v1/security/audits endpoint, which npm
       # RETIRED (HTTP 410 Gone — "use the bulk advisory endpoint instead"), so

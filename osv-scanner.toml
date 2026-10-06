@@ -75,3 +75,17 @@
 # Should image-size ever re-enter the tree through a non-optional path, redo
 # the case-2 proof from scratch — do not simply restore these entries verbatim
 # on the assumption the reachability analysis still holds.
+
+# GHSA-vfj7-8cjw-p6xm (braces@3.0.3) is a temporary DEV-only exception approved
+# by the captain on 2026-10-06. No patched braces version is published. The
+# resolved path is apps/server dev tooling only: jest-message-util,
+# kysely-codegen, and ts-loader via micromatch@4.0.8. The CI scope check proves
+# the advisory is exactly braces@3.0.3 and fails if any production importer
+# reaches it or if the development path changes. Remove this entry as soon as
+# upstream patches braces, and no later than 2026-11-05.
+# Removal tracking: beads issue orvex-wiki-e3q (Remove temporary braces OSV
+# exception after upstream fix).
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2026-11-05
+reason = "ENG-3274; captain-approved temporary dev-only exception for braces@3.0.3 with no upstream patched release; tracked by bead orvex-wiki-e3q for removal."

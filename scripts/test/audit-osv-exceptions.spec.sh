@@ -177,6 +177,22 @@ write_report "${WORKDIR}/twohigh.json" \
 expect "a second un-excepted HIGH still reds" 1 "un-excepted HIGH/CRITICAL" \
   "${WORKDIR}/twohigh.json" "${WORKDIR}/good.toml"
 
+# --- AC12: the braces exception cannot cover another package/version -------
+write_report "${WORKDIR}/braces-wrong-version.json" \
+  "HIGH:GHSA-vfj7-8cjw-p6xm:braces:3.0.2"
+cat >"${WORKDIR}/braces.toml" <<EOF
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = ${SOON}
+reason = "ENG-3274; temporary dev-only braces exception tracked by bead orvex-wiki-e3q."
+EOF
+expect "braces exception cannot cover another version" 1 "cannot cover another package or version" \
+  "${WORKDIR}/braces-wrong-version.json" "${WORKDIR}/braces.toml"
+write_report "${WORKDIR}/braces-wrong-package.json" \
+  "HIGH:GHSA-vfj7-8cjw-p6xm:other-package:3.0.3"
+expect "braces exception cannot cover another package" 1 "cannot cover another package or version" \
+  "${WORKDIR}/braces-wrong-package.json" "${WORKDIR}/braces.toml"
+
 # --- AC11: the committed ledger itself is in good standing ----------------
 # Not a fixture: the REAL osv-scanner.toml, validated against a report that
 # contains exactly the advisories it excepts. Catches an entry that rots
@@ -187,7 +203,11 @@ if [[ -f "$COMMITTED" ]]; then
   if [[ ${#committed_ids[@]} -gt 0 ]]; then
     specs=()
     for vid in "${committed_ids[@]}"; do
-      specs+=("HIGH:${vid}:excepted-pkg:0.0.0")
+      if [[ "$vid" == "GHSA-vfj7-8cjw-p6xm" ]]; then
+        specs+=("HIGH:${vid}:braces:3.0.3")
+      else
+        specs+=("HIGH:${vid}:excepted-pkg:0.0.0")
+      fi
     done
     write_report "${WORKDIR}/committed.json" "${specs[@]}"
     expect "the committed osv-scanner.toml is in good standing" 0 "SECURITY PASSED" \
