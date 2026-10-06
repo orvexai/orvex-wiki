@@ -64,6 +64,18 @@ overrides:
   # at 11.16.1. Same-major patch bump — ENG-3698 dependabot follow-up, ruling
   # #25.
   mermaid: 11.16.1
+  # GHSA-x8mw-p69m-v3mx and GHSA-xjh9-v7x6-24jw: fixed in 3.2.1.
+  '@fastify/busboy': 3.2.1
+  # GHSA-w3vv-58gj-gw77: fixed in the 22.x line at 22.7.9.
+  nx: 22.7.9
+  # GHSA-c8x8-7fp4-3x9w: fixed at 1.42.3.
+  prosemirror-view: 1.42.3
+  # GHSA-68fv-2mgg-jv7q: fixed at 1.2.2.
+  source-map-js: 1.2.2
+  # GHSA-vfj7-8cjw-p6xm has no patched braces release. Updating the Sass
+  # consumer moves from chokidar 3 to chokidar 5, removing braces from this
+  # runtime dependency path. It remains only under server dev tools via micromatch.
+  sass: 1.105.1
   # nanoid: GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8 (both HIGH). 3.x line
   # fixed at 3.3.17; 4.x/5.x line fixed at 5.1.16. ^4 -> 5.1.16 crosses a major
   # on purpose (nanoid has no 4.x patch release covering both advisories) —
