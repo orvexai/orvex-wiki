@@ -89,7 +89,7 @@
     "@types/turndown": "5.0.6",
     "concurrently": "9.2.3",
     "eslint": "9.28.0",
-    "nx": "22.7.8",
+    "nx": "22.7.9",
     "tsx": "^4.21.0",
     "typescript-eslint": "8.57.1"
   },
