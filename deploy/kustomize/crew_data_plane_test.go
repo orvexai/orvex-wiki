@@ -48,13 +48,19 @@ func TestCrewDataPlaneClaimsUseCrewNamespace(t *testing.T) {
 		}
 		metadata, _ := doc["metadata"].(map[string]any)
 		if (doc["kind"] == "PostgresInstanceClaim" && metadata["name"] == "orvex-wiki-postgres") ||
-			(doc["kind"] == "RedisInstanceClaim" && metadata["name"] == "orvex-wiki-redis") {
+			(doc["kind"] == "RedisInstanceClaim" && metadata["name"] == "orvex-wiki-redis") ||
+			(doc["kind"] == "ObjectStorageClaim" && metadata["name"] == "orvex-wiki-s3") {
 			require.Equal(t, "orvex-wiki-crew-probe", metadata["namespace"])
 			found[doc["kind"].(string)] = true
+			if doc["kind"] == "ObjectStorageClaim" {
+				spec, _ := doc["spec"].(map[string]any)
+				require.Equal(t, "orvex-wiki-crew-probe-bucket", spec["bucketName"])
+			}
 		}
 	}
 	require.True(t, found["PostgresInstanceClaim"], "crew render must include its own Postgres claim")
 	require.True(t, found["RedisInstanceClaim"], "crew render must include its own Redis claim")
+	require.True(t, found["ObjectStorageClaim"], "crew render must include its own bucket claim")
 	require.Contains(t, rendered, "key: orvex-wiki-crew-probe/postgres")
 	require.Contains(t, rendered, "key: orvex-wiki-crew-probe/redis")
 }
