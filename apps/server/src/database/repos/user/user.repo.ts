@@ -147,7 +147,6 @@ export class UserRepo {
     link: {
       userId: string;
       providerUserId: string;
-      subjectRef?: string;
       workspaceId: string;
       authProviderId?: string | null;
     },
@@ -161,33 +160,59 @@ export class UserRepo {
         providerUserId: link.providerUserId,
         workspaceId: link.workspaceId,
         authProviderId: link.authProviderId ?? null,
-        subjectRef: link.subjectRef ?? null,
       })
       .execute();
   }
 
-  async setProviderAccountSubjectRef(
-    providerUserId: string,
+  /**
+   * Upsert an Identity-verified subjectRef for this live local principal.
+   * An existing different value is a hard conflict; never overwrite it.
+   */
+  async recordVerifiedSubjectRef(
+    userId: string,
     workspaceId: string,
     subjectRef: string,
-    trx?: KyselyTransaction,
-  ): Promise<boolean> {
-    const db = dbOrTx(this.db, trx);
-    const result = await db
-      .updateTable('authAccounts')
-      .set({ subjectRef })
-      .where('providerUserId', '=', providerUserId)
+  ): Promise<'recorded' | 'conflict' | 'missing_linkage'> {
+    const rows = await this.db
+      .selectFrom('authAccounts')
+      .select(['id', 'subjectRef'])
+      .where('userId', '=', userId)
       .where('workspaceId', '=', workspaceId)
       .where('deletedAt', 'is', null)
-      .where((eb) =>
-        eb.or([
-          eb('subjectRef', 'is', null),
-          eb('subjectRef', '=', subjectRef),
-        ]),
+      .execute();
+
+    if (rows.length === 0) return 'missing_linkage';
+    if (
+      rows.some(
+        (row) => row.subjectRef !== null && row.subjectRef !== subjectRef,
       )
+    ) {
+      return 'conflict';
+    }
+    if (rows.some((row) => row.subjectRef === subjectRef)) return 'recorded';
+    if (rows.length !== 1) return 'conflict';
+
+    const updated = await this.db
+      .updateTable('authAccounts')
+      .set({ subjectRef })
+      .where('id', '=', rows[0].id)
+      .where('userId', '=', userId)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('subjectRef', 'is', null)
       .returning('id')
       .executeTakeFirst();
-    return Boolean(result);
+    if (updated) return 'recorded';
+
+    const current = await this.db
+      .selectFrom('authAccounts')
+      .select('subjectRef')
+      .where('id', '=', rows[0].id)
+      .where('userId', '=', userId)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
+    return current?.subjectRef === subjectRef ? 'recorded' : 'conflict';
   }
 
   async updateUser(

@@ -13,6 +13,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Allow,
   ValidateIf,
   MaxLength,
 } from 'class-validator';
@@ -100,12 +101,13 @@ export class ProvisionPrincipalDto {
   @IsNotEmpty()
   subject: string;
 
-  /** Identity-issued stable opaque HMAC reference used by deletion workflows. */
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(256)
-  subject_ref?: string;
+  /**
+   * Compatibility-only: untrusted request-body values are accepted by the
+   * validator but deliberately ignored. subjectRef is sourced only from a
+   * verified identity token claim.
+   */
+  @Allow()
+  subject_ref?: unknown;
 
   @IsUUID()
   tenant: string;

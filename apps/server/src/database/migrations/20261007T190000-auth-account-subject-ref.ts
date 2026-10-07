@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely';
+import { Kysely } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
   await db.schema
@@ -11,7 +11,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .on('auth_accounts')
     .columns(['workspace_id', 'subject_ref'])
     .unique()
-    .where(sql`subject_ref IS NOT NULL`)
+    .where((eb) => eb('subject_ref', 'is not', null))
     .execute();
 }
 

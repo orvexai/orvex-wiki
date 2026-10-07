@@ -66,7 +66,6 @@ export { TenantPrincipalKind };
 
 export interface ProvisionPrincipalInput {
   subject: string;
-  subjectRef?: string;
   tenant: string;
   email?: string;
   name?: string;
@@ -238,20 +237,6 @@ export class PrincipalProvisioningService {
           ? await this.userRepo.findUserIdByProviderUserId(subject, tenant, trx)
           : undefined;
         if (existing) {
-          if (
-            input.subjectRef &&
-            !(await this.userRepo.setProviderAccountSubjectRef(
-              subject,
-              tenant,
-              input.subjectRef,
-              trx,
-            ))
-          ) {
-            throw new ConflictException({
-              code: 'subject_ref_conflict',
-              message: 'subject reference is already bound to another linkage',
-            });
-          }
           return { userId: existing, created: false, workspaceCreated };
         }
 
@@ -360,7 +345,6 @@ export class PrincipalProvisioningService {
           {
             userId: user.id,
             providerUserId: subject,
-            subjectRef: input.subjectRef,
             workspaceId: tenant,
           },
           trx,
@@ -430,7 +414,6 @@ export class PrincipalProvisioningService {
           changes: { after: { name: auditNewWorkspace.name } },
           metadata: {
             source: 'internal-provisioning',
-            ...(input.subjectRef ? { subjectRef: input.subjectRef } : {}),
             registryIssued: true,
           },
         },
@@ -452,7 +435,6 @@ export class PrincipalProvisioningService {
           },
         metadata: {
           source: 'internal-provisioning',
-          ...(input.subjectRef ? { subjectRef: input.subjectRef } : {}),
         },
         },
         { workspaceId: tenant, actorType: 'system' },

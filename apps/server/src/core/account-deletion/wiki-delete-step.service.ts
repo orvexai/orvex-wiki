@@ -27,7 +27,7 @@ export interface AccountDeletionStepAck {
 }
 
 export type WikiDeleteActionResult =
-  | { outcome: 'completed' }
+  | { outcome: 'completed'; resultNote?: 'nothing_to_delete' }
   | { outcome: 'paused'; reasonCode: 'ownership_transfer_required' };
 
 export const WIKI_DELETE_ACTION = Symbol('WIKI_DELETE_ACTION');
@@ -39,7 +39,10 @@ export interface WikiDeleteStepRepository {
   runLocked(
     deletionId: string,
     step: typeof WIKI_DELETE_STEP,
-    action: () => Promise<AccountDeletionStepAck>,
+    action: () => Promise<{
+      ack: AccountDeletionStepAck;
+      resultNote?: 'nothing_to_delete';
+    }>,
   ): Promise<AccountDeletionStepAck>;
 }
 
@@ -55,7 +58,10 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
   runLocked(
     deletionId: string,
     step: typeof WIKI_DELETE_STEP,
-    action: () => Promise<AccountDeletionStepAck>,
+    action: () => Promise<{
+      ack: AccountDeletionStepAck;
+      resultNote?: 'nothing_to_delete';
+    }>,
   ): Promise<AccountDeletionStepAck> {
     const lockKey = `account-deletion:${deletionId}:${step}`;
     return this.db.transaction().execute(async (transaction) => {
@@ -75,18 +81,19 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
         return existing.ack as unknown as AccountDeletionStepAck;
       }
 
-      const ack = await action();
-      if (ack.outcome !== 'retryable_failure') {
+      const execution = await action();
+      if (execution.ack.outcome !== 'retryable_failure') {
         await transaction
           .insertInto('accountDeletionStepResults')
           .values({
             deletionId,
             step,
-            ack: ack as unknown as Json,
+            ack: execution.ack as unknown as Json,
+            resultNote: execution.resultNote ?? null,
           })
           .execute();
       }
-      return ack;
+      return execution.ack;
     });
   }
 }
@@ -114,22 +121,29 @@ export class WikiDeleteStepService {
       try {
         const result = await this.deletion.execute(request.subjectRef);
         return {
-          deletionId: request.deletionId,
-          step: WIKI_DELETE_STEP,
-          outcome: result.outcome,
-          ...(result.outcome === 'paused'
-            ? { reasonCode: result.reasonCode }
+          ack: {
+            deletionId: request.deletionId,
+            step: WIKI_DELETE_STEP,
+            outcome: result.outcome,
+            ...(result.outcome === 'paused'
+              ? { reasonCode: result.reasonCode }
+              : {}),
+            acknowledgedAt: new Date().toISOString(),
+          },
+          ...(result.outcome === 'completed' && result.resultNote
+            ? { resultNote: result.resultNote }
             : {}),
-          acknowledgedAt: new Date().toISOString(),
         };
       } catch {
         // Retryable failures are deliberately not stored by the repository.
         return {
-          deletionId: request.deletionId,
-          step: WIKI_DELETE_STEP,
-          outcome: 'retryable_failure',
-          reasonCode: 'dependency_unavailable',
-          acknowledgedAt: new Date().toISOString(),
+          ack: {
+            deletionId: request.deletionId,
+            step: WIKI_DELETE_STEP,
+            outcome: 'retryable_failure',
+            reasonCode: 'dependency_unavailable',
+            acknowledgedAt: new Date().toISOString(),
+          },
         };
       }
     });

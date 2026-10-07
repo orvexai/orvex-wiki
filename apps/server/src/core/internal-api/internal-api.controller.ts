@@ -100,7 +100,6 @@ export class InternalApiController {
     const { userId, created, workspaceCreated } =
       await this.principalProvisioningService.provision({
         subject: dto.subject,
-        subjectRef: dto.subject_ref,
         tenant: dto.tenant,
         email: dto.email,
         name: dto.name,

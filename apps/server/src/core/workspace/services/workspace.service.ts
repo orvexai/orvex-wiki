@@ -1099,4 +1099,65 @@ export class WorkspaceService {
       // empty
     }
   }
+
+  /** Account-deletion saga path: no request actor is impersonated. */
+  async deleteAccountPrincipal(
+    userId: string,
+    workspaceId: string,
+  ): Promise<'deleted' | 'missing' | 'ownership_transfer_required'> {
+    const user = await this.userRepo.findById(userId, workspaceId);
+    if (!user || user.deletedAt) return 'missing';
+
+    const ownerCount = await this.userRepo.roleCountByWorkspaceId(
+      UserRole.OWNER,
+      workspaceId,
+    );
+    if (user.role === UserRole.OWNER && ownerCount <= 1) {
+      return 'ownership_transfer_required';
+    }
+
+    await executeTx(this.db, async (trx) => {
+      await this.userRepo.updateUser(
+        {
+          name: 'Deleted user',
+          email: v4() + '@deleted.docmost.com',
+          avatarUrl: null,
+          settings: null,
+          deletedAt: new Date(),
+        },
+        userId,
+        workspaceId,
+        trx,
+      );
+      await trx.deleteFrom('groupUsers').where('userId', '=', userId).execute();
+      await trx.deleteFrom('spaceMembers').where('userId', '=', userId).execute();
+      await trx.deleteFrom('authAccounts').where('userId', '=', userId).execute();
+      await this.watcherRepo.deleteByUserAndWorkspace(userId, workspaceId, { trx });
+      await this.favoriteRepo.deleteByUserAndWorkspace(userId, workspaceId, { trx });
+      await this.userSessionRepo.revokeByUserId(userId, workspaceId, trx);
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_WORKSPACE_MEMBER_DELETED,
+        aggregateId: userId,
+        workspaceId,
+        payload: { userId, workspaceId },
+      });
+      await this.outboxWriter.enqueue(trx, {
+        type: EVT_USER_DELETED,
+        aggregateId: userId,
+        workspaceId,
+        payload: {
+          userId,
+          workspaceId,
+          schemaVersion: USER_DELETED_SCHEMA_VERSION,
+        },
+      });
+    });
+
+    try {
+      await this.attachmentQueue.add(QueueJob.DELETE_USER_AVATARS, user);
+    } catch {
+      // The durable deletion and cleanup event are already committed.
+    }
+    return 'deleted';
+  }
 }

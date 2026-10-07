@@ -19,21 +19,26 @@ const request = (overrides: Partial<AccountDeletionStepRequested> = {}) => ({
 
 class InMemoryTerminalAckRepository implements WikiDeleteStepRepository {
   readonly results = new Map<string, AccountDeletionStepAck>();
+  readonly resultNotes = new Map<string, string>();
 
   async runLocked(
     deletionId: string,
     step: typeof WIKI_DELETE_STEP,
-    action: () => Promise<AccountDeletionStepAck>,
+    action: () => Promise<{
+      ack: AccountDeletionStepAck;
+      resultNote?: 'nothing_to_delete';
+    }>,
   ): Promise<AccountDeletionStepAck> {
     const key = `${deletionId}:${step}`;
     const previous = this.results.get(key);
     if (previous) return previous;
 
-    const ack = await action();
-    if (ack.outcome !== 'retryable_failure') {
-      this.results.set(key, ack);
+    const execution = await action();
+    if (execution.ack.outcome !== 'retryable_failure') {
+      this.results.set(key, execution.ack);
+      if (execution.resultNote) this.resultNotes.set(key, execution.resultNote);
     }
-    return ack;
+    return execution.ack;
   }
 }
 
@@ -110,6 +115,20 @@ describe('WikiDeleteStepService', () => {
     });
     expect(duplicate).toEqual(first);
     expect(action.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a no-data completion internally while keeping the strict ack shape unchanged', async () => {
+    action.execute.mockResolvedValue({
+      outcome: 'completed',
+      resultNote: 'nothing_to_delete',
+    });
+
+    const ack = await service.handle(request());
+    const key = `${request().deletionId}:${WIKI_DELETE_STEP}`;
+
+    expect(ack).toMatchObject({ outcome: 'completed' });
+    expect(ack).not.toHaveProperty('reasonCode');
+    expect(repository.resultNotes.get(key)).toBe('nothing_to_delete');
   });
 
   it('rejects a request for another saga step before invoking deletion', async () => {

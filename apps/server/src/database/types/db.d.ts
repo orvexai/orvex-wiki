@@ -127,6 +127,7 @@ export interface AccountDeletionStepResults {
   ack: Json;
   createdAt: Generated<Timestamp>;
   deletionId: string;
+  resultNote: string | null;
   step: string;
 }
 
