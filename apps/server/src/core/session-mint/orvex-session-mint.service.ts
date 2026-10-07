@@ -206,8 +206,9 @@ export class OrvexSessionMintService {
         workspaceId,
         subjectRef,
       );
-      if (recorded !== 'recorded') {
-        this.logger.error('session-mint rejected inconsistent subjectRef mapping');
+      if (recorded === 'conflict') {
+        this.logger.error('subjectRef mapping conflict flagged for operator review');
+      } else if (recorded !== 'recorded') {
         throw new UnauthorizedException('principal mapping rejected');
       }
     }

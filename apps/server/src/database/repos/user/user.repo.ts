@@ -166,7 +166,8 @@ export class UserRepo {
 
   /**
    * Upsert an Identity-verified subjectRef for this live local principal.
-   * An existing different value is a hard conflict; never overwrite it.
+   * A differing existing value is retained and the local principal is flagged
+   * for operator review. The verified request remains authenticated.
    */
   async recordVerifiedSubjectRef(
     userId: string,
@@ -182,26 +183,43 @@ export class UserRepo {
       .execute();
 
     if (rows.length === 0) return 'missing_linkage';
+    const conflictingLinkage = rows.some(
+      (row) => row.subjectRef !== null && row.subjectRef !== subjectRef,
+    );
+    const existingOwner = await this.db
+      .selectFrom('authAccounts')
+      .select('userId')
+      .where('workspaceId', '=', workspaceId)
+      .where('subjectRef', '=', subjectRef)
+      .where('deletedAt', 'is', null)
+      .executeTakeFirst();
     if (
-      rows.some(
-        (row) => row.subjectRef !== null && row.subjectRef !== subjectRef,
-      )
+      conflictingLinkage ||
+      (existingOwner && existingOwner.userId !== userId)
     ) {
+      await this.flagSubjectRefConflict(userId, workspaceId);
       return 'conflict';
     }
     if (rows.some((row) => row.subjectRef === subjectRef)) return 'recorded';
     if (rows.length !== 1) return 'conflict';
 
-    const updated = await this.db
-      .updateTable('authAccounts')
-      .set({ subjectRef })
-      .where('id', '=', rows[0].id)
-      .where('userId', '=', userId)
-      .where('workspaceId', '=', workspaceId)
-      .where('deletedAt', 'is', null)
-      .where('subjectRef', 'is', null)
-      .returning('id')
-      .executeTakeFirst();
+    let updated: { id: string } | undefined;
+    try {
+      updated = await this.db
+        .updateTable('authAccounts')
+        .set({ subjectRef })
+        .where('id', '=', rows[0].id)
+        .where('userId', '=', userId)
+        .where('workspaceId', '=', workspaceId)
+        .where('deletedAt', 'is', null)
+        .where('subjectRef', 'is', null)
+        .returning('id')
+        .executeTakeFirst();
+    } catch (error) {
+      if ((error as { code?: string })?.code !== '23505') throw error;
+      await this.flagSubjectRefConflict(userId, workspaceId);
+      return 'conflict';
+    }
     if (updated) return 'recorded';
 
     const current = await this.db
@@ -213,6 +231,20 @@ export class UserRepo {
       .where('deletedAt', 'is', null)
       .executeTakeFirst();
     return current?.subjectRef === subjectRef ? 'recorded' : 'conflict';
+  }
+
+  private async flagSubjectRefConflict(
+    userId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    await this.db
+      .updateTable('users')
+      .set({ subjectRefConflictAt: new Date() })
+      .where('id', '=', userId)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('subjectRefConflictAt', 'is', null)
+      .execute();
   }
 
   async updateUser(

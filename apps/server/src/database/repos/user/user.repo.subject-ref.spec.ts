@@ -1,17 +1,35 @@
 import { UserRepo } from './user.repo';
 
 describe('UserRepo.recordVerifiedSubjectRef', () => {
-  function setup(initial: Array<{ id: string; subjectRef: string | null }>) {
-    const rows = initial.map((row) => ({ ...row }));
+  function setup(
+    initial: Array<{ id: string; subjectRef: string | null; userId?: string }>,
+    mappedOwner?: string,
+  ) {
+    const rows = initial.map((row) => ({ userId: 'user-1', ...row }));
     let updateCount = 0;
     let updateValue: string | undefined;
+    let selectedFields: unknown;
     const selectQuery = {
-      select: jest.fn().mockReturnThis(),
+      select: jest.fn((fields: unknown) => {
+        selectedFields = fields;
+        return selectQuery;
+      }),
       where: jest.fn().mockReturnThis(),
       execute: jest.fn(async () => rows),
-      executeTakeFirst: jest.fn(async () => rows[0]),
+      executeTakeFirst: jest.fn(async () =>
+        selectedFields === 'userId'
+          ? mappedOwner
+            ? { userId: mappedOwner }
+            : undefined
+          : rows[0],
+      ),
     };
     let updateQuery: any;
+    const operatorFlagQuery = {
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue(undefined),
+    };
     updateQuery = {
       set: jest.fn((value: { subjectRef: string }) => {
         updateValue = value.subjectRef;
@@ -29,12 +47,15 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
     };
     const db = {
       selectFrom: jest.fn().mockReturnValue(selectQuery),
-      updateTable: jest.fn().mockReturnValue(updateQuery),
+      updateTable: jest.fn((table: string) =>
+        table === 'users' ? operatorFlagQuery : updateQuery,
+      ),
     };
     return {
       repo: new UserRepo(db as never),
       rows,
       updateQuery,
+      operatorFlagQuery,
       updateCount: () => updateCount,
     };
   }
@@ -58,7 +79,7 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
     expect(t.updateCount()).toBe(1);
   });
 
-  it('rejects a different stored reference without overwriting it', async () => {
+  it('flags a different stored reference for operator review without overwriting it', async () => {
     const existing = 'b'.repeat(64);
     const t = setup([{ id: 'link-1', subjectRef: existing }]);
 
@@ -71,6 +92,26 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
     expect(result).toBe('conflict');
     expect(t.rows[0].subjectRef).toBe(existing);
     expect(t.updateCount()).toBe(0);
+    expect(t.operatorFlagQuery.set).toHaveBeenCalledWith({
+      subjectRefConflictAt: expect.any(Date),
+    });
+  });
+
+  it('flags a reference already linked to another user in the workspace', async () => {
+    const t = setup([{ id: 'link-1', subjectRef: null }], 'user-2');
+
+    const result = await t.repo.recordVerifiedSubjectRef(
+      'user-1',
+      'workspace-1',
+      'e'.repeat(64),
+    );
+
+    expect(result).toBe('conflict');
+    expect(t.rows[0].subjectRef).toBeNull();
+    expect(t.updateCount()).toBe(0);
+    expect(t.operatorFlagQuery.set).toHaveBeenCalledWith({
+      subjectRefConflictAt: expect.any(Date),
+    });
   });
 
   it('does not create a mapping when the local principal has no linkage', async () => {

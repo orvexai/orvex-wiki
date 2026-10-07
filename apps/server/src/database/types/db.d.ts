@@ -428,6 +428,7 @@ export interface Users {
   password: string | null;
   role: string | null;
   scimExternalId: string | null;
+  subjectRefConflictAt: Timestamp | null;
   settings: Json | null;
   timezone: string | null;
   updatedAt: Generated<Timestamp>;

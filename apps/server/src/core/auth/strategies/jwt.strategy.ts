@@ -71,8 +71,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         payload.workspaceId,
         payload.subjectRef,
       );
-      if (recorded !== 'recorded') {
-        this.logger.error('authenticated request rejected: subjectRef mapping conflict');
+      if (recorded === 'conflict') {
+        this.logger.error('subjectRef mapping conflict flagged for operator review');
+      } else if (recorded !== 'recorded') {
         throw new UnauthorizedException();
       }
     }

@@ -229,7 +229,7 @@ describe('OrvexSessionMintService', () => {
     );
   });
 
-  it('rejects a verified subjectRef that conflicts with the stored mapping', async () => {
+  it('mints a session on subjectRef conflict while flagging the principal for operator review', async () => {
     const t = makeService({
       principal: { ...PRINCIPAL, subjectRef: 'b'.repeat(64) },
       resolvedUserId: 'user-1',
@@ -237,10 +237,11 @@ describe('OrvexSessionMintService', () => {
     });
     t.recordVerifiedSubjectRef.mockResolvedValue('conflict');
 
-    await expect(t.service.mintSession('opaque-token')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    await t.service.mintSession('opaque-token');
+    expect(t.createSessionAndToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'user-1' }),
+      'b'.repeat(64),
     );
-    expect(t.createSessionAndToken).not.toHaveBeenCalled();
   });
 
   it('keeps old verified tokens without subjectRef compatible and does not write a mapping', async () => {

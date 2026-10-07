@@ -125,7 +125,7 @@ describe('JwtStrategy — api-key dispatch (AC9)', () => {
     );
   });
 
-  it('rejects a token whose verified subjectRef conflicts with stored linkage', async () => {
+  it('serves a token whose verified subjectRef conflicts while alerting without logging the claim', async () => {
     const { strategy, userRepo } = buildStrategy();
     const subjectRef = 'b'.repeat(64);
     userRepo.recordVerifiedSubjectRef.mockResolvedValue('conflict');
@@ -133,13 +133,22 @@ describe('JwtStrategy — api-key dispatch (AC9)', () => {
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => {});
 
-    await expect(strategy.validate({ raw: {}, headers: {} }, {
+    const result = await strategy.validate({ raw: {}, headers: {} }, {
       sub: 'user-1',
       email: 'a@example.com',
       workspaceId: 'ws-1',
       type: 'access',
       subjectRef,
-    } as any)).rejects.toBeInstanceOf(UnauthorizedException);
+    } as any);
+    expect(result).toMatchObject({ user, workspace });
+    expect(userRepo.recordVerifiedSubjectRef).toHaveBeenCalledWith(
+      'user-1',
+      'ws-1',
+      subjectRef,
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      'subjectRef mapping conflict flagged for operator review',
+    );
     expect(errorSpy.mock.calls.flat().join(' ')).not.toContain(subjectRef);
     errorSpy.mockRestore();
   });
