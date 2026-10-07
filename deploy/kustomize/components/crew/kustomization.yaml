@@ -52,12 +52,11 @@
 # and would re-source the promoted cell id from cluster-config. Patching its own
 # cellId is UPSTREAM of that transformer, so it survives.
 #
-# Data plane (crew-design.md §Data): platform-resources (Postgres/Redis) is
-# NOT excluded here — a Kustomize Component cannot delete base resources — so
-# today every crew env provisions its OWN Postgres/Redis via the base
-# platform-resources claims (self-contained, works standalone). The originally
-# intended "share dev's Postgres/Redis by default" optimization is a follow-up,
-# not required to bring a crew env up.
+# Data plane (crew-design.md §Data): every crew gets its own Postgres and
+# Redis claims. The root kustomization includes both claims for every profile;
+# idp-render rewrites appNamespace to this crew's namespace, and the composed
+# database and Redis credentials resolve from that namespace. This component
+# scopes application traffic; it does not select or remove platform resources.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
