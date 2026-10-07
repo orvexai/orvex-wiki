@@ -112,6 +112,26 @@ export class UserRepo {
     return row?.id;
   }
 
+  /** Resolve Identity's stable opaque subject reference inside one workspace. */
+  async findUserIdBySubjectRef(
+    subjectRef: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<string | undefined> {
+    const db = dbOrTx(this.db, trx);
+    const row = await db
+      .selectFrom('authAccounts')
+      .innerJoin('users', 'users.id', 'authAccounts.userId')
+      .select('users.id as id')
+      .where('authAccounts.subjectRef', '=', subjectRef)
+      .where('authAccounts.workspaceId', '=', workspaceId)
+      .where('authAccounts.deletedAt', 'is', null)
+      .where('users.workspaceId', '=', workspaceId)
+      .where('users.deletedAt', 'is', null)
+      .executeTakeFirst();
+    return row?.id;
+  }
+
   /**
    * ENG-1559 write-path — establish the SSO linkage row that
    * {@link findUserIdByProviderUserId} later reads. This is the WRITE half of
@@ -127,6 +147,7 @@ export class UserRepo {
     link: {
       userId: string;
       providerUserId: string;
+      subjectRef?: string;
       workspaceId: string;
       authProviderId?: string | null;
     },
@@ -140,8 +161,33 @@ export class UserRepo {
         providerUserId: link.providerUserId,
         workspaceId: link.workspaceId,
         authProviderId: link.authProviderId ?? null,
+        subjectRef: link.subjectRef ?? null,
       })
       .execute();
+  }
+
+  async setProviderAccountSubjectRef(
+    providerUserId: string,
+    workspaceId: string,
+    subjectRef: string,
+    trx?: KyselyTransaction,
+  ): Promise<boolean> {
+    const db = dbOrTx(this.db, trx);
+    const result = await db
+      .updateTable('authAccounts')
+      .set({ subjectRef })
+      .where('providerUserId', '=', providerUserId)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where((eb) =>
+        eb.or([
+          eb('subjectRef', 'is', null),
+          eb('subjectRef', '=', subjectRef),
+        ]),
+      )
+      .returning('id')
+      .executeTakeFirst();
+    return Boolean(result);
   }
 
   async updateUser(

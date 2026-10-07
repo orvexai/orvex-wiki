@@ -100,6 +100,13 @@ export class ProvisionPrincipalDto {
   @IsNotEmpty()
   subject: string;
 
+  /** Identity-issued stable opaque HMAC reference used by deletion workflows. */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(256)
+  subject_ref?: string;
+
   @IsUUID()
   tenant: string;
 

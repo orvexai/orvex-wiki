@@ -1034,6 +1034,78 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       expect(Number(usersAfter.count)).toBe(Number(usersBefore.count));
     });
 
+    it('persists and idempotently backfills the opaque subjectRef on the auth linkage', async () => {
+      const subject = 'idp-subject-with-stable-ref';
+      const subjectRef = 'a'.repeat(64);
+      const first = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject, tenant: workspaceId, email: 'subject-ref@example.com' },
+      });
+      expect(first.statusCode).toBe(200);
+
+      const backfill = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject, subject_ref: subjectRef, tenant: workspaceId },
+      });
+      expect(backfill.statusCode).toBe(200);
+      expect(JSON.parse(backfill.body).created).toBe(false);
+
+      const repeated = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject, subject_ref: subjectRef, tenant: workspaceId },
+      });
+      expect(repeated.statusCode).toBe(200);
+      const stored = await seedDb
+        .selectFrom('authAccounts')
+        .select('subjectRef')
+        .where('providerUserId', '=', subject)
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirstOrThrow();
+      expect(stored.subjectRef).toBe(subjectRef);
+
+      const userRepo = app.get(UserRepo);
+      expect(await userRepo.findUserIdBySubjectRef(subjectRef, workspaceId)).toBe(
+        JSON.parse(first.body).user_id,
+      );
+      expect(
+        await userRepo.findUserIdBySubjectRef(subjectRef, otherWorkspaceId),
+      ).toBeUndefined();
+    });
+
+    it('fails closed when an existing linkage is presented with a different subjectRef', async () => {
+      const subject = 'idp-subject-ref-conflict';
+      const provision = (subjectRef: string) =>
+        app.inject({
+          method: 'POST',
+          url: '/internal/principals/provision',
+          headers: authHeaders(),
+          payload: {
+            subject,
+            subject_ref: subjectRef,
+            tenant: workspaceId,
+            email: 'subject-ref-conflict@example.com',
+          },
+        });
+
+      expect((await provision('b'.repeat(64))).statusCode).toBe(200);
+      const conflict = await provision('c'.repeat(64));
+      expect(conflict.statusCode).toBe(409);
+      expect(JSON.parse(conflict.body)).toMatchObject({ code: 'subject_ref_conflict' });
+      const stored = await seedDb
+        .selectFrom('authAccounts')
+        .select('subjectRef')
+        .where('providerUserId', '=', subject)
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirstOrThrow();
+      expect(stored.subjectRef).toBe('b'.repeat(64));
+    });
+
     it('LINKS an already workspace-invited user by email instead of duplicating them', async () => {
       const EMAIL = 'invited@example.com';
       const SUBJECT = 'idp-subject-invited';

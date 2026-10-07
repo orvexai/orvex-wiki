@@ -88,6 +88,7 @@ export interface AuthAccounts {
   deletedAt: Timestamp | null;
   id: Generated<string>;
   providerUserId: string;
+  subjectRef: string | null;
   updatedAt: Generated<Timestamp>;
   userId: string;
   workspaceId: string;
