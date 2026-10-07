@@ -148,11 +148,11 @@ export function isAccountDeletionStepRequested(
     keys.join(',') === 'deletionId,requestedAt,step,subjectRef' &&
     typeof data.deletionId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      data.deletionId,
+    data.deletionId,
     ) &&
     typeof data.subjectRef === 'string' &&
     data.subjectRef.length > 0 &&
-    data.subjectRef.length <= 512 &&
+    data.subjectRef.length <= 256 &&
     data.step === WIKI_DELETE_STEP &&
     typeof data.requestedAt === 'string' &&
     Number.isFinite(Date.parse(data.requestedAt))

@@ -6,6 +6,7 @@ import {
   WikiDeleteStepRepository,
   WikiDeleteStepService,
   WIKI_DELETE_STEP,
+  isAccountDeletionStepRequested,
 } from './wiki-delete-step.service';
 
 const request = (overrides: Partial<AccountDeletionStepRequested> = {}) => ({
@@ -118,5 +119,21 @@ describe('WikiDeleteStepService', () => {
 
     expect(action.execute).not.toHaveBeenCalled();
     expect(repository.results.size).toBe(0);
+  });
+
+  it('accepts the strict request payload shape and rejects extra fields', () => {
+    expect(isAccountDeletionStepRequested(request())).toBe(true);
+    expect(
+      isAccountDeletionStepRequested({ ...request(), email: 'private@example.com' }),
+    ).toBe(false);
+  });
+
+  it('rejects request data with an invalid step or overlong subjectRef', () => {
+    expect(
+      isAccountDeletionStepRequested({ ...request(), step: 'api_purge' }),
+    ).toBe(false);
+    expect(
+      isAccountDeletionStepRequested({ ...request(), subjectRef: 'x'.repeat(257) }),
+    ).toBe(false);
   });
 });
