@@ -122,6 +122,13 @@ export interface AuthProviders {
   workspaceId: string;
 }
 
+export interface AccountDeletionStepResults {
+  ack: Json;
+  createdAt: Generated<Timestamp>;
+  deletionId: string;
+  step: string;
+}
+
 export interface Backlinks {
   createdAt: Generated<Timestamp>;
   id: Generated<string>;
@@ -659,6 +666,7 @@ export interface DB {
   audit: Audit;
   authAccounts: AuthAccounts;
   authProviders: AuthProviders;
+  accountDeletionStepResults: AccountDeletionStepResults;
   backlinks: Backlinks;
   baseProperties: BaseProperties;
   baseRows: BaseRows;
