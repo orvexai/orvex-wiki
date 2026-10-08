@@ -24,13 +24,12 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
           : rows[0],
       ),
     };
-    let updateQuery: any;
     const operatorFlagQuery = {
       set: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue(undefined),
     };
-    updateQuery = {
+    const updateQuery = {
       set: jest.fn((value: { subjectRef: string }) => {
         updateValue = value.subjectRef;
         return updateQuery;
