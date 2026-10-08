@@ -38,13 +38,8 @@
 # cluster-config.branchSlug (already exactly "crew-{name}", computed by
 # idp-render's applyBranch — no derive step, no new idp-render code needed).
 #
-# CELL_ID stays "solo" for CREW ONLY. ENG-3109/AD-36: the base cluster-config
-# cellId is now the real promoted-env cell id (the literal is typed ONLY in
-# cluster-config.yaml — see the AC5 cell-token single-source guard in
-# ../../hostname_cutover_test.go, which fails this file if it is re-typed
-# here). Dev is a real cell: it runs CLOUD=true, so cell enforcement is ACTIVE
-# there and the old "solo" base made every guarded call 421. Crew must
-# therefore EXPLICITLY patch cellId back down to "solo".
+# CELL_ID follows this crew's branchSlug, so the service's emitted cell and
+# workspace-cell assertions identify the same isolated crew deployment.
 #
 # Same replacement-source-not-target technique as the ENGINE_URL patch below:
 # a patch on the derived orvex-wiki-env ConfigMap's CELL_ID would be clobbered
@@ -66,36 +61,20 @@ labels:
     includeSelectors: false
 
 patches:
-  # ── CELL_ID → "solo" (ENG-3109/AD-36 — the one place solo stays legal) ───
-  # See the header comment: this patches cluster-config's OWN cellId field
-  # (the `replacements:` SOURCE), not the derived orvex-wiki-env ConfigMap's
-  # CELL_ID (a target-side patch would be overwritten by the transformer).
-  # Crew keeps the sentinel because it isolates the spine via
-  # EVENT_TOPIC_SUFFIX, not via a cell of its own.
-  #
-  # CAVEAT, recorded rather than silently assumed: the older comments in this
-  # file assert crew "runs cell-enforcement-free". That is NOT true as
-  # rendered — `EnvironmentService.isCloud()` reads CLOUD, and the crew build
-  # inherits the base CLOUD="true" (no crew patch overrides it), so
-  # `WorkspaceCellAssertionService` IS active on crew and a `solo` pod cell
-  # would trip DEPLOYMENT_CELL_ABSENT — RESOLVED by the ORVEX_ENVIRONMENT=crew
-  # patch below (AD-36 soloLegal). This patch keeps crew byte-identical
-  # to its pre-ENG-3109 behaviour and deliberately changes nothing about that
-  # pre-existing posture; whether crew wants CLOUD=false or a real per-crew
-  # cell id is a separate decision, not one to smuggle in here.
+  # ── CELL_ID follows branchSlug ───────────────────────────────────────────
+  # Use the standard placeholder/replacement path so crew-yafet and other
+  # crew branches each render their own real cell id.
   - patch: |-
       - op: replace
         path: /data/cellId
-        value: solo
+        value: PLACEHOLDER
     target:
       kind: ConfigMap
       name: cluster-config
 
   # ── ORVEX_ENVIRONMENT → "crew" (AD-36; mirrors orvex-studio-identity) ────
-  # LOAD-BEARING, paired with the cellId patch above: CLOUD=true keeps the
-  # cell assertion active on crew, and it admits CELL_ID=solo ONLY when this
-  # names crew/preview. Without it every workspace-scoped internal call
-  # (principals/provision → /clerk/exchange) 421s DEPLOYMENT_CELL_ABSENT.
+  # CLOUD=true keeps the cell assertion active on crew. The crew-specific
+  # branchSlug above supplies a real CELL_ID rather than the solo sentinel.
   # Not a `replacements:` target, so a direct patch on the derived ConfigMap
   # survives the build. Base stays "prod" (fail closed).
   - patch: |-
@@ -370,6 +349,16 @@ replacements:
         options:
           delimiter: "-"
           index: 3
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.branchSlug
+    targets:
+      - select:
+          kind: ConfigMap
+          name: cluster-config
+        fieldPaths:
+          - data.cellId
   # Step 2: that namespace into ORVEX_IDENTITY_URL and ORVEX_EDGE_JWKS_URL
   # (split by ".", index 1), yielding the crew identity Service host for
   # both identity's internal API and its internal JWKS route.

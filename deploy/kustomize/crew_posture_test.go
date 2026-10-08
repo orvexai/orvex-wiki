@@ -136,17 +136,16 @@ func crewWikiEnv(t *testing.T, rendered string) map[string]string {
 	return nil
 }
 
-// AD-36: crew runs CELL_ID=solo, which the engine's cell assertion admits ONLY
-// when ORVEX_ENVIRONMENT names crew/preview. Base (prod/dev) must stay "prod"
-// so a solo pod there still fails closed.
-func TestCrewSoloCellIsAuthorisedByEnvironment(t *testing.T) {
+// Each crew render uses its branch slug as CELL_ID so the cell assertion and
+// emitted event metadata identify the same crew deployment.
+func TestCrewCellMatchesBranchSlug(t *testing.T) {
 	bin := kustomizeBin(t)
 	kustomizeDir := thisDir(t)
 
 	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
 		t.Run(branchSlug, func(t *testing.T) {
 			data := crewWikiEnv(t, renderCrewApplication(t, bin, kustomizeDir, branchSlug))
-			require.Equal(t, "solo", data["CELL_ID"])
+			require.Equal(t, branchSlug, data["CELL_ID"])
 			require.Equal(t, "crew", data["ORVEX_ENVIRONMENT"])
 		})
 	}
