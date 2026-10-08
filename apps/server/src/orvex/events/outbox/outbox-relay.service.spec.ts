@@ -80,4 +80,34 @@ describe('OutboxRelayService polling backoff', () => {
     expect(publisher.publish).toHaveBeenCalledTimes(1);
     expect(db.updateTable).not.toHaveBeenCalled();
   });
+
+  it('does not start overlapping polls while the current broker request is pending', async () => {
+    const relay = new OutboxRelayService(
+      {} as never,
+      {} as never,
+      {
+        cellId: 'crew-yafet',
+        kafkaBrokersConfigured: true,
+        kafkaOutboxTopic: 'wiki-events.crew-yafet',
+      },
+    );
+    let releaseRun!: () => void;
+    const runGate = new Promise<void>((resolve) => {
+      releaseRun = resolve;
+    });
+    const run = jest.spyOn(relay, 'run').mockImplementation(async () => {
+      await runGate;
+      return { published: 0, failed: 0 };
+    });
+
+    const currentPoll = relay.poll();
+    expect(run).toHaveBeenCalledTimes(1);
+    await relay.poll();
+    expect(run).toHaveBeenCalledTimes(1);
+
+    releaseRun();
+    await currentPoll;
+    await relay.poll();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
 });

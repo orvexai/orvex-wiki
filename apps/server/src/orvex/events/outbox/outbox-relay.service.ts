@@ -96,6 +96,7 @@ export class OutboxRelayService implements OnModuleInit {
   private nextPollAt = 0;
   private consecutiveFailurePolls = 0;
   private lastFailureLogAt = 0;
+  private pollRunning = false;
 
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
@@ -181,7 +182,8 @@ export class OutboxRelayService implements OnModuleInit {
    */
   @Interval('orvex-outbox-relay', 2_000)
   async poll(): Promise<void> {
-    if (Date.now() < this.nextPollAt) return;
+    if (this.pollRunning || Date.now() < this.nextPollAt) return;
+    this.pollRunning = true;
     try {
       const result = await this.run();
       if (result.failed > 0) {
@@ -192,6 +194,8 @@ export class OutboxRelayService implements OnModuleInit {
       }
     } catch (err) {
       this.deferAfterFailure(0, err);
+    } finally {
+      this.pollRunning = false;
     }
   }
 
