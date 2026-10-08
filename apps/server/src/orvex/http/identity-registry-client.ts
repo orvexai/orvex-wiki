@@ -502,6 +502,15 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
         `http_${status}`,
       );
     }
+    if (status === 400) {
+      const reason = identityErrorText(payload);
+      throw new RegistryClientError(
+        'UNKNOWN_CELL',
+        reason
+          ? `identity registry reserve refused: ${reason}`
+          : 'identity registry reserve refused with HTTP 400',
+      );
+    }
     if (status === 401) {
       throw new RegistryClientError(
         'AUTH_FAILED',
