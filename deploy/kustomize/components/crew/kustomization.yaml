@@ -197,7 +197,7 @@ patches:
   # ORVEX_<SVC>_URL, EVENT_TOPIC_SUFFIX, and KAFKA_OUTBOX_TOPIC are not root
   # replacement targets, so these patches survive the build. Every sibling
   # resolves to its crew host, and the explicitly configured outbox topic below
-  # is `wiki-events.crew-{name}` — distinct from CELL_ID, which stays "solo".
+  # is `wiki-events.crew-{name}` — independently configured from CELL_ID.
   # The engine runs no Temporal worker, so there
   # is no TEMPORAL_NAMESPACE to isolate here.
   - patch: |-
