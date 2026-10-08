@@ -119,18 +119,22 @@ export class UserRepo {
     workspaceId: string,
     trx?: KyselyTransaction,
   ): Promise<string | undefined> {
-    const db = dbOrTx(this.db, trx);
-    const row = await db
-      .selectFrom('authAccounts')
-      .innerJoin('users', 'users.id', 'authAccounts.userId')
-      .select('users.id as id')
-      .where('authAccounts.subjectRef', '=', subjectRef)
-      .where('authAccounts.workspaceId', '=', workspaceId)
-      .where('authAccounts.deletedAt', 'is', null)
-      .where('users.workspaceId', '=', workspaceId)
-      .where('users.deletedAt', 'is', null)
-      .executeTakeFirst();
-    return row?.id;
+    const find = (scopedTrx: KyselyTransaction) =>
+      withTenantScopedTransaction(scopedTrx, workspaceId, async (tenantTrx) => {
+        const row = await tenantTrx
+          .selectFrom('authAccounts')
+          .innerJoin('users', 'users.id', 'authAccounts.userId')
+          .select('users.id as id')
+          .where('authAccounts.subjectRef', '=', subjectRef)
+          .where('authAccounts.workspaceId', '=', workspaceId)
+          .where('authAccounts.deletedAt', 'is', null)
+          .where('users.workspaceId', '=', workspaceId)
+          .where('users.deletedAt', 'is', null)
+          .executeTakeFirst();
+        return row?.id;
+      });
+
+    return trx ? find(trx) : executeTx(this.db, find);
   }
 
   /**
