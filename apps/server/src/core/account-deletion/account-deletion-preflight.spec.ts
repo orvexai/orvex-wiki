@@ -66,6 +66,25 @@ describe('AccountDeletionPreflightService', () => {
     expect(wire).not.toContain('subjectRef');
   });
 
+  it('returns a contract-valid display name for a legacy workspace with no name', async () => {
+    const { service } = makeService([
+      {
+        workspaceId: '22222222-2222-4222-8222-222222222222',
+        name: null,
+      },
+    ]);
+
+    await expect(service.check(claims.sub, claims.tenant)).resolves.toEqual({
+      result: 'ownership_transfer_required',
+      blockingWorkspaces: [
+        {
+          workspaceId: '22222222-2222-4222-8222-222222222222',
+          name: 'Untitled workspace',
+        },
+      ],
+    });
+  });
+
   it('fails closed when the verified personal workspace principal is absent', async () => {
     const { service, userRepo } = makeService([]);
     jest

@@ -8,7 +8,7 @@ import { UserRepo } from '@docmost/db/repos/user/user.repo';
 
 export interface AccountDeletionPreflightResult {
   result: 'proceed' | 'ownership_transfer_required';
-  blockingWorkspaces: Array<{ workspaceId: string; name: string | null }>;
+  blockingWorkspaces: Array<{ workspaceId: string; name: string }>;
 }
 
 /** Read-only, user-context check before Identity revokes sessions or starts deletion. */
@@ -34,8 +34,15 @@ export class AccountDeletionPreflightService {
       throw new UnauthorizedException('principal not provisioned');
     }
 
-    const blockingWorkspaces =
+    const workspaces =
       await this.userRepo.findDeletionBlockingWorkspaces(subject);
+    // The legacy workspace schema permits NULL names, while the pinned wire
+    // contract requires a string. Keep the response shape stable for those
+    // historical rows without exposing any member identity data.
+    const blockingWorkspaces = workspaces.map(({ workspaceId, name }) => ({
+      workspaceId,
+      name: name ?? 'Untitled workspace',
+    }));
     return {
       result: blockingWorkspaces.length
         ? 'ownership_transfer_required'
