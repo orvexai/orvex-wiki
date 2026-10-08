@@ -15,6 +15,7 @@ export const WIKI_DELETE_STEP = 'wiki_delete' as const;
 export interface AccountDeletionStepRequested {
   deletionId: string;
   requestedAt: string;
+  requestId: string;
   step: string;
   subjectRef: string;
 }
@@ -272,6 +273,14 @@ export class WikiDeleteStepService {
     if (!UUID_PATTERN.test(requestId)) {
       throw new BadRequestException('Invalid account deletion request id');
     }
+    if (
+      !UUID_PATTERN.test(request.requestId) ||
+      request.requestId !== requestId
+    ) {
+      throw new BadRequestException(
+        'Account deletion request id does not match the event id',
+      );
+    }
 
     return this.results.runLocked(
       request.deletionId,
@@ -280,9 +289,7 @@ export class WikiDeleteStepService {
       orvexTenant,
       async () => {
         try {
-          const result = await this.deletion.execute(
-            request.subjectRef,
-          );
+          const result = await this.deletion.execute(request.subjectRef);
           if (
             result.outcome === 'paused' &&
             (result.blockingWorkspaceIds.length === 0 ||
@@ -337,13 +344,15 @@ export function isAccountDeletionStepRequested(
   const data = value as Record<string, unknown>;
   const keys = Object.keys(data).sort();
   return (
-    keys.join(',') === 'deletionId,requestedAt,step,subjectRef' &&
+    keys.join(',') === 'deletionId,requestId,requestedAt,step,subjectRef' &&
     typeof data.deletionId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       data.deletionId,
     ) &&
     typeof data.subjectRef === 'string' &&
     /^[0-9a-f]{64}$/.test(data.subjectRef) &&
+    typeof data.requestId === 'string' &&
+    UUID_PATTERN.test(data.requestId) &&
     data.step === WIKI_DELETE_STEP &&
     typeof data.requestedAt === 'string' &&
     Number.isFinite(Date.parse(data.requestedAt))

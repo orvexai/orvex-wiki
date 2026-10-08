@@ -12,6 +12,7 @@ import {
 const request = (overrides: Partial<AccountDeletionStepRequested> = {}) => ({
   deletionId: '550e8400-e29b-41d4-a716-446655440000',
   requestedAt: '2026-10-07T18:00:00Z',
+  requestId: '650e8400-e29b-41d4-a716-446655440000',
   step: WIKI_DELETE_STEP,
   subjectRef: 'a'.repeat(64),
   ...overrides,
@@ -151,8 +152,16 @@ describe('WikiDeleteStepService', () => {
     await invoke();
 
     const nextAttemptId = '750e8400-e29b-41d4-a716-446655440000';
-    const replay = await invoke(request(), TENANT_ID, nextAttemptId);
-    const duplicate = await invoke(request(), TENANT_ID, nextAttemptId);
+    const replay = await invoke(
+      request({ requestId: nextAttemptId }),
+      TENANT_ID,
+      nextAttemptId,
+    );
+    const duplicate = await invoke(
+      request({ requestId: nextAttemptId }),
+      TENANT_ID,
+      nextAttemptId,
+    );
 
     expect(replay.requestId).toBe(nextAttemptId);
     expect(duplicate).toEqual(replay);
@@ -174,7 +183,12 @@ describe('WikiDeleteStepService', () => {
     });
     expect(repository.results.size).toBe(0);
 
-    const retried = await invoke(request(), TENANT_ID, '750e8400-e29b-41d4-a716-446655440000');
+    const retryId = '750e8400-e29b-41d4-a716-446655440000';
+    const retried = await invoke(
+      request({ requestId: retryId }),
+      TENANT_ID,
+      retryId,
+    );
     expect(retried.outcome).toBe('completed');
     expect(action.execute).toHaveBeenCalledTimes(2);
     expect(repository.results.size).toBe(1);
@@ -219,7 +233,11 @@ describe('WikiDeleteStepService', () => {
     expect(action.execute).toHaveBeenCalledTimes(1);
 
     const nextAttemptId = '750e8400-e29b-41d4-a716-446655440000';
-    const resumed = await invoke(request(), tenant, nextAttemptId);
+    const resumed = await invoke(
+      request({ requestId: nextAttemptId }),
+      tenant,
+      nextAttemptId,
+    );
     expect(first.outcome).toBe('paused');
     expect(resumed).toMatchObject({
       outcome: 'completed',
@@ -252,9 +270,9 @@ describe('WikiDeleteStepService', () => {
   });
 
   it('requires a valid inbound registry tenant before touching deletion state', async () => {
-    await expect(
-      invoke(request(), 'not-a-tenant-uuid'),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(invoke(request(), 'not-a-tenant-uuid')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     expect(action.execute).not.toHaveBeenCalled();
     expect(repository.results.size).toBe(0);
   });
@@ -283,10 +301,21 @@ describe('WikiDeleteStepService', () => {
   });
 
   it('rejects a non-UUID CloudEvent id before touching deletion state', async () => {
-    await expect(invoke(request(), TENANT_ID, 'attempt-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      invoke(request(), TENANT_ID, 'attempt-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(action.execute).not.toHaveBeenCalled();
     expect(repository.results.size).toBe(0);
+  });
+
+  it('rejects a requestId that differs from the CloudEvent id without writing or deleting', async () => {
+    await expect(
+      invoke(request({ requestId: '750e8400-e29b-41d4-a716-446655440000' })),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(action.execute).not.toHaveBeenCalled();
+    expect(repository.results.size).toBe(0);
+    expect(repository.attempts.size).toBe(0);
+    expect(repository.outbox).toHaveLength(0);
   });
 });
