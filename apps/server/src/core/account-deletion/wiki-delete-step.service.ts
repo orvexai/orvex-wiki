@@ -3,6 +3,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import { KyselyDB } from '../../database/types/kysely.types';
 import { Json } from '../../database/types/db';
+import { executeTx } from '../../database/utils';
 
 export const ACCOUNT_DELETION_STEP_REQUESTED =
   'identity.account.deletion.step.requested';
@@ -64,7 +65,7 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
     }>,
   ): Promise<AccountDeletionStepAck> {
     const lockKey = `account-deletion:${deletionId}:${step}`;
-    return this.db.transaction().execute(async (transaction) => {
+    return executeTx(this.db, async (transaction) => {
       // Transaction-scoped locks remain safe under PgBouncer transaction
       // pooling; session locks can be acquired and released on different
       // backend connections there.
