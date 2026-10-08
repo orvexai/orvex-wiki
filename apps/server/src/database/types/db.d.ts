@@ -133,6 +133,15 @@ export interface AccountDeletionStepResults {
   step: string;
 }
 
+export interface AccountDeletionStepAttempts {
+  ack: Json;
+  createdAt: Generated<Timestamp>;
+  deletionId: string;
+  orvexTenant: string;
+  requestId: string;
+  step: string;
+}
+
 export interface AccountDeletionPausedWorkspaces {
   createdAt: Generated<Timestamp>;
   deletionId: string;
@@ -680,6 +689,7 @@ export interface DB {
   authAccounts: AuthAccounts;
   authProviders: AuthProviders;
   accountDeletionStepResults: AccountDeletionStepResults;
+  accountDeletionStepAttempts: AccountDeletionStepAttempts;
   accountDeletionPausedWorkspaces: AccountDeletionPausedWorkspaces;
   backlinks: Backlinks;
   baseProperties: BaseProperties;

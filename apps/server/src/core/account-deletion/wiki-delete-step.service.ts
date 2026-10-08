@@ -14,7 +14,6 @@ export const WIKI_DELETE_STEP = 'wiki_delete' as const;
 
 export interface AccountDeletionStepRequested {
   deletionId: string;
-  requestId: string;
   requestedAt: string;
   step: string;
   subjectRef: string;
@@ -43,10 +42,7 @@ export type WikiDeleteActionResult =
 
 export const WIKI_DELETE_ACTION = Symbol('WIKI_DELETE_ACTION');
 export interface WikiDeleteAction {
-  execute(
-    subjectRef: string,
-    orvexTenant: string,
-  ): Promise<WikiDeleteActionResult>;
+  execute(subjectRef: string): Promise<WikiDeleteActionResult>;
 }
 
 export interface WikiDeleteStepRepository {
@@ -97,6 +93,41 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
       await sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`.execute(
         transaction,
       );
+      const requestLockKey = `account-deletion-request:${requestId}`;
+      await sql`select pg_advisory_xact_lock(hashtextextended(${requestLockKey}, 0))`.execute(
+        transaction,
+      );
+      const previousAttempt = await transaction
+        .selectFrom('accountDeletionStepAttempts')
+        .select(['ack', 'orvexTenant'])
+        .where('requestId', '=', requestId)
+        .executeTakeFirst();
+      if (previousAttempt) {
+        let replay = previousAttempt.ack as unknown as AccountDeletionStepAck;
+        if (previousAttempt.orvexTenant !== orvexTenant) {
+          replay = this.retryableAck(deletionId, requestId);
+        } else if (replay.outcome === 'paused') {
+          const current = await transaction
+            .selectFrom('accountDeletionStepResults')
+            .select(['ack', 'resumableAt'])
+            .where('deletionId', '=', deletionId)
+            .where('step', '=', step)
+            .executeTakeFirst();
+          const stillBlocked =
+            current?.resumableAt === null &&
+            (current.ack as unknown as AccountDeletionStepAck).outcome ===
+              'paused';
+          if (!stillBlocked) replay = this.retryableAck(deletionId, requestId);
+        }
+        await this.outbox.enqueue(transaction, {
+          type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
+          aggregateId: deletionId,
+          workspaceId: null,
+          orvexTenant,
+          payload: replay as unknown as Record<string, unknown>,
+        });
+        return replay;
+      }
       const existing = await transaction
         .selectFrom('accountDeletionStepResults')
         .select(['ack', 'orvexTenant', 'resumableAt'])
@@ -104,21 +135,8 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
         .where('step', '=', step)
         .executeTakeFirst();
       if (existing) {
-        if (
-          existing.orvexTenant === orvexTenant &&
-          existing.resumableAt === null
-        ) {
-          return existing.ack as unknown as AccountDeletionStepAck;
-        }
         if (existing.orvexTenant !== orvexTenant) {
-          const mismatchAck: AccountDeletionStepAck = {
-            deletionId,
-            requestId,
-            step: WIKI_DELETE_STEP,
-            outcome: 'retryable_failure',
-            reasonCode: 'dependency_unavailable',
-            acknowledgedAt: new Date().toISOString(),
-          };
+          const mismatchAck = this.retryableAck(deletionId, requestId);
           await this.outbox.enqueue(transaction, {
             type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
             aggregateId: deletionId,
@@ -128,6 +146,30 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
           });
           return mismatchAck;
         }
+        if (existing.resumableAt === null) {
+          const replay = {
+            ...(existing.ack as unknown as AccountDeletionStepAck),
+            requestId,
+          };
+          await transaction
+            .insertInto('accountDeletionStepAttempts')
+            .values({
+              requestId,
+              deletionId,
+              step,
+              orvexTenant,
+              ack: replay as unknown as Json,
+            })
+            .execute();
+          await this.outbox.enqueue(transaction, {
+            type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
+            aggregateId: deletionId,
+            workspaceId: null,
+            orvexTenant,
+            payload: replay as unknown as Record<string, unknown>,
+          });
+          return replay;
+        }
         // A paused terminal result is re-evaluated only after its blockers
         // were removed and the resumable signal was committed.
         await transaction
@@ -135,6 +177,10 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
           .where('deletionId', '=', deletionId)
           .where('step', '=', step)
           .where('resumableAt', 'is not', null)
+          .execute();
+        await transaction
+          .deleteFrom('accountDeletionPausedWorkspaces')
+          .where('deletionId', '=', deletionId)
           .execute();
       }
 
@@ -159,6 +205,16 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
               .execute();
           }
         }
+        await transaction
+          .insertInto('accountDeletionStepAttempts')
+          .values({
+            requestId,
+            deletionId,
+            step,
+            orvexTenant,
+            ack: execution.ack as unknown as Json,
+          })
+          .execute();
       }
       await this.outbox.enqueue(transaction, {
         type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
@@ -169,6 +225,20 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
       });
       return execution.ack;
     });
+  }
+
+  private retryableAck(
+    deletionId: string,
+    requestId: string,
+  ): AccountDeletionStepAck {
+    return {
+      deletionId,
+      requestId,
+      step: WIKI_DELETE_STEP,
+      outcome: 'retryable_failure',
+      reasonCode: 'dependency_unavailable',
+      acknowledgedAt: new Date().toISOString(),
+    };
   }
 }
 
@@ -188,6 +258,7 @@ export class WikiDeleteStepService {
 
   async handle(
     request: AccountDeletionStepRequested,
+    requestId: string,
     orvexTenant: string,
   ): Promise<AccountDeletionStepAck> {
     if (request.step !== WIKI_DELETE_STEP) {
@@ -198,17 +269,19 @@ export class WikiDeleteStepService {
         'Invalid account deletion tenant extension',
       );
     }
+    if (!UUID_PATTERN.test(requestId)) {
+      throw new BadRequestException('Invalid account deletion request id');
+    }
 
     return this.results.runLocked(
       request.deletionId,
       WIKI_DELETE_STEP,
-      request.requestId,
+      requestId,
       orvexTenant,
       async () => {
         try {
           const result = await this.deletion.execute(
             request.subjectRef,
-            orvexTenant,
           );
           if (
             result.outcome === 'paused' &&
@@ -222,7 +295,7 @@ export class WikiDeleteStepService {
           return {
             ack: {
               deletionId: request.deletionId,
-              requestId: request.requestId,
+              requestId,
               step: WIKI_DELETE_STEP,
               outcome: result.outcome,
               ...(result.outcome === 'paused'
@@ -242,7 +315,7 @@ export class WikiDeleteStepService {
           return {
             ack: {
               deletionId: request.deletionId,
-              requestId: request.requestId,
+              requestId,
               step: WIKI_DELETE_STEP,
               outcome: 'retryable_failure',
               reasonCode: 'dependency_unavailable',
@@ -264,14 +337,10 @@ export function isAccountDeletionStepRequested(
   const data = value as Record<string, unknown>;
   const keys = Object.keys(data).sort();
   return (
-    keys.join(',') === 'deletionId,requestId,requestedAt,step,subjectRef' &&
+    keys.join(',') === 'deletionId,requestedAt,step,subjectRef' &&
     typeof data.deletionId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       data.deletionId,
-    ) &&
-    typeof data.requestId === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      data.requestId,
     ) &&
     typeof data.subjectRef === 'string' &&
     /^[0-9a-f]{64}$/.test(data.subjectRef) &&
