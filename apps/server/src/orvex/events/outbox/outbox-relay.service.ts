@@ -19,6 +19,10 @@ import {
   restoreOutboxTraceContext,
 } from './orvex-outbox-trace-context.util';
 import { resolveWikiEventsTopic } from './outbox-topic.resolver';
+import {
+  isWikiAccountDeletionEventType,
+  resolveWikiOutboxEventType,
+} from './outbox-event-type.resolver';
 
 /**
  * Narrow seam the relay needs from `OrvexConfigService` (dependency
@@ -237,6 +241,7 @@ export class OutboxRelayService implements OnModuleInit {
     let failed = 0;
 
     for (const row of rows) {
+      const accountDeletionEvent = isWikiAccountDeletionEventType(row.type);
       // ENG-1600 AC2 — restore the ORIGINAL request's trace context
       // (persisted on the row at write time, AC1) so this relay's producer
       // span is a child of that trace, not an unrelated new root — closing
@@ -252,8 +257,10 @@ export class OutboxRelayService implements OnModuleInit {
         {
           kind: SpanKind.PRODUCER,
           attributes: buildSpanAttributes({
-            workspaceId: row.workspaceId,
-            correlationId: row.correlationId,
+            // Account-deletion events keep tenant and correlation metadata
+            // out of Wiki's event logs/traces.
+            workspaceId: accountDeletionEvent ? null : row.workspaceId,
+            correlationId: accountDeletionEvent ? undefined : row.correlationId,
           }),
         },
         restoredCtx,
@@ -287,7 +294,7 @@ export class OutboxRelayService implements OnModuleInit {
             specversion: '1.0',
             id: row.id,
             source: '//orvex-wiki',
-            type: `wiki.${row.type}`,
+            type: resolveWikiOutboxEventType(row.type),
             subject: row.aggregateId,
             time: new Date(row.createdAt).toISOString(),
             datacontenttype: 'application/json',
@@ -300,7 +307,9 @@ export class OutboxRelayService implements OnModuleInit {
             tracestate: producerTraceContext.tracestate,
             data: {
               ...(row.payload as Record<string, unknown>),
-              correlation_id: row.correlationId,
+              ...(!accountDeletionEvent
+                ? { correlation_id: row.correlationId }
+                : {}),
             },
           }),
         });
