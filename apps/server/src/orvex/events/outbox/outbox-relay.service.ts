@@ -7,7 +7,10 @@ import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { KyselyDB } from '../../../database/types/kysely.types';
-import { CELL_SOLO, OrvexConfigService } from '../../config/orvex-config.service';
+import {
+  CELL_SOLO,
+  OrvexConfigService,
+} from '../../config/orvex-config.service';
 import {
   KAFKA_PUBLISHER_PORT,
   KafkaPublisherPort,
@@ -242,6 +245,9 @@ export class OutboxRelayService implements OnModuleInit {
 
     for (const row of rows) {
       const accountDeletionEvent = isWikiAccountDeletionEventType(row.type);
+      const orvexTenant = accountDeletionEvent
+        ? row.orvexTenant
+        : (row.orvexTenant ?? row.workspaceId);
       // ENG-1600 AC2 — restore the ORIGINAL request's trace context
       // (persisted on the row at write time, AC1) so this relay's producer
       // span is a child of that trace, not an unrelated new root — closing
@@ -273,6 +279,9 @@ export class OutboxRelayService implements OnModuleInit {
       );
 
       try {
+        if (!orvexTenant) {
+          throw new Error('Outbox row is missing its CloudEvent tenant');
+        }
         // ENG-1559 M5 AC8 — the real CloudEvents 1.0 structured-mode
         // envelope (pinned events/schemas/_envelope.json). `id` is the
         // outbox row's OWN id (dedupe key, matching the Kafka message key
@@ -299,7 +308,7 @@ export class OutboxRelayService implements OnModuleInit {
             time: new Date(row.createdAt).toISOString(),
             datacontenttype: 'application/json',
             orvexcell: cell,
-            orvextenant: row.workspaceId,
+            orvextenant: orvexTenant,
             // ENG-1600 AC2/AC3 — the CloudEvents Distributed-Tracing
             // extension attributes (names verbatim per the spec), carried
             // on the envelope the relay emits.

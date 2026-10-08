@@ -7,15 +7,11 @@ describe('OutboxRelayService polling backoff', () => {
 
   it('backs off exponentially after broker failures and resets after recovery', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-10-08T08:00:00.000Z'));
-    const relay = new OutboxRelayService(
-      {} as never,
-      {} as never,
-      {
-        cellId: 'crew-yafet',
-        kafkaBrokersConfigured: true,
-        kafkaOutboxTopic: 'wiki-events.crew-yafet',
-      },
-    );
+    const relay = new OutboxRelayService({} as never, {} as never, {
+      cellId: 'crew-yafet',
+      kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.crew-yafet',
+    });
     const run = jest
       .spyOn(relay, 'run')
       .mockResolvedValue({ published: 0, failed: 1 });
@@ -65,16 +61,14 @@ describe('OutboxRelayService polling backoff', () => {
       selectFrom: jest.fn().mockReturnValue(selectQuery),
       updateTable: jest.fn(),
     };
-    const publisher = { publish: jest.fn().mockRejectedValue(new Error('broker unavailable')) };
-    const relay = new OutboxRelayService(
-      db as never,
-      publisher as never,
-      {
-        cellId: 'crew-yafet',
-        kafkaBrokersConfigured: true,
-        kafkaOutboxTopic: 'wiki-events.crew-yafet',
-      },
-    );
+    const publisher = {
+      publish: jest.fn().mockRejectedValue(new Error('broker unavailable')),
+    };
+    const relay = new OutboxRelayService(db as never, publisher as never, {
+      cellId: 'crew-yafet',
+      kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.crew-yafet',
+    });
 
     await expect(relay.run()).resolves.toEqual({ published: 0, failed: 1 });
     expect(publisher.publish).toHaveBeenCalledTimes(1);
@@ -87,7 +81,8 @@ describe('OutboxRelayService polling backoff', () => {
         id: 'row-1',
         type: 'identity.account.deletion.step.resumable',
         aggregateId: 'deletion-1',
-        workspaceId: 'workspace-private',
+        workspaceId: null,
+        orvexTenant: '8b1a9953-c461-4b9a-9fdb-c1f4c8e7b1aa',
         createdAt: new Date('2026-10-08T08:00:00.000Z'),
         correlationId: 'correlation-private',
         payload: {
@@ -116,26 +111,58 @@ describe('OutboxRelayService polling backoff', () => {
       updateTable: jest.fn().mockReturnValue(updateQuery),
     };
     const publisher = { publish: jest.fn().mockResolvedValue(undefined) };
-    const relay = new OutboxRelayService(
-      db as never,
-      publisher as never,
-      {
-        cellId: 'crew-yafet',
-        kafkaBrokersConfigured: true,
-        kafkaOutboxTopic: 'wiki-events.crew-yafet',
-      },
-    );
+    const relay = new OutboxRelayService(db as never, publisher as never, {
+      cellId: 'crew-yafet',
+      kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.crew-yafet',
+    });
 
     await expect(relay.run()).resolves.toEqual({ published: 1, failed: 0 });
     const cloudEvent = JSON.parse(publisher.publish.mock.calls[0][0].value);
     expect(cloudEvent).toMatchObject({
       source: '//orvex-wiki',
       type: 'identity.account.deletion.step.resumable',
+      orvextenant: rows[0].orvexTenant,
       data: rows[0].payload,
     });
+    expect(cloudEvent.orvextenant).not.toBe(rows[0].workspaceId);
     expect(cloudEvent.data).not.toHaveProperty('correlation_id');
     expect(JSON.stringify(cloudEvent.data)).not.toContain('workspace-private');
-    expect(JSON.stringify(cloudEvent.data)).not.toContain('correlation-private');
+    expect(JSON.stringify(cloudEvent.data)).not.toContain(
+      'correlation-private',
+    );
+  });
+
+  it('does not publish account-deletion rows without the inbound tenant extension', async () => {
+    const row = {
+      id: 'row-1',
+      type: 'identity.account.deletion.step.acknowledged',
+      aggregateId: 'deletion-1',
+      workspaceId: null,
+      orvexTenant: null,
+      createdAt: new Date('2026-10-08T08:00:00.000Z'),
+      correlationId: null,
+      payload: {},
+      traceparent: null,
+      tracestate: null,
+    };
+    const selectQuery = {
+      selectAll: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue([row]),
+    };
+    const db = { selectFrom: jest.fn().mockReturnValue(selectQuery) };
+    const publisher = { publish: jest.fn() };
+    const relay = new OutboxRelayService(db as never, publisher as never, {
+      cellId: 'crew-yafet',
+      kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.crew-yafet',
+    });
+
+    await expect(relay.run()).resolves.toEqual({ published: 0, failed: 1 });
+    expect(publisher.publish).not.toHaveBeenCalled();
   });
 
   it('does not publish unapproved identity event types', async () => {
@@ -159,30 +186,22 @@ describe('OutboxRelayService polling backoff', () => {
     };
     const db = { selectFrom: jest.fn().mockReturnValue(selectQuery) };
     const publisher = { publish: jest.fn() };
-    const relay = new OutboxRelayService(
-      db as never,
-      publisher as never,
-      {
-        cellId: 'crew-yafet',
-        kafkaBrokersConfigured: true,
-        kafkaOutboxTopic: 'wiki-events.crew-yafet',
-      },
-    );
+    const relay = new OutboxRelayService(db as never, publisher as never, {
+      cellId: 'crew-yafet',
+      kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.crew-yafet',
+    });
 
     await expect(relay.run()).resolves.toEqual({ published: 0, failed: 1 });
     expect(publisher.publish).not.toHaveBeenCalled();
   });
 
   it('does not start overlapping polls while the current broker request is pending', async () => {
-    const relay = new OutboxRelayService(
-      {} as never,
-      {} as never,
-      {
-        cellId: 'crew-yafet',
-        kafkaBrokersConfigured: true,
-        kafkaOutboxTopic: 'wiki-events.crew-yafet',
-      },
-    );
+    const relay = new OutboxRelayService({} as never, {} as never, {
+      cellId: 'crew-yafet',
+      kafkaBrokersConfigured: true,
+      kafkaOutboxTopic: 'wiki-events.crew-yafet',
+    });
     let releaseRun!: () => void;
     const runGate = new Promise<void>((resolve) => {
       releaseRun = resolve;

@@ -323,12 +323,13 @@ export interface OrvexEventOutbox {
   correlationId: string | null;
   createdAt: Generated<Timestamp>;
   id: Generated<string>;
+  orvexTenant: string | null;
   payload: Json;
   relayedAt: Timestamp | null;
   traceparent: string | null;
   tracestate: string | null;
   type: string;
-  workspaceId: string;
+  workspaceId: string | null;
 }
 
 export interface OrvexPageMeta {
