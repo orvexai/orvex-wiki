@@ -1,6 +1,7 @@
 import { UserRepo } from './user.repo';
 
 describe('UserRepo.recordVerifiedSubjectRef', () => {
+  const workspaceId = '00000000-0000-4000-8000-000000000001';
   function setup(
     initial: Array<{ id: string; subjectRef: string | null; userId?: string }>,
     mappedOwner?: string,
@@ -44,11 +45,24 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
         return { id: row.id };
       }),
     };
-    const db = {
+    const transaction = {
+      executeQuery: jest.fn().mockResolvedValue({ rows: [] }),
+      getExecutor: () => ({
+        executeQuery: jest.fn().mockResolvedValue({ rows: [] }),
+        transformQuery: (node: unknown) => node,
+        compileQuery: (node: unknown) => node,
+      }),
       selectFrom: jest.fn().mockReturnValue(selectQuery),
       updateTable: jest.fn((table: string) =>
         table === 'users' ? operatorFlagQuery : updateQuery,
       ),
+    };
+    const db = {
+      ...transaction,
+      transaction: jest.fn(() => ({
+        execute: (callback: (trx: typeof transaction) => Promise<unknown>) =>
+          callback(transaction),
+      })),
     };
     return {
       repo: new UserRepo(db as never),
@@ -63,12 +77,12 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
     const t = setup([{ id: 'link-1', subjectRef: null }]);
     const first = await t.repo.recordVerifiedSubjectRef(
       'user-1',
-      'workspace-1',
+      workspaceId,
       'a'.repeat(64),
     );
     const repeated = await t.repo.recordVerifiedSubjectRef(
       'user-1',
-      'workspace-1',
+      workspaceId,
       'a'.repeat(64),
     );
 
@@ -84,7 +98,7 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
 
     const result = await t.repo.recordVerifiedSubjectRef(
       'user-1',
-      'workspace-1',
+      workspaceId,
       'c'.repeat(64),
     );
 
@@ -101,7 +115,7 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
 
     const result = await t.repo.recordVerifiedSubjectRef(
       'user-1',
-      'workspace-1',
+      workspaceId,
       'e'.repeat(64),
     );
 
@@ -117,7 +131,7 @@ describe('UserRepo.recordVerifiedSubjectRef', () => {
     const t = setup([]);
 
     await expect(
-      t.repo.recordVerifiedSubjectRef('user-1', 'workspace-1', 'd'.repeat(64)),
+      t.repo.recordVerifiedSubjectRef('user-1', workspaceId, 'd'.repeat(64)),
     ).resolves.toBe('missing_linkage');
     expect(t.updateCount()).toBe(0);
   });

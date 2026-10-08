@@ -3,7 +3,8 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { DB, Users } from '@docmost/db/types/db';
 import { hashPassword } from '../../../common/helpers';
-import { dbOrTx } from '@docmost/db/utils';
+import { dbOrTx, executeTx } from '@docmost/db/utils';
+import { withTenantScopedTransaction } from '../../rls/rls-guc-hook';
 import {
   InsertableUser,
   UpdatableUser,
@@ -174,70 +175,76 @@ export class UserRepo {
     workspaceId: string,
     subjectRef: string,
   ): Promise<'recorded' | 'conflict' | 'missing_linkage'> {
-    const rows = await this.db
-      .selectFrom('authAccounts')
-      .select(['id', 'subjectRef'])
-      .where('userId', '=', userId)
-      .where('workspaceId', '=', workspaceId)
-      .where('deletedAt', 'is', null)
-      .execute();
+    return executeTx(this.db, (outerTrx) =>
+      withTenantScopedTransaction(outerTrx, workspaceId, async (trx) => {
+        await sql`select pg_advisory_xact_lock(hashtext(${`subject-ref:${workspaceId}:${subjectRef}`}))`.execute(
+          trx,
+        );
+        const rows = await trx
+          .selectFrom('authAccounts')
+          .select(['id', 'subjectRef'])
+          .where('userId', '=', userId)
+          .where('workspaceId', '=', workspaceId)
+          .where('deletedAt', 'is', null)
+          .execute();
 
-    if (rows.length === 0) return 'missing_linkage';
-    const conflictingLinkage = rows.some(
-      (row) => row.subjectRef !== null && row.subjectRef !== subjectRef,
+        if (rows.length === 0) return 'missing_linkage';
+        const conflictingLinkage = rows.some(
+          (row) => row.subjectRef !== null && row.subjectRef !== subjectRef,
+        );
+        const existingOwner = await trx
+          .selectFrom('authAccounts')
+          .select('userId')
+          .where('workspaceId', '=', workspaceId)
+          .where('subjectRef', '=', subjectRef)
+          .where('deletedAt', 'is', null)
+          .executeTakeFirst();
+        if (
+          conflictingLinkage ||
+          (existingOwner && existingOwner.userId !== userId)
+        ) {
+          await this.flagSubjectRefConflict(userId, workspaceId, trx);
+          return 'conflict';
+        }
+        if (rows.some((row) => row.subjectRef === subjectRef)) return 'recorded';
+        if (rows.length !== 1) {
+          await this.flagSubjectRefConflict(userId, workspaceId, trx);
+          return 'conflict';
+        }
+
+        const updated = await trx
+          .updateTable('authAccounts')
+          .set({ subjectRef })
+          .where('id', '=', rows[0].id)
+          .where('userId', '=', userId)
+          .where('workspaceId', '=', workspaceId)
+          .where('deletedAt', 'is', null)
+          .where('subjectRef', 'is', null)
+          .returning('id')
+          .executeTakeFirst();
+        if (updated) return 'recorded';
+
+        const current = await trx
+          .selectFrom('authAccounts')
+          .select('subjectRef')
+          .where('id', '=', rows[0].id)
+          .where('userId', '=', userId)
+          .where('workspaceId', '=', workspaceId)
+          .where('deletedAt', 'is', null)
+          .executeTakeFirst();
+        if (current?.subjectRef === subjectRef) return 'recorded';
+        await this.flagSubjectRefConflict(userId, workspaceId, trx);
+        return 'conflict';
+      }),
     );
-    const existingOwner = await this.db
-      .selectFrom('authAccounts')
-      .select('userId')
-      .where('workspaceId', '=', workspaceId)
-      .where('subjectRef', '=', subjectRef)
-      .where('deletedAt', 'is', null)
-      .executeTakeFirst();
-    if (
-      conflictingLinkage ||
-      (existingOwner && existingOwner.userId !== userId)
-    ) {
-      await this.flagSubjectRefConflict(userId, workspaceId);
-      return 'conflict';
-    }
-    if (rows.some((row) => row.subjectRef === subjectRef)) return 'recorded';
-    if (rows.length !== 1) return 'conflict';
-
-    let updated: { id: string } | undefined;
-    try {
-      updated = await this.db
-        .updateTable('authAccounts')
-        .set({ subjectRef })
-        .where('id', '=', rows[0].id)
-        .where('userId', '=', userId)
-        .where('workspaceId', '=', workspaceId)
-        .where('deletedAt', 'is', null)
-        .where('subjectRef', 'is', null)
-        .returning('id')
-        .executeTakeFirst();
-    } catch (error) {
-      if ((error as { code?: string })?.code !== '23505') throw error;
-      await this.flagSubjectRefConflict(userId, workspaceId);
-      return 'conflict';
-    }
-    if (updated) return 'recorded';
-
-    const current = await this.db
-      .selectFrom('authAccounts')
-      .select('subjectRef')
-      .where('id', '=', rows[0].id)
-      .where('userId', '=', userId)
-      .where('workspaceId', '=', workspaceId)
-      .where('deletedAt', 'is', null)
-      .executeTakeFirst();
-    return current?.subjectRef === subjectRef ? 'recorded' : 'conflict';
   }
 
   private async flagSubjectRefConflict(
     userId: string,
     workspaceId: string,
+    trx: KyselyTransaction,
   ): Promise<void> {
-    await this.db
+    await trx
       .updateTable('users')
       .set({ subjectRefConflictAt: new Date() })
       .where('id', '=', userId)
