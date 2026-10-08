@@ -130,6 +130,8 @@ export class RegistryClientError extends Error {
   constructor(
     public readonly code: RegistryClientErrorCode,
     message: string,
+    public failureClass?: string,
+    public durationMs?: number,
   ) {
     super(message);
     this.name = 'RegistryClientError';
@@ -410,34 +412,62 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   async reserveTenant(
     req: RegistryReserveRequest,
   ): Promise<RegistryReserveResult> {
-    // Fail closed on a missing credential (ENG-3350). This is NOT the
-    // single-cell `NOT_CONFIGURED` skip — that one means "no identity to
-    // delegate to". This means "identity is configured but we hold no
-    // credential for it", which must never be waved through as a reservation.
+    const startedAt = Date.now();
+    try {
+      return await this.reserveTenantWithTransportRetry(req);
+    } catch (err) {
+      if (err instanceof RegistryClientError) {
+        err.durationMs ??= Date.now() - startedAt;
+        err.failureClass ??= this.failureClassFor(err);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Identity's reserve operation is idempotent for the same tenant/hostname,
+   * so one retry is safe when the HTTP transport fails after an ambiguous
+   * delivery. HTTP responses and malformed payloads are never retried.
+   */
+  private async reserveTenantWithTransportRetry(
+    req: RegistryReserveRequest,
+  ): Promise<RegistryReserveResult> {
     if (this.internalToken === null) {
       throw new RegistryClientError(
         'DEPENDENCY_ERROR',
         'identity registry reserve requires INTERNAL_API_BEARER_TOKEN (the shared engine seam credential) and it is unset',
+        'configuration',
       );
     }
-    const { status, payload } = await this.request(
-      'POST',
-      // ENG-3350 — the ORIGIN-LOCKED internal seam, not /v1/registry/*. The
-      // /v1/registry write routes are machine-only (they require an
-      // identity-minted "svc:" client-credentials grant this engine does not
-      // hold in any cell); this route admits the shared engine bearer instead.
-      // ENG-3313 — that reasoning was never reserve-specific: it is true of
-      // EVERY /v1/registry write, so moveTenantCell now crosses the same
-      // internal seam with the same bearer. Both writes are authenticated;
-      // only the discovery READ stays deliberately open.
-      '/internal/registry/reserve',
-      {
-        tenantId: req.tenantId,
-        hostname: req.hostname,
-        principalKind: req.principalKind,
-      },
-      { Authorization: `Bearer ${this.internalToken}` },
-    );
+    let response: { status: number; payload: unknown };
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        response = await this.request(
+          'POST',
+          // ENG-3350 — reserve writes cross Identity's origin-locked
+          // internal seam and use the shared engine bearer.
+          '/internal/registry/reserve',
+          {
+            tenantId: req.tenantId,
+            hostname: req.hostname,
+            principalKind: req.principalKind,
+          },
+          { Authorization: `Bearer ${this.internalToken}` },
+        );
+        break;
+      } catch (err) {
+        if (
+          attempt === 0 &&
+          err instanceof RegistryClientError &&
+          isTransportFailureClass(err.failureClass)
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          continue;
+        }
+        throw err;
+      }
+    }
+    const { status, payload } = response;
 
     if (status === 200) {
       const body = asJsonObject(payload, 'reserve');
@@ -447,6 +477,7 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
         throw new RegistryClientError(
           'DEPENDENCY_ERROR',
           'identity registry reserve returned a malformed 200 body',
+          'response_invalid',
         );
       }
       return {
@@ -459,10 +490,15 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       throw new RegistryClientError(
         'TENANT_ALREADY_RESERVED',
         'registry: tenant/hostname already reserved by another cell',
+        `http_${status}`,
       );
     }
     if (status === 404) {
-      throw new RegistryClientError('NOT_FOUND', 'registry: tenant not found');
+      throw new RegistryClientError(
+        'NOT_FOUND',
+        'registry: tenant not found',
+        `http_${status}`,
+      );
     }
     if (status === 400) {
       const reason = identityErrorText(payload);
@@ -474,18 +510,25 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       );
     }
     if (status === 401) {
-      // ENG-3313 — same typed refusal as move; both writes cross the same
-      // requireEngineInternal gate with the same secret, so a 401 on either
-      // has the same single cause and the same single operator remedy.
       throw new RegistryClientError(
         'AUTH_FAILED',
         'identity rejected the engine seam credential on registry reserve (401) — INTERNAL_API_BEARER_TOKEN does not match identity ENGINE_INTERNAL_API_TOKEN',
+        `http_${status}`,
       );
     }
     throw new RegistryClientError(
       'DEPENDENCY_ERROR',
       `identity registry reserve returned HTTP ${status}`,
+      `http_${status}`,
     );
+  }
+
+  private failureClassFor(err: RegistryClientError): string {
+    if (err.failureClass) return err.failureClass;
+    const status = err.message.match(/HTTP (\d+)/)?.[1];
+    if (status) return `http_${status}`;
+    if (err.message.includes('non-JSON')) return 'non_json';
+    return err.code.toLowerCase();
   }
 
   /**
@@ -510,7 +553,11 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
     extraHeaders?: Record<string, string>,
   ): Promise<{ status: number; payload: unknown }> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, this.timeoutMs);
     let status: number;
     let raw: string;
     try {
@@ -528,6 +575,7 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       throw new RegistryClientError(
         'DEPENDENCY_ERROR',
         `identity registry ${method} ${path} failed: ${describeCause(err)}`,
+        classifyTransportFailure(err, timedOut),
       );
     } finally {
       clearTimeout(timer);
@@ -542,9 +590,56 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
       throw new RegistryClientError(
         'DEPENDENCY_ERROR',
         `identity registry ${method} ${path} returned HTTP ${status} with a non-JSON body: ${snippet(raw)}`,
+        'non_json',
       );
     }
   }
+}
+
+function classifyTransportFailure(err: unknown, timedOut: boolean): string {
+  if (timedOut) return 'timeout';
+  const description = describeCause(err).toUpperCase();
+  const codes = errorCodes(err);
+  if (codes.includes('ECONNREFUSED') || description.includes('ECONNREFUSED')) {
+    return 'ECONNREFUSED';
+  }
+  if (codes.includes('ECONNRESET') || description.includes('ECONNRESET')) {
+    return 'ECONNRESET';
+  }
+  if (
+    codes.some((code) =>
+      ['ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL'].includes(code),
+    ) ||
+    /\b(ENOTFOUND|EAI_AGAIN|EAI_FAIL|DNS)\b/.test(description)
+  ) {
+    return 'DNS';
+  }
+  return 'transport_error';
+}
+
+function errorCodes(err: unknown): string[] {
+  const codes: string[] = [];
+  let current: unknown = err;
+  for (
+    let depth = 0;
+    depth < 4 && current && typeof current === 'object';
+    depth++
+  ) {
+    const record = current as { code?: unknown; cause?: unknown };
+    if (typeof record.code === 'string') codes.push(record.code.toUpperCase());
+    current = record.cause;
+  }
+  return codes;
+}
+
+function isTransportFailureClass(failureClass?: string): boolean {
+  return (
+    failureClass === 'timeout' ||
+    failureClass === 'ECONNREFUSED' ||
+    failureClass === 'ECONNRESET' ||
+    failureClass === 'DNS' ||
+    failureClass === 'transport_error'
+  );
 }
 
 /** Bounded, log-safe excerpt of an unexpected response body. */
