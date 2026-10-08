@@ -93,6 +93,9 @@ const CONTENT_TYPE_STRUCTURED_CLOUDEVENT = 'application/cloudevents+json';
 @Injectable()
 export class OutboxRelayService implements OnModuleInit {
   private readonly logger = new Logger(OutboxRelayService.name);
+  private nextPollAt = 0;
+  private consecutiveFailurePolls = 0;
+  private lastFailureLogAt = 0;
 
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
@@ -178,10 +181,33 @@ export class OutboxRelayService implements OnModuleInit {
    */
   @Interval('orvex-outbox-relay', 2_000)
   async poll(): Promise<void> {
+    if (Date.now() < this.nextPollAt) return;
     try {
-      await this.run();
+      const result = await this.run();
+      if (result.failed > 0) {
+        this.deferAfterFailure(result.failed);
+      } else {
+        this.consecutiveFailurePolls = 0;
+        this.nextPollAt = 0;
+      }
     } catch (err) {
-      this.logger.error(`Outbox relay poll failed: ${err}`);
+      this.deferAfterFailure(0, err);
+    }
+  }
+
+  private deferAfterFailure(failedRows: number, error?: unknown): void {
+    this.consecutiveFailurePolls += 1;
+    const delayMs = Math.min(
+      60_000,
+      2_000 * 2 ** Math.min(this.consecutiveFailurePolls - 1, 5),
+    );
+    this.nextPollAt = Date.now() + delayMs;
+    const now = Date.now();
+    if (this.lastFailureLogAt === 0 || now - this.lastFailureLogAt >= 300_000) {
+      this.logger.warn(
+        `Outbox relay deferred after a publish/database failure; failedRows=${failedRows}, retryInMs=${delayMs}${error ? `, error=${error}` : ''}`,
+      );
+      this.lastFailureLogAt = now;
     }
   }
 
@@ -291,9 +317,10 @@ export class OutboxRelayService implements OnModuleInit {
           code: SpanStatusCode.ERROR,
           message: err instanceof Error ? err.message : String(err),
         });
-        this.logger.warn(
-          `Outbox relay failed to publish row ${row.id} (${row.type}): ${err}`,
-        );
+        // A broker-wide failure is unlikely to improve by attempting every
+        // remaining row in this batch. Leave those rows unrelayed and back off
+        // the next scheduled poll, avoiding a burst of identical broker logs.
+        break;
       } finally {
         producerSpan.end();
       }
