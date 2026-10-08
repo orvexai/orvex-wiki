@@ -134,6 +134,57 @@ export class UserRepo {
   }
 
   /**
+   * Return only workspaces where this verified identity principal is the sole
+   * live owner and at least one other live member remains. The provider subject
+   * is used only as a lookup key and is never returned or logged.
+   */
+  async findDeletionBlockingWorkspaces(
+    providerUserId: string,
+  ): Promise<Array<{ workspaceId: string; name: string | null }>> {
+    const rows = await this.db
+      .selectFrom('authAccounts')
+      .innerJoin('users', 'users.id', 'authAccounts.userId')
+      .innerJoin('workspaces', 'workspaces.id', 'users.workspaceId')
+      .select([
+        'users.workspaceId as workspaceId',
+        'workspaces.name as name',
+        (eb) =>
+          eb
+            .selectFrom('users as members')
+            .select(({ fn }) => fn.countAll().as('count'))
+            .whereRef('members.workspaceId', '=', 'users.workspaceId')
+            .whereRef('members.id', '!=', 'users.id')
+            .where('members.deletedAt', 'is', null)
+            .where('members.deactivatedAt', 'is', null)
+            .as('otherMemberCount'),
+        (eb) =>
+          eb
+            .selectFrom('users as owners')
+            .select(({ fn }) => fn.countAll().as('count'))
+            .whereRef('owners.workspaceId', '=', 'users.workspaceId')
+            .whereRef('owners.id', '!=', 'users.id')
+            .where('owners.role', '=', 'owner')
+            .where('owners.deletedAt', 'is', null)
+            .where('owners.deactivatedAt', 'is', null)
+            .as('otherOwnerCount'),
+      ])
+      .where('authAccounts.providerUserId', '=', providerUserId)
+      .where('authAccounts.deletedAt', 'is', null)
+      .where('users.role', '=', 'owner')
+      .where('users.deletedAt', 'is', null)
+      .where('users.deactivatedAt', 'is', null)
+      .where('workspaces.deletedAt', 'is', null)
+      .distinct()
+      .execute();
+
+    return rows
+      .filter(
+        (row) => Number(row.otherMemberCount) > 0 && Number(row.otherOwnerCount) === 0,
+      )
+      .map(({ workspaceId, name }) => ({ workspaceId, name }));
+  }
+
+  /**
    * ENG-1559 write-path — establish the SSO linkage row that
    * {@link findUserIdByProviderUserId} later reads. This is the WRITE half of
    * the ruled engine-side principal resolution (fork (a)): the engine owns the

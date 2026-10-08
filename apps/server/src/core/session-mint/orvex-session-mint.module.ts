@@ -157,5 +157,9 @@ function composeIntrospector(config: OrvexConfigService): IdentityIntrospector {
       inject: [OrvexConfigService],
     } satisfies Provider,
   ],
+  // Internal user-context operations (for example account-deletion preflight)
+  // must use the same ADR-0049 verifier rather than introducing another trust
+  // seam or falling back to the machine bearer guard.
+  exports: [EDGE_ASSERTION_VERIFIER],
 })
 export class OrvexSessionMintModule {}
