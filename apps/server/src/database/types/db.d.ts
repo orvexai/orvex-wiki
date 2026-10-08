@@ -88,6 +88,7 @@ export interface AuthAccounts {
   deletedAt: Timestamp | null;
   id: Generated<string>;
   providerUserId: string;
+  subjectRef: string | null;
   updatedAt: Generated<Timestamp>;
   userId: string;
   workspaceId: string;
@@ -119,6 +120,32 @@ export interface AuthProviders {
   samlUrl: string | null;
   type: string;
   updatedAt: Generated<Timestamp>;
+  workspaceId: string;
+}
+
+export interface AccountDeletionStepResults {
+  ack: Json;
+  createdAt: Generated<Timestamp>;
+  deletionId: string;
+  orvexTenant: string | null;
+  resultNote: string | null;
+  resumableAt: Timestamp | null;
+  step: string;
+}
+
+export interface AccountDeletionStepAttempts {
+  ack: Json;
+  createdAt: Generated<Timestamp>;
+  deletionId: string;
+  orvexTenant: string;
+  requestId: string;
+  step: string;
+}
+
+export interface AccountDeletionPausedWorkspaces {
+  createdAt: Generated<Timestamp>;
+  deletionId: string;
+  orvexTenant: string;
   workspaceId: string;
 }
 
@@ -314,12 +341,13 @@ export interface OrvexEventOutbox {
   correlationId: string | null;
   createdAt: Generated<Timestamp>;
   id: Generated<string>;
+  orvexTenant: string | null;
   payload: Json;
   relayedAt: Timestamp | null;
   traceparent: string | null;
   tracestate: string | null;
   type: string;
-  workspaceId: string;
+  workspaceId: string | null;
 }
 
 export interface OrvexPageMeta {
@@ -419,6 +447,7 @@ export interface Users {
   password: string | null;
   role: string | null;
   scimExternalId: string | null;
+  subjectRefConflictAt: Timestamp | null;
   settings: Json | null;
   timezone: string | null;
   updatedAt: Generated<Timestamp>;
@@ -659,6 +688,9 @@ export interface DB {
   audit: Audit;
   authAccounts: AuthAccounts;
   authProviders: AuthProviders;
+  accountDeletionStepResults: AccountDeletionStepResults;
+  accountDeletionStepAttempts: AccountDeletionStepAttempts;
+  accountDeletionPausedWorkspaces: AccountDeletionPausedWorkspaces;
   backlinks: Backlinks;
   baseProperties: BaseProperties;
   baseRows: BaseRows;

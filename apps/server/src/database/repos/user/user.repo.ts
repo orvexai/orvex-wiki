@@ -3,7 +3,8 @@ import { InjectKysely } from 'nestjs-kysely';
 import { KyselyDB, KyselyTransaction } from '@docmost/db/types/kysely.types';
 import { DB, Users } from '@docmost/db/types/db';
 import { hashPassword } from '../../../common/helpers';
-import { dbOrTx } from '@docmost/db/utils';
+import { dbOrTx, executeTx } from '@docmost/db/utils';
+import { withTenantScopedTransaction } from '../../rls/rls-guc-hook';
 import {
   InsertableUser,
   UpdatableUser,
@@ -112,6 +113,81 @@ export class UserRepo {
     return row?.id;
   }
 
+  /** Resolve Identity's stable opaque subject reference inside one workspace. */
+  async findUserIdBySubjectRef(
+    subjectRef: string,
+    workspaceId: string,
+    trx?: KyselyTransaction,
+  ): Promise<string | undefined> {
+    const find = (scopedTrx: KyselyTransaction) =>
+      withTenantScopedTransaction(scopedTrx, workspaceId, async (tenantTrx) => {
+        const row = await tenantTrx
+          .selectFrom('authAccounts')
+          .innerJoin('users', 'users.id', 'authAccounts.userId')
+          .select('users.id as id')
+          .where('authAccounts.subjectRef', '=', subjectRef)
+          .where('authAccounts.workspaceId', '=', workspaceId)
+          .where('authAccounts.deletedAt', 'is', null)
+          .where('users.workspaceId', '=', workspaceId)
+          .where('users.deletedAt', 'is', null)
+          .executeTakeFirst();
+        return row?.id;
+      });
+
+    return trx ? find(trx) : executeTx(this.db, find);
+  }
+
+  /**
+   * Return only workspaces where this verified identity principal is the sole
+   * live owner and at least one other live member remains. The provider subject
+   * is used only as a lookup key and is never returned or logged.
+   */
+  async findDeletionBlockingWorkspaces(
+    providerUserId: string,
+  ): Promise<Array<{ workspaceId: string; name: string | null }>> {
+    const rows = await this.db
+      .selectFrom('authAccounts')
+      .innerJoin('users', 'users.id', 'authAccounts.userId')
+      .innerJoin('workspaces', 'workspaces.id', 'users.workspaceId')
+      .select([
+        'users.workspaceId as workspaceId',
+        'workspaces.name as name',
+        (eb) =>
+          eb
+            .selectFrom('users as members')
+            .select(({ fn }) => fn.countAll().as('count'))
+            .whereRef('members.workspaceId', '=', 'users.workspaceId')
+            .whereRef('members.id', '!=', 'users.id')
+            .where('members.deletedAt', 'is', null)
+            .where('members.deactivatedAt', 'is', null)
+            .as('otherMemberCount'),
+        (eb) =>
+          eb
+            .selectFrom('users as owners')
+            .select(({ fn }) => fn.countAll().as('count'))
+            .whereRef('owners.workspaceId', '=', 'users.workspaceId')
+            .whereRef('owners.id', '!=', 'users.id')
+            .where('owners.role', '=', 'owner')
+            .where('owners.deletedAt', 'is', null)
+            .where('owners.deactivatedAt', 'is', null)
+            .as('otherOwnerCount'),
+      ])
+      .where('authAccounts.providerUserId', '=', providerUserId)
+      .where('authAccounts.deletedAt', 'is', null)
+      .where('users.role', '=', 'owner')
+      .where('users.deletedAt', 'is', null)
+      .where('users.deactivatedAt', 'is', null)
+      .where('workspaces.deletedAt', 'is', null)
+      .distinct()
+      .execute();
+
+    return rows
+      .filter(
+        (row) => Number(row.otherMemberCount) > 0 && Number(row.otherOwnerCount) === 0,
+      )
+      .map(({ workspaceId, name }) => ({ workspaceId, name }));
+  }
+
   /**
    * ENG-1559 write-path — establish the SSO linkage row that
    * {@link findUserIdByProviderUserId} later reads. This is the WRITE half of
@@ -141,6 +217,95 @@ export class UserRepo {
         workspaceId: link.workspaceId,
         authProviderId: link.authProviderId ?? null,
       })
+      .execute();
+  }
+
+  /**
+   * Upsert an Identity-verified subjectRef for this live local principal.
+   * A differing existing value is retained and the local principal is flagged
+   * for operator review. The verified request remains authenticated.
+   */
+  async recordVerifiedSubjectRef(
+    userId: string,
+    workspaceId: string,
+    subjectRef: string,
+  ): Promise<'recorded' | 'conflict' | 'missing_linkage'> {
+    return executeTx(this.db, (outerTrx) =>
+      withTenantScopedTransaction(outerTrx, workspaceId, async (trx) => {
+        await sql`select pg_advisory_xact_lock(hashtext(${`subject-ref:${workspaceId}:${subjectRef}`}))`.execute(
+          trx,
+        );
+        const rows = await trx
+          .selectFrom('authAccounts')
+          .select(['id', 'subjectRef'])
+          .where('userId', '=', userId)
+          .where('workspaceId', '=', workspaceId)
+          .where('deletedAt', 'is', null)
+          .execute();
+
+        if (rows.length === 0) return 'missing_linkage';
+        const conflictingLinkage = rows.some(
+          (row) => row.subjectRef !== null && row.subjectRef !== subjectRef,
+        );
+        const existingOwner = await trx
+          .selectFrom('authAccounts')
+          .select('userId')
+          .where('workspaceId', '=', workspaceId)
+          .where('subjectRef', '=', subjectRef)
+          .where('deletedAt', 'is', null)
+          .executeTakeFirst();
+        if (
+          conflictingLinkage ||
+          (existingOwner && existingOwner.userId !== userId)
+        ) {
+          await this.flagSubjectRefConflict(userId, workspaceId, trx);
+          return 'conflict';
+        }
+        if (rows.some((row) => row.subjectRef === subjectRef)) return 'recorded';
+        if (rows.length !== 1) {
+          await this.flagSubjectRefConflict(userId, workspaceId, trx);
+          return 'conflict';
+        }
+
+        const updated = await trx
+          .updateTable('authAccounts')
+          .set({ subjectRef })
+          .where('id', '=', rows[0].id)
+          .where('userId', '=', userId)
+          .where('workspaceId', '=', workspaceId)
+          .where('deletedAt', 'is', null)
+          .where('subjectRef', 'is', null)
+          .returning('id')
+          .executeTakeFirst();
+        if (updated) return 'recorded';
+
+        const current = await trx
+          .selectFrom('authAccounts')
+          .select('subjectRef')
+          .where('id', '=', rows[0].id)
+          .where('userId', '=', userId)
+          .where('workspaceId', '=', workspaceId)
+          .where('deletedAt', 'is', null)
+          .executeTakeFirst();
+        if (current?.subjectRef === subjectRef) return 'recorded';
+        await this.flagSubjectRefConflict(userId, workspaceId, trx);
+        return 'conflict';
+      }),
+    );
+  }
+
+  private async flagSubjectRefConflict(
+    userId: string,
+    workspaceId: string,
+    trx: KyselyTransaction,
+  ): Promise<void> {
+    await trx
+      .updateTable('users')
+      .set({ subjectRefConflictAt: new Date() })
+      .where('id', '=', userId)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .where('subjectRefConflictAt', 'is', null)
       .execute();
   }
 

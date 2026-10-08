@@ -128,7 +128,12 @@ export class OrvexSessionMintService {
       throw err;
     }
     // ENG-1559: identity's `tenant` claim IS the engine workspace UUID.
-    return this.resolveAndMint(claims.sub, claims.tenant, 'session-exchange-assertion');
+    return this.resolveAndMint(
+      claims.sub,
+      claims.tenant,
+      'session-exchange-assertion',
+      claims.subjectRef,
+    );
   }
 
   /**
@@ -146,6 +151,7 @@ export class OrvexSessionMintService {
       principal.subject,
       principal.workspaceId,
       'session-exchange',
+      principal.subjectRef,
     );
   }
 
@@ -159,6 +165,7 @@ export class OrvexSessionMintService {
     subject: string,
     workspaceId: string,
     auditSource: 'session-exchange' | 'session-exchange-assertion',
+    subjectRef?: string,
   ): Promise<MintedSession> {
     // GUARD — the workspaceId/tenant claim binds straight into a `uuid`-typed
     // column below; a well-formed credential ALWAYS carries a UUID tenant
@@ -193,7 +200,22 @@ export class OrvexSessionMintService {
     }
 
     // MINT — a real session + engine ACCESS token (the shared session path).
-    const accessToken = await this.sessionService.createSessionAndToken(user);
+    if (subjectRef) {
+      const recorded = await this.userRepo.recordVerifiedSubjectRef(
+        user.id,
+        workspaceId,
+        subjectRef,
+      );
+      if (recorded === 'conflict') {
+        this.logger.error('subjectRef mapping conflict flagged for operator review');
+      } else if (recorded !== 'recorded') {
+        throw new UnauthorizedException('principal mapping rejected');
+      }
+    }
+    const accessToken = await this.sessionService.createSessionAndToken(
+      user,
+      subjectRef,
+    );
 
     // Audit (best-effort, post-mint). A session was established for a resolved,
     // provisioned principal — the operability record of an identity-federated
@@ -204,7 +226,7 @@ export class OrvexSessionMintService {
         event: AuditEvent.USER_LOGIN,
         resourceType: AuditResource.USER,
         resourceId: user.id,
-        metadata: { source: auditSource, subject },
+        metadata: { source: auditSource },
       },
       { workspaceId: user.workspaceId, actorId: user.id, actorType: 'user' },
     );

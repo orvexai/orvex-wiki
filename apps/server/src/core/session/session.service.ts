@@ -36,7 +36,10 @@ export class SessionService {
     }
   }
 
-  async createSessionAndToken(user: User): Promise<string> {
+  async createSessionAndToken(
+    user: User,
+    subjectRef?: string,
+  ): Promise<string> {
     const auditContext = this.cls.get<AuditContext>(AUDIT_CONTEXT_KEY);
     const ipAddress = auditContext?.ipAddress ?? null;
     const userAgent = auditContext?.userAgent ?? null;
@@ -52,7 +55,7 @@ export class SessionService {
       expiresAt,
     });
 
-    return this.tokenService.generateAccessToken(user, session.id);
+    return this.tokenService.generateAccessToken(user, session.id, subjectRef);
   }
 
   async getActiveSessions(

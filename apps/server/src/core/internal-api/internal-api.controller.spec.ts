@@ -1034,6 +1034,31 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       expect(Number(usersAfter.count)).toBe(Number(usersBefore.count));
     });
 
+    it('ignores untrusted subject_ref supplied in the provisioning request body', async () => {
+      const subject = 'idp-subject-with-stable-ref';
+      const subjectRef = 'a'.repeat(64);
+      const first = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject,
+          tenant: workspaceId,
+          email: 'subject-ref@example.com',
+          subject_ref: subjectRef,
+        },
+      });
+      expect(first.statusCode).toBe(200);
+      const stored = await seedDb
+        .selectFrom('authAccounts')
+        .select('subjectRef')
+        .where('providerUserId', '=', subject)
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirstOrThrow();
+      expect(stored.subjectRef).toBeNull();
+      expect(JSON.parse(first.body).created).toBe(true);
+    });
+
     it('LINKS an already workspace-invited user by email instead of duplicating them', async () => {
       const EMAIL = 'invited@example.com';
       const SUBJECT = 'idp-subject-invited';

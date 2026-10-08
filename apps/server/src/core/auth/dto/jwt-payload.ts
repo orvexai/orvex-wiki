@@ -14,6 +14,8 @@ export type JwtPayload = {
   workspaceId: string;
   type: 'access';
   sessionId?: string;
+  /** Identity-verified stable opaque reference; propagated to auth middleware. */
+  subjectRef?: string;
   /**
    * Identity-verified token-scope marker (ENG-1380 / B.4). Read-only input
    * here: this leg never mints or catalogs scope values, it only consumes

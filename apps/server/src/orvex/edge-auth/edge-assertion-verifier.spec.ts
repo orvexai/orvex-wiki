@@ -317,6 +317,7 @@ describe('EdgeAssertionVerifier — iat/nbf skew boundaries (ADR-0049 check 3)',
     iatOffset?: number;
     nbfOffset?: number;
     expOffset?: number;
+    subjectRef?: string;
   }
 
   async function mint(opts: MintOptions = {}): Promise<string> {
@@ -326,6 +327,7 @@ describe('EdgeAssertionVerifier — iat/nbf skew boundaries (ADR-0049 check 3)',
       cell: 'eu1',
       cell_epoch: 3,
       scope: 'wiki:read',
+      ...(opts.subjectRef ? { subject_ref: opts.subjectRef } : {}),
     })
       .setProtectedHeader({ alg: 'ES256', kid: KID })
       .setSubject('edge-subject-1')
@@ -344,6 +346,19 @@ describe('EdgeAssertionVerifier — iat/nbf skew boundaries (ADR-0049 check 3)',
     await expect(verifier.verify(token, { now: NOW })).rejects.toMatchObject({
       code: 'NOT_YET_VALID',
     });
+  });
+
+  it('accepts an optional verified subject_ref claim and preserves its value', async () => {
+    const subjectRef = 'a'.repeat(64);
+    const token = await mint({ subjectRef });
+    await expect(verifier.verify(token, { now: NOW })).resolves.toMatchObject({
+      subjectRef,
+    });
+  });
+
+  it('keeps older assertions without subject_ref valid and absent', async () => {
+    const claims = await verifier.verify(await mint(), { now: NOW });
+    expect(claims.subjectRef).toBeUndefined();
   });
 
   it('nbf just within skew tolerance -> accepted', async () => {

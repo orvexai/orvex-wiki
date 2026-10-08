@@ -21,7 +21,10 @@ import { captureOutboxTraceContext } from './orvex-outbox-trace-context.util';
 export interface OutboxEvent {
   type: string;
   aggregateId: string;
-  workspaceId: string;
+  /** Wiki workspace FK for ordinary Wiki events; null for platform saga events. */
+  workspaceId: string | null;
+  /** CloudEvent tenant extension. Saga events must provide the inbound registry tenant. */
+  orvexTenant?: string;
   payload: Record<string, unknown>;
   /**
    * ENG-3167 (AD-20/AD-24) — an ACTIVE emission (the audit lane) mints its
@@ -52,6 +55,10 @@ export class OutboxWriter {
    * (AC2) and a mutation commit carries exactly one outbox row (AC1).
    */
   async enqueue(trx: KyselyTransaction, event: OutboxEvent): Promise<void> {
+    const orvexTenant = event.orvexTenant ?? event.workspaceId;
+    if (!orvexTenant) {
+      throw new Error('Outbox events require an explicit orvexTenant');
+    }
     // ENG-1600 AC1 — capture the CALLER's live trace context (the same
     // request whose mutation is committing in this same `trx`) at the exact
     // moment of the write, never later. All-null when tracing is off
@@ -68,6 +75,7 @@ export class OutboxWriter {
         type: event.type,
         aggregateId: event.aggregateId,
         workspaceId: event.workspaceId,
+        orvexTenant,
         payload: event.payload as unknown as Json,
         traceparent: traceContext.traceparent,
         tracestate: traceContext.tracestate,
