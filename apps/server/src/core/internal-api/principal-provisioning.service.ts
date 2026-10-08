@@ -433,9 +433,9 @@ export class PrincipalProvisioningService {
               role: auditNewUser.role,
             },
           },
-        metadata: {
-          source: 'internal-provisioning',
-        },
+          metadata: {
+            source: 'internal-provisioning',
+          },
         },
         { workspaceId: tenant, actorType: 'system' },
       );
@@ -472,6 +472,7 @@ export class PrincipalProvisioningService {
     tenant: string,
     principalKind: TenantPrincipalKind,
   ): Promise<void> {
+    const reserveStartedAt = Date.now();
     try {
       await this.registryClient.reserveTenant({
         tenantId: tenant,
@@ -489,11 +490,11 @@ export class PrincipalProvisioningService {
         return;
       }
       if (err instanceof RegistryClientError) {
-        // Logged with the client's own message (which names the status and,
-        // for a malformed body, a bounded snippet) so the cause is readable
-        // where an operator looks — the wire carries only the code.
+        // Keep this diagnostic free of tenant and response-body data. The
+        // registry client classifies transport failures and records the
+        // elapsed request time, including its single safe transport retry.
         this.logger.error(
-          `global tenant reservation for ${tenant} failed [${err.code}]: ${err.message}`,
+          `global tenant reservation failed failure_class=${err.failureClass ?? err.code.toLowerCase()} duration_ms=${err.durationMs ?? Date.now() - reserveStartedAt}`,
         );
         switch (err.code) {
           case 'TENANT_ALREADY_RESERVED':
