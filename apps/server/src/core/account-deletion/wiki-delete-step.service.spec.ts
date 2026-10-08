@@ -11,9 +11,10 @@ import {
 
 const request = (overrides: Partial<AccountDeletionStepRequested> = {}) => ({
   deletionId: '550e8400-e29b-41d4-a716-446655440000',
+  requestId: '650e8400-e29b-41d4-a716-446655440000',
   requestedAt: '2026-10-07T18:00:00Z',
   step: WIKI_DELETE_STEP,
-  subjectRef: 'opaque-subject-reference',
+  subjectRef: 'a'.repeat(64),
   ...overrides,
 });
 
@@ -60,6 +61,7 @@ describe('WikiDeleteStepService', () => {
 
     expect(ack).toMatchObject({
       deletionId: request().deletionId,
+      requestId: request().requestId,
       step: WIKI_DELETE_STEP,
       outcome: 'completed',
     });
@@ -68,7 +70,7 @@ describe('WikiDeleteStepService', () => {
       ack,
     );
     expect(action.execute).toHaveBeenCalledTimes(1);
-    expect(action.execute).toHaveBeenCalledWith('opaque-subject-reference');
+    expect(action.execute).toHaveBeenCalledWith('a'.repeat(64));
   });
 
   it('replays the first terminal acknowledgement without rerunning deletion', async () => {
@@ -88,6 +90,7 @@ describe('WikiDeleteStepService', () => {
 
     const failed = await service.handle(request());
     expect(failed).toMatchObject({
+      requestId: request().requestId,
       outcome: 'retryable_failure',
       reasonCode: 'dependency_unavailable',
       step: WIKI_DELETE_STEP,
@@ -152,7 +155,13 @@ describe('WikiDeleteStepService', () => {
       isAccountDeletionStepRequested({ ...request(), step: 'api_purge' }),
     ).toBe(false);
     expect(
-      isAccountDeletionStepRequested({ ...request(), subjectRef: 'x'.repeat(257) }),
+      isAccountDeletionStepRequested({ ...request(), subjectRef: 'x'.repeat(64) }),
+    ).toBe(false);
+  });
+
+  it('rejects requests without a valid per-attempt requestId', () => {
+    expect(
+      isAccountDeletionStepRequested({ ...request(), requestId: 'attempt-1' }),
     ).toBe(false);
   });
 });

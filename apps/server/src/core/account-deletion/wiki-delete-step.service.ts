@@ -13,6 +13,7 @@ export const WIKI_DELETE_STEP = 'wiki_delete' as const;
 
 export interface AccountDeletionStepRequested {
   deletionId: string;
+  requestId: string;
   requestedAt: string;
   step: string;
   subjectRef: string;
@@ -23,7 +24,11 @@ export interface AccountDeletionStepAck {
   acknowledgedAt: string;
   deletionId: string;
   outcome: 'completed' | 'retryable_failure' | 'paused';
-  reasonCode?: 'dependency_unavailable' | 'ownership_transfer_required';
+  reasonCode?:
+    | 'dependency_unavailable'
+    | 'ownership_transfer_required'
+    | 'subject_mapping_missing';
+  requestId: string;
   step: typeof WIKI_DELETE_STEP;
 }
 
@@ -124,6 +129,7 @@ export class WikiDeleteStepService {
         return {
           ack: {
             deletionId: request.deletionId,
+            requestId: request.requestId,
             step: WIKI_DELETE_STEP,
             outcome: result.outcome,
             ...(result.outcome === 'paused'
@@ -140,6 +146,7 @@ export class WikiDeleteStepService {
         return {
           ack: {
             deletionId: request.deletionId,
+            requestId: request.requestId,
             step: WIKI_DELETE_STEP,
             outcome: 'retryable_failure',
             reasonCode: 'dependency_unavailable',
@@ -160,14 +167,17 @@ export function isAccountDeletionStepRequested(
   const data = value as Record<string, unknown>;
   const keys = Object.keys(data).sort();
   return (
-    keys.join(',') === 'deletionId,requestedAt,step,subjectRef' &&
+    keys.join(',') === 'deletionId,requestId,requestedAt,step,subjectRef' &&
     typeof data.deletionId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     data.deletionId,
     ) &&
+    typeof data.requestId === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      data.requestId,
+    ) &&
     typeof data.subjectRef === 'string' &&
-    data.subjectRef.length > 0 &&
-    data.subjectRef.length <= 256 &&
+    /^[0-9a-f]{64}$/.test(data.subjectRef) &&
     data.step === WIKI_DELETE_STEP &&
     typeof data.requestedAt === 'string' &&
     Number.isFinite(Date.parse(data.requestedAt))
