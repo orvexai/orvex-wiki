@@ -52,12 +52,11 @@
 # and would re-source the promoted cell id from cluster-config. Patching its own
 # cellId is UPSTREAM of that transformer, so it survives.
 #
-# Data plane (crew-design.md §Data): platform-resources (Postgres/Redis) is
-# NOT excluded here — a Kustomize Component cannot delete base resources — so
-# today every crew env provisions its OWN Postgres/Redis via the base
-# platform-resources claims (self-contained, works standalone). The originally
-# intended "share dev's Postgres/Redis by default" optimization is a follow-up,
-# not required to bring a crew env up.
+# Data plane (crew-design.md §Data): every crew gets its own Postgres and
+# Redis claims. The root kustomization includes both claims for every profile;
+# idp-render rewrites appNamespace to this crew's namespace, and the composed
+# database and Redis credentials resolve from that namespace. This component
+# scopes application traffic; it does not select or remove platform resources.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
@@ -131,19 +130,18 @@ patches:
       kind: Middleware
       name: orvex-edge-forwardauth-wiki
 
-  # ── Crew edge-assertion config: NOT overridden here (disclosed limit) ────
-  # ORVEX_EDGE_JWKS_URL is left at base's PROD value in this component
-  # (unlike the dev override in components/staging). EdgeAuthModule.
-  # register() is never called anywhere in app.module.ts today (ENG-3063
-  # left it deliberately inert — see configmap-env.yaml's own comment), so
-  # this key is inert/unconsumed on every cell including crew; getting the
-  # per-crew cluster-DNS namespace segment (orvex-studio-identity-crew-
-  # {name}) through this file's own delimiter-substitution mechanism would
-  # require splitting a value that ALSO contains the literal
-  # "orvex-studio-identity" substring twice (once as the Service name, once
-  # as the namespace prefix) — a genuine index-ambiguity risk not worth
-  # taking for a currently-inert key. Revisit when a real per-request
-  # consumer is wired (a follow-up ticket, not this one).
+  # ── Crew edge-assertion JWKS → this crew's identity Service ─────────────
+  # Identity's /internal/jwks route is served only by its in-cluster Service,
+  # not by the public host. Use the same crewIdentityNamespace replacement
+  # source as ORVEX_IDENTITY_URL below so crew edge assertions never reach
+  # prod or dev identity.
+  - patch: |-
+      - op: replace
+        path: /data/ORVEX_EDGE_JWKS_URL
+        value: http://orvex-studio-identity.IDENTITYNS.svc.cluster.local/internal/jwks
+    target:
+      kind: ConfigMap
+      name: orvex-wiki-env
 
   # ── Crew host on the HTTPRoute: → wiki.crew-{name}.orvex.dev ─────────────
   # Re-pin the Gateway listener to orvex-dev-https (the crew host only
@@ -372,8 +370,9 @@ replacements:
         options:
           delimiter: "-"
           index: 3
-  # Step 2: that namespace into ORVEX_IDENTITY_URL's host (split by ".",
-  # index 1) -> http://orvex-studio-identity.orvex-studio-identity-crew-{name}.svc.cluster.local:80
+  # Step 2: that namespace into ORVEX_IDENTITY_URL and ORVEX_EDGE_JWKS_URL
+  # (split by ".", index 1), yielding the crew identity Service host for
+  # both identity's internal API and its internal JWKS route.
   - source:
       kind: ConfigMap
       name: cluster-config
@@ -384,6 +383,7 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.ORVEX_IDENTITY_URL
+          - data.ORVEX_EDGE_JWKS_URL
         options:
           delimiter: "."
           index: 1

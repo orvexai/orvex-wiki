@@ -860,10 +860,13 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         payload: {
           subject: 'idp-subject-401',
           tenant: workspaceId,
-          email: 'x401@example.com',
         },
       });
       expect(res.statusCode).toBe(401);
+      expect(JSON.parse(res.body)).toEqual({
+        statusCode: 401,
+        message: 'Unauthorized',
+      });
 
       const resBad = await app.inject({
         method: 'POST',
@@ -872,7 +875,6 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         payload: {
           subject: 'idp-subject-401',
           tenant: workspaceId,
-          email: 'x401@example.com',
         },
       });
       expect(resBad.statusCode).toBe(401);
@@ -980,15 +982,56 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
         method: 'POST',
         url: '/internal/principals/provision',
         headers: authHeaders(),
-        payload: { subject: SUBJECT, tenant: workspaceId, email: EMAIL },
+        payload: { subject: SUBJECT, tenant: workspaceId },
       });
       expect(second.statusCode).toBe(200);
       const secondBody = JSON.parse(second.body);
+      expect(secondBody).toEqual({
+        user_id: firstBody.user_id,
+        created: false,
+        workspace_created: false,
+      });
       expect(secondBody.created).toBe(false);
       expect(secondBody.user_id).toBe(firstBody.user_id);
 
       expect(await countLinkages(SUBJECT, workspaceId)).toBe(1);
       expect(await countUsersByEmail(EMAIL, workspaceId)).toBe(1);
+      const storedUser = await seedDb
+        .selectFrom('users')
+        .select('email')
+        .where('id', '=', firstBody.user_id as string)
+        .executeTakeFirstOrThrow();
+      expect(storedUser.email).toBe(EMAIL);
+    });
+
+    it('returns typed email_required for an unlinked subject without writing a user or linkage', async () => {
+      const SUBJECT = 'idp-subject-email-required';
+      const usersBefore = await seedDb
+        .selectFrom('users')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirstOrThrow();
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: { subject: SUBJECT, tenant: workspaceId },
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(JSON.parse(res.body)).toEqual({
+        code: 'email_required',
+        message:
+          'email is required to provision a principal not yet linked to this workspace',
+      });
+      expect(await countLinkages(SUBJECT, workspaceId)).toBe(0);
+      const usersAfter = await seedDb
+        .selectFrom('users')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('workspaceId', '=', workspaceId)
+        .executeTakeFirstOrThrow();
+      expect(Number(usersAfter.count)).toBe(Number(usersBefore.count));
     });
 
     it('LINKS an already workspace-invited user by email instead of duplicating them', async () => {
@@ -1078,6 +1121,7 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
   describe('write-path R6 — workspace materialization ({provision_workspace} get-or-create at the identity-issued UUID)', () => {
     const W_MAT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01';
     const W_DENY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02';
+    const W_EMAIL_REQUIRED = 'cccccccc-cccc-4ccc-8ccc-cccccccccc03';
 
     const countWorkspaces = async (id: string) => {
       const r = await seedDb
@@ -1114,6 +1158,33 @@ describe('TestInternalACLExportResolveAISearchSurface', () => {
       // The explicitly-false vouch is the same fail-closed path as an absent one
       // (the existing 404 test covers absent) — no workspace is fabricated.
       expect(await countWorkspaces(W_DENY)).toBe(0);
+    });
+
+    it('requires email before materializing an unknown workspace and leaves no principal rows', async () => {
+      const subject = 'r6-email-required';
+      expect(await countWorkspaces(W_EMAIL_REQUIRED)).toBe(0);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/internal/principals/provision',
+        headers: authHeaders(),
+        payload: {
+          subject,
+          tenant: W_EMAIL_REQUIRED,
+          provision_workspace: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(JSON.parse(res.body)).toMatchObject({ code: 'email_required' });
+      expect(await countWorkspaces(W_EMAIL_REQUIRED)).toBe(0);
+      const link = await seedDb
+        .selectFrom('authAccounts')
+        .select((eb) => eb.fn.countAll().as('count'))
+        .where('providerUserId', '=', subject)
+        .where('workspaceId', '=', W_EMAIL_REQUIRED)
+        .executeTakeFirstOrThrow();
+      expect(Number(link.count)).toBe(0);
     });
 
     it('materializes the workspace at the SUPPLIED identity-issued UUID, makes the vouching principal its OWNER, and creates the default group + auth_accounts linkage', async () => {
