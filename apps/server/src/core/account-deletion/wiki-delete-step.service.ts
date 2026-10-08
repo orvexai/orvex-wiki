@@ -35,11 +35,18 @@ export interface AccountDeletionStepAck {
 
 export type WikiDeleteActionResult =
   | { outcome: 'completed'; resultNote?: 'nothing_to_delete' }
-  | { outcome: 'paused'; reasonCode: 'ownership_transfer_required' };
+  | {
+      outcome: 'paused';
+      reasonCode: 'ownership_transfer_required';
+      blockingWorkspaceIds: string[];
+    };
 
 export const WIKI_DELETE_ACTION = Symbol('WIKI_DELETE_ACTION');
 export interface WikiDeleteAction {
-  execute(subjectRef: string): Promise<WikiDeleteActionResult>;
+  execute(
+    subjectRef: string,
+    orvexTenant: string,
+  ): Promise<WikiDeleteActionResult>;
 }
 
 export interface WikiDeleteStepRepository {
@@ -51,6 +58,7 @@ export interface WikiDeleteStepRepository {
     action: () => Promise<{
       ack: AccountDeletionStepAck;
       resultNote?: 'nothing_to_delete';
+      blockingWorkspaceIds?: string[];
     }>,
   ): Promise<AccountDeletionStepAck>;
 }
@@ -58,6 +66,9 @@ export interface WikiDeleteStepRepository {
 export const WIKI_DELETE_STEP_REPOSITORY = Symbol(
   'WIKI_DELETE_STEP_REPOSITORY',
 );
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** Serializes duplicate deliveries and stores only terminal acknowledgements. */
 @Injectable()
@@ -75,6 +86,7 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
     action: () => Promise<{
       ack: AccountDeletionStepAck;
       resultNote?: 'nothing_to_delete';
+      blockingWorkspaceIds?: string[];
     }>,
   ): Promise<AccountDeletionStepAck> {
     const lockKey = `account-deletion:${deletionId}:${step}`;
@@ -87,30 +99,43 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
       );
       const existing = await transaction
         .selectFrom('accountDeletionStepResults')
-        .select(['ack', 'orvexTenant'])
+        .select(['ack', 'orvexTenant', 'resumableAt'])
         .where('deletionId', '=', deletionId)
         .where('step', '=', step)
         .executeTakeFirst();
       if (existing) {
-        if (existing.orvexTenant === orvexTenant) {
+        if (
+          existing.orvexTenant === orvexTenant &&
+          existing.resumableAt === null
+        ) {
           return existing.ack as unknown as AccountDeletionStepAck;
         }
-        const mismatchAck: AccountDeletionStepAck = {
-          deletionId,
-          requestId,
-          step: WIKI_DELETE_STEP,
-          outcome: 'retryable_failure',
-          reasonCode: 'dependency_unavailable',
-          acknowledgedAt: new Date().toISOString(),
-        };
-        await this.outbox.enqueue(transaction, {
-          type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
-          aggregateId: deletionId,
-          workspaceId: null,
-          orvexTenant,
-          payload: mismatchAck as unknown as Record<string, unknown>,
-        });
-        return mismatchAck;
+        if (existing.orvexTenant !== orvexTenant) {
+          const mismatchAck: AccountDeletionStepAck = {
+            deletionId,
+            requestId,
+            step: WIKI_DELETE_STEP,
+            outcome: 'retryable_failure',
+            reasonCode: 'dependency_unavailable',
+            acknowledgedAt: new Date().toISOString(),
+          };
+          await this.outbox.enqueue(transaction, {
+            type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
+            aggregateId: deletionId,
+            workspaceId: null,
+            orvexTenant,
+            payload: mismatchAck as unknown as Record<string, unknown>,
+          });
+          return mismatchAck;
+        }
+        // A paused terminal result is re-evaluated only after its blockers
+        // were removed and the resumable signal was committed.
+        await transaction
+          .deleteFrom('accountDeletionStepResults')
+          .where('deletionId', '=', deletionId)
+          .where('step', '=', step)
+          .where('resumableAt', 'is not', null)
+          .execute();
       }
 
       const execution = await action();
@@ -123,8 +148,17 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
             orvexTenant,
             ack: execution.ack as unknown as Json,
             resultNote: execution.resultNote ?? null,
+            resumableAt: null,
           })
           .execute();
+        if (execution.ack.outcome === 'paused') {
+          for (const workspaceId of execution.blockingWorkspaceIds ?? []) {
+            await transaction
+              .insertInto('accountDeletionPausedWorkspaces')
+              .values({ deletionId, workspaceId, orvexTenant })
+              .execute();
+          }
+        }
       }
       await this.outbox.enqueue(transaction, {
         type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
@@ -159,11 +193,7 @@ export class WikiDeleteStepService {
     if (request.step !== WIKI_DELETE_STEP) {
       throw new BadRequestException('Unsupported account deletion step');
     }
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        orvexTenant,
-      )
-    ) {
+    if (!UUID_PATTERN.test(orvexTenant)) {
       throw new BadRequestException(
         'Invalid account deletion tenant extension',
       );
@@ -176,7 +206,19 @@ export class WikiDeleteStepService {
       orvexTenant,
       async () => {
         try {
-          const result = await this.deletion.execute(request.subjectRef);
+          const result = await this.deletion.execute(
+            request.subjectRef,
+            orvexTenant,
+          );
+          if (
+            result.outcome === 'paused' &&
+            (result.blockingWorkspaceIds.length === 0 ||
+              result.blockingWorkspaceIds.some(
+                (workspaceId) => !UUID_PATTERN.test(workspaceId),
+              ))
+          ) {
+            throw new Error('Paused deletion requires blocking workspace ids');
+          }
           return {
             ack: {
               deletionId: request.deletionId,
@@ -190,6 +232,9 @@ export class WikiDeleteStepService {
             },
             ...(result.outcome === 'completed' && result.resultNote
               ? { resultNote: result.resultNote }
+              : {}),
+            ...(result.outcome === 'paused'
+              ? { blockingWorkspaceIds: result.blockingWorkspaceIds }
               : {}),
           };
         } catch {

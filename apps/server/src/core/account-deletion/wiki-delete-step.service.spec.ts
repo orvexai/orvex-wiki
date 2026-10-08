@@ -21,6 +21,7 @@ const request = (overrides: Partial<AccountDeletionStepRequested> = {}) => ({
 class InMemoryTerminalAckRepository implements WikiDeleteStepRepository {
   readonly results = new Map<string, AccountDeletionStepAck>();
   readonly resultNotes = new Map<string, string>();
+  readonly blockers = new Map<string, string[]>();
   lastTenant: string | undefined;
 
   async runLocked(
@@ -31,6 +32,7 @@ class InMemoryTerminalAckRepository implements WikiDeleteStepRepository {
     action: () => Promise<{
       ack: AccountDeletionStepAck;
       resultNote?: 'nothing_to_delete';
+      blockingWorkspaceIds?: string[];
     }>,
   ): Promise<AccountDeletionStepAck> {
     this.lastTenant = orvexTenant;
@@ -42,6 +44,9 @@ class InMemoryTerminalAckRepository implements WikiDeleteStepRepository {
     if (execution.ack.outcome !== 'retryable_failure') {
       this.results.set(key, execution.ack);
       if (execution.resultNote) this.resultNotes.set(key, execution.resultNote);
+      if (execution.blockingWorkspaceIds) {
+        this.blockers.set(key, execution.blockingWorkspaceIds);
+      }
     }
     return execution.ack;
   }
@@ -77,7 +82,10 @@ describe('WikiDeleteStepService', () => {
       repository.results.get(`${request().deletionId}:${WIKI_DELETE_STEP}`),
     ).toEqual(ack);
     expect(action.execute).toHaveBeenCalledTimes(1);
-    expect(action.execute).toHaveBeenCalledWith('a'.repeat(64));
+    expect(action.execute).toHaveBeenCalledWith(
+      'a'.repeat(64),
+      '8b1a9953-c461-4b9a-9fdb-c1f4c8e7b1aa',
+    );
     expect(repository.lastTenant).toBe('8b1a9953-c461-4b9a-9fdb-c1f4c8e7b1aa');
   });
 
@@ -127,6 +135,7 @@ describe('WikiDeleteStepService', () => {
     action.execute.mockResolvedValue({
       outcome: 'paused',
       reasonCode: 'ownership_transfer_required',
+      blockingWorkspaceIds: ['8b1a9953-c461-4b9a-9fdb-c1f4c8e7b1aa'],
     });
 
     const first = await service.handle(
@@ -144,6 +153,9 @@ describe('WikiDeleteStepService', () => {
     });
     expect(duplicate).toEqual(first);
     expect(action.execute).toHaveBeenCalledTimes(1);
+    expect(
+      repository.blockers.get(`${request().deletionId}:${WIKI_DELETE_STEP}`),
+    ).toEqual(['8b1a9953-c461-4b9a-9fdb-c1f4c8e7b1aa']);
   });
 
   it('records a no-data completion internally while keeping the strict ack shape unchanged', async () => {

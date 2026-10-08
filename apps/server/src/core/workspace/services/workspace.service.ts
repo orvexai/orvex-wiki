@@ -29,6 +29,7 @@ import { UserRepo } from '@docmost/db/repos/user/user.repo';
 import { EnvironmentService } from '../../../integrations/environment/environment.service';
 import { DomainService } from '../../../integrations/environment/domain.service';
 import { jsonArrayFrom } from 'kysely/helpers/postgres';
+import { sql } from 'kysely';
 import { addDays } from 'date-fns';
 import { DISALLOWED_HOSTNAMES, WorkspaceStatus } from '../workspace.constants';
 import { isAdminActingOnOwner } from '../workspace.util';
@@ -762,6 +763,10 @@ export class WorkspaceService {
         workspaceId,
         payload: { userId: user.id, workspaceId, before: user.role, after: newRole },
       });
+
+      if (newRole === UserRole.OWNER && user.role !== UserRole.OWNER) {
+        await this.markDeletionResumableAfterOwnerGrant(trx, workspaceId);
+      }
     });
 
     await this.auditService.log({
@@ -775,6 +780,63 @@ export class WorkspaceService {
     },
       { workspaceId, actorId: authUser.id, actorType: 'user' },
     );
+  }
+
+  /**
+   * Persist step.resumable with the owner change that removes the final
+   * blocker. The CloudEvent data contains deletion metadata only; its tenant
+   * routing value is stored separately from any Wiki workspace identifier.
+   */
+  private async markDeletionResumableAfterOwnerGrant(
+    trx: KyselyTransaction,
+    workspaceId: string,
+  ): Promise<void> {
+    const candidates = await trx
+      .selectFrom('accountDeletionPausedWorkspaces')
+      .select(['deletionId', 'orvexTenant'])
+      .where('workspaceId', '=', workspaceId)
+      .orderBy('deletionId', 'asc')
+      .execute();
+
+    for (const candidate of candidates) {
+      await sql`select pg_advisory_xact_lock(hashtextextended(${`account-deletion-resume:${candidate.deletionId}:wiki_delete`}, 0))`.execute(
+        trx,
+      );
+      await trx
+        .deleteFrom('accountDeletionPausedWorkspaces')
+        .where('deletionId', '=', candidate.deletionId)
+        .where('workspaceId', '=', workspaceId)
+        .execute();
+
+      const remaining = await trx
+        .selectFrom('accountDeletionPausedWorkspaces')
+        .select(({ fn }) => fn.countAll<number>().as('count'))
+        .where('deletionId', '=', candidate.deletionId)
+        .executeTakeFirst();
+      if (Number(remaining?.count ?? 0) !== 0) continue;
+
+      const resumed = await trx
+        .updateTable('accountDeletionStepResults')
+        .set({ resumableAt: sql<Date>`now()` })
+        .where('deletionId', '=', candidate.deletionId)
+        .where('step', '=', 'wiki_delete')
+        .where('resumableAt', 'is', null)
+        .returning('resumableAt')
+        .executeTakeFirst();
+      if (!resumed) continue;
+
+      await this.outboxWriter.enqueue(trx, {
+        type: 'identity.account.deletion.step.resumable',
+        aggregateId: candidate.deletionId,
+        workspaceId: null,
+        orvexTenant: candidate.orvexTenant,
+        payload: {
+          deletionId: candidate.deletionId,
+          step: 'wiki_delete',
+          resumableAt: new Date(resumed.resumableAt).toISOString(),
+        },
+      });
+    }
   }
 
   /**

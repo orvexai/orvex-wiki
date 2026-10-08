@@ -129,7 +129,15 @@ export interface AccountDeletionStepResults {
   deletionId: string;
   orvexTenant: string | null;
   resultNote: string | null;
+  resumableAt: Timestamp | null;
   step: string;
+}
+
+export interface AccountDeletionPausedWorkspaces {
+  createdAt: Generated<Timestamp>;
+  deletionId: string;
+  orvexTenant: string;
+  workspaceId: string;
 }
 
 export interface Backlinks {
@@ -672,6 +680,7 @@ export interface DB {
   authAccounts: AuthAccounts;
   authProviders: AuthProviders;
   accountDeletionStepResults: AccountDeletionStepResults;
+  accountDeletionPausedWorkspaces: AccountDeletionPausedWorkspaces;
   backlinks: Backlinks;
   baseProperties: BaseProperties;
   baseRows: BaseRows;
