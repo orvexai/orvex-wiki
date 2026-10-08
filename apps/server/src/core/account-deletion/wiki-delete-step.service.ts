@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 import { KyselyDB } from '../../database/types/kysely.types';
 import { Json } from '../../database/types/db';
 import { executeTx } from '../../database/utils';
+import { OutboxWriter } from '../../orvex/events/outbox/outbox-writer.service';
 
 export const ACCOUNT_DELETION_STEP_REQUESTED =
   'identity.account.deletion.step.requested';
@@ -45,6 +46,8 @@ export interface WikiDeleteStepRepository {
   runLocked(
     deletionId: string,
     step: typeof WIKI_DELETE_STEP,
+    requestId: string,
+    orvexTenant: string,
     action: () => Promise<{
       ack: AccountDeletionStepAck;
       resultNote?: 'nothing_to_delete';
@@ -59,11 +62,16 @@ export const WIKI_DELETE_STEP_REPOSITORY = Symbol(
 /** Serializes duplicate deliveries and stores only terminal acknowledgements. */
 @Injectable()
 export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository {
-  constructor(@InjectKysely() private readonly db: KyselyDB) {}
+  constructor(
+    @InjectKysely() private readonly db: KyselyDB,
+    private readonly outbox: OutboxWriter,
+  ) {}
 
   runLocked(
     deletionId: string,
     step: typeof WIKI_DELETE_STEP,
+    requestId: string,
+    orvexTenant: string,
     action: () => Promise<{
       ack: AccountDeletionStepAck;
       resultNote?: 'nothing_to_delete';
@@ -78,13 +86,31 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
         transaction,
       );
       const existing = await transaction
-          .selectFrom('accountDeletionStepResults')
-          .select('ack')
-          .where('deletionId', '=', deletionId)
-          .where('step', '=', step)
-          .executeTakeFirst();
+        .selectFrom('accountDeletionStepResults')
+        .select(['ack', 'orvexTenant'])
+        .where('deletionId', '=', deletionId)
+        .where('step', '=', step)
+        .executeTakeFirst();
       if (existing) {
-        return existing.ack as unknown as AccountDeletionStepAck;
+        if (existing.orvexTenant === orvexTenant) {
+          return existing.ack as unknown as AccountDeletionStepAck;
+        }
+        const mismatchAck: AccountDeletionStepAck = {
+          deletionId,
+          requestId,
+          step: WIKI_DELETE_STEP,
+          outcome: 'retryable_failure',
+          reasonCode: 'dependency_unavailable',
+          acknowledgedAt: new Date().toISOString(),
+        };
+        await this.outbox.enqueue(transaction, {
+          type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
+          aggregateId: deletionId,
+          workspaceId: null,
+          orvexTenant,
+          payload: mismatchAck as unknown as Record<string, unknown>,
+        });
+        return mismatchAck;
       }
 
       const execution = await action();
@@ -94,11 +120,19 @@ export class KyselyWikiDeleteStepRepository implements WikiDeleteStepRepository 
           .values({
             deletionId,
             step,
+            orvexTenant,
             ack: execution.ack as unknown as Json,
             resultNote: execution.resultNote ?? null,
           })
           .execute();
       }
+      await this.outbox.enqueue(transaction, {
+        type: ACCOUNT_DELETION_STEP_ACKNOWLEDGED,
+        aggregateId: deletionId,
+        workspaceId: null,
+        orvexTenant,
+        payload: execution.ack as unknown as Record<string, unknown>,
+      });
       return execution.ack;
     });
   }
@@ -118,43 +152,61 @@ export class WikiDeleteStepService {
     private readonly deletion: WikiDeleteAction,
   ) {}
 
-  async handle(request: AccountDeletionStepRequested): Promise<AccountDeletionStepAck> {
+  async handle(
+    request: AccountDeletionStepRequested,
+    orvexTenant: string,
+  ): Promise<AccountDeletionStepAck> {
     if (request.step !== WIKI_DELETE_STEP) {
       throw new BadRequestException('Unsupported account deletion step');
     }
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        orvexTenant,
+      )
+    ) {
+      throw new BadRequestException(
+        'Invalid account deletion tenant extension',
+      );
+    }
 
-    return this.results.runLocked(request.deletionId, WIKI_DELETE_STEP, async () => {
-      try {
-        const result = await this.deletion.execute(request.subjectRef);
-        return {
-          ack: {
-            deletionId: request.deletionId,
-            requestId: request.requestId,
-            step: WIKI_DELETE_STEP,
-            outcome: result.outcome,
-            ...(result.outcome === 'paused'
-              ? { reasonCode: result.reasonCode }
+    return this.results.runLocked(
+      request.deletionId,
+      WIKI_DELETE_STEP,
+      request.requestId,
+      orvexTenant,
+      async () => {
+        try {
+          const result = await this.deletion.execute(request.subjectRef);
+          return {
+            ack: {
+              deletionId: request.deletionId,
+              requestId: request.requestId,
+              step: WIKI_DELETE_STEP,
+              outcome: result.outcome,
+              ...(result.outcome === 'paused'
+                ? { reasonCode: result.reasonCode }
+                : {}),
+              acknowledgedAt: new Date().toISOString(),
+            },
+            ...(result.outcome === 'completed' && result.resultNote
+              ? { resultNote: result.resultNote }
               : {}),
-            acknowledgedAt: new Date().toISOString(),
-          },
-          ...(result.outcome === 'completed' && result.resultNote
-            ? { resultNote: result.resultNote }
-            : {}),
-        };
-      } catch {
-        // Retryable failures are deliberately not stored by the repository.
-        return {
-          ack: {
-            deletionId: request.deletionId,
-            requestId: request.requestId,
-            step: WIKI_DELETE_STEP,
-            outcome: 'retryable_failure',
-            reasonCode: 'dependency_unavailable',
-            acknowledgedAt: new Date().toISOString(),
-          },
-        };
-      }
-    });
+          };
+        } catch {
+          // Retryable failures are deliberately not stored by the repository.
+          return {
+            ack: {
+              deletionId: request.deletionId,
+              requestId: request.requestId,
+              step: WIKI_DELETE_STEP,
+              outcome: 'retryable_failure',
+              reasonCode: 'dependency_unavailable',
+              acknowledgedAt: new Date().toISOString(),
+            },
+          };
+        }
+      },
+    );
   }
 }
 
@@ -170,7 +222,7 @@ export function isAccountDeletionStepRequested(
     keys.join(',') === 'deletionId,requestId,requestedAt,step,subjectRef' &&
     typeof data.deletionId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    data.deletionId,
+      data.deletionId,
     ) &&
     typeof data.requestId === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
