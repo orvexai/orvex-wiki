@@ -425,9 +425,11 @@ export class HttpIdentityRegistryClient implements IdentityRegistryClient {
   }
 
   /**
-   * Identity's reserve operation is idempotent for the same tenant/hostname,
-   * so one retry is safe when the HTTP transport fails after an ambiguous
-   * delivery. HTTP responses and malformed payloads are never retried.
+   * Identity's POST /internal/registry/reserve is read-only: Registry.Resolve
+   * delegates to Core.Get, a single indexed SELECT on registry_tenant_cells,
+   * with no FOR UPDATE and no write. Repeating it after an ambiguous transport
+   * failure therefore has no side effect. HTTP responses and malformed
+   * payloads are never retried.
    */
   private async reserveTenantWithTransportRetry(
     req: RegistryReserveRequest,
