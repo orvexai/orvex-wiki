@@ -284,6 +284,10 @@ func TestHttpRouteHostnameShortCellToken(t *testing.T) {
 		deployDir := filepath.Dir(kustomizeDir)
 		allowed := map[string]bool{
 			filepath.Join(kustomizeDir, "cluster-config.yaml"): true,
+			// The crew environment's own cluster-config (Houston layout:
+			// crew-env is a separate build root that idp-render prepare
+			// rewrites); it is that root's single cellToken source.
+			filepath.Join(kustomizeDir, "crew-env", "cluster-config.yaml"): true,
 		}
 		err := filepath.Walk(deployDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
