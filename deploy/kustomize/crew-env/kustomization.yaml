@@ -1,0 +1,12 @@
+---
+# Crew environment entrypoint -- Houston layout (houston deploy/kustomize/crew-env).
+#
+# The orvex-wiki crew ApplicationSet (my-idp-apps) points here, not at
+# deploy/kustomize. cluster-config.yaml is this environment's own copy, which
+# idp-render prepare rewrites (namespace, branch, crew name) before the build.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster-config.yaml
+components:
+  - ../crew-component
