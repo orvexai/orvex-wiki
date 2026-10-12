@@ -1,0 +1,11 @@
+# envFrom of the service's workload, for the crew-vm guest env renderer
+# (crew-env-render), which runs the service on the VM with the same config.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orvex-wiki-vm-env
+  labels:
+    app.kubernetes.io/part-of: orvex-wiki
+  namespace: orvex-wiki
+data:
+  envFrom: '[{"configMapRef":{"name":"orvex-wiki-env"}},{"secretRef":{"name":"orvex-wiki-db-credentials","optional":true}},{"secretRef":{"name":"orvex-wiki-redis-credentials","optional":true}},{"secretRef":{"name":"orvex-wiki-app-secret","optional":true}},{"secretRef":{"name":"orvex-wiki-internal-api","optional":true}},{"configMapRef":{"name":"telemetry-env"}}]'
