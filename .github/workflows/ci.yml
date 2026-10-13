@@ -315,7 +315,7 @@ jobs:
         # Bound concurrent Testcontainers startups. The image warm-up above
         # avoids competing pulls, but the unbounded Jest worker pool can still
         # starve PostgreSQL readiness across unrelated integration specs.
-        run: pnpm --dir apps/server run test:ci -- --maxWorkers=4
+        run: pnpm --dir apps/server run test:ci --maxWorkers=4
 
   test-server-integration:
     name: Test Server (integration, testcontainers PG)
