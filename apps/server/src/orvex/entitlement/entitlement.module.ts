@@ -6,6 +6,8 @@ import { Global, Module } from '@nestjs/common';
 import { EntitlementService } from './entitlement.service';
 import { BILLING_ENTITLEMENT_PORT } from './entitlement-billing.port';
 import { HttpBillingEntitlementPort } from './entitlement-http-billing.port';
+import { BillingServiceCredentialProvider } from './billing-service-credential';
+import { OrvexConfigService } from '../config/orvex-config.service';
 import { ENTITLEMENT_CACHE, RedisEntitlementCache } from './entitlement-cache';
 import { EntitlementChangedConsumer } from './entitlement-changed.consumer';
 import { QuotaFastCounter } from './quota-fast-counter';
@@ -33,6 +35,12 @@ import { OrvexConfigModule } from '../config/orvex-config.module';
     EntitlementChangedConsumer,
     QuotaFastCounter,
     QuotaReconciliationService,
+    {
+      provide: BillingServiceCredentialProvider,
+      useFactory: (config: OrvexConfigService) =>
+        new BillingServiceCredentialProvider(config),
+      inject: [OrvexConfigService],
+    },
     { provide: BILLING_ENTITLEMENT_PORT, useClass: HttpBillingEntitlementPort },
     { provide: ENTITLEMENT_CACHE, useClass: RedisEntitlementCache },
   ],

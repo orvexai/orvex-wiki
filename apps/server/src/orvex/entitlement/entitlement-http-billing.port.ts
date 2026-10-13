@@ -2,13 +2,14 @@
 // Copyright (C) Orvex, Inc. — part of the orvex-wiki AGPL engine (CS §13).
 // See the LICENSE file at the repository root for the full license text.
 
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger, Optional } from '@nestjs/common';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import {
   BillingEntitlementPort,
   BillingUnconfiguredError,
 } from './entitlement-billing.port';
 import { Principal, EntitlementCheckResponse } from './entitlement.types';
+import { BillingServiceCredentialProvider } from './billing-service-credential';
 
 /**
  * ENG-1382 fix pass 1 (F2, review1) — the field-for-field cap keys
@@ -74,6 +75,13 @@ function assertValidEntitlementCheckResponse(
   }
 }
 
+/** Billing statuses meaning "this assertion is no good" → drop the cached one. */
+const CREDENTIAL_REJECTED_STATUSES: ReadonlySet<number> = new Set([
+  HttpStatus.UNAUTHORIZED,
+  HttpStatus.FORBIDDEN,
+  HttpStatus.MISDIRECTED,
+]);
+
 /**
  * Real adapter for `BillingEntitlementPort` — calls
  * `orvex-studio-billing`'s `GET /v1/entitlements/{principal_type}/{principal_id}`
@@ -81,14 +89,22 @@ function assertValidEntitlementCheckResponse(
  * typed HTTP read of billing's projection.
  *
  * The base URL is injected via `ORVEX_BILLING_API_URL` (CS ❌#8 — no inline
- * credentialed client; there are no credentials on this read, but the
- * endpoint itself is still env-configured, never hard-coded).
+ * credentialed client; the endpoint is env-configured, never hard-coded).
+ *
+ * fix/wiki-billing-delegated-credential: billing has required a verified
+ * `X-Orvex-Assertion` with billing:read on this route since d2d459b, so an
+ * anonymous call 401s and broke every new user's setup. Org reads now carry
+ * the tenant-bound service assertion from `BillingServiceCredentialProvider`.
  */
 @Injectable()
 export class HttpBillingEntitlementPort implements BillingEntitlementPort {
   private readonly logger = new Logger(HttpBillingEntitlementPort.name);
 
-  constructor(private readonly environmentService: EnvironmentService) {}
+  constructor(
+    private readonly environmentService: EnvironmentService,
+    @Optional()
+    private readonly credentials?: BillingServiceCredentialProvider,
+  ) {}
 
   async checkEntitlement(
     principal: Principal,
@@ -108,15 +124,28 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
       principal.principal_type,
     )}/${encodeURIComponent(principal.principal_id)}`;
 
+    const headers: Record<string, string> = { accept: 'application/json' };
+    // Only org (workspace) principals are tenant-bound service reads; identity
+    // refuses to mint for a user-keyed tenant, so none is requested.
+    const tenant =
+      principal.principal_type === 'org' ? principal.principal_id : null;
+    if (tenant && this.credentials?.isConfigured()) {
+      // Throws on refusal → EntitlementService falls back to its cached
+      // projection or fails closed; never an anonymous billing call.
+      headers['x-orvex-assertion'] =
+        await this.credentials.assertionFor(tenant);
+    }
+
     let response: Response;
     try {
-      response = await fetch(url, {
-        method: 'GET',
-        headers: { accept: 'application/json' },
-      });
+      response = await fetch(url, { method: 'GET', headers });
     } catch (err) {
       this.logger.warn(`billing entitlement fetch failed: ${err}`);
       throw err;
+    }
+
+    if (tenant && CREDENTIAL_REJECTED_STATUSES.has(response.status)) {
+      this.credentials?.evict(tenant);
     }
 
     if (!response.ok) {
