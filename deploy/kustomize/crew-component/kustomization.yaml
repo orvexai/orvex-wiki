@@ -1,0 +1,335 @@
+---
+# Crew component -- Houston layout (houston deploy/kustomize/crew-component).
+#
+# Everything orvex-wiki needs in its crew namespace EXCEPT the service itself:
+# namespace, secrets, config, eventing, routes and data-plane claims still run
+# as pods. The service runs on the crew VM (my-idp platform/crew-vm, VMI
+# "crew" in this namespace) from the crew branch checkout, restarted with
+# crew-restart.sh -- no image build, no rollout. Removed here: Deployment orvex-wiki, ServiceAccount orvex-wiki, PodDisruptionBudget orvex-wiki.
+# The fronting Service(s) select the VM instead of a pod.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: orvex-wiki
+      app.kubernetes.io/part-of: orvex-wiki
+      app.kubernetes.io/managed-by: argocd
+    includeSelectors: false
+
+resources:
+  - ../app-manifests
+  - ../platform-resources
+  - vm-env.yaml
+
+components:
+  - ../components/telemetry-env
+  - ../components/crew
+
+patches:
+  - target:
+      group: apps
+      kind: Deployment
+      name: orvex-wiki
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orvex-wiki
+  - target:
+      kind: ServiceAccount
+      name: orvex-wiki
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: orvex-wiki
+  - target:
+      group: policy
+      kind: PodDisruptionBudget
+      name: orvex-wiki
+    patch: |-
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: orvex-wiki
+  # orvex-wiki fronted Deployment orvex-wiki; on crew it routes to the VM.
+  - target:
+      version: v1
+      kind: Service
+      name: orvex-wiki
+    patch: |-
+      - op: replace
+        path: /spec/selector
+        value: {"vm.kubevirt.io/name": "crew"}
+      - op: replace
+        path: /spec/ports/0/targetPort
+        value: 3000
+
+# Same replacements as the main/dev base (../kustomization.yaml), sourced from
+# crew-env/cluster-config.yaml. Keep the two in step.
+replacements:
+  # ─── Namespace injection ────────────────────────────────────────────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          namespace: orvex-wiki
+        fieldPaths:
+          - metadata.namespace
+  # Namespace resource name (cluster-scoped — no metadata.namespace)
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: Namespace
+          name: orvex-wiki
+        fieldPaths:
+          - metadata.name
+
+  # NOTE(AD-29): the image-tag replacement that used to live here — branchSlug
+  # into the tag — is DELETED, not moved. It was this repo's own opinion about
+  # what an Orvex image is called, and it disagreed with the shared pipeline's
+  # on the repository path AND on the tag: it rendered
+  # `…/orvex-wiki/orvex-wiki:dev` while `orvex-derive-image-ref` pushes
+  # `…/orvex-wiki/orvex-wiki-engine:dev-<sha>`. Keeping it alongside
+  # components/image-injection would not merely be redundant — both target
+  # `containers.*.image`, so the two would fight over the same field. There is
+  # exactly one producer of an image reference in this fleet, and it is not
+  # this file.
+
+  # ─── Load-balancer target for external-dns (HTTPRoute) ──────────────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.loadBalancerIP
+    targets:
+      - select:
+          kind: HTTPRoute
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/target]
+
+  # ─── ExternalSecret OpenBao paths: PLACEHOLDER_APP_NAME → appNamespace ────
+  # Per-ENVIRONMENT path (orvex-wiki vs orvex-wiki-dev) so each env gets its
+  # OWN creds. EXCLUDED (fixed shared path, must NOT be per-namespace-rewritten):
+  #   - harbor-registry-credentials → harbor/admin
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: ExternalSecret
+        reject:
+          - name: harbor-registry-credentials
+        fieldPaths:
+          - spec.data.*.remoteRef.key
+        options:
+          delimiter: /
+          index: 0
+
+  # ─── PushSecret OpenBao destination paths: PLACEHOLDER_APP_NAME → appNamespace
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: PushSecret
+        fieldPaths:
+          - spec.data.*.match.remoteRef.remoteKey
+        options:
+          delimiter: /
+          index: 0
+
+  # PushSecret template host: PLACEHOLDER_NAMESPACE → appNamespace (postgres + redis)
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: PushSecret
+          name: orvex-wiki-postgres-credentials-push
+        fieldPaths:
+          - spec.template.data.host
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: PushSecret
+          name: orvex-wiki-redis-credentials-push
+        fieldPaths:
+          - spec.template.data.host
+        options:
+          delimiter: "."
+          index: 1
+
+  # ─── PostgresInstanceClaim + db-bootstrap secret name ───────────────────
+  # Both render to `<appNamespace>-db-bootstrap` so the claim's bootstrap secret
+  # and the ExternalSecret output stay in lockstep across environments.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: PostgresInstanceClaim
+        fieldPaths:
+          - spec.credentialsSecretName
+        options:
+          delimiter: "-"
+          index: 0
+      - select:
+          kind: ExternalSecret
+          name: orvex-wiki-db-bootstrap
+        fieldPaths:
+          - spec.target.name
+        options:
+          delimiter: "-"
+          index: 0
+
+  # ─── S3 bucket name: PLACEHOLDER_APP_NAME-bucket → <appNamespace>-bucket ──
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.appNamespace
+    targets:
+      - select:
+          kind: ObjectStorageClaim
+          name: orvex-wiki-s3
+        fieldPaths:
+          - spec.bucketName
+        options:
+          delimiter: "-"
+          index: 0
+
+  # ─── Config: APP_URL + S3_ENDPOINT (ConfigMap) ──────────────────────────
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.wikiHost
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.APP_URL
+        options:
+          delimiter: "/"
+          index: 2
+      # NOTE: the HTTPRoute host is NOT injected via wikiHost here — it's a
+      # CELLTOKEN placeholder in the base manifest, patched to the dev domain
+      # suffix by components/staging, and gets its literal token value from
+      # the dedicated cellToken replacements below instead (see "Cell token"
+      # section). A whole-host wikiHost injection here previously overwrote
+      # the staging hostname patch (leaving prod host + dev sectionName →
+      # route Accepted=False) — the token-only replacement avoids that by
+      # only ever touching the single CELLTOKEN segment, on both prod (base)
+      # and dev (components/staging) independently.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.s3Endpoint
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.AWS_S3_ENDPOINT
+
+  # ─── Cell contract: CELL_ID + CLUSTER_NAME (ConfigMap) ──────────────────
+  # A-CELL rule #4 — /healthz echoes both. Base = the promoted-env cell
+  # (cluster-config.cellId, ENG-3109/AD-36 — the literal lives ONLY in
+  # cluster-config.yaml, see the AC5 single-source guard in
+  # hostname_cutover_test.go), which prod AND the dev cell both take;
+  # components/crew patches cluster-config.cellId back to the
+  # "solo" sentinel for crew stacks, which isolate the SPINE via
+  # EVENT_TOPIC_SUFFIX and an explicitly configured outbox topic instead.
+  # Both are plain-value replacements (no
+  # delimiter). NOTE the ordering that makes crew's patch work: this
+  # transformer runs AFTER component patches, so crew patches the SOURCE
+  # (cluster-config.cellId), never this target (orvex-wiki-env.CELL_ID).
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellId
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.CELL_ID
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.clusterName
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.CLUSTER_NAME
+
+  # ─── Cell token (ENG-1505 fix-pass — single source) ─────────────────────
+  # cluster-config.cellToken is the ONLY place the literal short cell token
+  # is typed. Two hops:
+  #   1. Relay it onto orvex-wiki-env's CELL_TOKEN field. cluster-config.yaml
+  #      is local-config:true (pruned from the render), so without this hop
+  #      the token would be unreachable once components/staging runs (a
+  #      Component only sees resources already emitted by the base build).
+  #   2. Substitute it into the base (prod) HTTPRoute's CELLTOKEN placeholder
+  #      segments. components/staging repeats step 2 against its own
+  #      dev-domain CELLTOKEN placeholders, sourcing the SAME
+  #      orvex-wiki-env.CELL_TOKEN relayed here — so prod and dev both derive
+  #      the token from cluster-config.cellToken alone.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellToken
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.CELL_TOKEN
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.cellToken
+    targets:
+      # components/crew owns crew's COLLAB_URL (collab.<branchSlug>.orvex.dev),
+      # so crew is skipped here exactly as for the HTTPRoutes below.
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
+        fieldPaths:
+          - data.COLLAB_URL
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HTTPRoute
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
+        fieldPaths:
+          - metadata.annotations.[external-dns.alpha.kubernetes.io/hostname]
+          - spec.hostnames.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HTTPRoute
+          labelSelector: "orvex-wiki.orvex.ai/resource-profile!=crew"
+        fieldPaths:
+          - spec.parentRefs.0.sectionName
+        options:
+          delimiter: "-"
+          index: 1

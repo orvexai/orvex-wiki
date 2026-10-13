@@ -204,6 +204,15 @@ export class PrincipalProvisioningService {
       | undefined;
     let auditNewWorkspace: { id: string; name: string | null } | undefined;
 
+    // Reserve before opening a tenant transaction. Identity's reserve write
+    // is idempotent for the same tenant/hostname, so repeating it for an
+    // already-materialized workspace is safe. This keeps the synchronous
+    // cross-service HTTP call from holding a Wiki database connection while
+    // it waits on Identity.
+    if (provisionWorkspace && email) {
+      await this.reserveTenantGlobally(tenant, principalKind);
+    }
+
     // ENG-2502 (FR-W8) — the RLS GUC hook scopes this whole provisioning
     // transaction to the tenant as its FIRST statement (transaction-local
     // `set_config`, popped at commit/rollback), so the fail-closed
@@ -259,12 +268,6 @@ export class PrincipalProvisioningService {
           if (!provisionWorkspace) {
             throw new NotFoundException('Workspace not found');
           }
-          // ENG-2503 AC4 — delegate tenant/hostname uniqueness to the GLOBAL
-          // identity registry BEFORE the local `workspaces` insert. The local
-          // `workspaces_hostname_unique` constraint stays a per-cell backstop
-          // only. A registry rejection aborts this transaction — nothing is
-          // ever silently accepted locally after a global refusal.
-          await this.reserveTenantGlobally(tenant, principalKind);
           workspace = await this.materializeWorkspace(tenant, trx, {
             principalKind,
             principalId: principalKind === 'org' ? input.orgId! : subject,
@@ -467,6 +470,7 @@ export class PrincipalProvisioningService {
     tenant: string,
     principalKind: TenantPrincipalKind,
   ): Promise<void> {
+    const reserveStartedAt = Date.now();
     try {
       await this.registryClient.reserveTenant({
         tenantId: tenant,
@@ -484,11 +488,11 @@ export class PrincipalProvisioningService {
         return;
       }
       if (err instanceof RegistryClientError) {
-        // Logged with the client's own message (which names the status and,
-        // for a malformed body, a bounded snippet) so the cause is readable
-        // where an operator looks — the wire carries only the code.
+        // Keep this diagnostic free of tenant and response-body data. The
+        // registry client classifies transport failures and records the
+        // elapsed request time, including its single safe transport retry.
         this.logger.error(
-          `global tenant reservation for ${tenant} failed [${err.code}]: ${err.message}`,
+          `global tenant reservation failed failure_class=${err.failureClass ?? err.code.toLowerCase()} duration_ms=${err.durationMs ?? Date.now() - reserveStartedAt}`,
         );
         switch (err.code) {
           case 'TENANT_ALREADY_RESERVED':

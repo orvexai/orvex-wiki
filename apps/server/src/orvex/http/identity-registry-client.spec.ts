@@ -156,6 +156,52 @@ describe('HttpIdentityRegistryClient — non-JSON responses (the ENG-3350 defect
     expect((err as RegistryClientError).message).toContain('ECONNREFUSED');
   });
 
+  it('reserve retries one transport failure, then succeeds idempotently', async () => {
+    let attempts = 0;
+    const client = newClient(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('ECONNRESET');
+      return {
+        status: 200,
+        text: () =>
+          Promise.resolve(JSON.stringify({ tenantId: TENANT, reserved: true })),
+      };
+    });
+
+    await expect(
+      client.reserveTenant({
+        tenantId: TENANT,
+        hostname: '',
+        principalKind: 'user',
+      }),
+    ).resolves.toMatchObject({ tenantId: TENANT, reserved: true });
+    expect(attempts).toBe(2);
+  });
+
+  it('does not retry an HTTP response and records a sanitized failure class and duration', async () => {
+    let attempts = 0;
+    const client = newClient(async () => {
+      attempts += 1;
+      return {
+        status: 503,
+        text: () => Promise.resolve(JSON.stringify({ error: 'unavailable' })),
+      };
+    });
+
+    const err = (await captureError(
+      client.reserveTenant({
+        tenantId: TENANT,
+        hostname: '',
+        principalKind: 'user',
+      }),
+    )) as RegistryClientError;
+
+    expect(attempts).toBe(1);
+    expect(err.failureClass).toBe('http_503');
+    expect(err.durationMs).toEqual(expect.any(Number));
+    expect(err.message).not.toContain(TENANT);
+  });
+
   it('an EMPTY body on a typed refusal still maps to that refusal, not to a parse error', async () => {
     // 409 with no body is a legitimate refusal shape; the per-status branches
     // never read the payload, so an empty body must not be downgraded into a
