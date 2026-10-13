@@ -3,6 +3,7 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { HttpBillingEntitlementPort } from './entitlement-http-billing.port';
+import { BillingServiceCredentialProvider } from './billing-service-credential';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 
 /**
@@ -114,4 +115,69 @@ describe('HttpBillingEntitlementPort', () => {
 
     await expect(port.checkEntitlement(principal)).rejects.toThrow();
   });
+});
+
+// fix/wiki-billing-delegated-credential — billing requires a billing:read
+// X-Orvex-Assertion since d2d459b; an anonymous call 401s (new-user setup).
+describe('HttpBillingEntitlementPort service credential', () => {
+  const org = { principal_type: 'org' as const, principal_id: 'ws-1' };
+
+  function creds(
+    over: Partial<
+      Record<'isConfigured' | 'assertionFor' | 'evict', jest.Mock>
+    > = {},
+  ) {
+    return {
+      isConfigured: over.isConfigured ?? jest.fn().mockReturnValue(true),
+      assertionFor: over.assertionFor ?? jest.fn().mockResolvedValue('h.p.s'),
+      evict: over.evict ?? jest.fn(),
+    } as unknown as BillingServiceCredentialProvider &
+      Record<string, jest.Mock>;
+  }
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('sends the tenant-bound assertion for an org principal', async () => {
+    mockFetchOnce(200, fixtureBody());
+    const c = creds();
+    const port = new HttpBillingEntitlementPort(environmentServiceStub(), c);
+    await port.checkEntitlement(org);
+    expect(c.assertionFor).toHaveBeenCalledWith('ws-1');
+    const init = (global.fetch as jest.Mock).mock.calls[0][1];
+    expect(init.headers['x-orvex-assertion']).toBe('h.p.s');
+    expect(init.headers.authorization).toBeUndefined();
+  });
+
+  it('does not request a service credential for a user principal', async () => {
+    mockFetchOnce(200, fixtureBody());
+    const c = creds();
+    const port = new HttpBillingEntitlementPort(environmentServiceStub(), c);
+    await port.checkEntitlement({
+      principal_type: 'user',
+      principal_id: 'u-1',
+    });
+    expect(c.assertionFor).not.toHaveBeenCalled();
+  });
+
+  it('fails (no anonymous billing call) when identity refuses the credential', async () => {
+    const fetchSpy = jest.fn();
+    (global as unknown as { fetch: unknown }).fetch = fetchSpy;
+    const c = creds({
+      assertionFor: jest.fn().mockRejectedValue(new Error('refused')),
+    });
+    const port = new HttpBillingEntitlementPort(environmentServiceStub(), c);
+    await expect(port.checkEntitlement(org)).rejects.toThrow('refused');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 403, 421])(
+    'evicts the cached assertion when billing answers %i',
+    async (status) => {
+      mockFetchOnce(status, {});
+      const c = creds();
+      const port = new HttpBillingEntitlementPort(environmentServiceStub(), c);
+      await expect(port.checkEntitlement(org)).rejects.toThrow(String(status));
+      expect(c.evict).toHaveBeenCalledWith('ws-1');
+    },
+  );
 });
