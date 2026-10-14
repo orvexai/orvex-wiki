@@ -75,10 +75,10 @@ describe('BillingServiceCredentialProvider', () => {
     );
 
     expect(await p.assertionFor('ws-1')).toBe(first);
-    now += 60_000;
+    now += 89_000;
     expect(await p.assertionFor('ws-1')).toBe(first);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    now += 50_000; // past exp - margin
+    now += 1_000; // the 90-second reuse ceiling refreshes before this 120s TTL
     expect(await p.assertionFor('ws-1')).toBe(second);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
