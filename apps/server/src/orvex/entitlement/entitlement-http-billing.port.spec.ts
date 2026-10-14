@@ -5,6 +5,13 @@
 import { HttpBillingEntitlementPort } from './entitlement-http-billing.port';
 import { BillingServiceCredentialProvider } from './billing-service-credential';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
+import { OrvexConfigService } from '../config/orvex-config.service';
+
+function serviceAssertion(claims: Record<string, unknown>): string {
+  const encode = (value: object) =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'ES256' })}.${encode(claims)}.signature`;
+}
 
 /**
  * ENG-1382 fix pass 1 (F2, review1) — `HttpBillingEntitlementPort` must
@@ -136,6 +143,68 @@ describe('HttpBillingEntitlementPort service credential', () => {
   }
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('mints and sends the tenant-bound billing:read assertion on the caller path', async () => {
+    const now = 1_000_000_000_000;
+    const assertion = serviceAssertion({
+      tenant: 'ws-1',
+      aud: 'orvex-studio-billing',
+      scope: 'billing:read',
+      exp: now / 1000 + 120,
+    });
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ assertion }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => fixtureBody(),
+      });
+    (global as unknown as { fetch: unknown }).fetch = fetchMock;
+    const credentials = new BillingServiceCredentialProvider(
+      {
+        identityUrl: 'https://identity.internal/',
+        internalApiBearerToken: 'seam-secret-fixture',
+      } as unknown as OrvexConfigService,
+      () => now,
+    );
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      credentials,
+    );
+
+    await expect(port.checkEntitlement(org)).resolves.toMatchObject({
+      plan: 'free',
+      caps: fixtureCaps(),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://identity.internal/internal/service-assertion',
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      tenant: 'ws-1',
+      target: 'orvex-studio-billing',
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      'https://billing.internal.test/v1/entitlements/org/ws-1',
+    );
+    expect(fetchMock.mock.calls[1][1].headers['x-orvex-assertion']).toBe(
+      assertion,
+    );
+    expect(fetchMock.mock.calls[1][1].headers.authorization).toBeUndefined();
+    expect(
+      JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString()),
+    ).toMatchObject({
+      tenant: 'ws-1',
+      aud: 'orvex-studio-billing',
+      scope: 'billing:read',
+    });
+  });
 
   it('sends the tenant-bound assertion for an org principal', async () => {
     mockFetchOnce(200, fixtureBody());
