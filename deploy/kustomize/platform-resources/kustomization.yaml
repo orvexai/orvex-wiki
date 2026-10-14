@@ -1,0 +1,11 @@
+---
+# Crew-only resource list, consumed by ../crew-component (Houston layout:
+# houston deploy/kustomize/crew-component). The main/dev base
+# (../kustomization.yaml) lists these files itself and does not use this file.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - infrastructure-credentials.yaml
+  - app-secret-credentials.yaml
+  - postgres-claim.yaml
+  - redis-claim.yaml

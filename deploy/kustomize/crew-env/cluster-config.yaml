@@ -1,0 +1,107 @@
+---
+# Cluster Configuration — build-time only (NOT deployed to the cluster).
+# Referenced by the Kustomize `replacements` in kustomization.yaml.
+#
+# The CMP plugin (`kustomize-helm`) rewrites the environment-specific fields
+# (appNamespace, environment, gitBranch/branchSlug) from the app-environments
+# ApplicationSet env vars before the kustomize build runs:
+#   main → appNamespace=orvex-wiki      branchSlug=main
+#   dev  → appNamespace=orvex-wiki-dev  branchSlug=dev   (+ components/staging)
+#
+# Per-environment HOSTNAME is owned by the app's own kustomize, NOT the
+# plugin: the base manifests carry the production host (wiki.orvex.ai) and
+# components/staging patches it to the dev equivalent (wiki.orvex.dev).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: cluster-config  # Dummy namespace (never deployed)
+  annotations:
+    config.kubernetes.io/local-config: "true"
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    config.my-idp/build-time-only: "true"
+data:
+  # ── Application identity ────────────────────────────────────────────────
+  appName: orvex-wiki
+  appNamespace: orvex-wiki
+  environment: main
+
+  # ── OpenBao path (per-app secrets root: apps/<appName>/...) ──────────────
+  openbaoAppPath: apps/orvex-wiki
+
+  # ── Domain configuration ────────────────────────────────────────────────
+  baseDomain: orvex.ai  # cell-lint-allow: own-domain build-time config, not a peer URL
+  clusterDomain: eu-central-1.myidp.cloud
+  loadBalancerIP: "37.27.73.18"
+
+  # ── Cell token (SINGLE SOURCE — ENG-1505 fix-pass). The literal short cell
+  # token is typed HERE ONLY. Every consumer (base HTTPRoute host/annotation/
+  # sectionName in app-manifests/httproute.yaml, and the dev-overlay
+  # equivalents in components/staging/kustomization.yaml) sources it via the
+  # root `replacements` chain: cellToken -> orvex-wiki-env ConfigMap's
+  # CELL_TOKEN field (which, unlike this build-time-only ConfigMap, survives
+  # into the components/staging render) -> the HTTPRoute fields. A 2nd cell
+  # (e.g. eu2) is added by changing this one value alone.
+  cellToken: "eu1"
+
+  # ── Application hostname (prod). components/staging patches to the dev
+  # equivalent (wiki.orvex.dev) directly on the HTTPRoute/ConfigMap. ───────
+  # Public host = short cell token (must match cellToken above); AWS-AZ cell
+  # id is internal-only (ruling final form 2026-07-05).
+  wikiHost: wiki.eu1.orvex.ai
+
+  # ── Harbor registry (image project shared across environments, tag = branch) ─
+  harborHost: repos.eu-central-1.myidp.cloud
+  imageRepository: repos.eu-central-1.myidp.cloud/orvex-wiki
+
+  # ── Ceph S3-compatible object storage endpoint (Rook-Ceph RGW) ───────────
+  s3Endpoint: "http://rook-ceph-rgw-ceph-objectstore.rook-ceph.svc.cluster.local"
+
+  # ── Cell contract (A-CELL). Injected into the ConfigMap CELL_ID/CLUSTER_NAME
+  # by the root replacements; /healthz echoes both.
+  #
+  # ENG-3109/AD-36 (applied here to catch orvex-wiki up with the sibling
+  # studio services, whose cluster-config already carries "eu1a"): the base
+  # is the PROMOTED-ENV value, NOT the sentinel. `solo` survives in exactly
+  # one place — components/crew, which patches this field back down.
+  #
+  # WHY the old base default of "solo" was a live defect, not a harmless
+  # placeholder: components/staging sets CLOUD=true for the dev cell, and
+  # `WorkspaceCellAssertionService.enforcementActive()` keys on `isCloud()`.
+  # Its `evaluateDeploymentCell()` treats a `solo` pod cell as an INVALID
+  # fleet deployment and fails closed — so a CLOUD=true pod carrying
+  # CELL_ID=solo returned 421 CELL_MISMATCH / DEPLOYMENT_CELL_ABSENT on
+  # EVERY guarded call, including identity's `principal-provision` (which
+  # then 500s `POST /clerk/exchange` and leaves the SPA stuck on "Loading
+  # your session…"). `eu1a` is also what identity's cross-cell registry
+  # (`registry_tenant_cells`, the declared source of truth) already records
+  # for every dev tenant, and what every sibling `*-dev` ConfigMap declares.
+  #
+  # It is ALSO the studio-spine topic suffix: `resolveWikiEventsTopic()`
+  # builds `wiki-events.{CELL_ID}`, so the sentinel had this engine
+  # publishing to `wiki-events.solo` while eu1a-cell consumers subscribed to
+  # `wiki-events.eu1a`.
+  #
+  # NOTE for whoever promotes this to `main`: the in-process boot migration
+  # `20260811T090000-orvex-workspace-cell-id` backfills `workspaces.cell_id`
+  # from `process.env.CELL_ID`. Prod has never run it (its engine image
+  # predates the column), so prod's FIRST boot on a current image backfills
+  # from whatever this value renders to — which is exactly why it must be
+  # `eu1a` here BEFORE that happens. Cells that already migrated under the
+  # old sentinel need a one-off UPDATE of the `solo` rows. ────────────────
+  cellId: "eu1a"
+  clusterName: "eu-central-1"
+
+  # ── Git (for Tekton image builds + image tags) ──────────────────────────
+  gitBranch: main
+  branchSlug: main
+
+  # ── TLS: NONE HERE (Foundation M5) ──────────────────────────────────────
+  # TLS terminates at the shared platform-gateway listener (orvex-eu1-https,
+  # hostname *.eu1.orvex.ai, platform-owned wildcard Secret) — this repo ships
+  # NO per-app Certificate, per platform convention. The former tlsIssuer/
+  # tlsIssuerKind/tlsIssuerGroup fields were dead boilerplate consumed by
+  # nothing and are removed. The per-cell TENANT wildcard (*.wiki.eu1.
+  # orvex.{ai,dev}) is a platform-gateway listener ask that lands with
+  # multi-tenant enablement (delivery), not a per-app cert.

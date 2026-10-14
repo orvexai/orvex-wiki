@@ -2,6 +2,8 @@ module github.com/orvexai/orvex-wiki/deploy/kustomize
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	github.com/stretchr/testify v1.11.1
 	gopkg.in/yaml.v3 v3.0.1
