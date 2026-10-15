@@ -1,0 +1,68 @@
+# Crew VM backend — the crew-yafet orvex-wiki runs on the crew KubeVirt VM
+# (VMI `crew`), not as a Deployment pod.
+#
+# Appended by idp-render AFTER components/crew when RESOURCE_PROFILE=crew and
+# CREW_BACKEND=vm (it is skipped when this directory is absent). Never part of
+# the prod (main) or dev (components/staging) render.
+#
+# - Service `orvex-wiki` keeps port 3000 (both HTTPRoutes reference it) but
+#   selects the VMI and targets 8080: the VM exposes only 22 and 8080, and its
+#   CiliumNetworkPolicy admits ingress on 8080 only.
+# - PORT in orvex-wiki-env is therefore set to 8080 so the engine (which reads
+#   PORT, default 3000) listens where the VM is reachable. The ConfigMap is
+#   still emitted and is consumed on the VM through orvex-wiki-vm-env.
+# - Deployment, its ServiceAccount (used only by it) and its PDB are deleted.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - vm-env.yaml
+
+patches:
+  - target:
+      version: v1
+      kind: Service
+      name: orvex-wiki
+    patch: |-
+      - op: replace
+        path: /spec/selector
+        value:
+          orvex.ai/crew-service: orvex-wiki
+          vm.kubevirt.io/name: crew
+      - op: replace
+        path: /spec/ports/0/targetPort
+        value: 8080
+  - target:
+      kind: ConfigMap
+      name: orvex-wiki-env
+    patch: |-
+      - op: replace
+        path: /data/PORT
+        value: "8080"
+  - target:
+      kind: Deployment
+      name: orvex-wiki
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orvex-wiki
+  - target:
+      kind: ServiceAccount
+      name: orvex-wiki
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: orvex-wiki
+  - target:
+      kind: PodDisruptionBudget
+      name: orvex-wiki
+    patch: |-
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: orvex-wiki
