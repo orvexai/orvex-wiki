@@ -54,6 +54,9 @@ on:
       - main
       - dev
 
+# Fork pull_request runs are blocked at the job level: each job below skips
+# when the PR head repository differs from this repository. Same-repo member
+# PRs and pushes keep running, including the required ci-success check.
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -63,6 +66,7 @@ jobs:
   # Lint gates
   # ---------------------------------------------------------------------------
   definition-pack:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # ENG-2103 — keep the repository-owned Definition Pack gate executable in
     # CI. External contract-tag, wiki-draft, and reviewer gates remain
     # orchestrator-owned and are intentionally not inferred here.
@@ -83,6 +87,7 @@ jobs:
         run: bash scripts/eng-2103-pack-check.sh
 
   lint-client:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Lint Client
     runs-on: public-runners
     steps:
@@ -98,6 +103,7 @@ jobs:
         run: pnpm --dir apps/client lint
 
   lint-server:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Lint Server
     runs-on: public-runners
     steps:
@@ -113,6 +119,7 @@ jobs:
         run: pnpm --dir apps/server run lint:check
 
   tenant-move-coverage:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # ENG-2509 — cell-lint rule #10: TENANT_MOVE.md's store inventory is
     # machine-checked against the manifest DTO's declared shape. Static
     # analysis only — no cluster/secret reach needed.
@@ -127,6 +134,7 @@ jobs:
         run: node scripts/ci/tenant-move-coverage-check.mjs
 
   lint-boundary:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     # PO-2026-07-29-5 ratchet — this fence's `no-restricted-imports` BAN
     # rules (mock quarantine + AGPL import guard) run scoped to CHANGED
     # FILES ONLY (scripts/ci/lint-boundary-ratchet.sh), this repo's TS
@@ -164,6 +172,7 @@ jobs:
   # substrate-lint-drift.yml (gates/lint/README.md). A hand-edit of the
   # committed config reds this job.
   substrate-lint-drift:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Substrate Lint Config Drift (AD-5)
     runs-on: public-runners
     steps:
@@ -181,6 +190,7 @@ jobs:
   # hand-edit eslint.substrate.config.mjs — it is Code-generated; a drifted
   # copy reds substrate-lint-drift above.
   lint-substrate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Substrate Ban Lint (AD-2 TS peer, ratcheted — PO-2026-07-29-5)
     runs-on: public-runners
     steps:
@@ -205,6 +215,7 @@ jobs:
   # Typecheck + build
   # ---------------------------------------------------------------------------
   typecheck:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Typecheck
     runs-on: public-runners
     steps:
@@ -229,6 +240,7 @@ jobs:
         run: make typecheck
 
   build:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Build
     runs-on: public-runners
     steps:
@@ -247,6 +259,7 @@ jobs:
   # Unit tests
   # ---------------------------------------------------------------------------
   test-client:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Test Client (vitest)
     runs-on: public-runners
     steps:
@@ -266,6 +279,7 @@ jobs:
         run: pnpm --dir apps/client test
 
   test-server:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Test Server (jest, CI set)
     # DinD set: test:ci runs testcontainers-backed src integration/e2e specs.
     runs-on: public-dind-runners
@@ -318,6 +332,7 @@ jobs:
         run: pnpm --dir apps/server run test:ci --maxWorkers=2
 
   test-server-integration:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Test Server (integration, testcontainers PG)
     # DinD set: testcontainers spins a real Postgres via the runner's Docker daemon.
     runs-on: public-dind-runners
@@ -354,6 +369,7 @@ jobs:
   # the module compiles, vets and is gofmt-clean)
   # ---------------------------------------------------------------------------
   smoke-module:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Smoke Module (build/vet/fmt)
     runs-on: public-runners
     steps:
@@ -402,6 +418,7 @@ jobs:
   # here under PO standing judgment-call authority (2026-07-10).
   # ---------------------------------------------------------------------------
   gate-m6-e2e:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Gate M6 E2E (ENG-1572, TestGateM6E2E)
     # DinD set: docker-compose env-up + `docker run` Kafka + engine boot in-VM.
     runs-on: public-dind-runners
@@ -574,6 +591,7 @@ jobs:
   # Deploy-tree validation (BUILD-ONLY — never applies; CS §13)
   # ---------------------------------------------------------------------------
   k8s-validate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: K8s Manifests (build-only)
     runs-on: public-runners
     steps:
@@ -613,6 +631,7 @@ jobs:
   # adding one needs no workflow edit.
   # ---------------------------------------------------------------------------
   deploy-render-gate:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Deploy Render Gate (hostname cutover + OTLP single endpoint)
     runs-on: public-runners
     steps:
@@ -639,6 +658,7 @@ jobs:
   # public-repo group), same as every other job in this file (see file header).
   # ---------------------------------------------------------------------------
   engine-license-guard:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Engine License Guard (P10)
     runs-on: public-runners
     steps:
@@ -655,6 +675,7 @@ jobs:
   # and activates a real pinnedUpstreamSha (design: docs/design/patches-drift-ci-design.md §8).
   # ---------------------------------------------------------------------------
   patches-drift-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Patches Drift + Inline-Edit Allow-list (ENG-1649)
     runs-on: public-runners
     steps:
@@ -682,6 +703,7 @@ jobs:
   # INFRA-ERROR), not silently green.
   # ---------------------------------------------------------------------------
   fr30-divergence-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: FR-30 Divergence Gate (weighted hot-file budget)
     runs-on: public-runners
     steps:
@@ -713,6 +735,7 @@ jobs:
   # Act-3 branch/WIP policy (ENG-2055) — pure admission and reaper checks.
   # ---------------------------------------------------------------------------
   act3-branch-budget-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: ACT-3 Branch Budget Gate (ENG-2055)
     runs-on: public-runners
     steps:
@@ -727,6 +750,7 @@ jobs:
   # Linear write budget and chokepoint (ENG-2810).
   # ---------------------------------------------------------------------------
   linear-write-budget-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Linear Write Budget + Shared Backoff (ENG-2810)
     runs-on: public-runners
     steps:
@@ -745,6 +769,7 @@ jobs:
           if-no-files-found: error
 
   linearis-chokepoint-guard:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Linear Write Chokepoint Guard (ENG-2810)
     runs-on: public-runners
     steps:
@@ -756,6 +781,7 @@ jobs:
   # Ticket drift ratchet (ENG-2818) — offline mapping/self-test only in CI.
   # ---------------------------------------------------------------------------
   ticket-drift-ratchet:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Ticket Drift Ratchet (ENG-2818)
     runs-on: public-runners
     steps:
@@ -774,6 +800,7 @@ jobs:
   # on public-runners makes the dispatch safety check available to fork PRs.
   # ---------------------------------------------------------------------------
   reality-probe-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Pre-claim Reality Probe (M2)
     runs-on: public-runners
     steps:
@@ -795,6 +822,7 @@ jobs:
   # suite over committed fixtures (hermetic, no network).
   # ---------------------------------------------------------------------------
   hardening-allowlist-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Hardening Allowlist Class Coverage
     runs-on: public-runners
     steps:
@@ -815,6 +843,7 @@ jobs:
   # context (not this job) — see docs note in scripts/check-image-freshness.mjs.
   # ---------------------------------------------------------------------------
   image-freshness-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Image Freshness / Drift Alarm — engine (ENG-1973)
     runs-on: public-runners
     steps:
@@ -853,6 +882,7 @@ jobs:
   # of the consuming repo's reach.
   # ---------------------------------------------------------------------------
   manifest-copy-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Shared Manifest Copy Regen Gate (AD-35 / PO-2026-07-30-1)
     runs-on: public-runners
     steps:
@@ -867,6 +897,7 @@ jobs:
   # source only, never runs product code.
   # ---------------------------------------------------------------------------
   license-header-check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: License Header Check (AGPL §13)
     runs-on: public-runners
     steps:
@@ -882,6 +913,7 @@ jobs:
   # upstream-EE-specific); this gate covers the family-satellite direction.
   # ---------------------------------------------------------------------------
   engine-only-import-guard:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Engine-Only Import Guard (Q22)
     runs-on: public-runners
     steps:
@@ -903,6 +935,7 @@ jobs:
   # deleting the script.
   # ---------------------------------------------------------------------------
   rls-unscoped-read-ratchet:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: RLS Unscoped-Read Ratchet (ENG-3569)
     runs-on: public-runners
     steps:
@@ -921,6 +954,7 @@ jobs:
   # (orvex-studio-lib/pkg/dfm) or a wiki-api network call.
   # ---------------------------------------------------------------------------
   dfm-import-guard:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: DfM AGPL Import-Boundary Guard (ENG-2488)
     runs-on: public-runners
     steps:
@@ -941,6 +975,7 @@ jobs:
   # package's own round-trip + opaque suites (ENG-2487).
   # ---------------------------------------------------------------------------
   dfm-parity:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: DfM TS↔Go parity (blocking, was report-only)
     runs-on: public-runners
     steps:
@@ -965,6 +1000,7 @@ jobs:
   # of that logic is confined behind the REST+SSE seam in orvex-studio-ai.
   # ---------------------------------------------------------------------------
   client-ai-thinness:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Client AI Thinness Guard (AC7)
     runs-on: public-runners
     steps:
@@ -979,6 +1015,7 @@ jobs:
   # kustomize+kubeconform pass. Never executes product code.
   # ---------------------------------------------------------------------------
   ci-substrate-conformance:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: CI Substrate Conformance (CS §13)
     runs-on: public-runners
     steps:
@@ -998,6 +1035,7 @@ jobs:
   # Security
   # ---------------------------------------------------------------------------
   security:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Security (audit + govulncheck)
     runs-on: public-runners
     steps:
@@ -1048,6 +1086,7 @@ jobs:
           govulncheck ./...
 
   sbom-generation:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: SBOM Generation
     runs-on: public-runners
     steps:
@@ -1083,6 +1122,7 @@ jobs:
   # Workflow lint
   # ---------------------------------------------------------------------------
   workflow-lint:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Workflow Lint
     runs-on: public-runners
     steps:
@@ -1193,7 +1233,7 @@ jobs:
       # proven reliably green after the PyYAML install (9b9d031c).
       - definition-pack
     runs-on: public-runners
-    if: always()
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - name: Check all gate results
         env:
