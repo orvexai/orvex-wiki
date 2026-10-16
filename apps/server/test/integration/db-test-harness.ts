@@ -11,7 +11,7 @@
  * and exposes a Kysely handle plus small fixture helpers for seeding a
  * workspace/space/user/pages tree.
  */
-import { GenericContainer, StartedTestContainer } from 'testcontainers';
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { CamelCasePlugin, Kysely, Migrator, FileMigrationProvider } from 'kysely';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
@@ -29,6 +29,17 @@ export interface TestDb {
 
 export async function startTestDatabase(): Promise<TestDb> {
   const container = await new GenericContainer('postgres:16-alpine')
+    // Postgres readiness, as @testcontainers/postgresql does it: the image's
+    // entrypoint runs a temporary server for initdb and then restarts, so
+    // the port can accept TCP while the server still answers 57P03 "the
+    // database system is starting up". Wait for the ready line TWICE.
+    .withWaitStrategy(
+      Wait.forAll([
+        Wait.forListeningPorts(),
+        Wait.forLogMessage(/database system is ready to accept connections/, 2),
+      ]),
+    )
+    .withStartupTimeout(120_000)
     .withEnvironment({
       POSTGRES_USER: 'orvex',
       POSTGRES_PASSWORD: 'orvex',
@@ -60,6 +71,11 @@ export async function startTestDatabase(): Promise<TestDb> {
   const { error, results } = await migrator.migrateToLatest();
   if (error) {
     console.error('Migration failure', results, error);
+    // Release the pool and the container before failing: leaked handles keep
+    // Jest alive after the run ("Jest did not exit"), turning a failed suite
+    // into a job that hangs until the CI timeout.
+    await db.destroy().catch(() => undefined);
+    await container.stop().catch(() => undefined);
     throw error;
   }
 

@@ -41,7 +41,7 @@ import {
 } from 'kysely';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import * as postgres from 'postgres';
-import { GenericContainer, StartedTestContainer } from 'testcontainers';
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 
 import type { DbInterface } from '@docmost/db/types/db.interface';
 
@@ -171,6 +171,17 @@ describe('TestRlsMigrationNeverStrandsProductionOwner', () => {
 
   beforeAll(async () => {
     container = await new GenericContainer('postgres:16-alpine')
+      // Postgres readiness, as @testcontainers/postgresql does it: the image's
+      // entrypoint runs a temporary server for initdb and then restarts, so
+      // the port can accept TCP while the server still answers 57P03 "the
+      // database system is starting up". Wait for the ready line TWICE.
+      .withWaitStrategy(
+        Wait.forAll([
+          Wait.forListeningPorts(),
+          Wait.forLogMessage(/database system is ready to accept connections/, 2),
+        ]),
+      )
+      .withStartupTimeout(120_000)
       .withEnvironment({
         POSTGRES_USER: 'root',
         POSTGRES_PASSWORD: 'root',
