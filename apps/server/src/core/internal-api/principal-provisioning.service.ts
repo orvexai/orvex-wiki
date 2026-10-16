@@ -345,7 +345,11 @@ export class PrincipalProvisioningService {
         }
 
         await this.userRepo.linkProviderAccount(
-          { userId: user.id, providerUserId: subject, workspaceId: tenant },
+          {
+            userId: user.id,
+            providerUserId: subject,
+            workspaceId: tenant,
+          },
           trx,
         );
 
@@ -413,7 +417,6 @@ export class PrincipalProvisioningService {
           changes: { after: { name: auditNewWorkspace.name } },
           metadata: {
             source: 'internal-provisioning',
-            subject,
             registryIssued: true,
           },
         },
@@ -433,7 +436,9 @@ export class PrincipalProvisioningService {
               role: auditNewUser.role,
             },
           },
-          metadata: { source: 'internal-provisioning', subject },
+          metadata: {
+            source: 'internal-provisioning',
+          },
         },
         { workspaceId: tenant, actorType: 'system' },
       );

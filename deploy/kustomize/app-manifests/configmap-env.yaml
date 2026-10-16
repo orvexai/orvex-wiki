@@ -64,11 +64,9 @@ data:
   CLOUD: "true"
 
   # Cell contract (A-CELL rule #4) — /healthz echoes CELL_ID + CLUSTER_NAME.
-  # Filled by the root replacements from cluster-config.cellId / clusterName;
-  # base = the sentinel "solo" (dev/crew/standalone run cell-enforcement-free).
+  # Filled by the root replacements from cluster-config.cellId / clusterName.
   CELL_ID: "PLACEHOLDER_CELL_ID"
-  # AD-36 fail-closed default: CELL_ID=solo is legal ONLY when this names
-  # crew/preview (components/crew patches it to "crew"). Never "crew" here.
+  # AD-36 fail-closed default; crew patches this to "crew".
   ORVEX_ENVIRONMENT: "prod"
   CLUSTER_NAME: "PLACEHOLDER_CLUSTER_NAME"
 
@@ -83,7 +81,7 @@ data:
 
   # Event-spine crew-scoping (A-CELL rule #5). The engine is the first
   # studio-spine producer; topics are {domain}-events.{suffix}. Base = the
-  # sentinel cell "solo". The crew component separately patches
+  # environment's own cell ID. The crew component separately patches
   # KAFKA_OUTBOX_TOPIC to its crew-{name} Kafka spine. NOT a replacement target
   # (a crew patch survives).
   EVENT_TOPIC_SUFFIX: "solo"
