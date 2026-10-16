@@ -4,6 +4,7 @@
 
 import { promises as fs } from 'fs';
 import { Kafka } from 'kafkajs';
+import { kafkaSecurityFromEnv } from '../events/kafka/kafka-client-security';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { WebSocket } from 'ws';
@@ -258,6 +259,7 @@ export const defaultKafkaProbe: KafkaProbe = async (
   const kafka = new Kafka({
     clientId: 'orvex-wiki-health-orvex',
     brokers: config.kafkaBrokers,
+    ...kafkaSecurityFromEnv(),
   });
   const admin = kafka.admin();
   try {
