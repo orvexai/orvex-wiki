@@ -346,8 +346,22 @@ jobs:
           pnpm --dir packages/@orvex/dfm build
       # ENG-1372: real-Postgres integration suite (testcontainers spins its
       # own container via the runner's Docker daemon).
+      # DIAGNOSTIC (do not merge): find where the suite hangs on Ubicloud.
+      - name: Docker preflight (diagnostic)
+        timeout-minutes: 10
+        run: |
+          set -x
+          id; ls -l /var/run/docker.sock || true
+          docker version
+          docker info | head -40
+          for img in postgres:16-alpine postgres:17-trixie redis:7-alpine; do
+            /usr/bin/time -v docker pull "$img" 2>&1 | grep -E "Status|Digest|Elapsed|toomanyrequests|error" || true
+          done
       - name: Jest (integration, real Postgres via testcontainers)
-        run: pnpm --dir apps/server run test:integration
+        timeout-minutes: 20
+        env:
+          DEBUG: 'testcontainers*'
+        run: pnpm --dir apps/server run test:integration --verbose
 
   # ---------------------------------------------------------------------------
   # Smoke module hygiene (the live smoke RUN needs real infra; here we prove
