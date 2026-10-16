@@ -205,3 +205,20 @@ func TestCrewBillingURLIsDisabledForInterim(t *testing.T) {
 		})
 	}
 }
+
+// TestCrewKafkaIdentityIsSubstituted pins the crew SCRAM identity: the SASL
+// username must name the per-crew KafkaUser, never the literal PLACEHOLDER,
+// and the brokers must be the SCRAM/TLS listener.
+func TestCrewKafkaIdentityIsSubstituted(t *testing.T) {
+	bin := kustomizeBin(t)
+	kustomizeDir := thisDir(t)
+
+	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
+		t.Run(branchSlug, func(t *testing.T) {
+			rendered := renderCrewApplication(t, bin, kustomizeDir, branchSlug)
+			data := crewWikiEnv(t, rendered)
+			require.Equal(t, "orvex-wiki-"+branchSlug, data["KAFKA_SASL_USERNAME"])
+			require.Equal(t, "platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093", data["KAFKA_BROKERS"])
+		})
+	}
+}
