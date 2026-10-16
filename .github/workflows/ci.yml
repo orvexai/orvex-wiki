@@ -629,7 +629,8 @@ jobs:
       - name: go test (whole deploy/kustomize render-gate package)
         working-directory: deploy/kustomize
         run: |
-          export PATH="$(go env GOPATH)/bin:$PATH"
+          GOBIN_DIR="$(go env GOPATH)/bin"
+          export PATH="$GOBIN_DIR:$PATH"
           go test ./... -v
 
   # ---------------------------------------------------------------------------
