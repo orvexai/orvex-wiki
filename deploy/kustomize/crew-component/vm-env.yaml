@@ -8,4 +8,4 @@ metadata:
     app.kubernetes.io/part-of: orvex-wiki
   namespace: orvex-wiki
 data:
-  envFrom: '[{"configMapRef":{"name":"orvex-wiki-env"}},{"secretRef":{"name":"orvex-wiki-db-credentials","optional":true}},{"secretRef":{"name":"orvex-wiki-redis-credentials","optional":true}},{"secretRef":{"name":"orvex-wiki-app-secret","optional":true}},{"secretRef":{"name":"orvex-wiki-internal-api","optional":true}},{"configMapRef":{"name":"telemetry-env"}}]'
+  envFrom: '[{"configMapRef":{"name":"orvex-wiki-env"}},{"secretRef":{"name":"orvex-wiki-db-credentials","optional":true}},{"secretRef":{"name":"orvex-wiki-redis-credentials","optional":true}},{"secretRef":{"name":"orvex-wiki-app-secret","optional":true}},{"secretRef":{"name":"orvex-wiki-internal-api","optional":true}},{"secretRef":{"name":"orvex-wiki-kafka-credentials","optional":true}},{"configMapRef":{"name":"telemetry-env"}}]'

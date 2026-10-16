@@ -207,6 +207,15 @@ patches:
       - op: replace
         path: /data/KAFKA_OUTBOX_TOPIC
         value: wiki-events.PLACEHOLDER
+      # platform-kafka plaintext :9092 is gone (2026-10-12): SCRAM over TLS
+      # as KafkaUser orvex-wiki-PLACEHOLDER (my-idp platform/apps/kafka);
+      # password + cluster CA arrive via crew-component/kafka-credentials.yaml.
+      - op: replace
+        path: /data/KAFKA_BROKERS
+        value: platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093
+      - op: add
+        path: /data/KAFKA_SASL_USERNAME
+        value: orvex-wiki-PLACEHOLDER
       # ORVEX_IDENTITY_URL is NOT on the public ingress: every consumer
       # (registry client /internal/registry/*, session-mint + tenant-move
       # /v1/introspect) is server-to-server, and identity's public HTTPRoute

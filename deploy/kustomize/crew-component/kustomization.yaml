@@ -21,6 +21,7 @@ resources:
   - ../app-manifests
   - ../platform-resources
   - vm-env.yaml
+  - kafka-credentials.yaml
 
 components:
   - ../components/telemetry-env
@@ -129,6 +130,7 @@ replacements:
           kind: ExternalSecret
         reject:
           - name: harbor-registry-credentials
+          - name: orvex-wiki-kafka-credentials
         fieldPaths:
           - spec.data.*.remoteRef.key
         options:

@@ -3,6 +3,8 @@
 // See the LICENSE file at the repository root for the full license text.
 
 import { Injectable, Optional } from '@nestjs/common';
+import type { KafkaConfig } from 'kafkajs';
+import { kafkaSecurityFromEnv } from '../events/kafka/kafka-client-security';
 
 /**
  * The Solo-sentinel cell id (cell-contract.md; dev/standalone/crew default).
@@ -225,6 +227,19 @@ export class OrvexConfigService {
   /** KAFKA_BROKERS presence — the FAMILY-HEALTH-RULING "wired" signal (AC8.2). */
   get kafkaBrokersConfigured(): boolean {
     return this.read('KAFKA_BROKERS') !== null;
+  }
+
+  /**
+   * KAFKA_SASL_USERNAME / KAFKA_SASL_PASSWORD / KAFKA_TLS_CA_PEM -> kafkajs
+   * ssl+sasl (SCRAM-SHA-512 over TLS). Empty when unset (plaintext).
+   */
+  /** PORT — this process's own HTTP port (the in-process collab WS probe). */
+  get port(): string | null {
+    return this.read('PORT');
+  }
+
+  get kafkaSecurity(): Pick<KafkaConfig, 'ssl' | 'sasl'> {
+    return kafkaSecurityFromEnv(this.env);
   }
 
   get kafkaBrokers(): string[] {
