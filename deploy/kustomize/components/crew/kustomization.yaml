@@ -368,6 +368,25 @@ replacements:
           name: cluster-config
         fieldPaths:
           - data.cellId
+      # Crew Kafka identity: "orvex-wiki-PLACEHOLDER" split by "-", index 2
+      # -> KafkaUser orvex-wiki-crew-{name} (my-idp platform/apps/kafka), as
+      # the SASL username and in its OpenBao key shared/kafka/orvex-wiki-*.
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.KAFKA_SASL_USERNAME
+        options:
+          delimiter: "-"
+          index: 2
+      - select:
+          kind: ExternalSecret
+          name: orvex-wiki-kafka-credentials
+        fieldPaths:
+          - spec.data.0.remoteRef.key
+        options:
+          delimiter: "-"
+          index: 2
   # Step 2: that namespace into ORVEX_IDENTITY_URL and ORVEX_EDGE_JWKS_URL
   # (split by ".", index 1), yielding the crew identity Service host for
   # both identity's internal API and its internal JWKS route.
