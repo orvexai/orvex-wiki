@@ -82,6 +82,7 @@ export class EntitlementChangedConsumer
       const kafka = new Kafka({
         clientId: 'orvex-wiki-entitlement-evict',
         brokers,
+        ...(this.orvexConfig?.kafkaSecurity ?? {}),
       });
       this.consumer = kafka.consumer({
         groupId: 'orvex-wiki-entitlement-evict',
