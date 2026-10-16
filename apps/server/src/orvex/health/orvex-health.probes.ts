@@ -4,7 +4,6 @@
 
 import { promises as fs } from 'fs';
 import { Kafka } from 'kafkajs';
-import { kafkaSecurityFromEnv } from '../events/kafka/kafka-client-security';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { WebSocket } from 'ws';
@@ -156,7 +155,7 @@ export const defaultStorageProbe: StorageProbe = async (
 export function makeCollabWsProbe(url?: string): CollabWsProbe {
   return async (): Promise<CollabWsResult> => {
     const target =
-      url ?? `ws://127.0.0.1:${process.env.PORT || 3000}/collab`;
+      url ?? `ws://127.0.0.1:${new OrvexConfigService().port ?? 3000}/collab`;
     const start = Date.now();
     try {
       await withTimeout(
@@ -259,7 +258,7 @@ export const defaultKafkaProbe: KafkaProbe = async (
   const kafka = new Kafka({
     clientId: 'orvex-wiki-health-orvex',
     brokers: config.kafkaBrokers,
-    ...kafkaSecurityFromEnv(),
+    ...config.kafkaSecurity,
   });
   const admin = kafka.admin();
   try {

@@ -11,7 +11,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Consumer, Kafka } from 'kafkajs';
-import { kafkaSecurityFromEnv } from '../events/kafka/kafka-client-security';
 import { EnvironmentService } from '../../integrations/environment/environment.service';
 import { CELL_SOLO, OrvexConfigService } from '../config/orvex-config.service';
 import { ENTITLEMENT_CACHE, EntitlementCache } from './entitlement-cache';
@@ -83,7 +82,7 @@ export class EntitlementChangedConsumer
       const kafka = new Kafka({
         clientId: 'orvex-wiki-entitlement-evict',
         brokers,
-        ...kafkaSecurityFromEnv(),
+        ...(this.orvexConfig?.kafkaSecurity ?? {}),
       });
       this.consumer = kafka.consumer({
         groupId: 'orvex-wiki-entitlement-evict',

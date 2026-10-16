@@ -14,11 +14,12 @@ import type { KafkaConfig } from 'kafkajs';
  *     "\n" escapes are accepted for single-line env files.
  *
  * With none set the client stays plaintext/anonymous (local dev, CI broker).
- * Every kafkajs client in this service spreads this into its config, so the
- * relay, the entitlement consumer and the health probe can never disagree.
+ * Read through OrvexConfigService.kafkaSecurity (the typed config seam);
+ * every kafkajs client spreads it, so the relay, the entitlement consumer and
+ * the health probe can never disagree.
  */
 export function kafkaSecurityFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
+  env: Readonly<Record<string, string | undefined>>,
 ): Pick<KafkaConfig, 'ssl' | 'sasl'> {
   const username = env.KAFKA_SASL_USERNAME?.trim();
   const caRaw = env.KAFKA_TLS_CA_PEM?.trim();
