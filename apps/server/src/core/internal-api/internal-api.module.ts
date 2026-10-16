@@ -18,6 +18,8 @@ import { InternalApiAuthGuard } from './internal-api-auth.guard';
 import { OrvexConfigModule } from '../../orvex/config/orvex-config.module';
 import { OrvexConfigService } from '../../orvex/config/orvex-config.service';
 import { OrvexSessionMintModule } from '../session-mint/orvex-session-mint.module';
+import { AccountDeletionPreflightController } from '../account-deletion/account-deletion-preflight.controller';
+import { AccountDeletionPreflightService } from '../account-deletion/account-deletion-preflight.service';
 
 /**
  * InternalApiModule (ENG-1957) — mounts the `/internal/*` surface.
@@ -53,10 +55,11 @@ import { OrvexSessionMintModule } from '../session-mint/orvex-session-mint.modul
     OrvexConfigModule,
     OrvexSessionMintModule,
   ],
-  controllers: [InternalApiController],
+  controllers: [InternalApiController, AccountDeletionPreflightController],
   providers: [
     InternalApiService,
     PrincipalProvisioningService,
+    AccountDeletionPreflightService,
     InternalApiAuthGuard,
     {
       provide: INTERNAL_API_AUTH_CONFIG,

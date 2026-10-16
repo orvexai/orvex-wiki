@@ -7,7 +7,10 @@ import { InjectKysely } from 'nestjs-kysely';
 import { sql } from 'kysely';
 import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { KyselyDB } from '../../../database/types/kysely.types';
-import { CELL_SOLO, OrvexConfigService } from '../../config/orvex-config.service';
+import {
+  CELL_SOLO,
+  OrvexConfigService,
+} from '../../config/orvex-config.service';
 import {
   KAFKA_PUBLISHER_PORT,
   KafkaPublisherPort,
@@ -19,6 +22,10 @@ import {
   restoreOutboxTraceContext,
 } from './orvex-outbox-trace-context.util';
 import { resolveWikiEventsTopic } from './outbox-topic.resolver';
+import {
+  isWikiAccountDeletionEventType,
+  resolveWikiOutboxEventType,
+} from './outbox-event-type.resolver';
 
 /**
  * Narrow seam the relay needs from `OrvexConfigService` (dependency
@@ -93,6 +100,10 @@ const CONTENT_TYPE_STRUCTURED_CLOUDEVENT = 'application/cloudevents+json';
 @Injectable()
 export class OutboxRelayService implements OnModuleInit {
   private readonly logger = new Logger(OutboxRelayService.name);
+  private nextPollAt = 0;
+  private consecutiveFailurePolls = 0;
+  private lastFailureLogAt = 0;
+  private pollRunning = false;
 
   constructor(
     @InjectKysely() private readonly db: KyselyDB,
@@ -178,10 +189,36 @@ export class OutboxRelayService implements OnModuleInit {
    */
   @Interval('orvex-outbox-relay', 2_000)
   async poll(): Promise<void> {
+    if (this.pollRunning || Date.now() < this.nextPollAt) return;
+    this.pollRunning = true;
     try {
-      await this.run();
+      const result = await this.run();
+      if (result.failed > 0) {
+        this.deferAfterFailure(result.failed);
+      } else {
+        this.consecutiveFailurePolls = 0;
+        this.nextPollAt = 0;
+      }
     } catch (err) {
-      this.logger.error(`Outbox relay poll failed: ${err}`);
+      this.deferAfterFailure(0, err);
+    } finally {
+      this.pollRunning = false;
+    }
+  }
+
+  private deferAfterFailure(failedRows: number, error?: unknown): void {
+    this.consecutiveFailurePolls += 1;
+    const delayMs = Math.min(
+      60_000,
+      2_000 * 2 ** Math.min(this.consecutiveFailurePolls - 1, 5),
+    );
+    this.nextPollAt = Date.now() + delayMs;
+    const now = Date.now();
+    if (this.lastFailureLogAt === 0 || now - this.lastFailureLogAt >= 300_000) {
+      this.logger.warn(
+        `Outbox relay deferred after a publish/database failure; failedRows=${failedRows}, retryInMs=${delayMs}${error ? `, error=${error}` : ''}`,
+      );
+      this.lastFailureLogAt = now;
     }
   }
 
@@ -207,6 +244,10 @@ export class OutboxRelayService implements OnModuleInit {
     let failed = 0;
 
     for (const row of rows) {
+      const accountDeletionEvent = isWikiAccountDeletionEventType(row.type);
+      const orvexTenant = accountDeletionEvent
+        ? row.orvexTenant
+        : (row.orvexTenant ?? row.workspaceId);
       // ENG-1600 AC2 — restore the ORIGINAL request's trace context
       // (persisted on the row at write time, AC1) so this relay's producer
       // span is a child of that trace, not an unrelated new root — closing
@@ -222,8 +263,10 @@ export class OutboxRelayService implements OnModuleInit {
         {
           kind: SpanKind.PRODUCER,
           attributes: buildSpanAttributes({
-            workspaceId: row.workspaceId,
-            correlationId: row.correlationId,
+            // Account-deletion events keep tenant and correlation metadata
+            // out of Wiki's event logs/traces.
+            workspaceId: accountDeletionEvent ? null : row.workspaceId,
+            correlationId: accountDeletionEvent ? undefined : row.correlationId,
           }),
         },
         restoredCtx,
@@ -236,6 +279,9 @@ export class OutboxRelayService implements OnModuleInit {
       );
 
       try {
+        if (!orvexTenant) {
+          throw new Error('Outbox row is missing its CloudEvent tenant');
+        }
         // ENG-1559 M5 AC8 — the real CloudEvents 1.0 structured-mode
         // envelope (pinned events/schemas/_envelope.json). `id` is the
         // outbox row's OWN id (dedupe key, matching the Kafka message key
@@ -257,12 +303,12 @@ export class OutboxRelayService implements OnModuleInit {
             specversion: '1.0',
             id: row.id,
             source: '//orvex-wiki',
-            type: `wiki.${row.type}`,
+            type: resolveWikiOutboxEventType(row.type),
             subject: row.aggregateId,
             time: new Date(row.createdAt).toISOString(),
             datacontenttype: 'application/json',
             orvexcell: cell,
-            orvextenant: row.workspaceId,
+            orvextenant: orvexTenant,
             // ENG-1600 AC2/AC3 — the CloudEvents Distributed-Tracing
             // extension attributes (names verbatim per the spec), carried
             // on the envelope the relay emits.
@@ -270,7 +316,9 @@ export class OutboxRelayService implements OnModuleInit {
             tracestate: producerTraceContext.tracestate,
             data: {
               ...(row.payload as Record<string, unknown>),
-              correlation_id: row.correlationId,
+              ...(!accountDeletionEvent
+                ? { correlation_id: row.correlationId }
+                : {}),
             },
           }),
         });
@@ -291,9 +339,10 @@ export class OutboxRelayService implements OnModuleInit {
           code: SpanStatusCode.ERROR,
           message: err instanceof Error ? err.message : String(err),
         });
-        this.logger.warn(
-          `Outbox relay failed to publish row ${row.id} (${row.type}): ${err}`,
-        );
+        // A broker-wide failure is unlikely to improve by attempting every
+        // remaining row in this batch. Leave those rows unrelayed and back off
+        // the next scheduled poll, avoiding a burst of identical broker logs.
+        break;
       } finally {
         producerSpan.end();
       }

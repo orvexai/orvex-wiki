@@ -13,6 +13,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Allow,
   ValidateIf,
   MaxLength,
 } from 'class-validator';
@@ -99,6 +100,14 @@ export class ProvisionPrincipalDto {
   @IsString()
   @IsNotEmpty()
   subject: string;
+
+  /**
+   * Compatibility-only: untrusted request-body values are accepted by the
+   * validator but deliberately ignored. subjectRef is sourced only from a
+   * verified identity token claim.
+   */
+  @Allow()
+  subject_ref?: unknown;
 
   @IsUUID()
   tenant: string;

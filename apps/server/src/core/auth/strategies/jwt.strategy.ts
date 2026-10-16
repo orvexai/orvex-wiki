@@ -62,6 +62,22 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException();
     }
 
+    if (payload.type === JwtType.ACCESS && payload.subjectRef !== undefined) {
+      if (!/^[a-f0-9]{64}$/.test(payload.subjectRef)) {
+        throw new UnauthorizedException();
+      }
+      const recorded = await this.userRepo.recordVerifiedSubjectRef(
+        user.id,
+        payload.workspaceId,
+        payload.subjectRef,
+      );
+      if (recorded === 'conflict') {
+        this.logger.error('subjectRef mapping conflict flagged for operator review');
+      } else if (recorded !== 'recorded') {
+        throw new UnauthorizedException();
+      }
+    }
+
     if ((payload as JwtPayload).sessionId) {
       const sessionId = (payload as JwtPayload).sessionId;
       const session = await this.userSessionRepo.findActiveById(sessionId);

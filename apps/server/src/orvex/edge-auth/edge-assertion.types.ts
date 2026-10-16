@@ -25,6 +25,8 @@
 export interface EdgeAssertionClaims {
   readonly sub: string;
   readonly tenant: string;
+  /** Optional stable opaque principal reference minted by Identity. */
+  readonly subjectRef?: string;
   readonly cell: string;
   readonly cellEpoch: number;
   readonly scope: string;

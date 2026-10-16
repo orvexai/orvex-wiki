@@ -84,10 +84,17 @@ function makeService(opts: {
   const findById = jest
     .fn<Promise<UserRow | undefined>, [string, string]>()
     .mockResolvedValue(opts.user);
-  const userRepo = { findUserIdByProviderUserId, findById };
+  const recordVerifiedSubjectRef = jest
+    .fn<Promise<'recorded' | 'conflict' | 'missing_linkage'>, [string, string, string]>()
+    .mockResolvedValue('recorded');
+  const userRepo = {
+    findUserIdByProviderUserId,
+    findById,
+    recordVerifiedSubjectRef,
+  };
 
   const createSessionAndToken = jest
-    .fn<Promise<string>, [UserRow]>()
+    .fn<Promise<string>, [UserRow, string?]>()
     .mockResolvedValue('minted-access-token');
   const sessionService = { createSessionAndToken };
 
@@ -113,6 +120,7 @@ function makeService(opts: {
     edgeVerifier,
     findUserIdByProviderUserId,
     findById,
+    recordVerifiedSubjectRef,
     createSessionAndToken,
     logWithContext,
     expiresAt,
@@ -151,7 +159,7 @@ describe('OrvexSessionMintService', () => {
     expect(t.createSessionAndToken).toHaveBeenCalledTimes(1);
   });
 
-  it('audits a successful mint WITHOUT the token bytes (subject only)', async () => {
+  it('audits a successful mint WITHOUT token bytes or raw subject identifiers', async () => {
     const t = makeService({
       principal: PRINCIPAL,
       resolvedUserId: 'user-1',
@@ -161,10 +169,7 @@ describe('OrvexSessionMintService', () => {
 
     expect(t.logWithContext).toHaveBeenCalledTimes(1);
     const [payload, context] = t.logWithContext.mock.calls[0];
-    expect(payload.metadata).toEqual({
-      source: 'session-exchange',
-      subject: 'sub-abc',
-    });
+    expect(payload.metadata).toEqual({ source: 'session-exchange' });
     expect(context).toMatchObject({
       workspaceId: '11111111-1111-4111-8111-111111111111',
       actorId: 'user-1',
@@ -173,6 +178,9 @@ describe('OrvexSessionMintService', () => {
     // Secret discipline: the exchange token never reaches the audit record.
     expect(JSON.stringify(t.logWithContext.mock.calls[0])).not.toContain(
       'super-secret-token',
+    );
+    expect(JSON.stringify(t.logWithContext.mock.calls[0])).not.toContain(
+      'sub-abc',
     );
   });
 
@@ -198,6 +206,58 @@ describe('OrvexSessionMintService', () => {
     expect(t.findById).not.toHaveBeenCalled();
     expect(t.createSessionAndToken).not.toHaveBeenCalled();
     expect(t.logWithContext).not.toHaveBeenCalled();
+  });
+
+  it('propagates a verified subjectRef claim and records it idempotently before minting', async () => {
+    const subjectRef = 'a'.repeat(64);
+    const t = makeService({
+      principal: { ...PRINCIPAL, subjectRef },
+      resolvedUserId: 'user-1',
+      user: { id: 'user-1', workspaceId: PRINCIPAL.workspaceId },
+    });
+
+    await t.service.mintSession('opaque-token');
+
+    expect(t.recordVerifiedSubjectRef).toHaveBeenCalledWith(
+      'user-1',
+      PRINCIPAL.workspaceId,
+      subjectRef,
+    );
+    expect(t.createSessionAndToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'user-1' }),
+      subjectRef,
+    );
+  });
+
+  it('mints a session on subjectRef conflict while flagging the principal for operator review', async () => {
+    const t = makeService({
+      principal: { ...PRINCIPAL, subjectRef: 'b'.repeat(64) },
+      resolvedUserId: 'user-1',
+      user: { id: 'user-1', workspaceId: PRINCIPAL.workspaceId },
+    });
+    t.recordVerifiedSubjectRef.mockResolvedValue('conflict');
+
+    await t.service.mintSession('opaque-token');
+    expect(t.createSessionAndToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'user-1' }),
+      'b'.repeat(64),
+    );
+  });
+
+  it('keeps old verified tokens without subjectRef compatible and does not write a mapping', async () => {
+    const t = makeService({
+      principal: PRINCIPAL,
+      resolvedUserId: 'user-1',
+      user: { id: 'user-1', workspaceId: PRINCIPAL.workspaceId },
+    });
+
+    await t.service.mintSession('opaque-token');
+
+    expect(t.recordVerifiedSubjectRef).not.toHaveBeenCalled();
+    expect(t.createSessionAndToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'user-1' }),
+      undefined,
+    );
   });
 
   it('DENY — a resolved-but-missing user row → 401', async () => {
@@ -268,7 +328,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
     expect(t.createSessionAndToken).toHaveBeenCalledTimes(1);
   });
 
-  it('audits with source=session-exchange-assertion, subject only, and NO assertion bytes', async () => {
+  it('audits with source=session-exchange-assertion, no raw subject, and NO assertion bytes', async () => {
     const t = makeService({
       principal: () => Promise.reject(new Error('introspect must not be called')),
       assertion: ASSERTION_CLAIMS,
@@ -279,10 +339,7 @@ describe('OrvexSessionMintService.mintSessionFromAssertion (ADR-0049 S2S)', () =
 
     expect(t.logWithContext).toHaveBeenCalledTimes(1);
     const [payload, context] = t.logWithContext.mock.calls[0];
-    expect(payload.metadata).toEqual({
-      source: 'session-exchange-assertion',
-      subject: 'sub-abc',
-    });
+    expect(payload.metadata).toEqual({ source: 'session-exchange-assertion' });
     expect(context).toMatchObject({
       workspaceId: '11111111-1111-4111-8111-111111111111',
       actorId: 'user-1',

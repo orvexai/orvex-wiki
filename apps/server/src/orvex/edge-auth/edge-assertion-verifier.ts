@@ -297,6 +297,7 @@ function narrowClaims(payload: unknown): EdgeAssertionClaims {
   }
   const p = payload as Record<string, unknown>;
   const { sub, tenant, cell, scope, aud, iss, iat, exp } = p;
+  const subjectRef = p.subject_ref;
   const cellEpoch = p.cell_epoch;
 
   if (
@@ -311,7 +312,9 @@ function narrowClaims(payload: unknown): EdgeAssertionClaims {
     !Array.isArray(aud) ||
     typeof iss !== 'string' ||
     typeof iat !== 'number' ||
-    typeof exp !== 'number'
+    typeof exp !== 'number' ||
+    (subjectRef !== undefined &&
+      (typeof subjectRef !== 'string' || !/^[a-f0-9]{64}$/.test(subjectRef)))
   ) {
     throw new EdgeAssertionVerificationError('MALFORMED');
   }
@@ -330,6 +333,7 @@ function narrowClaims(payload: unknown): EdgeAssertionClaims {
   return {
     sub,
     tenant,
+    ...(typeof subjectRef === 'string' ? { subjectRef } : {}),
     cell,
     cellEpoch,
     scope,

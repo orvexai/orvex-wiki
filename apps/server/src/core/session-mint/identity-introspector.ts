@@ -40,6 +40,8 @@ export interface IntrospectedPrincipal {
    * UUID itself (no second lookup) — so it is the engine `workspaceId` directly.
    */
   readonly workspaceId: string;
+  /** Optional stable opaque reference returned from Identity's verified token. */
+  readonly subjectRef?: string;
 }
 
 /** Injection token for the introspection port. */
@@ -192,11 +194,28 @@ function narrowPrincipal(payload: unknown): IntrospectedPrincipal | null {
   if (typeof body.principal !== 'object' || body.principal === null) {
     return null;
   }
-  const p = body.principal as { subject?: unknown; tenant?: unknown };
+  const p = body.principal as {
+    subject?: unknown;
+    tenant?: unknown;
+    subject_ref?: unknown;
+  };
   const subject = typeof p.subject === 'string' ? p.subject.trim() : '';
   const tenant = typeof p.tenant === 'string' ? p.tenant.trim() : '';
   if (subject === '' || tenant === '') {
     return null;
   }
-  return { subject, workspaceId: tenant };
+  if (
+    p.subject_ref !== undefined &&
+    (typeof p.subject_ref !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(p.subject_ref))
+  ) {
+    return null;
+  }
+  return {
+    subject,
+    workspaceId: tenant,
+    ...(typeof p.subject_ref === 'string'
+      ? { subjectRef: p.subject_ref }
+      : {}),
+  };
 }
