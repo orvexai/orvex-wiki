@@ -8,6 +8,7 @@ import {
   KafkaPublishMessage,
   KafkaPublisherPort,
 } from './kafka-publisher.port';
+import { kafkaSecurityFromEnv } from '../kafka/kafka-client-security';
 
 /**
  * ENG-1383 4d/❌#8 — the one Kafka adapter (one-adapter rule, CS §3e). The
@@ -27,6 +28,7 @@ export class KafkaPublisherAdapter
     this.kafka = new Kafka({
       clientId: 'orvex-wiki-outbox-relay',
       brokers: this.environmentService.getKafkaBrokers(),
+      ...kafkaSecurityFromEnv(),
     });
   }
 
