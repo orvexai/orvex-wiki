@@ -67,7 +67,7 @@ jobs:
     # CI. External contract-tag, wiki-draft, and reviewer gates remain
     # orchestrator-owned and are intentionally not inferred here.
     name: ENG-2103 Definition Pack (local)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       # scripts/eng-2103-contract-evidence.sh parses the OpenAPI contract with
@@ -84,7 +84,7 @@ jobs:
 
   lint-client:
     name: Lint Client
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -99,7 +99,7 @@ jobs:
 
   lint-server:
     name: Lint Server
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -117,7 +117,7 @@ jobs:
     # machine-checked against the manifest DTO's declared shape. Static
     # analysis only — no cluster/secret reach needed.
     name: Tenant-Move Coverage (cell-lint rule #10)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -138,7 +138,7 @@ jobs:
     # adoption DoD (PO-2026-07-29-5) — do not remove the ratchet script
     # without also completing that flip.
     name: Import Boundary (M1 fence, ratcheted — PO-2026-07-29-5)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -165,7 +165,7 @@ jobs:
   # committed config reds this job.
   substrate-lint-drift:
     name: Substrate Lint Config Drift (AD-5)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: Code-generated substrate lint config matches contracts
@@ -182,7 +182,7 @@ jobs:
   # copy reds substrate-lint-drift above.
   lint-substrate:
     name: Substrate Ban Lint (AD-2 TS peer, ratcheted — PO-2026-07-29-5)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -206,7 +206,7 @@ jobs:
   # ---------------------------------------------------------------------------
   typecheck:
     name: Typecheck
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -230,7 +230,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -248,7 +248,7 @@ jobs:
   # ---------------------------------------------------------------------------
   test-client:
     name: Test Client (vitest)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -268,7 +268,7 @@ jobs:
   test-server:
     name: Test Server (jest, CI set)
     # DinD set: test:ci runs testcontainers-backed src integration/e2e specs.
-    runs-on: public-dind-runners
+    runs-on: ${{ vars.CI_RUNNER_MEDIUM || 'public-dind-runners' }}
     env:
       # Ryuk (testcontainers' resource-reaper) can't initialize inside the
       # Kata-qemu + DinD sandbox — its startup log-wait (/.*Started.*/) never
@@ -320,7 +320,7 @@ jobs:
   test-server-integration:
     name: Test Server (integration, testcontainers PG)
     # DinD set: testcontainers spins a real Postgres via the runner's Docker daemon.
-    runs-on: public-dind-runners
+    runs-on: ${{ vars.CI_RUNNER_MEDIUM || 'public-dind-runners' }}
     env:
       # Ryuk (testcontainers' resource-reaper) can't initialize inside the
       # Kata-qemu + DinD sandbox — its startup log-wait (/.*Started.*/) never
@@ -355,7 +355,7 @@ jobs:
   # ---------------------------------------------------------------------------
   smoke-module:
     name: Smoke Module (build/vet/fmt)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -404,7 +404,7 @@ jobs:
   gate-m6-e2e:
     name: Gate M6 E2E (ENG-1572, TestGateM6E2E)
     # DinD set: docker-compose env-up + `docker run` Kafka + engine boot in-VM.
-    runs-on: public-dind-runners
+    runs-on: ${{ vars.CI_RUNNER_MEDIUM || 'public-dind-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -575,7 +575,7 @@ jobs:
   # ---------------------------------------------------------------------------
   k8s-validate:
     name: K8s Manifests (build-only)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -614,7 +614,7 @@ jobs:
   # ---------------------------------------------------------------------------
   deploy-render-gate:
     name: Deploy Render Gate (hostname cutover + OTLP single endpoint)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -640,7 +640,7 @@ jobs:
   # ---------------------------------------------------------------------------
   engine-license-guard:
     name: Engine License Guard (P10)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -656,7 +656,7 @@ jobs:
   # ---------------------------------------------------------------------------
   patches-drift-check:
     name: Patches Drift + Inline-Edit Allow-list (ENG-1649)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -683,7 +683,7 @@ jobs:
   # ---------------------------------------------------------------------------
   fr30-divergence-check:
     name: FR-30 Divergence Gate (weighted hot-file budget)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -714,7 +714,7 @@ jobs:
   # ---------------------------------------------------------------------------
   act3-branch-budget-check:
     name: ACT-3 Branch Budget Gate (ENG-2055)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -728,7 +728,7 @@ jobs:
   # ---------------------------------------------------------------------------
   linear-write-budget-check:
     name: Linear Write Budget + Shared Backoff (ENG-2810)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -746,7 +746,7 @@ jobs:
 
   linearis-chokepoint-guard:
     name: Linear Write Chokepoint Guard (ENG-2810)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: Check sole Linear write path
@@ -757,7 +757,7 @@ jobs:
   # ---------------------------------------------------------------------------
   ticket-drift-ratchet:
     name: Ticket Drift Ratchet (ENG-2818)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -775,7 +775,7 @@ jobs:
   # ---------------------------------------------------------------------------
   reality-probe-check:
     name: Pre-claim Reality Probe (M2)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -796,7 +796,7 @@ jobs:
   # ---------------------------------------------------------------------------
   hardening-allowlist-check:
     name: Hardening Allowlist Class Coverage
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -816,7 +816,7 @@ jobs:
   # ---------------------------------------------------------------------------
   image-freshness-check:
     name: Image Freshness / Drift Alarm — engine (ENG-1973)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -854,7 +854,7 @@ jobs:
   # ---------------------------------------------------------------------------
   manifest-copy-check:
     name: Shared Manifest Copy Regen Gate (AD-35 / PO-2026-07-30-1)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: materialized shared components are in sync with the contracts roster
@@ -868,7 +868,7 @@ jobs:
   # ---------------------------------------------------------------------------
   license-header-check:
     name: License Header Check (AGPL §13)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: license-header-check.sh
@@ -883,7 +883,7 @@ jobs:
   # ---------------------------------------------------------------------------
   engine-only-import-guard:
     name: Engine-Only Import Guard (Q22)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: engine-only-import-guard.sh
@@ -904,7 +904,7 @@ jobs:
   # ---------------------------------------------------------------------------
   rls-unscoped-read-ratchet:
     name: RLS Unscoped-Read Ratchet (ENG-3569)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: rls-unscoped-read-ratchet.sh
@@ -922,7 +922,7 @@ jobs:
   # ---------------------------------------------------------------------------
   dfm-import-guard:
     name: DfM AGPL Import-Boundary Guard (ENG-2488)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: dfm-import-guard.sh
@@ -942,7 +942,7 @@ jobs:
   # ---------------------------------------------------------------------------
   dfm-parity:
     name: DfM TS↔Go parity (blocking, was report-only)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -966,7 +966,7 @@ jobs:
   # ---------------------------------------------------------------------------
   client-ai-thinness:
     name: Client AI Thinness Guard (AC7)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: client-ai-thinness-guard.sh
@@ -980,7 +980,7 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-substrate-conformance:
     name: CI Substrate Conformance (CS §13)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -999,7 +999,7 @@ jobs:
   # ---------------------------------------------------------------------------
   security:
     name: Security (audit + govulncheck)
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -1049,7 +1049,7 @@ jobs:
 
   sbom-generation:
     name: SBOM Generation
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install syft
@@ -1084,7 +1084,7 @@ jobs:
   # ---------------------------------------------------------------------------
   workflow-lint:
     name: Workflow Lint
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -1192,7 +1192,7 @@ jobs:
       # (contracts' fanin-structure gate: silent-orphan). Fanned in once it was
       # proven reliably green after the PyYAML install (9b9d031c).
       - definition-pack
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     if: always()
     steps:
       - name: Check all gate results

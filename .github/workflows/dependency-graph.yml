@@ -145,7 +145,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   submit-snapshot:
     name: Submit full-workspace pnpm dependency snapshot
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     permissions:
       contents: write
     steps:
@@ -202,7 +202,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   submit-go-snapshot:
     name: Submit Go module dependency snapshot
-    runs-on: public-runners
+    runs-on: ${{ vars.CI_RUNNER_SMALL || 'public-runners' }}
     permissions:
       contents: write
     steps:
