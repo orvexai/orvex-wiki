@@ -129,7 +129,14 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
     // refuses to mint for a user-keyed tenant, so none is requested.
     const tenant =
       principal.principal_type === 'org' ? principal.principal_id : null;
-    if (tenant && this.credentials?.isConfigured()) {
+    if (tenant) {
+      // Missing identity credentials are a configuration failure, not
+      // permission to downgrade to an anonymous billing request.
+      if (!this.credentials?.isConfigured()) {
+        throw new Error(
+          'billing service credential unavailable: identity credentials are not configured',
+        );
+      }
       // Throws on refusal → EntitlementService falls back to its cached
       // projection or fails closed; never an anonymous billing call.
       headers['x-orvex-assertion'] =

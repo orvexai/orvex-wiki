@@ -74,7 +74,14 @@ describe('HttpBillingEntitlementPort', () => {
 
   it('resolves a well-formed 200 catalog response', async () => {
     mockFetchOnce(200, fixtureBody());
-    const port = new HttpBillingEntitlementPort(environmentServiceStub());
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      {
+        isConfigured: () => true,
+        assertionFor: async () => 'header.payload.signature',
+        evict: () => undefined,
+      } as unknown as BillingServiceCredentialProvider,
+    );
 
     await expect(port.checkEntitlement(principal)).resolves.toMatchObject({
       plan: 'free',
@@ -85,7 +92,14 @@ describe('HttpBillingEntitlementPort', () => {
   it('F2: throws (fails closed) on a 200 whose body has no `caps` field at all', async () => {
     const { caps: _drop, ...withoutCaps } = fixtureBody();
     mockFetchOnce(200, withoutCaps);
-    const port = new HttpBillingEntitlementPort(environmentServiceStub());
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      {
+        isConfigured: () => true,
+        assertionFor: async () => 'header.payload.signature',
+        evict: () => undefined,
+      } as unknown as BillingServiceCredentialProvider,
+    );
 
     await expect(port.checkEntitlement(principal)).rejects.toThrow();
   });
@@ -94,7 +108,14 @@ describe('HttpBillingEntitlementPort', () => {
     const body = fixtureBody();
     delete (body.caps as Record<string, unknown>).wiki_max_pages;
     mockFetchOnce(200, body);
-    const port = new HttpBillingEntitlementPort(environmentServiceStub());
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      {
+        isConfigured: () => true,
+        assertionFor: async () => 'header.payload.signature',
+        evict: () => undefined,
+      } as unknown as BillingServiceCredentialProvider,
+    );
 
     await expect(port.checkEntitlement(principal)).rejects.toThrow();
   });
@@ -104,14 +125,28 @@ describe('HttpBillingEntitlementPort', () => {
       caps: { ...fixtureCaps(), wiki_max_members: 'unlimited' },
     });
     mockFetchOnce(200, body);
-    const port = new HttpBillingEntitlementPort(environmentServiceStub());
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      {
+        isConfigured: () => true,
+        assertionFor: async () => 'header.payload.signature',
+        evict: () => undefined,
+      } as unknown as BillingServiceCredentialProvider,
+    );
 
     await expect(port.checkEntitlement(principal)).rejects.toThrow();
   });
 
   it('F2: throws (fails closed) on a 200 that is not even an object (e.g. null)', async () => {
     mockFetchOnce(200, null);
-    const port = new HttpBillingEntitlementPort(environmentServiceStub());
+    const port = new HttpBillingEntitlementPort(
+      environmentServiceStub(),
+      {
+        isConfigured: () => true,
+        assertionFor: async () => 'header.payload.signature',
+        evict: () => undefined,
+      } as unknown as BillingServiceCredentialProvider,
+    );
 
     await expect(port.checkEntitlement(principal)).rejects.toThrow();
   });
@@ -136,6 +171,17 @@ describe('HttpBillingEntitlementPort service credential', () => {
   }
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('fails closed without identity credential configuration', async () => {
+    const fetchSpy = jest.fn();
+    (global as unknown as { fetch: unknown }).fetch = fetchSpy;
+    const c = creds({ isConfigured: jest.fn().mockReturnValue(false) });
+    const port = new HttpBillingEntitlementPort(environmentServiceStub(), c);
+    await expect(port.checkEntitlement(org)).rejects.toThrow(
+      'identity credentials are not configured',
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 
   it('sends the tenant-bound assertion for an org principal', async () => {
     mockFetchOnce(200, fixtureBody());
