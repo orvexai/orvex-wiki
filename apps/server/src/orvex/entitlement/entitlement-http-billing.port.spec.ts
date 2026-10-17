@@ -194,15 +194,17 @@ describe('HttpBillingEntitlementPort service credential', () => {
     expect(init.headers.authorization).toBeUndefined();
   });
 
-  it('does not request a service credential for a user principal', async () => {
-    mockFetchOnce(200, fixtureBody());
+  it('fails closed without making an anonymous request for a user principal', async () => {
+    const fetchSpy = jest.fn();
+    (global as unknown as { fetch: unknown }).fetch = fetchSpy;
     const c = creds();
     const port = new HttpBillingEntitlementPort(environmentServiceStub(), c);
-    await port.checkEntitlement({
+    await expect(port.checkEntitlement({
       principal_type: 'user',
       principal_id: 'u-1',
-    });
+    })).rejects.toThrow('unsupported principal type');
     expect(c.assertionFor).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('fails (no anonymous billing call) when identity refuses the credential', async () => {

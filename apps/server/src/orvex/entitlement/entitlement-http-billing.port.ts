@@ -125,23 +125,26 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
     )}/${encodeURIComponent(principal.principal_id)}`;
 
     const headers: Record<string, string> = { accept: 'application/json' };
-    // Only org (workspace) principals are tenant-bound service reads; identity
-    // refuses to mint for a user-keyed tenant, so none is requested.
-    const tenant =
-      principal.principal_type === 'org' ? principal.principal_id : null;
-    if (tenant) {
-      // Missing identity credentials are a configuration failure, not
-      // permission to downgrade to an anonymous billing request.
-      if (!this.credentials?.isConfigured()) {
-        throw new Error(
-          'billing service credential unavailable: identity credentials are not configured',
-        );
-      }
-      // Throws on refusal → EntitlementService falls back to its cached
-      // projection or fails closed; never an anonymous billing call.
-      headers['x-orvex-assertion'] =
-        await this.credentials.assertionFor(tenant);
+    // Identity currently mints tenant-bound service assertions for org reads;
+    // there is no supported user-assertion forwarding contract in this port.
+    // Reject user principals here rather than probing Billing anonymously.
+    if (principal.principal_type !== 'org') {
+      throw new Error(
+        `billing service credential unavailable: unsupported principal type '${principal.principal_type}'`,
+      );
     }
+    const tenant = principal.principal_id;
+    // Missing identity credentials are a configuration failure, not
+    // permission to downgrade to an anonymous billing request.
+    if (!this.credentials?.isConfigured()) {
+      throw new Error(
+        'billing service credential unavailable: identity credentials are not configured',
+      );
+    }
+    // Throws on refusal → EntitlementService falls back to its cached
+    // projection or fails closed; never an anonymous billing call.
+    headers['x-orvex-assertion'] =
+      await this.credentials.assertionFor(tenant);
 
     let response: Response;
     try {
@@ -151,7 +154,7 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
       throw err;
     }
 
-    if (tenant && CREDENTIAL_REJECTED_STATUSES.has(response.status)) {
+    if (CREDENTIAL_REJECTED_STATUSES.has(response.status)) {
       this.credentials?.evict(tenant);
     }
 
