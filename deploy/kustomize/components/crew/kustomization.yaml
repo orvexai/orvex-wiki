@@ -186,6 +186,9 @@ patches:
       - op: add
         path: /data/crewIdentityNamespace
         value: orvex-studio-identity-PLACEHOLDER
+      - op: add
+        path: /data/crewBillingNamespace
+        value: orvex-studio-billing-PLACEHOLDER
       - op: replace
         path: /data/wikiHost
         value: wiki.PLACEHOLDER.orvex.dev  # cell-lint-allow: own public host (HTTPRoute/APP_URL), not a peer
@@ -233,8 +236,10 @@ patches:
         value: https://ai.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
       - op: replace
         path: /data/ORVEX_BILLING_API_URL
-        # TL decision 2026-10-02 (n60): empty URL selects the ratified free-only interim path; crew only, prod untouched. Revert when ADR-0049 delegation lands.
-        value: ""
+        # HttpBillingEntitlementPort appends /v1/entitlements/{type}/{id};
+        # billing's crew Service exposes HTTP on port 80. The namespace is
+        # filled from cluster-config below, keeping each crew on its own cell.
+        value: http://orvex-studio-billing.BILLINGNS.svc.cluster.local:80
       - op: replace
         path: /data/ORVEX_MCP_URL
         value: https://mcp.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
@@ -346,15 +351,15 @@ replacements:
         options:
           delimiter: "-"
           index: 3
-      # Step 1 of the crew identity in-cluster URL: branchSlug into the
-      # build-only cluster-config.crewIdentityNamespace
-      # ("orvex-studio-identity-PLACEHOLDER" split by "-", index 3) ->
-      # "orvex-studio-identity-crew-{name}".
+      # Step 1: branchSlug into the build-only crew Service namespaces
+      # ("orvex-studio-{identity,billing}-PLACEHOLDER", split by "-",
+      # index 3) -> the matching "...-crew-{name}" namespaces.
       - select:
           kind: ConfigMap
           name: cluster-config
         fieldPaths:
           - data.crewIdentityNamespace
+          - data.crewBillingNamespace
         options:
           delimiter: "-"
           index: 3
@@ -401,6 +406,22 @@ replacements:
         fieldPaths:
           - data.ORVEX_IDENTITY_URL
           - data.ORVEX_EDGE_JWKS_URL
+        options:
+          delimiter: "."
+          index: 1
+  # Step 2b: the matching crew billing Service namespace into the URL read by
+  # HttpBillingEntitlementPort. Keep the hostname in-cluster so the call
+  # reaches only billing in this crew and bypasses the public ingress.
+  - source:
+      kind: ConfigMap
+      name: cluster-config
+      fieldPath: data.crewBillingNamespace
+    targets:
+      - select:
+          kind: ConfigMap
+          name: orvex-wiki-env
+        fieldPaths:
+          - data.ORVEX_BILLING_API_URL
         options:
           delimiter: "."
           index: 1

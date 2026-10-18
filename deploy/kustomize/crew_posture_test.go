@@ -193,15 +193,19 @@ func TestCrewEdgeJWKSURLStaysInItsCrewIdentityNamespace(t *testing.T) {
 	}
 }
 
-// TestCrewBillingURLIsDisabledForInterim verifies crew uses the ratified free-only path until delegated auth lands.
-func TestCrewBillingURLIsDisabledForInterim(t *testing.T) {
+// TestCrewBillingURLUsesItsOwnInClusterService verifies entitlement reads
+// reach only the matching crew's billing Service.
+func TestCrewBillingURLUsesItsOwnInClusterService(t *testing.T) {
 	bin := kustomizeBin(t)
 	kustomizeDir := thisDir(t)
 
 	for _, branchSlug := range []string{"crew-daniel", "crew-yafet"} {
 		t.Run(branchSlug, func(t *testing.T) {
 			data := crewWikiEnv(t, renderCrewApplication(t, bin, kustomizeDir, branchSlug))
-			require.Empty(t, data["ORVEX_BILLING_API_URL"])
+			require.Equal(t,
+				"http://orvex-studio-billing.orvex-studio-billing-"+branchSlug+".svc.cluster.local:80",
+				data["ORVEX_BILLING_API_URL"],
+			)
 		})
 	}
 }
