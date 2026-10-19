@@ -283,7 +283,7 @@ export class OrvexConfigService {
   /**
    * ORVEX_BILLING_UPGRADE_URL (ENG-2491 AC1) — the billing upgrade-portal
    * base URL the `402 QUOTA_EXCEEDED` deep-link is built from (same env-only,
-   * no-inline-URL pattern as `ORVEX_BILLING_API_URL`, ❌#8). First consumer:
+   * no-inline-URL pattern as `ORVEX_BILLING_URL`, ❌#8). First consumer:
    * `EntitlementService`'s rejection enrichment. Null when unset → the
    * `upgradeUrl` field is omitted from the 402 body — never a fabricated
    * marketing-homepage fallback.

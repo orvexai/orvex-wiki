@@ -107,13 +107,10 @@ data:
   # sibling's OWN crew host (crew → crew, crew-design.md). NOT replacement
   # targets, so overlay patches on them survive the build.
   ORVEX_IDENTITY_URL: "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local"
-  # Billing keys off the seam pattern deliberately: the live consumer is the
-  # EntitlementModule's HttpBillingEntitlementPort, which reads ORVEX_BILLING_API_URL
-  # (ENG-1382; environment.service.ts getBillingApiUrl) — so this base URL (billing's
-  # /v1/entitlements host) is carried under that exact key, never ..._URL. Renamed
-  # from the former dead ORVEX_BILLING_URL scaffold (no code ever read it) at the
-  # ENG-1559 M5 billing-wire close — a single live key, no fallback.
-  ORVEX_BILLING_API_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
+  # Billing entitlement base URL, consumed by EnvironmentService.getBillingApiUrl
+  # and HttpBillingEntitlementPort. Reader and all profile providers use this
+  # canonical key together; the historical API-infix spelling has no fallback.
+  ORVEX_BILLING_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
 
   # NOT typed here: OTEL_EXPORTER_OTLP_ENDPOINT (ENG-1599 / AD-25 / ENG-3103).
   # A per-service manifest MUST NOT set it — "OTEL_EXPORTER_OTLP_ENDPOINT is

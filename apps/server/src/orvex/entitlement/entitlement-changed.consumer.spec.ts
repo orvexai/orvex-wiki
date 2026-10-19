@@ -269,7 +269,7 @@ describe('TestEntitlementReaderEvictsOnBillingChange (ENG-2489 DoD gate)', () =>
 
   it('AC3 — the interim hardcode-Free constant is served behind the interface when the billing SoR is ABSENT', async () => {
     port.failWith = new BillingUnconfiguredError(
-      'ORVEX_BILLING_API_URL is not configured',
+      'ORVEX_BILLING_URL is not configured',
     );
 
     // Under the interim Free page cap (200) — allowed.
