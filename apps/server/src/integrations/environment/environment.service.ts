@@ -235,7 +235,7 @@ export class EnvironmentService {
   // part of this engine's secret set; Stripe lives entirely in
   // orvex-studio-billing.
   getBillingApiUrl(): string {
-    return this.configService.get<string>('ORVEX_BILLING_API_URL');
+    return this.configService.get<string>('ORVEX_BILLING_URL');
   }
 
   getBillingTrialDays(): number {

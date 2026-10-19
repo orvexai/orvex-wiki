@@ -308,6 +308,17 @@ jobs:
         run: |
           docker pull postgres:16-alpine
           docker pull redis:7-alpine
+      # Billing config tests render the actual manifests; provision the same
+      # pinned tool as deploy-render-gate instead of relying on the runner image.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: deploy/kustomize/go.sum
+      - name: Install kustomize for mandatory billing render tests
+        run: |
+          GOBIN="$(go env GOPATH)/bin" go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/kustomize" version
       # test:ci excludes the 16 NAMED upstream never-green DI-scaffold specs
       # (upstream test debt, recorded in the foundation handoff). Full suite:
       # make test-server-full.
@@ -385,7 +396,7 @@ jobs:
   # ENTITLEMENT_UNAVAILABLE) with no billing backend reachable. This job
   # therefore stands up `gate-m6-billing-stub.mjs` (below) — the sanctioned
   # contracts-seam fixture for billing's one read endpoint — and exports
-  # `ORVEX_BILLING_API_URL` at it, so the tracer mutation and AC3's
+  # `ORVEX_BILLING_URL` at it, so the tracer mutation and AC3's
   # quota-exhaustion probe get real 200/402 responses instead of 503. See
   # that fixture's own doc comment for why a stub and not the real
   # `orvex-studio-billing` service (public-runners' deliberate no-OpenBao/
@@ -505,7 +516,7 @@ jobs:
           export KAFKA_BROKERS=127.0.0.1:19092
           missing_topic=wiki-events.ci-unprovisioned
           export KAFKA_OUTBOX_TOPIC="$missing_topic"
-          export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
+          export ORVEX_BILLING_URL=http://127.0.0.1:18080
           nohup node apps/server/dist/main.js > missing-topic-server.log 2>&1 &
           missing_pid=$!
           for _ in $(seq 1 120); do
@@ -532,7 +543,7 @@ jobs:
           export ORVEX_MODULES_ENABLED=true
           export KAFKA_BROKERS=127.0.0.1:19092
           export KAFKA_OUTBOX_TOPIC="${KAFKA_OUTBOX_TOPIC:?rendered prod topic was not exported}"
-          export ORVEX_BILLING_API_URL=http://127.0.0.1:18080
+          export ORVEX_BILLING_URL=http://127.0.0.1:18080
           nohup node apps/server/dist/main.js > server.log 2>&1 &
           # 120s, not 30s. The success condition is UNCHANGED — this only stops
           # the wait from expiring while a healthy boot is still in progress.

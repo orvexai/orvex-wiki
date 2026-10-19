@@ -88,7 +88,7 @@ const CREDENTIAL_REJECTED_STATUSES: ReadonlySet<number> = new Set([
  * (ENG-1431). No Stripe client, no cap VALUES here (❌#8, ❌#10) — a plain
  * typed HTTP read of billing's projection.
  *
- * The base URL is injected via `ORVEX_BILLING_API_URL` (CS ❌#8 — no inline
+ * The base URL is injected via `ORVEX_BILLING_URL` (CS ❌#8 — no inline
  * credentialed client; the endpoint is env-configured, never hard-coded).
  *
  * fix/wiki-billing-delegated-credential: billing has required a verified
@@ -116,7 +116,7 @@ export class HttpBillingEntitlementPort implements BillingEntitlementPort {
       // caller can serve the disclosed interim hardcode-Free constant
       // instead of failing closed.
       throw new BillingUnconfiguredError(
-        'ENG-1382: ORVEX_BILLING_API_URL is not configured — billing entitlement port unreachable',
+        'ENG-1382: ORVEX_BILLING_URL is not configured — billing entitlement port unreachable',
       );
     }
 

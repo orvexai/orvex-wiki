@@ -94,7 +94,7 @@ export interface EntitlementCheckResponse {
 /**
  * ENG-2489 AC3 — the INTERIM hardcode-Free entitlement, served behind the
  * entitlement-reader interface ONLY when the billing SoR is ABSENT (no
- * `ORVEX_BILLING_API_URL` configured — the free-only launch window), never
+ * `ORVEX_BILLING_URL` configured — the free-only launch window), never
  * when billing is merely unreachable (that path stays: last-known cache,
  * else fail closed 503).
  *

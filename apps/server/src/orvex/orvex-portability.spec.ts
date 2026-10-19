@@ -57,7 +57,7 @@ const MANIFEST = join(
 
 const LIVE_PLATFORM_URL_KEYS = [
   'ORVEX_IDENTITY_URL',
-  'ORVEX_BILLING_API_URL',
+  'ORVEX_BILLING_URL',
 ] as const;
 
 // The five keys with deliberately NO engine-side consumer yet

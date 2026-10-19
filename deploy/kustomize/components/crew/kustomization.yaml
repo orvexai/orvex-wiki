@@ -226,7 +226,7 @@ patches:
         path: /data/ORVEX_IDENTITY_URL
         value: http://orvex-studio-identity.IDENTITYNS.svc.cluster.local:80
       - op: replace
-        path: /data/ORVEX_BILLING_API_URL
+        path: /data/ORVEX_BILLING_URL
         # HttpBillingEntitlementPort appends /v1/entitlements/{type}/{id};
         # billing's crew Service exposes HTTP on port 80. The namespace is
         # filled from cluster-config below, keeping each crew on its own cell.
@@ -393,7 +393,7 @@ replacements:
           kind: ConfigMap
           name: orvex-wiki-env
         fieldPaths:
-          - data.ORVEX_BILLING_API_URL
+          - data.ORVEX_BILLING_URL
         options:
           delimiter: "."
           index: 1
