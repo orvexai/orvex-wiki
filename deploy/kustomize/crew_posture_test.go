@@ -204,7 +204,7 @@ func TestCrewBillingURLUsesItsOwnInClusterService(t *testing.T) {
 			data := crewWikiEnv(t, renderCrewApplication(t, bin, kustomizeDir, branchSlug))
 			require.Equal(t,
 				"http://orvex-studio-billing.orvex-studio-billing-"+branchSlug+".svc.cluster.local:80",
-				data["ORVEX_BILLING_API_URL"],
+				data["ORVEX_BILLING_URL"],
 			)
 		})
 	}

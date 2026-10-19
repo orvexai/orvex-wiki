@@ -4,7 +4,7 @@
 # Seam 2 (rebaseline/cross-cutting.md): the frozen 402 QUOTA_EXCEEDED contract
 # ({error:'QUOTA_EXCEEDED',resource,limit}, thrown BEFORE any write) must be
 # live-exercisable on the target cell. DEFECT-1 found it inert because
-# ORVEX_MODULES_ENABLED was off and ORVEX_BILLING_API_URL unwired.
+# ORVEX_MODULES_ENABLED was off and ORVEX_BILLING_URL unwired.
 #
 # Legs (each emits PASS / FAIL / SKIPPED with the raw evidence inline):
 #   1. health         — GET /api/health is 200
@@ -83,9 +83,9 @@ if kubectl auth can-i create pods/exec -n "$NS" >/dev/null 2>&1 && \
    [ "$(kubectl auth can-i create pods/exec -n "$NS" 2>/dev/null)" = "yes" ]; then
   POD=$(kubectl get pods -n "$NS" -o name 2>/dev/null | grep -m1 docmost || true)
   if [ -n "$POD" ]; then
-    ENVOUT=$(kubectl exec -n "$NS" "${POD#pod/}" -- env 2>/dev/null | grep -Ei 'ORVEX_MODULES_ENABLED|ORVEX_BILLING_API_URL' || true)
+    ENVOUT=$(kubectl exec -n "$NS" "${POD#pod/}" -- env 2>/dev/null | grep -Ei 'ORVEX_MODULES_ENABLED|ORVEX_BILLING_URL' || true)
     say "$ENVOUT"
-    if grep -q 'ORVEX_MODULES_ENABLED=true' <<<"$ENVOUT" && grep -q 'ORVEX_BILLING_API_URL=' <<<"$ENVOUT"; then
+    if grep -q 'ORVEX_MODULES_ENABLED=true' <<<"$ENVOUT" && grep -q 'ORVEX_BILLING_URL=' <<<"$ENVOUT"; then
       say "LEG3: PASS"
     else
       say "LEG3: FAIL (keys missing on the running pod)"; FAILED=1
