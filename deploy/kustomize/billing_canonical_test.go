@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -47,9 +48,9 @@ func TestBillingCanonicalRejectsStalePatchAfterRealRender(t *testing.T) {
 			raw, err := os.ReadFile(path)
 			require.NoError(t, err)
 			// Insert inside the actual root component order, before replacements.
-			needle := "components:\n"
-			require.Equal(t, 1, strings.Count(string(raw), needle))
-			require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(raw), needle, needle+"  - components/"+component+"\n", 1)), 0o600))
+			components := regexp.MustCompile(`(?m)^components:\n(?:  - .*\n)+`)
+			require.True(t, components.Match(raw))
+			require.NoError(t, os.WriteFile(path, components.ReplaceAll(raw, []byte("${0}  - components/"+component+"\n")), 0o600))
 			path = filepath.Join(work, "components", component, "kustomization.yaml")
 			raw, err = os.ReadFile(path)
 			require.NoError(t, err)
