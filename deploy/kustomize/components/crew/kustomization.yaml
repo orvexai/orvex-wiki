@@ -197,16 +197,13 @@ patches:
       name: cluster-config
 
   # ── Siblings → this crew's own instances (crew → crew) + spine isolation ─
-  # ORVEX_<SVC>_URL, EVENT_TOPIC_SUFFIX, and KAFKA_OUTBOX_TOPIC are not root
-  # replacement targets, so these patches survive the build. Every sibling
-  # resolves to its crew host, and the explicitly configured outbox topic below
+  # The live sibling URLs and KAFKA_OUTBOX_TOPIC are not root replacement
+  # targets, so these patches survive the build. Each peer resolves to its
+  # crew Service, and the explicitly configured outbox topic below
   # is `wiki-events.crew-{name}` — independently configured from CELL_ID.
   # The engine runs no Temporal worker, so there
   # is no TEMPORAL_NAMESPACE to isolate here.
   - patch: |-
-      - op: replace
-        path: /data/EVENT_TOPIC_SUFFIX
-        value: PLACEHOLDER
       - op: replace
         path: /data/KAFKA_OUTBOX_TOPIC
         value: wiki-events.PLACEHOLDER
@@ -229,26 +226,11 @@ patches:
         path: /data/ORVEX_IDENTITY_URL
         value: http://orvex-studio-identity.IDENTITYNS.svc.cluster.local:80
       - op: replace
-        path: /data/ORVEX_KNOWLEDGE_URL
-        value: https://knowledge.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
-      - op: replace
-        path: /data/ORVEX_AI_URL
-        value: https://ai.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
-      - op: replace
         path: /data/ORVEX_BILLING_API_URL
         # HttpBillingEntitlementPort appends /v1/entitlements/{type}/{id};
         # billing's crew Service exposes HTTP on port 80. The namespace is
         # filled from cluster-config below, keeping each crew on its own cell.
         value: http://orvex-studio-billing.BILLINGNS.svc.cluster.local:80
-      - op: replace
-        path: /data/ORVEX_MCP_URL
-        value: https://mcp.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
-      - op: replace
-        path: /data/ORVEX_CONSOLE_URL
-        value: https://console.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
-      - op: replace
-        path: /data/ORVEX_WIKI_API_URL
-        value: https://wiki-api.PLACEHOLDER.orvex.dev  # cell-lint-allow: operator ruling 2026-07-06 (3b): crew-to-crew siblings ride the public ingress until the crew svc-DNS convention is pinned; publicly-needed URLs only
     target:
       kind: ConfigMap
       name: orvex-wiki-env
@@ -313,11 +295,6 @@ replacements:
           kind: ConfigMap
           name: orvex-wiki-env
         fieldPaths:
-          - data.EVENT_TOPIC_SUFFIX
-      - select:
-          kind: ConfigMap
-          name: orvex-wiki-env
-        fieldPaths:
           - data.KAFKA_OUTBOX_TOPIC
         options:
           delimiter: "."
@@ -327,11 +304,6 @@ replacements:
           name: orvex-wiki-env
         fieldPaths:
           - data.COLLAB_URL
-          - data.ORVEX_KNOWLEDGE_URL
-          - data.ORVEX_AI_URL
-          - data.ORVEX_MCP_URL
-          - data.ORVEX_CONSOLE_URL
-          - data.ORVEX_WIKI_API_URL
         options:
           delimiter: "."
           index: 1
