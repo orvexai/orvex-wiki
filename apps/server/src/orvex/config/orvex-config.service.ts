@@ -23,12 +23,10 @@ export const CELL_SOLO = 'solo';
  * service exposes ONLY the values that have a live consumer today —
  *   - gitSha / sourceRepo   -> OrvexSourceController (FR-W19 source offer)
  *   - identityUrl           -> SessionMintModule composition (RS256/JWKS)
- * The rest of the A-PORTABLE env surface (ORVEX_KNOWLEDGE/AI/BILLING/MCP/
- * CONSOLE/WIKI_API_URL, CELL_ID, CLUSTER_NAME, KAFKA_OUTBOX_TOPIC,
- * EVENT_TOPIC_SUFFIX) is already
- * deploy-documented in deploy/kustomize/app-manifests/configmap-env.yaml; each
- * getter is added HERE together with its first consumer at delivery — never
- * speculatively. (ORVEX_MODULES_ENABLED is read directly by
+ * Live cell and outbox inputs are deploy-documented in
+ * deploy/kustomize/app-manifests/configmap-env.yaml. Unused scaffold inputs
+ * are retired; each new getter arrives HERE with its first real consumer,
+ * never speculatively. (ORVEX_MODULES_ENABLED is read directly by
  * OrvexRootModule.register(), which runs before DI exists.)
  *
  * PURE: it reads only from an environment bag (defaults to `process.env`) and

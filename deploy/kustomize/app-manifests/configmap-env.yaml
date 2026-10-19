@@ -33,7 +33,7 @@ data:
   AWS_S3_FORCE_PATH_STYLE: "true"
 
   # ═══════════════════════════════════════════════════════════════════════
-  # Orvex TARGET config (scaffold). These keys are IGNORED by the vanilla
+  # Orvex module configuration. These keys are IGNORED by the vanilla
   # v0.95 engine — its env validation (environment.validation.ts) whitelists
   # only its own declared vars and drops unknown keys, so injecting these is
   # boot-safe. The additive orvex/* modules read them ONLY when
@@ -79,13 +79,6 @@ data:
   # re-typing the literal.
   CELL_TOKEN: "PLACEHOLDER_CELL_TOKEN"
 
-  # Event-spine crew-scoping (A-CELL rule #5). The engine is the first
-  # studio-spine producer; topics are {domain}-events.{suffix}. Base = the
-  # environment's own cell ID. The crew component separately patches
-  # KAFKA_OUTBOX_TOPIC to its crew-{name} Kafka spine. NOT a replacement target
-  # (a crew patch survives).
-  EVENT_TOPIC_SUFFIX: "solo"
-
   # ── Studio-spine producer: broker + topic (prod parity) ──────────────────
   # The OutboxRelayService (ENG-1383) is mounted UNCONDITIONALLY (carve-out-b,
   # like the migrator) — it does NOT ride the ORVEX_MODULES_ENABLED gate — so
@@ -114,8 +107,6 @@ data:
   # sibling's OWN crew host (crew → crew, crew-design.md). NOT replacement
   # targets, so overlay patches on them survive the build.
   ORVEX_IDENTITY_URL: "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local"
-  ORVEX_KNOWLEDGE_URL: "http://orvex-studio-knowledge.orvex-studio-knowledge.svc.cluster.local"
-  ORVEX_AI_URL: "http://orvex-studio-ai.orvex-studio-ai.svc.cluster.local"
   # Billing keys off the seam pattern deliberately: the live consumer is the
   # EntitlementModule's HttpBillingEntitlementPort, which reads ORVEX_BILLING_API_URL
   # (ENG-1382; environment.service.ts getBillingApiUrl) — so this base URL (billing's
@@ -123,9 +114,6 @@ data:
   # from the former dead ORVEX_BILLING_URL scaffold (no code ever read it) at the
   # ENG-1559 M5 billing-wire close — a single live key, no fallback.
   ORVEX_BILLING_API_URL: "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local"
-  ORVEX_MCP_URL: "http://orvex-studio-mcp.orvex-studio-mcp.svc.cluster.local"
-  ORVEX_CONSOLE_URL: "http://orvex-studio-console.orvex-studio-console.svc.cluster.local"
-  ORVEX_WIKI_API_URL: "http://orvex-wiki-api.orvex-wiki-api.svc.cluster.local"
 
   # NOT typed here: OTEL_EXPORTER_OTLP_ENDPOINT (ENG-1599 / AD-25 / ENG-3103).
   # A per-service manifest MUST NOT set it — "OTEL_EXPORTER_OTLP_ENDPOINT is
@@ -155,9 +143,9 @@ data:
   # (the mcp/ai/knowledge/console/wiki-api precedent's exact "lift to base"
   # failure mode) — but as of this commit EdgeAuthModule.register() is still
   # NEVER called anywhere in app.module.ts (ENG-3063 left it deliberately
-  # inert), so these two keys are IGNORED at runtime today, same as every
-  # other ORVEX_* scaffold key above (boot-safe, vanilla env validation drops
-  # unknown keys). See middleware-wiki-edge-forwardauth.yaml + httproute.yaml
+  # inert), so these two keys are IGNORED at runtime today (boot-safe,
+  # vanilla env validation drops unknown keys). See
+  # middleware-wiki-edge-forwardauth.yaml + httproute.yaml
   # for what DOES flip in this pass (the FA chain-shell attach on
   # `/internal`, additive-only) and why per-request verification of the
   # engine's own cookie-session product surface is explicitly NOT done here
