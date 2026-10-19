@@ -308,6 +308,17 @@ jobs:
         run: |
           docker pull postgres:16-alpine
           docker pull redis:7-alpine
+      # Billing config tests render the actual manifests; provision the same
+      # pinned tool as deploy-render-gate instead of relying on the runner image.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: deploy/kustomize/go.sum
+      - name: Install kustomize for mandatory billing render tests
+        run: |
+          GOBIN="$(go env GOPATH)/bin" go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/kustomize" version
       # test:ci excludes the 16 NAMED upstream never-green DI-scaffold specs
       # (upstream test debt, recorded in the foundation handoff). Full suite:
       # make test-server-full.
