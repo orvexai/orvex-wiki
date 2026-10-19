@@ -239,7 +239,7 @@ patches:
         path: /data/ORVEX_IDENTITY_URL
         value: http://orvex-studio-identity.orvex-studio-identity-dev.svc.cluster.local
       - op: replace
-        path: /data/ORVEX_BILLING_API_URL
+        path: /data/ORVEX_BILLING_URL
         value: http://orvex-studio-billing.orvex-studio-billing-dev.svc.cluster.local
     target:
       kind: ConfigMap

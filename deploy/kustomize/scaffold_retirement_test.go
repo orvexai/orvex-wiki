@@ -24,18 +24,18 @@ func wikiLiveInputs(profile string) map[string]string {
 		"APP_URL":    "https://wiki.eu1.orvex.ai",   // cell-lint-allow: test fixture pins the exact pre-retirement own public host
 		"COLLAB_URL": "https://collab.eu1.orvex.ai", // cell-lint-allow: test fixture pins the exact pre-retirement own collab host
 		"CELL_ID":    "eu1a", "CELL_TOKEN": "eu1", "CLUSTER_NAME": "eu-central-1",
-		"ORVEX_ENVIRONMENT":     "prod",
-		"ORVEX_IDENTITY_URL":    "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local",
-		"ORVEX_BILLING_API_URL": "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local",
-		"ORVEX_EDGE_ISSUER":     "https://identity.edge.orvex.internal/edge-authn",
-		"ORVEX_EDGE_JWKS_URL":   "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local/internal/jwks",
-		"KAFKA_OUTBOX_TOPIC":    "wiki-events.eu-central-1",
-		"KAFKA_BROKERS":         "platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092",
+		"ORVEX_ENVIRONMENT":   "prod",
+		"ORVEX_IDENTITY_URL":  "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local",
+		"ORVEX_BILLING_URL":   "http://orvex-studio-billing.orvex-studio-billing.svc.cluster.local",
+		"ORVEX_EDGE_ISSUER":   "https://identity.edge.orvex.internal/edge-authn",
+		"ORVEX_EDGE_JWKS_URL": "http://orvex-studio-identity.orvex-studio-identity.svc.cluster.local/internal/jwks",
+		"KAFKA_OUTBOX_TOPIC":  "wiki-events.eu-central-1",
+		"KAFKA_BROKERS":       "platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092",
 	}
 	if profile == "dev" {
 		want["COLLAB_URL"] = "https://collab.eu1.orvex.dev" // cell-lint-allow: test fixture pins the exact pre-retirement own dev collab host
 		want["ORVEX_IDENTITY_URL"] = "http://orvex-studio-identity.orvex-studio-identity-dev.svc.cluster.local"
-		want["ORVEX_BILLING_API_URL"] = "http://orvex-studio-billing.orvex-studio-billing-dev.svc.cluster.local"
+		want["ORVEX_BILLING_URL"] = "http://orvex-studio-billing.orvex-studio-billing-dev.svc.cluster.local"
 		want["ORVEX_EDGE_JWKS_URL"] = "http://orvex-studio-identity.orvex-studio-identity-dev.svc.cluster.local/internal/jwks"
 		want["KAFKA_OUTBOX_TOPIC"] = "wiki-events.dev.eu-central-1"
 	}
@@ -44,7 +44,7 @@ func wikiLiveInputs(profile string) map[string]string {
 		want["COLLAB_URL"] = "https://collab.crew-yafet.orvex.dev" // cell-lint-allow: test fixture pins the authorized crew's own collab host
 		want["CELL_ID"], want["ORVEX_ENVIRONMENT"] = "crew-yafet", "crew"
 		want["ORVEX_IDENTITY_URL"] = "http://orvex-studio-identity.orvex-studio-identity-crew-yafet.svc.cluster.local:80"
-		want["ORVEX_BILLING_API_URL"] = "http://orvex-studio-billing.orvex-studio-billing-crew-yafet.svc.cluster.local:80"
+		want["ORVEX_BILLING_URL"] = "http://orvex-studio-billing.orvex-studio-billing-crew-yafet.svc.cluster.local:80"
 		want["ORVEX_EDGE_JWKS_URL"] = "http://orvex-studio-identity.orvex-studio-identity-crew-yafet.svc.cluster.local/internal/jwks"
 		want["KAFKA_OUTBOX_TOPIC"] = "wiki-events.crew-yafet"
 		want["KAFKA_BROKERS"] = "platform-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093"
@@ -54,6 +54,9 @@ func wikiLiveInputs(profile string) map[string]string {
 }
 
 func validateWikiRetirement(data, want map[string]string) error {
+	if _, exists := data["ORVEX_BILLING_API_URL"]; exists {
+		return fmt.Errorf("retired application input ORVEX_BILLING_API_URL is still provided")
+	}
 	for _, key := range retiredWikiInputs {
 		if _, exists := data[key]; exists {
 			return fmt.Errorf("retired application input %s is still provided", key)
@@ -132,7 +135,7 @@ func TestWikiRetiresScaffoldsAcrossActualProfiles(t *testing.T) {
 			} else {
 				requireWikiConfigMapConsumed(t, rendered)
 			}
-			for _, key := range []string{"KAFKA_OUTBOX_TOPIC", "COLLAB_URL", "ORVEX_IDENTITY_URL", "ORVEX_BILLING_API_URL"} {
+			for _, key := range []string{"KAFKA_OUTBOX_TOPIC", "COLLAB_URL", "ORVEX_IDENTITY_URL", "ORVEX_BILLING_URL"} {
 				t.Run("changed-"+key, func(t *testing.T) {
 					changed := make(map[string]string, len(data))
 					for k, value := range data {
