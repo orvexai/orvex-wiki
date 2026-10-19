@@ -1,4 +1,52 @@
 import { OutboxRelayService } from './outbox-relay.service';
+import { OrvexConfigService } from '../../config/orvex-config.service';
+
+// Use the production config reader and the real relay's startup boundary;
+// retired scaffold inputs must neither be needed nor substitute for a topic.
+describe('OutboxRelayService configured topic without scaffold inputs', () => {
+  it.each([
+    'wiki-events.eu-central-1',
+    'wiki-events.dev.eu-central-1',
+    'wiki-events.crew-yafet',
+  ])('uses the explicitly provisioned %s through real config', async (topic) => {
+    const config = new OrvexConfigService({
+      CELL_ID: 'different-cell',
+      KAFKA_BROKERS: 'broker.synthetic.test:9092',
+      KAFKA_OUTBOX_TOPIC: `  ${topic}  `,
+    });
+    const fetchTopicPartitionCount = jest.fn().mockResolvedValue(1);
+    const relay = new OutboxRelayService(
+      {} as never,
+      { fetchTopicPartitionCount } as never,
+      config,
+    );
+    await expect(relay.assertPerCellTopicShape()).resolves.toEqual({ ok: true });
+    expect(fetchTopicPartitionCount).toHaveBeenCalledWith(topic);
+  });
+
+  it.each([undefined, '', '  '])(
+    'denies absent/blank topic %p even with a retired suffix and cell',
+    async (topic) => {
+      const config = new OrvexConfigService({
+        CELL_ID: 'crew-yafet',
+        EVENT_TOPIC_SUFFIX: 'crew-yafet',
+        KAFKA_BROKERS: 'broker.synthetic.test:9092',
+        KAFKA_OUTBOX_TOPIC: topic,
+      });
+      const fetchTopicPartitionCount = jest.fn();
+      const relay = new OutboxRelayService(
+        {} as never,
+        { fetchTopicPartitionCount } as never,
+        config,
+      );
+      await expect(relay.assertPerCellTopicShape()).resolves.toEqual({
+        ok: false,
+        reason: expect.stringContaining('KAFKA_OUTBOX_TOPIC is required'),
+      });
+      expect(fetchTopicPartitionCount).not.toHaveBeenCalled();
+    },
+  );
+});
 
 describe('OutboxRelayService polling backoff', () => {
   afterEach(() => {

@@ -21,8 +21,8 @@ import { DbFreeAuditKyselyStubModule } from './__fixtures__/db-free-root-module-
  *  AC2  — wiki-api fronts all programmatic access; the engine carries no
  *         agent-facing residual — CONSUMED from the ENG-1481 shed gate
  *         (mcp-surface-shed-at-parity.spec.ts), not re-derived.
- *  AC3  — every platform dependency is a deploy-CONFIGURED URL: all seven
- *         `ORVEX_*_URL` keys present in the committed manifest as
+ *  AC3  — every live platform dependency is a deploy-CONFIGURED URL: the
+ *         two live URL keys are present in the committed manifest as
  *         cluster-local DNS (never a literal IP), no `studio`-hardcoded URL
  *         in production code, and the engine's own getter surface honours
  *         MINIMIZE-SURFACE (the five unwired keys have ZERO production
@@ -55,14 +55,9 @@ const MANIFEST = join(
   'configmap-env.yaml',
 );
 
-const SEVEN_PLATFORM_URL_KEYS = [
+const LIVE_PLATFORM_URL_KEYS = [
   'ORVEX_IDENTITY_URL',
-  'ORVEX_KNOWLEDGE_URL',
-  'ORVEX_AI_URL',
   'ORVEX_BILLING_API_URL',
-  'ORVEX_MCP_URL',
-  'ORVEX_CONSOLE_URL',
-  'ORVEX_WIKI_API_URL',
 ] as const;
 
 // The five keys with deliberately NO engine-side consumer yet
@@ -191,9 +186,9 @@ describe('TestEngineHasNoSwaggerAndDegradesGracefully (ENG-2508)', () => {
     expect(prodFilesContaining(SERVER_SRC, "@Controller('docs')")).toEqual([]);
   });
 
-  it('AC3 (deploy side) — all seven platform-URL keys are committed as cluster-local DNS, never a literal IP', () => {
+  it('AC3 (deploy side) — two live URLs use cluster-local DNS and five retired scaffold providers stay absent', () => {
     const manifest = readFileSync(MANIFEST, 'utf8');
-    for (const key of SEVEN_PLATFORM_URL_KEYS) {
+    for (const key of LIVE_PLATFORM_URL_KEYS) {
       const match = manifest.match(
         new RegExp(`^\\s*${key}:\\s*"([^"]+)"`, 'm'),
       );
@@ -202,6 +197,9 @@ describe('TestEngineHasNoSwaggerAndDegradesGracefully (ENG-2508)', () => {
       expect(value).toMatch(/^http:\/\//);
       expect(value).toContain('.svc.cluster.local');
       expect(value).not.toMatch(/\d+\.\d+\.\d+\.\d+/); // no literal IP
+    }
+    for (const key of FIVE_UNWIRED_KEYS) {
+      expect(manifest).not.toMatch(new RegExp(`^\\s*${key}:`, 'm'));
     }
   });
 
