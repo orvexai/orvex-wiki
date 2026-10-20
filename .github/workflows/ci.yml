@@ -53,6 +53,7 @@ on:
     branches:
       - main
       - dev
+      - crew/**
 
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
