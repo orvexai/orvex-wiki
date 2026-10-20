@@ -33,9 +33,8 @@ class TestableGuard extends WorkspaceThrottlerGuard {
   }
 }
 
-function buildGuard(): TestableGuard {
+function buildGuard(storageService = { increment: jest.fn() }): TestableGuard {
   const options = { throttlers: [{ name: AI_CHAT_THROTTLER, ttl: 60_000, limit: 180 }] };
-  const storageService = { increment: jest.fn() };
   const reflector = { getAllAndOverride: jest.fn() };
   return new TestableGuard(
     options as never,
@@ -157,6 +156,109 @@ describe('WorkspaceThrottlerGuard', () => {
         expect.objectContaining({ limit: 180 }),
       );
       superHandleRequestSpy.mockRestore();
+    });
+  });
+
+  describe('retry-after timing', () => {
+    it('refuses requests during the throttle window with 429 + Retry-After, then accepts after expiry', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-10-20T12:00:00.000Z'));
+
+      try {
+        const windows = new Map<
+          string,
+          { expiresAt: number; blockedUntil: number; totalHits: number }
+        >();
+        const storageService = {
+          increment: jest.fn(
+            async (
+              key: string,
+              ttl: number,
+              limit: number,
+              blockDuration: number,
+            ) => {
+              const now = Date.now();
+              let window = windows.get(key);
+              if (!window || window.expiresAt <= now) {
+                window = {
+                  expiresAt: now + ttl,
+                  blockedUntil: 0,
+                  totalHits: 0,
+                };
+              }
+
+              window.totalHits += 1;
+              if (window.totalHits > limit && window.blockedUntil <= now) {
+                window.blockedUntil = now + blockDuration;
+              }
+              windows.set(key, window);
+
+              return {
+                totalHits: window.totalHits,
+                timeToExpire: Math.max(0, window.expiresAt - now),
+                isBlocked:
+                  window.blockedUntil > now || window.totalHits > limit,
+                timeToBlockExpire: Math.max(0, window.blockedUntil - now),
+              };
+            },
+          ),
+        };
+        const guard = buildGuard(storageService);
+        await guard.onModuleInit();
+        const headerSpy = jest.fn();
+        const req = {
+          user: {
+            workspace: {
+              id: 'ws-retry',
+              settings: { ai: { throttle: { chatRpm: 1 } } },
+            },
+          },
+        };
+        const context = fakeContext(req, { header: headerSpy });
+        const requestProps = {
+          context,
+          limit: 180,
+          ttl: 1_000,
+          throttler: {
+            name: AI_CHAT_THROTTLER,
+            limit: 180,
+            ttl: 1_000,
+            setHeaders: false,
+          },
+          blockDuration: 1_000,
+          getTracker: jest.fn(async () => 'workspace:ws-retry'),
+          generateKey: jest.fn(() => 'workspace:ws-retry:retry-window'),
+        } as unknown as ThrottlerRequest;
+
+        await expect(guard.testHandleRequest(requestProps)).resolves.toBe(true);
+
+        let caught: unknown;
+        try {
+          await guard.testHandleRequest(requestProps);
+        } catch (err) {
+          caught = err;
+        }
+
+        expect(caught).toBeDefined();
+        const httpException = caught as {
+          getStatus(): number;
+          getResponse(): unknown;
+        };
+        expect(httpException.getStatus()).toBe(429);
+        expect(httpException.getResponse()).toMatchObject({
+          error: 'RATE_LIMITED',
+          retryAfter: 1_000,
+          limit: 1,
+          ttl: 1_000,
+        });
+        expect(headerSpy).toHaveBeenCalledWith('Retry-After', '1000');
+
+        jest.advanceTimersByTime(1_000);
+        await expect(guard.testHandleRequest(requestProps)).resolves.toBe(true);
+        expect(storageService.increment).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
