@@ -522,6 +522,7 @@ paths:
           $ref: '#/components/responses/TenantMoveStepAccepted'
         '401':
           $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized — bearer must resolve to an active MACHINE principal.
         '501':
           description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
           content:
@@ -554,6 +555,7 @@ paths:
           $ref: '#/components/responses/TenantMoveStepAccepted'
         '401':
           $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized — bearer must resolve to an active MACHINE principal.
         '501':
           description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
           content:
@@ -585,6 +587,7 @@ paths:
           $ref: '#/components/responses/TenantMoveStepAccepted'
         '401':
           $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized — bearer must resolve to an active MACHINE principal.
         '501':
           description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
           content:
@@ -618,6 +621,7 @@ paths:
           $ref: '#/components/responses/TenantMoveStepAccepted'
         '401':
           $ref: '#/components/responses/Unauthorized'
+          description: Unauthorized — bearer must resolve to an active MACHINE principal.
         '501':
           description: TODAY — typed day-1 contract, deliberately 501. Typed sentinel.
           content:
