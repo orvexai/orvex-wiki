@@ -4,6 +4,7 @@
 
 import { randomBytes } from 'crypto';
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   Inject,
@@ -510,12 +511,28 @@ export class PrincipalProvisioningService {
               code: 'TENANT_NOT_REGISTERED',
               message: `tenant ${tenant} has no cell binding in the global registry`,
             });
-          default:
+          case 'AUTH_FAILED':
+            throw new BadGatewayException({
+              code: 'AUTH_FAILED',
+              message: 'the global identity registry rejected the engine credential',
+            });
+          case 'DEPENDENCY_ERROR':
             throw new ServiceUnavailableException({
               code: 'REGISTRY_UNAVAILABLE',
               message: `the global identity registry could not adjudicate tenant ${tenant}`,
             });
+          case 'UNKNOWN_CELL':
+          case 'STALE_MOVE':
+            // These codes are not part of reserveTenant's contract. If identity
+            // returns one here, expose the contract violation as a non-retryable
+            // upstream failure instead of disguising it as an outage.
+            throw new BadGatewayException({
+              code: err.code,
+              message: 'the global identity registry returned an unexpected reservation error',
+            });
         }
+        const exhaustiveCheck: never = err.code;
+        throw new Error(`unhandled registry error code: ${exhaustiveCheck}`);
       }
       throw err;
     }

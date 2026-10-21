@@ -83,7 +83,10 @@ export class InternalApiController {
    * an unknown workspace (404) UNLESS `provision_workspace` vouches for the
    * identity-issued UUID, in which case the workspace is get-or-created
    * atomically with this principal (ENG-1559 R6). The read path is untouched and
-   * still fails closed for any not-yet-provisioned subject.
+ * still fails closed for any not-yet-provisioned subject. Registry reservation
+ * failures preserve their retry semantics: `AUTH_FAILED` and unexpected
+ * reservation codes return 502, `DEPENDENCY_ERROR` returns 503, and the
+ * reservation conflict / missing-registration cases remain 409.
    */
   @SkipTransform()
   @HttpCode(HttpStatus.OK)
