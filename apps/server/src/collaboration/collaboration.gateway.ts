@@ -25,7 +25,7 @@ import {
   CollabEventHandlers,
 } from './collaboration.handler';
 import { CollaborationCellExtension } from '../common/cell-isolation/collaboration-cell.extension';
-import { awaitRedisSubscription } from '../orvex/collaboration/await-redis-subscription';
+import { awaitRedisSyncSubscription } from '../orvex/collaboration/await-redis-subscription';
 
 interface CollabWsLifecycle {
   close(): void;
@@ -97,14 +97,11 @@ export class CollaborationGateway implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     if (this.redisSync) {
-      const subscriptionClient = (
-        this.redisSync as unknown as { sub: RedisClient }
-      ).sub;
       // RedisSyncExtension starts this subscription in its constructor without
       // exposing its promise. Repeating SUBSCRIBE is idempotent and lets us
       // await Redis's acknowledgement before Nest marks the app initialized.
-      await awaitRedisSubscription(
-        subscriptionClient,
+      await awaitRedisSyncSubscription(
+        this.redisSync,
         'collabMsg',
         `collabMsg:${this.redisSyncServerId}`,
       );
