@@ -1,9 +1,8 @@
 import RedisClient from 'ioredis';
-import { Hocuspocus, onConfigurePayload } from '@hocuspocus/server';
-import { RedisSyncExtension } from './redis-sync.extension';
+import { awaitRedisSubscription } from '../../../orvex/collaboration/await-redis-subscription';
 
-describe('RedisSyncExtension startup', () => {
-  it('waits for its initial Redis subscription before configuration completes', async () => {
+describe('awaitRedisSubscription', () => {
+  it('does not complete until Redis acknowledges all requested channels', async () => {
     let resolveSubscribe!: (count: number) => void;
     const subscribe = jest.fn(
       () =>
@@ -11,37 +10,23 @@ describe('RedisSyncExtension startup', () => {
           resolveSubscribe = resolve;
         }),
     );
-    const pub = {
-      on: jest.fn(),
-      disconnect: jest.fn(),
-    };
-    const sub = {
-      on: jest.fn(),
-      subscribe,
-      disconnect: jest.fn(),
-    };
-    const redis = {
-      duplicate: jest.fn().mockReturnValueOnce(pub).mockReturnValueOnce(sub),
-    };
-    const extension = new RedisSyncExtension({
-      redis: redis as unknown as RedisClient,
-      pack: jest.fn() as any,
-      unpack: jest.fn() as any,
-      serverId: 'test-server',
-    });
-    let configureCompleted = false;
+    const redis = { subscribe } as unknown as RedisClient;
+    let completed = false;
 
-    const configure = extension
-      .onConfigure({ instance: {} as Hocuspocus } as onConfigurePayload)
-      .then(() => {
-        configureCompleted = true;
-      });
+    const subscription = awaitRedisSubscription(
+      redis,
+      'collabMsg',
+      'collabMsg:test-server',
+    ).then(() => {
+      completed = true;
+    });
 
     await Promise.resolve();
-    expect(configureCompleted).toBe(false);
+    expect(subscribe).toHaveBeenCalledWith('collabMsg', 'collabMsg:test-server');
+    expect(completed).toBe(false);
 
     resolveSubscribe(2);
-    await configure;
-    expect(configureCompleted).toBe(true);
+    await subscription;
+    expect(completed).toBe(true);
   });
 });

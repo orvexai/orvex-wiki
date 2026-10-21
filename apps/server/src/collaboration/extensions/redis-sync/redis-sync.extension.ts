@@ -36,7 +36,6 @@ export class RedisSyncExtension<TCE extends CustomEvents> implements Extension {
   priority = 1000;
   private readonly pub: RedisClient;
   private sub: RedisClient;
-  private readonly subscription: Promise<unknown>;
   private readonly pack: Pack;
   private readonly unpack: Unpack;
   private originSockets: Record<SocketId, BaseWebSocket> = {};
@@ -78,10 +77,7 @@ export class RedisSyncExtension<TCE extends CustomEvents> implements Extension {
     this.lockPrefix = `${this.prefix}Lock`;
     this.msgChannel = `${this.prefix}Msg`;
     this.customEvents = (customEvents as any) ?? ({} as any as CustomEvents);
-    this.subscription = this.sub.subscribe(
-      this.msgChannel,
-      `${this.msgChannel}:${this.serverId}`,
-    );
+    this.sub.subscribe(this.msgChannel, `${this.msgChannel}:${this.serverId}`);
     this.sub.on('messageBuffer', this.handleRedisMessage);
     this.pub.on('error', () => {});
     this.sub.on('error', () => {});
@@ -358,7 +354,6 @@ export class RedisSyncExtension<TCE extends CustomEvents> implements Extension {
 
   /* Hocuspocus hooks */
   async onConfigure({ instance }: onConfigurePayload) {
-    await this.subscription;
     this.instance = instance;
   }
 
