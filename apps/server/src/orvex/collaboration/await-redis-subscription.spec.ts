@@ -1,5 +1,5 @@
 import RedisClient from 'ioredis';
-import { awaitRedisSyncSubscription } from '../../../orvex/collaboration/await-redis-subscription';
+import { awaitRedisSyncSubscription } from './await-redis-subscription';
 
 describe('awaitRedisSyncSubscription adapter', () => {
   it('does not complete until Redis acknowledges all requested channels', async () => {
