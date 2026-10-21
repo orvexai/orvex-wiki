@@ -10,12 +10,18 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 
 import { SkipTransform } from '../../common/decorators/skip-transform.decorator';
 import { OrvexNotImplementedException } from '../not-implemented';
 import { TenantCellMoveRequestDto } from './dto/tenant-cell-move.dto';
 import { TenantMoveManifestDto } from './dto/tenant-move-manifest.dto';
+import {
+  TenantMoveMachinePrincipalGuard,
+  TenantMoveRequest,
+} from './tenant-move-machine-principal.guard';
 import {
   OrvexTenantCellMoveService,
   TenantCellMoveResult,
@@ -51,10 +57,11 @@ function requireIdempotencyKey(value: string | undefined): void {
  *
  * Classified noop-501: the typed manifest contract + the mandatory
  * Idempotency-Key header are day-1 (a 501 stub is 5 lines; a typed contract is
- * not), but the step LOGIC is not wired. Each handler validates the header FIRST
- * (400 without it) and only THEN throws the typed sentinel.
+ * not), but the step LOGIC is not wired. The shared machine guard runs before
+ * each handler checks Idempotency-Key (400 without it) and throws the sentinel.
  */
 @Controller('orvex/tenant-move')
+@UseGuards(TenantMoveMachinePrincipalGuard)
 export class OrvexTenantMoveController {
   constructor(private readonly cellMoveService: OrvexTenantCellMoveService) {}
 
@@ -79,11 +86,13 @@ export class OrvexTenantMoveController {
     @Headers('authorization') authorization: string | undefined,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Body() dto: TenantCellMoveRequestDto,
+    @Req() request: TenantMoveRequest,
   ): Promise<TenantCellMoveResult> {
     return this.cellMoveService.moveCell(
       bearerFromHeader(authorization),
       dto,
       idempotencyKey ?? null,
+      request.tenantMovePrincipal,
     );
   }
 

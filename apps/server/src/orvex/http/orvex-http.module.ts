@@ -17,6 +17,7 @@ import {
 } from './orvex-identity-registry.module';
 import { OrvexSourceController } from './orvex-source.controller';
 import { OrvexTenantMoveController } from './orvex-tenant-move.controller';
+import { TenantMoveMachinePrincipalGuard } from './tenant-move-machine-principal.guard';
 import {
   OrvexTenantCellMoveService,
   TENANT_MOVE_INTROSPECTOR,
@@ -86,6 +87,7 @@ function composeTenantMoveIntrospector(
   ],
   providers: [
     OrvexTenantCellMoveService,
+    TenantMoveMachinePrincipalGuard,
     {
       provide: TENANT_MOVE_INTROSPECTOR,
       useFactory: (config: OrvexConfigService): IdentityIntrospector =>
