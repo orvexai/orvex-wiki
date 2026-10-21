@@ -2,7 +2,7 @@ module github.com/orvexai/orvex-wiki/deploy/kustomize
 
 go 1.26.0
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/stretchr/testify v1.11.1
