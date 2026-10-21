@@ -313,7 +313,7 @@ jobs:
       # pinned tool as deploy-render-gate instead of relying on the runner image.
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
           cache-dependency-path: deploy/kustomize/go.sum
       - name: Install kustomize for mandatory billing render tests
         run: |
@@ -372,7 +372,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
           cache-dependency-path: tests/smoke/go.sum
       - name: gofmt clean
         working-directory: tests/smoke
@@ -426,7 +426,7 @@ jobs:
           cache: 'pnpm'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
           cache-dependency-path: tests/smoke/go.sum
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -592,7 +592,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
       - name: Install kustomize + kubeconform
         run: |
           go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
@@ -631,7 +631,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
           cache-dependency-path: deploy/kustomize/go.sum
       - name: Install kustomize
         run: go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
@@ -998,7 +998,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
       - name: Install kustomize + kubeconform
         run: |
           go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1
@@ -1022,7 +1022,7 @@ jobs:
           cache: 'pnpm'
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
           cache-dependency-path: tests/smoke/go.sum
       # PINNED, not inherited: scripts/ci/osv-gate.py parses the exception
       # ledger with `tomllib`, which is stdlib only from 3.11. The runner
@@ -1102,7 +1102,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.26.10'
       - name: Install actionlint
         run: go install github.com/rhysd/actionlint/cmd/actionlint@latest
       - name: Run actionlint
