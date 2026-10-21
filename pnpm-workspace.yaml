@@ -133,7 +133,7 @@ overrides:
   handlebars: 4.7.10
   axios: 1.20.0
   langsmith: 0.7.0
-  follow-redirects: 1.16.0
+  follow-redirects: 1.16.1
   protobufjs: 7.6.5
   ip-address: 10.1.1
   # fast-uri: GHSA-5jgf-p345-68v8, GHSA-f65p-4m7j-42xc, GHSA-fph4-wmhf-6fwf,
