@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { RedisThrottleStorageService } from './redis-throttle-storage.service';
 import { EnvironmentService } from '../environment/environment.service';
 import { EnvironmentModule } from '../environment/environment.module';
 import { parseRedisUrl } from '../../common/helpers';
@@ -52,7 +53,7 @@ const THROTTLE_REGISTRATIONS: Record<string, { ttl: number; limit: number }> =
       provide: ThrottlerStorageRedisService,
       useFactory: (environmentService: EnvironmentService) => {
         const redisConfig = parseRedisUrl(environmentService.getRedisUrl());
-        return new ThrottlerStorageRedisService({
+        return new RedisThrottleStorageService({
           host: redisConfig.host,
           port: redisConfig.port,
           password: redisConfig.password,

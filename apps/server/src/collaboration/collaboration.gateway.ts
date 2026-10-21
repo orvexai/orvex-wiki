@@ -1,9 +1,9 @@
-import { Hocuspocus } from '@hocuspocus/server';
+import { Hocuspocus, onConfigurePayload } from '@hocuspocus/server';
 import { IncomingMessage } from 'http';
 import WebSocket from 'ws';
 import { AuthenticationExtension } from './extensions/authentication.extension';
 import { PersistenceExtension } from './extensions/persistence.extension';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EnvironmentService } from '../integrations/environment/environment.service';
 import {
   createRetryStrategy,
@@ -31,7 +31,7 @@ interface CollabWsLifecycle {
 }
 
 @Injectable()
-export class CollaborationGateway {
+export class CollaborationGateway implements OnModuleInit {
   private readonly hocuspocus: Hocuspocus;
   private redisConfig: RedisConfig;
   // @ts-ignore
@@ -90,8 +90,14 @@ export class CollaborationGateway {
         customEvents: this.collabEventsService.getHandlers(this.hocuspocus),
       });
       this.hocuspocus.configuration.extensions.push(this.redisSync);
-      // @ts-ignore
-      this.redisSync.onConfigure({ instance: this.hocuspocus });
+    }
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (this.redisSync) {
+      await this.redisSync.onConfigure({
+        instance: this.hocuspocus,
+      } as onConfigurePayload);
     }
   }
 
