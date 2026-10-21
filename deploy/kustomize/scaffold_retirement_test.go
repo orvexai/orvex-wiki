@@ -42,7 +42,7 @@ func wikiLiveInputs(profile string) map[string]string {
 	if strings.HasPrefix(profile, "crew") {
 		want["APP_URL"] = "https://wiki.crew-yafet.orvex.dev"      // cell-lint-allow: test fixture pins the authorized crew's own public host
 		want["COLLAB_URL"] = "https://collab.crew-yafet.orvex.dev" // cell-lint-allow: test fixture pins the authorized crew's own collab host
-		want["CELL_ID"], want["ORVEX_ENVIRONMENT"] = "crew-yafet", "crew"
+		want["CELL_ID"], want["ORVEX_ENVIRONMENT"] = "solo", "crew"
 		want["ORVEX_IDENTITY_URL"] = "http://orvex-studio-identity.orvex-studio-identity-crew-yafet.svc.cluster.local:80"
 		want["ORVEX_BILLING_URL"] = "http://orvex-studio-billing.orvex-studio-billing-crew-yafet.svc.cluster.local:80"
 		want["ORVEX_EDGE_JWKS_URL"] = "http://orvex-studio-identity.orvex-studio-identity-crew-yafet.svc.cluster.local/internal/jwks"
