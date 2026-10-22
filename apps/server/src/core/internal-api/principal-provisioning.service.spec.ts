@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ConflictException,
   HttpException,
   ServiceUnavailableException,
@@ -119,8 +120,8 @@ describe('PrincipalProvisioningService registry transaction boundary', () => {
       },
       {
         code: 'UNKNOWN_CELL' as const,
-        exception: BadGatewayException,
-        status: 502,
+        exception: BadRequestException,
+        status: 400,
         responseCode: 'UNKNOWN_CELL',
       },
       {
