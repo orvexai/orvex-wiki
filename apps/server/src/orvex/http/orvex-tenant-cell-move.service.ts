@@ -14,7 +14,10 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
-import { IdentityIntrospector } from '../../core/session-mint/identity-introspector';
+import {
+  IdentityIntrospector,
+  IntrospectedPrincipal,
+} from '../../core/session-mint/identity-introspector';
 import {
   IdentityRegistryClient,
   RegistryClientError,
@@ -125,13 +128,12 @@ export class OrvexTenantCellMoveService {
     bearer: string | null,
     dto: TenantCellMoveRequestDto,
     idempotencyKey: string | null,
+    verifiedPrincipal?: IntrospectedPrincipal,
   ): Promise<TenantCellMoveResult> {
     // 1 · AUTHN — deny-by-default, machine-only.
-    if (!bearer) {
-      throw new UnauthorizedException('bearer token required');
-    }
-    const principal = await this.introspector.introspect(bearer);
-    if (!principal || !principal.subject.startsWith(SVC_SUBJECT_PREFIX)) {
+    const principal =
+      verifiedPrincipal ?? (await this.assertMachinePrincipal(bearer));
+    if (!principal.subject.startsWith(SVC_SUBJECT_PREFIX)) {
       this.logger.warn(
         'tenant-move denied: bearer not active or not a machine principal',
       );
@@ -183,6 +185,23 @@ export class OrvexTenantCellMoveService {
       targetCellHasData,
       status: resolved.status || 'unknown',
     };
+  }
+
+  /** Shared deny-by-default machine check used by the route guard and service. */
+  async assertMachinePrincipal(
+    bearer: string | null,
+  ): Promise<IntrospectedPrincipal> {
+    if (!bearer) {
+      throw new UnauthorizedException('bearer token required');
+    }
+    const principal = await this.introspector.introspect(bearer);
+    if (!principal || !principal.subject.startsWith(SVC_SUBJECT_PREFIX)) {
+      this.logger.warn(
+        'tenant-move denied: bearer not active or not a machine principal',
+      );
+      throw new UnauthorizedException('bearer rejected');
+    }
+    return principal;
   }
 
   private mapRegistryError(err: unknown, step: 'move' | 'verify'): Error {

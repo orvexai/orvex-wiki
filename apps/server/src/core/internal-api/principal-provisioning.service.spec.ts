@@ -1,4 +1,10 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { acquireWorkspaceProvisionLock, executeTx } from '@docmost/db/utils';
 import { withTenantScopedTransaction } from '@docmost/db/rls/rls-guc-hook';
 import { RegistryClientError } from '../../orvex/http/identity-registry-client';
@@ -84,5 +90,91 @@ describe('PrincipalProvisioningService registry transaction boundary', () => {
 
     expect(registryClient.reserveTenant).toHaveBeenCalledTimes(1);
     expect(executeTx).not.toHaveBeenCalled();
+  });
+
+  it('maps every reserve registry error without folding authentication failures into outages', async () => {
+    const cases = [
+      {
+        code: 'AUTH_FAILED' as const,
+        exception: BadGatewayException,
+        status: 502,
+        responseCode: 'AUTH_FAILED',
+      },
+      {
+        code: 'DEPENDENCY_ERROR' as const,
+        exception: ServiceUnavailableException,
+        status: 503,
+        responseCode: 'REGISTRY_UNAVAILABLE',
+      },
+      {
+        code: 'TENANT_ALREADY_RESERVED' as const,
+        exception: ConflictException,
+        status: 409,
+        responseCode: 'TENANT_ALREADY_RESERVED',
+      },
+      {
+        code: 'NOT_FOUND' as const,
+        exception: ConflictException,
+        status: 409,
+        responseCode: 'TENANT_NOT_REGISTERED',
+      },
+      {
+        code: 'UNKNOWN_CELL' as const,
+        exception: BadRequestException,
+        status: 400,
+        responseCode: 'UNKNOWN_CELL',
+      },
+      {
+        code: 'STALE_MOVE' as const,
+        exception: BadGatewayException,
+        status: 502,
+        responseCode: 'STALE_MOVE',
+      },
+    ];
+
+    for (const errorCase of cases) {
+      (executeTx as jest.Mock).mockReset();
+      (withTenantScopedTransaction as jest.Mock).mockReset();
+      (acquireWorkspaceProvisionLock as jest.Mock).mockReset();
+      const registryClient = {
+        moveTenantCell: jest.fn(),
+        resolveTenantCell: jest.fn(),
+        reserveTenant: jest.fn(async () => {
+          throw new RegistryClientError(errorCase.code, 'synthetic registry failure');
+        }),
+      };
+      const service = new PrincipalProvisioningService(
+        {} as never,
+        {} as never,
+        { findById: jest.fn().mockResolvedValue(undefined) } as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        registryClient as never,
+        {} as never,
+      );
+
+      let caught: unknown;
+      try {
+        await service.provision({
+          subject: 'test-subject',
+          tenant: tenantId,
+          email: 'test@example.invalid',
+          provisionWorkspace: true,
+        });
+      } catch (err) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(errorCase.exception);
+      expect((caught as HttpException).getStatus()).toBe(errorCase.status);
+      expect((caught as HttpException).getResponse()).toMatchObject({
+        code: errorCase.responseCode,
+      });
+    }
   });
 });

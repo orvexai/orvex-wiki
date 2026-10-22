@@ -4,6 +4,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
+import RedisClient from 'ioredis';
 import { resolveGlobalPrefixExclude } from '../../src/orvex/http/orvex-global-prefix-exclude';
 import { startTestDatabase, TestDb } from './db-test-harness';
 
@@ -23,6 +24,7 @@ describe('TestEngineHasNoSwaggerAndDegradesGracefully — AC1 over the FULL app 
   let testDb: TestDb;
   let redisContainer: StartedTestContainer;
   let app: NestFastifyApplication;
+  let appInitWaitedForCollaborationSubscription = false;
   const routes: string[] = [];
 
   beforeAll(async () => {
@@ -38,23 +40,76 @@ describe('TestEngineHasNoSwaggerAndDegradesGracefully — AC1 over the FULL app 
     process.env.APP_URL = 'http://localhost:3000';
     process.env.ORVEX_MODULES_ENABLED = 'true';
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { AppModule } = require('../../src/app.module');
-    const built = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-    app = built.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
-    app.setGlobalPrefix('api', { exclude: resolveGlobalPrefixExclude() });
-    app
-      .getHttpAdapter()
-      .getInstance()
-      .addHook('onRoute', (r) => {
-        routes.push(`${String(r.method)} ${r.url}`);
+    let releaseSubscription!: () => void;
+    const subscriptionHold = new Promise<void>((resolve) => {
+      releaseSubscription = resolve;
+    });
+    let signalSubscriptionAck!: () => void;
+    const subscriptionAcked = new Promise<void>((resolve) => {
+      signalSubscriptionAck = resolve;
+    });
+    const originalSubscribe = RedisClient.prototype.subscribe;
+    const subscribeSpy = jest
+      .spyOn(RedisClient.prototype, 'subscribe')
+      .mockImplementation(function (this: RedisClient, ...args: any[]) {
+        const command = originalSubscribe.apply(this, args as any);
+        if (!args.includes('collabMsg')) return command;
+        return command.then(async (count) => {
+          signalSubscriptionAck();
+          await subscriptionHold;
+          return count;
+        });
       });
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { AppModule } = require('../../src/app.module');
+      const built = await Test.createTestingModule({
+        imports: [AppModule],
+      }).compile();
+      app = built.createNestApplication<NestFastifyApplication>(
+        new FastifyAdapter(),
+      );
+      app.setGlobalPrefix('api', { exclude: resolveGlobalPrefixExclude() });
+      app
+        .getHttpAdapter()
+        .getInstance()
+        .addHook('onRoute', (r) => {
+          routes.push(`${String(r.method)} ${r.url}`);
+        });
+
+      const initialization = app.init();
+      let acknowledgementTimeout: NodeJS.Timeout | undefined;
+      const acknowledgementResult = await Promise.race([
+        subscriptionAcked.then(() => 'acknowledged' as const),
+        initialization.then(() => 'initialized' as const),
+        new Promise<'timeout'>((resolve) => {
+          acknowledgementTimeout = setTimeout(() => resolve('timeout'), 10_000);
+        }),
+      ]);
+      if (acknowledgementTimeout) clearTimeout(acknowledgementTimeout);
+      if (acknowledgementResult !== 'acknowledged') {
+        throw new Error(
+          `Collaboration Redis SUBSCRIBE did not reach its acknowledgement before app.init(): ${acknowledgementResult}`,
+        );
+      }
+
+      let initTimeout: NodeJS.Timeout | undefined;
+      const initResult = await Promise.race([
+        initialization.then(() => 'initialized' as const),
+        new Promise<'waiting'>((resolve) => {
+          initTimeout = setTimeout(() => resolve('waiting'), 1000);
+        }),
+      ]);
+      if (initTimeout) clearTimeout(initTimeout);
+      appInitWaitedForCollaborationSubscription = initResult === 'waiting';
+      releaseSubscription();
+      await initialization;
+      await app.getHttpAdapter().getInstance().ready();
+    } finally {
+      releaseSubscription();
+      subscribeSpy.mockRestore();
+    }
   });
 
   afterAll(async () => {
@@ -71,6 +126,10 @@ describe('TestEngineHasNoSwaggerAndDegradesGracefully — AC1 over the FULL app 
 
     const offenders = unique.filter((r) => /docs|swagger|openapi/i.test(r));
     expect(offenders).toEqual([]);
+  });
+
+  it('does not resolve the real app.init() while the collaboration Redis SUBSCRIBE acknowledgement is in flight', () => {
+    expect(appInitWaitedForCollaborationSubscription).toBe(true);
   });
 
   it('the route table proves it spans the CORE controllers, not just the orvex subtree (guards the scope the unit gate misses)', () => {

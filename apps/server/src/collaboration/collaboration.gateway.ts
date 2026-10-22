@@ -1,9 +1,9 @@
-import { Hocuspocus } from '@hocuspocus/server';
+import { Hocuspocus, onConfigurePayload } from '@hocuspocus/server';
 import { IncomingMessage } from 'http';
 import WebSocket from 'ws';
 import { AuthenticationExtension } from './extensions/authentication.extension';
 import { PersistenceExtension } from './extensions/persistence.extension';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EnvironmentService } from '../integrations/environment/environment.service';
 import {
   createRetryStrategy,
@@ -25,14 +25,16 @@ import {
   CollabEventHandlers,
 } from './collaboration.handler';
 import { CollaborationCellExtension } from '../common/cell-isolation/collaboration-cell.extension';
+import { awaitRedisSyncSubscription } from '../orvex/collaboration/await-redis-subscription';
 
 interface CollabWsLifecycle {
   close(): void;
 }
 
 @Injectable()
-export class CollaborationGateway {
+export class CollaborationGateway implements OnModuleInit {
   private readonly hocuspocus: Hocuspocus;
+  private readonly redisSyncServerId = `collab-${os?.hostname()}-${nanoid(10)}`;
   private redisConfig: RedisConfig;
   // @ts-ignore
   private readonly redisSync: RedisSyncExtension<CollabEventHandlers> | null =
@@ -82,7 +84,7 @@ export class CollaborationGateway {
       // @ts-ignore
       this.redisSync = new RedisSyncExtension({
         redis: this.redisSyncTemplateClient,
-        serverId: `collab-${os?.hostname()}-${nanoid(10)}`,
+        serverId: this.redisSyncServerId,
         prefix: 'collab',
         pack,
         unpack,
@@ -90,8 +92,22 @@ export class CollaborationGateway {
         customEvents: this.collabEventsService.getHandlers(this.hocuspocus),
       });
       this.hocuspocus.configuration.extensions.push(this.redisSync);
-      // @ts-ignore
-      this.redisSync.onConfigure({ instance: this.hocuspocus });
+    }
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (this.redisSync) {
+      // RedisSyncExtension starts this subscription in its constructor without
+      // exposing its promise. Repeating SUBSCRIBE is idempotent and lets us
+      // await Redis's acknowledgement before Nest marks the app initialized.
+      await awaitRedisSyncSubscription(
+        this.redisSync,
+        'collabMsg',
+        `collabMsg:${this.redisSyncServerId}`,
+      );
+      await this.redisSync.onConfigure({
+        instance: this.hocuspocus,
+      } as onConfigurePayload);
     }
   }
 

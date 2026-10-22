@@ -530,12 +530,22 @@ export class PrincipalProvisioningService {
               code: 'AUTH_FAILED',
               message: 'identity registry refused the engine seam credential',
             });
-          default:
+          case 'DEPENDENCY_ERROR':
             throw new ServiceUnavailableException({
               code: 'REGISTRY_UNAVAILABLE',
               message: `the global identity registry could not adjudicate tenant ${tenant}`,
             });
+          case 'STALE_MOVE':
+            // This code is not part of reserveTenant's contract. If identity
+            // returns it here, expose the contract violation as a non-retryable
+            // upstream failure instead of disguising it as an outage.
+            throw new BadGatewayException({
+              code: err.code,
+              message: 'the global identity registry returned an unexpected reservation error',
+            });
         }
+        const exhaustiveCheck: never = err.code;
+        throw new Error(`unhandled registry error code: ${exhaustiveCheck}`);
       }
       throw err;
     }
