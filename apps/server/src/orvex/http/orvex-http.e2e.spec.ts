@@ -13,6 +13,7 @@ import { TransformHttpResponseInterceptor } from '../../common/interceptors/http
 import { ORVEX_NOT_IMPLEMENTED } from '../not-implemented';
 import { OrvexRootModule } from '../orvex-root.module';
 import { DbFreeAuditKyselyStubModule } from '../__fixtures__/db-free-root-module-testing';
+import { TENANT_MOVE_INTROSPECTOR } from './orvex-tenant-cell-move.service';
 
 /**
  * Flag-ON e2e through the exported OrvexRootModule surface (@nestjs/testing +
@@ -59,7 +60,17 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
 
     const moduleRef = await Test.createTestingModule({
       imports: [OrvexRootModule.register(), DbFreeAuditKyselyStubModule],
-    }).compile();
+    })
+      .overrideProvider(TENANT_MOVE_INTROSPECTOR)
+      .useValue({
+        introspect: async (token: string) =>
+          token === 'machine-token' || token === 'svc-token'
+            ? { subject: 'svc:eow-test', workspaceId: 'test' }
+            : token === 'user-token'
+              ? { subject: 'user:eow-test', workspaceId: 'test' }
+              : null,
+      })
+      .compile();
 
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
@@ -180,14 +191,21 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     expect(res.statusCode).toBeGreaterThanOrEqual(500);
   });
 
-  it('orvexTenantCellMove with a malformed body -> 400 (never forwarded to identity)', async () => {
-    const res = await app.inject({
+  it('bare tenant-move authenticates before invalid body validation while preserving machine 400', async () => {
+    const unauthenticated = await app.inject({
       method: 'POST',
       url: '/api/orvex/tenant-move',
-      headers: { authorization: 'Bearer svc-token' },
       payload: { tenantId: 'not-a-uuid', sourceCellId: 'EU-CENTRAL-1' },
     });
-    expect(res.statusCode).toBe(400);
+    expect(unauthenticated.statusCode).toBe(401);
+
+    const authenticated = await app.inject({
+      method: 'POST',
+      url: '/api/orvex/tenant-move',
+      headers: { authorization: 'Bearer machine-token' },
+      payload: { tenantId: 'not-a-uuid', sourceCellId: 'EU-CENTRAL-1' },
+    });
+    expect(authenticated.statusCode).toBe(400);
   });
 
   const tenantMoveSteps: Array<[string, string]> = [
@@ -197,12 +215,64 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
     ['activate', 'orvexTenantMoveActivate'],
   ];
 
+  it('bare tenant-move keeps its existing unauthenticated 401 contract', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orvex/tenant-move',
+      payload: {
+        tenantId: '57b13b69-33ab-49fa-8c82-c77d277e3e46',
+        sourceCellId: 'eu1',
+        targetCellId: 'eu9',
+      },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it.each(tenantMoveSteps)(
-    'tenant-move/%s WITHOUT Idempotency-Key -> 400 (header gates before the 501)',
+    'tenant-move/%s without Authorization -> 401 before Idempotency-Key',
     async (step) => {
       const res = await app.inject({
         method: 'POST',
         url: `/api/orvex/tenant-move/${step}`,
+        payload: validManifest,
+      });
+      expect(res.statusCode).toBe(401);
+    },
+  );
+
+  it.each(tenantMoveSteps)(
+    'tenant-move/%s user-session bearer -> 401',
+    async (step) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orvex/tenant-move/${step}`,
+        headers: { authorization: 'Bearer user-token' },
+        payload: validManifest,
+      });
+      expect(res.statusCode).toBe(401);
+    },
+  );
+
+  it.each(tenantMoveSteps)(
+    'tenant-move/%s unknown bearer -> 401',
+    async (step) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orvex/tenant-move/${step}`,
+        headers: { authorization: 'Bearer unknown-token' },
+        payload: validManifest,
+      });
+      expect(res.statusCode).toBe(401);
+    },
+  );
+
+  it.each(tenantMoveSteps)(
+    'tenant-move/%s WITH machine bearer but WITHOUT Idempotency-Key -> 400',
+    async (step) => {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/orvex/tenant-move/${step}`,
+        headers: { authorization: 'Bearer machine-token' },
         payload: validManifest,
       });
       expect(res.statusCode).toBe(400);
@@ -211,12 +281,15 @@ describe('Orvex primitive surface (flag ON) — e2e', () => {
   );
 
   it.each(tenantMoveSteps)(
-    'tenant-move/%s WITH Idempotency-Key -> 501 typed sentinel',
+    'tenant-move/%s WITH machine bearer and Idempotency-Key -> 501 typed sentinel',
     async (step, operationId) => {
       const res = await app.inject({
         method: 'POST',
         url: `/api/orvex/tenant-move/${step}`,
-        headers: { 'idempotency-key': 'test-key-1' },
+        headers: {
+          authorization: 'Bearer machine-token',
+          'idempotency-key': 'test-key-1',
+        },
         payload: validManifest,
       });
       expect(res.statusCode).toBe(501);
